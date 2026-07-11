@@ -36,6 +36,23 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   re-tint with the theme toggle. Skipped the reservation/order timeline (#6) —
   its axes are historical, so "today" would just pin to the right edge.
 
+- [ ] **Sticky top bar (title, theme toggle, disclaimer)** — **(requested)** · M
+  Pin the page title, the light/dark toggle, and the self-reported disclaimer to
+  the top so they stay visible while scrolling; the source links and stat cards
+  scroll away with the page. Splits the current single header into a pinned bar
+  and a scrollable intro block (CSS `position: sticky`).
+
+- [ ] **Chart-navigation sidebar with scroll-spy** — **(requested)** · M
+  A sidebar listing the chart headings that highlights the section currently in
+  view (scroll-spy via `IntersectionObserver`) and lets you jump to any chart.
+  Collapses to a menu (hamburger) button when the viewport is too narrow.
+
+- [ ] **Boxes/whiskers for ranges on delivery-vs-VIN (#1)** — **(requested)** · S–M
+  Show range/window delivery estimates as boxes or whiskers spanning the quoted
+  window on chart 1. (It already draws min–max whisker lines for windows —
+  confirm whether this means switching to box glyphs or extending the span
+  treatment to the range/month estimate types too.)
+
 ## Data pipeline & correctness
 
 - [ ] **Manual fix-ups / overrides layer** — **(requested)** · M
