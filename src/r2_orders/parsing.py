@@ -163,7 +163,13 @@ def parse_delivery(raw, order_date):
         if res:
             typ, dt = res
             ts = pd.Timestamp(dt)
-            out.update(est=ts, min=ts, max=ts, type=typ)
+            if typ == "month":
+                # A bare month is inherently a whole-month window — span it so
+                # the uncertainty shows on the charts (est stays mid-month).
+                out.update(est=ts, min=ts.replace(day=1),
+                           max=ts + pd.offsets.MonthEnd(0), type=typ)
+            else:
+                out.update(est=ts, min=ts, max=ts, type=typ)
             return out
     return out
 

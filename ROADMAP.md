@@ -47,11 +47,12 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   view (scroll-spy via `IntersectionObserver`) and lets you jump to any chart.
   Collapses to a menu (hamburger) button when the viewport is too narrow.
 
-- [ ] **Boxes/whiskers for ranges on delivery-vs-VIN (#1)** — **(requested)** · S–M
-  Show range/window delivery estimates as boxes or whiskers spanning the quoted
-  window on chart 1. (It already draws min–max whisker lines for windows —
-  confirm whether this means switching to box glyphs or extending the span
-  treatment to the range/month estimate types too.)
+- [x] **Range/uncertainty whiskers on destination-vs-delivery (#2)** — **(requested)** · S–M · *done*
+  Show delivery-window uncertainty on the destination-vs-delivery chart (#2) as
+  horizontal whiskers spanning min–max (mirroring chart 1's vertical whiskers).
+  Also make other inherently-ranged estimate types show their span — in
+  particular `month` estimates (currently a single mid-month point) span the
+  whole month, so they read as uncertain on charts 1 and 2 alike.
 
 ## Data pipeline & correctness
 
