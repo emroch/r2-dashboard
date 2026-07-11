@@ -109,6 +109,12 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
 
 ## Analytics depth
 
+- [x] **VIN-by-configuration chart** · S · *done*
+  Chart #10: VIN sequence (x) against one row per `trim · color · wheels` config
+  (marker fill = paint, shape = wheels), to reveal whether production batches
+  within a config. Rows are sorted trim → color → wheel and auto-extend as
+  Premium / Standard trims ship (everyone is Performance / Launch Edition today).
+
 - [ ] **VIN-velocity / production-cadence estimate** · M
   Model VIN-sequence issuance over time to project build cadence and rough
   delivery ordering.
