@@ -22,4 +22,4 @@ r2-orders = "r2_orders.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-r2_orders = ["palette.yaml"]
+r2_orders = ["*.yaml"]

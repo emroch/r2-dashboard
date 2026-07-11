@@ -1,0 +1,47 @@
+# Data schema: how the source sheets map to internal fields, plus the fetch
+# sources, sanitization bounds, and option take-rate vocabulary.
+
+# CSV export + human "view" URL templates (first %s = sheet key, second = gid).
+export_url: "https://docs.google.com/spreadsheets/d/%s/export?format=csv&gid=%s"
+view_url: "https://docs.google.com/spreadsheets/d/%s/preview?gid=%s"
+
+# The two live Google Sheets. `slug` names the local cache files in data/raw/.
+sources:
+  orders:
+    key: "13dsTsw06i7C-pEfqGxh3e9Bl1EYxS4pIelrHrCaLZYk"
+    gid: "0"
+    label: "Orders & Deliveries sheet"
+    slug: "r2_orders_live"
+  reservations:
+    key: "1Z_TSfn1eR580_ZBrTMGvO60-iKnEP8ZMKKC4q2Yv9Po"
+    gid: "0"
+    label: "Reservations sheet"
+    slug: "r2_reservations_live"
+
+# Orders sheet: a fixed block of columns starting at the "#" column (the header
+# row is the one containing "Username"). This list gives the internal field name
+# for each column, in sheet order — its length also sets the block width.
+orders_columns: [orig_num, user, resv_raw, order_raw, vin_raw, delivery_raw,
+                 buylease, loc_raw, trim, launch, color, interior, wheels,
+                 autonomy, tow, spare, r1_owner, r1_keep, r1_model,
+                 other_vehicles]
+
+# Reservations sheet: mapped by header name (its layout differs). field -> header.
+reservations_columns:
+  orig_num: "#"
+  user: "Username"
+  resv_raw: "R2 reservation date"
+  loc_raw: "Location"
+
+# Sanitization bounds. The upper bound for dates is always "today" (AS_OF).
+sanitize:
+  order_date_min: "2026-06-09"        # R2 ordering opened
+  reservation_date_min: "2024-03-07"  # R2 reveal / reservations opened
+  order_anchor_min: "2026-01-01"      # order dates below this don't anchor windows
+  vin_seq_min: 100                    # VIN sequence below this = unusable/redacted
+
+# Option take-rate vocabulary (values compared lowercased).
+options:
+  opted_in_tokens: ["yes", "included"]  # Autonomy+ / Tow: count these as opted-in
+  spare_tokens: ["yes"]                 # Compact spare: only explicit "yes"
+  wheels_21_contains: "21"              # wheels text containing this = 21" trim

@@ -1,0 +1,93 @@
+# Geographic reference data (state/province -> region + coordinates).
+
+# Rivian assembly plant (Bloomington-Normal, IL) — the distance origin.
+factory: [40.5142, -88.9906]
+
+# State / province -> [region, lat, lon].
+#   US states: rough state centroids.
+#   Canadian provinces: approximate geographic centroids, all under "Canada".
+# NOTE: "ON" (Ontario) is quoted because a bare ON is a YAML boolean.
+states:
+  AL: [South, 32.81, -86.79]
+  AK: [West, 64.20, -149.49]
+  AR: [South, 34.97, -92.37]
+  AZ: [West, 33.73, -111.43]
+  CA: [West, 36.78, -119.42]
+  CO: [West, 39.06, -105.31]
+  CT: [Northeast, 41.60, -72.76]
+  DE: [South, 39.32, -75.51]
+  FL: [South, 27.77, -81.69]
+  GA: [South, 33.04, -83.64]
+  HI: [West, 21.09, -157.50]
+  ID: [West, 44.24, -114.48]
+  IL: [Midwest, 40.35, -88.99]
+  IN: [Midwest, 39.85, -86.26]
+  IA: [Midwest, 42.01, -93.21]
+  KS: [Midwest, 38.53, -96.73]
+  KY: [South, 37.67, -84.67]
+  LA: [South, 31.17, -91.87]
+  MA: [Northeast, 42.23, -71.53]
+  MD: [South, 39.06, -76.80]
+  ME: [Northeast, 44.69, -69.38]
+  MI: [Midwest, 43.33, -84.54]
+  MN: [Midwest, 45.69, -93.90]
+  MO: [Midwest, 38.46, -92.29]
+  MS: [South, 32.74, -89.68]
+  MT: [West, 46.92, -110.45]
+  NC: [South, 35.63, -79.81]
+  ND: [Midwest, 47.53, -99.78]
+  NE: [Midwest, 41.13, -98.27]
+  NH: [Northeast, 43.45, -71.56]
+  NJ: [Northeast, 40.30, -74.52]
+  NM: [West, 34.84, -106.25]
+  NV: [West, 38.31, -117.06]
+  NY: [Northeast, 42.17, -74.95]
+  OH: [Midwest, 40.39, -82.76]
+  OK: [South, 35.57, -96.93]
+  OR: [West, 44.57, -122.07]
+  PA: [Northeast, 40.59, -77.21]
+  RI: [Northeast, 41.68, -71.51]
+  SC: [South, 33.86, -80.95]
+  SD: [Midwest, 44.30, -99.44]
+  TN: [South, 35.75, -86.69]
+  TX: [South, 31.05, -97.56]
+  UT: [West, 40.15, -111.86]
+  VA: [South, 37.77, -78.17]
+  VT: [Northeast, 44.05, -72.71]
+  WA: [West, 47.40, -121.49]
+  WI: [Midwest, 44.27, -89.62]
+  WV: [South, 38.49, -80.95]
+  WY: [West, 42.76, -107.30]
+  DC: [South, 38.90, -77.03]
+  AB: [Canada, 54.5, -114.4]
+  BC: [Canada, 54.5, -125.0]
+  MB: [Canada, 55.0, -97.0]
+  NB: [Canada, 46.5, -66.4]
+  NL: [Canada, 53.5, -60.0]
+  NS: [Canada, 45.0, -63.0]
+  "ON": [Canada, 50.0, -85.3]
+  PE: [Canada, 46.4, -63.2]
+  QC: [Canada, 53.0, -71.5]
+  SK: [Canada, 54.5, -106.0]
+  YT: [Canada, 63.7, -135.5]
+  NT: [Canada, 64.8, -119.0]
+  NU: [Canada, 70.2, -90.7]
+
+# Free-text "Canada - <province>" (lowercased) -> 2-letter province code.
+provinces:
+  alberta: AB
+  british columbia: BC
+  manitoba: MB
+  new brunswick: NB
+  newfoundland and labrador: NL
+  newfoundland: NL
+  labrador: NL
+  nova scotia: NS
+  ontario: "ON"
+  prince edward island: PE
+  quebec: QC
+  québec: QC
+  saskatchewan: SK
+  yukon: YT
+  northwest territories: NT
+  nunavut: NU

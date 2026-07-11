@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 
 from .config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, FACTORY, MONTHS,
-                     STATE_INFO, UNKNOWN_TOKENS)
+                     ORDER_ANCHOR_MIN, STATE_INFO, UNKNOWN_SUBSTRINGS,
+                     UNKNOWN_TOKENS, VIN_SEQ_MIN)
 
 
 def clean_vin(token):
@@ -30,7 +31,7 @@ def clean_vin(token):
         return (None, False, had_x)
     val = int(digits)
     # Implausible as a sequence number -> treat as unusable (e.g. XXXX0 -> 0).
-    if val < 100:
+    if val < VIN_SEQ_MIN:
         return (None, False, had_x)
     return (val, True, had_x)
 
@@ -113,7 +114,7 @@ def _parse_monthname(s):
 
 def _anchor(order_date):
     """Anchor for relative windows: the order date, else the as-of date."""
-    if pd.isna(order_date) or order_date < pd.Timestamp("2026-01-01"):
+    if pd.isna(order_date) or order_date < ORDER_ANCHOR_MIN:
         return AS_OF, True
     return order_date, False
 
@@ -128,7 +129,7 @@ def parse_delivery(raw, order_date):
     low = raw.lower()
     out = {"est": pd.NaT, "min": pd.NaT, "max": pd.NaT, "type": "unknown",
            "anchor_fallback": False}
-    if low in UNKNOWN_TOKENS or "demo this saturday" in low:
+    if low in UNKNOWN_TOKENS or any(s in low for s in UNKNOWN_SUBSTRINGS):
         return out
 
     if raw in DELIVERY_OVERRIDES:

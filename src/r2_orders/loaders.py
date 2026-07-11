@@ -12,7 +12,9 @@ import io
 import numpy as np
 import pandas as pd
 
-from .config import AS_OF
+from .config import (AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN, ORDERS_COLUMNS,
+                     RESERVATIONS_COLUMNS, RESV_DATE_MIN, SPARE_TOKENS,
+                     WHEELS_21_CONTAINS, WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
 
@@ -29,10 +31,7 @@ def load_and_clean(text, meta):
     header = [c.strip() for c in records[hdr_idx]]
     start = header.index("#") if "#" in header else 0
     ncol = len(header)
-    names = ["orig_num", "user", "resv_raw", "order_raw", "vin_raw",
-             "delivery_raw", "buylease", "loc_raw", "trim", "launch", "color",
-             "interior", "wheels", "autonomy", "tow", "spare", "r1_owner",
-             "r1_keep", "r1_model", "other_vehicles"]
+    names = ORDERS_COLUMNS
     rows = [((r + [""] * ncol)[start:start + len(names)]) for r in records[hdr_idx + 1:]]
     df = pd.DataFrame(rows, columns=names)
     for c in df.columns:
@@ -80,11 +79,9 @@ def load_and_clean(text, meta):
     # reservations in [2024-03-07 (reveal), today]. Values before the floor are
     # usually the reservation date typed into the order field; values after
     # today are typos (often a delivery date). Null them either way.
-    order_floor = pd.Timestamp("2026-06-09")
-    resv_floor = pd.Timestamp("2024-03-07")
-    bad_order = df["order_date"].notna() & ((df["order_date"] < order_floor)
+    bad_order = df["order_date"].notna() & ((df["order_date"] < ORDER_DATE_MIN)
                                             | (df["order_date"] > AS_OF))
-    bad_resv = df["resv_date"].notna() & ((df["resv_date"] < resv_floor)
+    bad_resv = df["resv_date"].notna() & ((df["resv_date"] < RESV_DATE_MIN)
                                           | (df["resv_date"] > AS_OF))
     n_bad_order, n_bad_resv = int(bad_order.sum()), int(bad_resv.sum())
     date_records = []
@@ -109,11 +106,11 @@ def load_and_clean(text, meta):
     df["delivery_anchor_fallback"] = [p["anchor_fallback"] for p in parsed]
 
     # --- Config normalization ---
-    df["wheels_short"] = np.where(df["wheels"].str.contains("21"),
-                                  '21" Liquid Tungsten', '20" Black Sand')
-    df["opted_autonomy"] = df["autonomy"].str.lower().isin(["yes", "included"])
-    df["opted_tow"] = df["tow"].str.lower().isin(["yes", "included"])
-    df["opted_spare"] = df["spare"].str.lower().eq("yes")
+    df["wheels_short"] = np.where(df["wheels"].str.contains(WHEELS_21_CONTAINS),
+                                  WHEELS_LABEL_21, WHEELS_LABEL_20)
+    df["opted_autonomy"] = df["autonomy"].str.lower().isin(OPTED_IN_TOKENS)
+    df["opted_tow"] = df["tow"].str.lower().isin(OPTED_IN_TOKENS)
+    df["opted_spare"] = df["spare"].str.lower().isin(SPARE_TOKENS)
 
     # --- Location / geo ---
     geo_enrich(df)
@@ -161,15 +158,15 @@ def load_reservations(text, order_users):
     header = [c.strip() for c in records[hdr_idx]]
     idx = {name: j for j, name in enumerate(header)}
 
-    def col(row, name):
-        j = idx.get(name)
+    def col(row, header):
+        j = idx.get(header)
         return row[j].strip() if (j is not None and j < len(row)) else ""
 
-    rows = [{"orig_num": col(r, "#"), "user": col(r, "Username"),
-             "resv_raw": col(r, "R2 reservation date"),
-             "loc_raw": col(r, "Location")}
-            for r in records[hdr_idx + 1:] if col(r, "Username")]
-    resv = pd.DataFrame(rows, columns=["orig_num", "user", "resv_raw", "loc_raw"])
+    fields = RESERVATIONS_COLUMNS  # internal field -> sheet header name
+    user_hdr = fields["user"]
+    rows = [{field: col(r, hdr) for field, hdr in fields.items()}
+            for r in records[hdr_idx + 1:] if col(r, user_hdr)]
+    resv = pd.DataFrame(rows, columns=list(fields.keys()))
     n_raw = len(resv)
 
     # Within-sheet duplicate usernames: keep first, record the rest.
@@ -190,7 +187,7 @@ def load_reservations(text, order_users):
 
     # Reservation date must fall in [2024-03-07 reveal, today]; null others.
     resv["resv_date"] = resv["resv_raw"].apply(parse_simple_date)
-    bad = resv["resv_date"].notna() & ((resv["resv_date"] < pd.Timestamp("2024-03-07"))
+    bad = resv["resv_date"].notna() & ((resv["resv_date"] < RESV_DATE_MIN)
                                        | (resv["resv_date"] > AS_OF))
     resv.loc[bad, "resv_date"] = pd.NaT
     geo_enrich(resv)
