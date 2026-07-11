@@ -36,11 +36,11 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   re-tint with the theme toggle. Skipped the reservation/order timeline (#6) —
   its axes are historical, so "today" would just pin to the right edge.
 
-- [ ] **Sticky top bar (title, theme toggle, disclaimer)** — **(requested)** · M
-  Pin the page title, the light/dark toggle, and the self-reported disclaimer to
-  the top so they stay visible while scrolling; the source links and stat cards
-  scroll away with the page. Splits the current single header into a pinned bar
-  and a scrollable intro block (CSS `position: sticky`).
+- [x] **Sticky top bar (title, theme toggle, disclaimer)** — **(requested)** · M · *done*
+  Pins the page title, the light/dark toggle, and the self-reported disclaimer to
+  the top (`position: sticky`) so they stay visible while scrolling; the source
+  links and stat cards live in a scrollable intro block that scrolls away. (Also
+  fixed the geographic-demand legends to use constant-size swatches.)
 
 - [ ] **Chart-navigation sidebar with scroll-spy** — **(requested)** · M
   A sidebar listing the chart headings that highlights the section currently in

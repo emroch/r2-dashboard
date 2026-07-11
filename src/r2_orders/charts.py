@@ -365,7 +365,7 @@ def fig_geo(df, resv=None):
         y_top = 1 - (i - 1) * (rowh + vs)
         legends[legend_key] = dict(
             x=1.01, xanchor="left", y=y_top - rowh / 2, yanchor="middle",
-            title=dict(text="Region"), font=dict(size=11),
+            title=dict(text="Region"), font=dict(size=11), itemsizing="constant",
             bgcolor="rgba(255,255,255,0.75)", bordercolor="#ddd", borderwidth=1)
         if not len(g):
             continue
