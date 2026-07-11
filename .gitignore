@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.DS_Store
+output/
+# All data is fetched live and cached/generated — nothing here is hand-maintained.
+data/
