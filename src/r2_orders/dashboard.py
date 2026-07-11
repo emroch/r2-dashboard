@@ -57,10 +57,29 @@ SECTIONS = [
 ]
 
 PAGE_CSS = """
+:root{
+ --bg:#fafafa; --fg:#1c1c1c;
+ --card-bg:#ffffff; --card-bd:#e6e6e6; --card-sh:rgba(0,0,0,.04);
+ --sec-title:#12261f; --desc:#555555;
+ --tip-bg:#ffffff; --tip-fg:#223333; --tip-bd:#ccdddd; --tip-cap:#12261f;
+ --tip-th:#dddddd; --tip-thc:#667080; --tip-td1:#8a90a0;
+ --footer:#888888; --code-bg:#eeeeee; --code-fg:inherit;
+ --btn-bg:rgba(255,255,255,.14); --btn-fg:#eafff4; --btn-bd:rgba(255,255,255,.32);
+}
+html[data-theme="dark"]{
+ --bg:#15171c; --fg:#dfe4ea;
+ --card-bg:#1e2127; --card-bd:#2f343d; --card-sh:rgba(0,0,0,.45);
+ --sec-title:#bfe6d2; --desc:#aab3bd;
+ --tip-bg:#242830; --tip-fg:#d7dde3; --tip-bd:#3a404a; --tip-cap:#bfe6d2;
+ --tip-th:#3a404a; --tip-thc:#9aa4b0; --tip-td1:#8a93a0;
+ --footer:#8a929c; --code-bg:#2a2f37; --code-fg:#dfe4ea;
+ --btn-bg:rgba(255,255,255,.10); --btn-fg:#eafff4; --btn-bd:rgba(255,255,255,.24);
+}
 body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
- margin:0;background:#fafafa;color:#1c1c1c;}
-header{background:#12261f;color:#fff;padding:28px 40px;}
-header h1{margin:0 0 6px;font-size:24px;}
+ margin:0;background:var(--bg);color:var(--fg);
+ transition:background .2s ease,color .2s ease;}
+header{position:relative;background:#12261f;color:#fff;padding:28px 40px;}
+header h1{margin:0 0 6px;font-size:24px;padding-right:120px;}
 header p{margin:0;color:#cfe0d8;font-size:14px;}
 header p.src{margin:3px 0;font-size:13px;color:#dCe9e2;}
 header p.src a{color:#8fe3bf;text-decoration:none;border-bottom:1px dotted #6cae91;}
@@ -72,11 +91,16 @@ header p.disclaimer{margin:8px 0 12px;padding:7px 12px;font-weight:600;
 header .warn{color:#ffd27f;}
 header .chg{color:#a9e8a9;font-weight:600;}
 header .dim{color:#8ba79b;}
+.themebtn{position:absolute;top:22px;right:28px;background:var(--btn-bg);
+ color:var(--btn-fg);border:1px solid var(--btn-bd);border-radius:20px;
+ padding:6px 14px;font-size:12.5px;cursor:pointer;line-height:1;}
+.themebtn:hover{filter:brightness(1.15);}
 .wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
-section{background:#fff;border:1px solid #e6e6e6;border-radius:10px;
- margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
-section h2{margin:0 0 4px;font-size:19px;color:#12261f;}
-section p.desc{margin:0 0 8px;color:#555;font-size:13.5px;line-height:1.45;}
+section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:10px;
+ margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px var(--card-sh);
+ transition:background .2s ease,border-color .2s ease;}
+section h2{margin:0 0 4px;font-size:19px;color:var(--sec-title);}
+section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.45;}
 .statwrap{margin-top:14px;}
 .statgroup{margin-top:12px;}
 .sglabel{display:block;font-size:10.5px;text-transform:uppercase;
@@ -88,17 +112,87 @@ section p.desc{margin:0 0 8px;color:#555;font-size:13.5px;line-height:1.45;}
 .stat.has-tip{cursor:help;}
 .stat .i{opacity:.55;font-size:11px;margin-left:2px;}
 .stat .tip{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;
- background:#fff;color:#233;border:1px solid #cdd;border-radius:8px;font-weight:400;
+ background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-bd);
+ border-radius:8px;font-weight:400;
  box-shadow:0 6px 20px rgba(0,0,0,.22);padding:9px 11px;max-height:300px;overflow:auto;}
 .stat:hover .tip{display:block;}
-.tipcap{font-weight:600;color:#12261f;margin-bottom:5px;font-size:12px;}
+.tipcap{font-weight:600;color:var(--tip-cap);margin-bottom:5px;font-size:12px;}
 .tip table{border-collapse:collapse;font-size:11.5px;}
 .tip th,.tip td{text-align:left;padding:2px 12px 2px 0;white-space:nowrap;}
-.tip th{border-bottom:1px solid #dde;color:#667;}
-.tip td:first-child{color:#8a90a0;}
-footer{color:#888;font-size:12px;text-align:center;padding:20px;}
+.tip th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);}
+.tip td:first-child{color:var(--tip-td1);}
+footer{color:var(--footer);font-size:12px;text-align:center;padding:20px;}
 footer a{color:#4c78a8;text-decoration:none;}
-footer code{background:#eee;padding:1px 4px;border-radius:3px;}
+footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;border-radius:3px;}
+"""
+
+# Runs in <head> before first paint: set the theme (saved > OS preference) so
+# the page chrome never flashes the wrong colors.
+HEAD_JS = """
+(function(){try{var t=localStorage.getItem('r2theme');
+if(t!=='dark'&&t!=='light'){t=(window.matchMedia&&
+window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+"""
+
+# Runs at end of <body>: wire the toggle and re-theme the (already-rendered)
+# Plotly charts. Data-encoding colors (markers/bars/paints) are left untouched;
+# only chart chrome — text, gridlines, geo land/borders, legend boxes, and the
+# transparent backgrounds that let the themed card show through — is swapped.
+THEME_JS = """
+(function(){
+var LIGHT={text:'#1c1c1c',grid:'#e9e9e9',line:'#c9c9c9',land:'#f2f2f0',
+ sub:'#c4c4c4',country:'#9e9e9e',legbg:'rgba(255,255,255,0.75)',legbd:'#dddddd',
+ edge:'#2b2b2b',star:'#111111'};
+var DARK={text:'#d7dde3',grid:'#333941',line:'#4a515a',land:'#2a2d33',
+ sub:'#474d56',country:'#5c636d',legbg:'rgba(30,33,38,0.85)',legbd:'#4a515a',
+ edge:'#aab0b8',star:'#e8e8e8'};
+function themeCharts(dark){
+ if(!window.Plotly)return;
+ var t=dark?DARK:LIGHT;
+ document.querySelectorAll('.js-plotly-plot').forEach(function(gd){
+  if(!gd.layout)return;
+  var up={'font.color':t.text,'paper_bgcolor':'rgba(0,0,0,0)',
+          'plot_bgcolor':'rgba(0,0,0,0)'};
+  Object.keys(gd.layout).forEach(function(k){
+   if(/^xaxis|^yaxis/.test(k)){
+    up[k+'.gridcolor']=t.grid;up[k+'.zerolinecolor']=t.grid;up[k+'.linecolor']=t.line;
+   }else if(/^geo/.test(k)){
+    up[k+'.bgcolor']='rgba(0,0,0,0)';up[k+'.landcolor']=t.land;
+    up[k+'.subunitcolor']=t.sub;up[k+'.countrycolor']=t.country;
+   }else if(/^legend/.test(k)){
+    up[k+'.bgcolor']=t.legbg;up[k+'.bordercolor']=t.legbd;
+    up[k+'.font.color']=t.text;up[k+'.title.font.color']=t.text;
+   }
+  });
+  try{window.Plotly.relayout(gd,up);}catch(e){}
+  var managed=['#2b2b2b','#aab0b8'],idx=[],staridx=[];
+  (gd.data||[]).forEach(function(tr,i){
+   var lc=tr.marker&&tr.marker.line?tr.marker.line.color:null;
+   if(typeof lc==='string'&&managed.indexOf(lc.toLowerCase())>=0)idx.push(i);
+   if(tr.marker&&tr.marker.symbol==='star')staridx.push(i);
+  });
+  if(idx.length){try{window.Plotly.restyle(gd,{'marker.line.color':t.edge},idx);}catch(e){}}
+  if(staridx.length){try{window.Plotly.restyle(gd,{'marker.color':t.star},staridx);}catch(e){}}
+ });
+}
+function apply(t){
+ document.documentElement.setAttribute('data-theme',t);
+ var b=document.getElementById('themeToggle');
+ if(b)b.textContent=(t==='dark'?'\\u2600 Light':'\\u263e Dark');
+ themeCharts(t==='dark');
+}
+window.addEventListener('load',function(){
+ apply(document.documentElement.getAttribute('data-theme')||'light');
+ var b=document.getElementById('themeToggle');
+ if(b)b.addEventListener('click',function(){
+  var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
+  var nt=cur==='dark'?'light':'dark';
+  try{localStorage.setItem('r2theme',nt);}catch(e){}
+  apply(nt);
+ });
+});
+})();
 """
 
 
@@ -143,6 +237,10 @@ def build_dashboard(df, report, resv):
     for i, (title, desc, builder) in enumerate(SECTIONS):
         fig = (builder(df, resv) if builder in (fig_geo, fig_order_timeline)
                else builder(df))
+        # Transparent backgrounds let the themed section card show through, so
+        # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                          plot_bgcolor="rgba(0,0,0,0)")
         frag = fig.to_html(full_html=False,
                            include_plotlyjs=(True if i == 0 else False),
                            default_width="100%")
@@ -209,12 +307,15 @@ def build_dashboard(df, report, resv):
           'highlighted stat cards (&#9432;) for the sanitized entries.</p>')
 
     html = """<!doctype html><html><head><meta charset="utf-8">
-<title>Rivian R2 Orders — Dashboard</title><style>%s</style></head><body>
-<header>%s
+<title>Rivian R2 Orders — Dashboard</title><style>%s</style>
+<script>%s</script></head><body>
+<header><button id="themeToggle" class="themebtn" type="button" aria-label="Toggle color theme">☾ Dark</button>
+%s
 <div class="statwrap">%s</div></header>
 <div class="wrap">%s</div>
 <footer>Generated by <code>r2_orders</code> · <a href="https://github.com/emroch" target="_blank" rel="noopener">emroch</a> · built with AI assistance.</footer>
-</body></html>""" % (PAGE_CSS, header_html, stat_html, "".join(parts))
+<script>%s</script>
+</body></html>""" % (PAGE_CSS, HEAD_JS, header_html, stat_html, "".join(parts), THEME_JS)
 
     with open(DASHBOARD, "w") as fh:
         fh.write(html)

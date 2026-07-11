@@ -8,11 +8,20 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
 
 ## Presentation & UX
 
-- [ ] **Dark / light theme toggle** — **(requested)** · S–M
-  Drive the page CSS from CSS custom properties, add a toggle that persists the
-  choice (`localStorage`) and respects `prefers-color-scheme`. Swap the Plotly
-  template per theme (`plotly_white` ↔ `plotly_dark`) and re-tint the whisker /
-  bubble / near-white-bar colors so they stay legible on a dark background.
+- [x] **Dark / light theme toggle** — **(requested)** · S–M · *done*
+  Page chrome is driven by CSS custom properties (`:root` / `html[data-theme="dark"]`);
+  a header toggle persists the choice (`localStorage`) and respects
+  `prefers-color-scheme`, set before first paint to avoid a flash. Charts use
+  transparent backgrounds so the themed card shows through, and a `Plotly.relayout`
+  /`restyle` pass re-tints chart chrome on toggle — text, gridlines, geo land/borders,
+  legend boxes, marker/bar borders (dark-grey ↔ light-grey), and the factory ★
+  marker. Data-encoding colors (paints/bars/regions) are deliberately left fixed.
+  Page chrome is driven by CSS custom properties (`:root` / `html[data-theme="dark"]`);
+  a header toggle persists the choice (`localStorage`) and respects
+  `prefers-color-scheme`, set before first paint to avoid a flash. Charts use
+  transparent backgrounds so the themed card shows through, and a `Plotly.relayout`
+  pass re-tints chart chrome (text, gridlines, geo land/borders, legend boxes) on
+  toggle — data-encoding colors (paints/bars/regions) are deliberately left fixed.
 
 - [ ] **Interactive filters** · M
   Client-side filtering by state/region, config (color, wheels, interior),
