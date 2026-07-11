@@ -116,12 +116,28 @@ def fig_dest_vs_delivery(df):
     ypos = {s: i for i, s in enumerate(order)}
     fig = go.Figure()
     rng = np.random.RandomState(7)
+    cap = 0.14  # whisker end-cap half-height, in y (state) units
+    panels, xw, yw = [], [], []
     for region in ["Midwest", "South", "Northeast", "West", "Canada"]:
         sub = d[d["region"] == region]
         if sub.empty:
             continue
         jitter = (rng.rand(len(sub)) - 0.5) * 0.55
         y = [ypos[s] + j for s, j in zip(sub["state"], jitter)]
+        panels.append((region, sub, y))
+        # Horizontal whiskers (min-max span + end caps) for estimates that carry
+        # a range: week windows, explicit ranges, and whole-month estimates.
+        for mn, mx, yy in zip(sub["delivery_min"], sub["delivery_max"], y):
+            if pd.notna(mn) and pd.notna(mx) and mx > mn:
+                a, b = mn.strftime("%Y-%m-%d"), mx.strftime("%Y-%m-%d")
+                xw += [a, b, None, a, a, None, b, b, None]
+                yw += [yy, yy, None, yy - cap, yy + cap, None,
+                       yy - cap, yy + cap, None]
+    if xw:
+        fig.add_trace(go.Scatter(
+            x=xw, y=yw, mode="lines", showlegend=False, hoverinfo="skip",
+            line=dict(color="#8a9099", width=1), opacity=0.7))
+    for region, sub, y in panels:
         cd = np.stack([sub["user"].values, sub["state"].values,
                        sub["dist_mi"].round(0).values, sub["est_display"].values,
                        sub["delivery_type"].values, sub["color"].values], axis=-1)
