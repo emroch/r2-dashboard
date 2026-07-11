@@ -1,0 +1,39 @@
+# Delivery-estimate normalization tables (used by parsing.parse_delivery).
+
+# Exact (lowercased) tokens that mean "no date given".
+unknown_tokens:
+  - ""
+  - "0"
+  - "n/a"
+  - "na"
+  - "none"
+  - "none given yet"
+  - "not given"
+  - "not provided"
+  - "tbd"
+  - "unknown"
+  - "dont have one"
+  - "in pre-production"
+  - "waiting for coastal cloud release"
+  - "not yet"
+  - "n/a yet"
+
+# Substrings that, if present (lowercased), also mean "no usable date".
+unknown_substrings:
+  - "demo this saturday"
+
+# Ambiguous / multi-endpoint delivery strings resolved explicitly.
+# raw string -> {min ISO date, max ISO date, type}
+overrides:
+  "July 16-August 16":  {min: "2026-07-16", max: "2026-08-16", type: range}
+  "June 30-July 28":    {min: "2026-06-30", max: "2026-07-28", type: range}
+  "June 29-30":         {min: "2026-06-29", max: "2026-06-30", type: range}
+  "July 11th-17th":     {min: "2026-07-11", max: "2026-07-17", type: range}
+  "August - September": {min: "2026-08-01", max: "2026-09-30", type: range}
+  "Nov/Dec 2026":       {min: "2026-11-01", max: "2026-12-31", type: range}
+  "7-13-26/8-10-26":    {min: "2026-07-13", max: "2026-08-10", type: range}
+  "End of July":        {min: "2026-07-25", max: "2026-07-31", type: month}
+
+# Month name -> number (code matches the first 3 letters, lowercased).
+months: {jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+         jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12}

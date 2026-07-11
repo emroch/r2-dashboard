@@ -13,8 +13,11 @@ tidy CSV plus a 9-chart HTML dashboard.
 src/r2_orders/
   __init__.py         package docstring + __version__
   __main__.py         python -m r2_orders entry point
-  config.py           paths, live-source endpoints, run timestamps, tables + palette loader
-  palette.yaml        color & marker vocabulary (paints, interiors, wheels, regions, types)
+  config.py           paths, run timestamps + loaders for the YAML config files
+  palette.yaml        colors & marker encodings (paints, interiors, wheels, regions, types)
+  schema.yaml         sheet sources, column maps, sanitize bounds, option vocab
+  geo.yaml            state/province -> region + coordinates, factory, province aliases
+  delivery.yaml       delivery-estimate normalization (tokens, overrides, month names)
   colors.py           color-transform functions + derived display palettes
   parsing.py          pure parsing / VIN / date / geo helpers
   loaders.py          load_and_clean, load_reservations

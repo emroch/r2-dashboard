@@ -5,8 +5,8 @@ import os
 
 import pandas as pd
 
-from .config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_SLUG,
-                     RESV_GID, RESV_KEY, RESV_SLUG)
+from .config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
+                     ORDERS_SLUG, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG)
 from .dashboard import build_dashboard
 from .fetch import fetch_sheet
 from .loaders import load_and_clean, load_reservations
@@ -14,11 +14,11 @@ from .loaders import load_and_clean, load_reservations
 
 def main():
     orders_text, orders_meta = fetch_sheet(ORDERS_KEY, ORDERS_GID, ORDERS_SLUG,
-                                           "Orders & Deliveries sheet")
+                                           ORDERS_LABEL)
     df, report, parsed = load_and_clean(orders_text, orders_meta)
 
     resv_text, resv_meta = fetch_sheet(RESV_KEY, RESV_GID, RESV_SLUG,
-                                       "Reservations sheet")
+                                       RESV_LABEL)
     resv, resv_report = load_reservations(resv_text, set(df["user"]))
     report["orders_meta"] = orders_meta
     report["resv_meta"] = resv_meta

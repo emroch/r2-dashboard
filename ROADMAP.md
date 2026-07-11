@@ -46,11 +46,12 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   dedup/de-obfuscation records) so every override is auditable. Natural home:
   `data/overrides.yaml` (tracked in git, unlike the ignored caches).
 
-- [ ] **Externalize schema & enum config** · S–M
-  Move the column map, known paint colors (+ measured RGB), interiors, and
-  option vocab into a config file so adding a new option (e.g. a future
-  "Forest Green" or a new interior) is a data edit, not a code change. Reduces
-  the risk of a `KeyError` when the sheet gains a value.
+- [x] **Externalize schema & enum config** · S–M · *done*
+  The full color/marker vocabulary, sheet sources, column maps, sanitize bounds,
+  option vocab, geo tables, and delivery-normalization rules now live in four
+  YAML files (`palette.yaml`, `schema.yaml`, `geo.yaml`, `delivery.yaml`) loaded
+  by `config.py`. Adding a paint, changing a sheet key, adjusting a date bound,
+  or teaching a new delivery token is a data edit — not a code change.
 
 - [ ] **Schema-drift detection** · S
   Warn (and fail loudly, not silently mis-map) when the sheet's header row
