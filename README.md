@@ -13,7 +13,8 @@ tidy CSV plus a 9-chart HTML dashboard.
 src/r2_orders/
   __init__.py         package docstring + __version__
   __main__.py         python -m r2_orders entry point
-  config.py           paths, live-source endpoints, run timestamps, data tables
+  config.py           paths, live-source endpoints, run timestamps, tables + palette loader
+  palette.yaml        color & marker vocabulary (paints, interiors, wheels, regions, types)
   colors.py           color-transform functions + derived display palettes
   parsing.py          pure parsing / VIN / date / geo helpers
   loaders.py          load_and_clean, load_reservations

@@ -10,8 +10,9 @@ Structure:
 
 ```
 src/r2_orders/
-  config.py     paths, live-source endpoints, run timestamps (NOW/AS_OF), data tables
-  colors.py     color-transform functions + derived display palettes
+  config.py     paths, live-source endpoints, run timestamps (NOW/AS_OF), geo & parsing tables + palette loader
+  palette.yaml  color & marker vocabulary — paints (display hex + measured RGB), interiors, wheels, regions, delivery types
+  colors.py     color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
   parsing.py    pure parsing / VIN / date / geo helpers
   loaders.py    load_and_clean, load_reservations
   charts.py     the nine fig_* chart builders + helpers
@@ -64,4 +65,5 @@ Dependencies (pandas, numpy, plotly) are expected to be available in the environ
 ## Guidance
 
 - Data is always pulled live from the source sheets and cached under `data/raw/` (timestamped, change-detected) — there are **no hand-maintained snapshots**, so do not add or rely on manual CSV copies. Write cleaned/derived data to `data/processed/`; never mutate the raw caches.
+- Colors and marker encodings live in `src/r2_orders/palette.yaml` (paints, interiors, wheels, regions, delivery types). Adding/adjusting a color option is a data edit there, not a code change; `config.py` loads it at import.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.

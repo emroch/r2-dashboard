@@ -1,0 +1,69 @@
+# R2 Orders — color & marker configuration.
+#
+# The single place to edit the dashboard's color/marker vocabulary. Adding a new
+# paint, interior, region, or delivery-type is a data edit here — no code change.
+# Loaded by config.py at import via yaml.safe_load.
+
+# ---------------------------------------------------------------------------
+# Exterior paints (representative, adjusted for digital display)
+# ---------------------------------------------------------------------------
+paints:
+  Catalina Cove:  "#4a8db4"  # dark teal-blue
+  Launch Green:   "#91aa81"  # muted olive
+  Forest Green:   "#226222"  # dark green
+  Borealis:       "#6447ac"  # deep purple
+  Half Moon Grey: "#555555"  # dark warm grey
+  Esker Silver:   "#AAAAAA"  # cool silver
+  Glacier White:  "#F2F2F2"  # near-white
+  Midnight:       "#000009"  # black
+
+# Legend / axis ordering for the paints above.
+paint_order:
+  - Catalina Cove
+  - Launch Green
+  - Forest Green
+  - Borealis
+  - Half Moon Grey
+  - Esker Silver
+  - Glacier White
+  - Midnight
+
+# ---------------------------------------------------------------------------
+# Interior take-rate bar colors (evocative of the material; name minus the
+# " Signature" suffix). Near-black / near-white so the two read dark vs light.
+# ---------------------------------------------------------------------------
+interiors:
+  Black Crater: "#2F2F35"     # dark charcoal, almost black
+  Coastal Cloud: "#EAEAEE"    # light smoke, almost white
+
+# ---------------------------------------------------------------------------
+# Wheels -> Plotly marker symbol (dual-encoding with paint color).
+# ---------------------------------------------------------------------------
+wheels:
+  '21" Liquid Tungsten': circle
+  '20" Black Sand': diamond
+
+# ---------------------------------------------------------------------------
+# Region -> color (geographic demand maps + destination chart).
+# ---------------------------------------------------------------------------
+regions:
+  West: "#e94747"
+  Midwest: "#5096e1"
+  South: "#f58518"
+  Northeast: "#4fb843"
+  Canada: "#9467bd"
+
+# ---------------------------------------------------------------------------
+# Delivery-estimate certainty -> color + marker opacity. `unknown` covers rows
+# with no parseable estimate. Opacities are all 1.0 today (previously the vaguer
+# types were faded; kept here so re-fading is a one-line tweak).
+# ---------------------------------------------------------------------------
+delivery_types:
+  explicit: {color: "#1f77b4", opacity: 1.0}
+  window:   {color: "#ff7f0e", opacity: 1.0}
+  range:    {color: "#2ca02c", opacity: 1.0}
+  month:    {color: "#9467bd", opacity: 1.0}
+  unknown:  {color: "#bbbbbb", opacity: 1.0}
+
+# Stack / iteration order for the firm->vague delivery types (excludes unknown).
+delivery_type_order: [explicit, window, range, month]

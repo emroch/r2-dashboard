@@ -12,6 +12,7 @@ dependencies = [
     "pandas",
     "numpy",
     "plotly",
+    "PyYAML",
 ]
 
 [project.scripts]
@@ -19,3 +20,6 @@ r2-orders = "r2_orders.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+r2_orders = ["palette.yaml"]
