@@ -419,3 +419,51 @@ def fig_certainty_by_vin(df):
     fig.update_layout(template="plotly_white", height=460,
                       legend_title="Estimate type")
     return fig
+
+
+def fig_vin_by_config(df):
+    """#10 VIN sequence per full configuration (trim · color · wheels).
+
+    Each VIN-assigned order sits at its production sequence (x); rows group
+    orders by configuration. Clusters along a row hint at same-config cars built
+    in a batch. Today everyone is Performance (Launch Edition); Premium and
+    Standard rows will appear as those trims ship.
+    """
+    d = df[df["vin_present"]].copy()
+    fig = go.Figure()
+    if d.empty:
+        fig.update_layout(template="plotly_white", height=420)
+        return fig
+    wheel_abbr = d["wheels_short"].str.split().str[0]      # 21" / 20"
+    d["_combo"] = d["trim"] + " · " + d["color"] + " · " + wheel_abbr
+    color_rank = {c: i for i, c in enumerate(COLOR_ORDER)}
+
+    def _key(combo):
+        trim, color, wheel = combo.split(" · ")
+        return (trim, color_rank.get(color, 99), wheel)
+
+    combos = sorted(d["_combo"].unique(), key=_key)
+    ypos = {c: i for i, c in enumerate(combos)}
+    rng = np.random.RandomState(11)
+    jit = (rng.rand(len(d)) - 0.5) * 0.36                  # separate overlaps
+    y = [ypos[c] + j for c, j in zip(d["_combo"], jit)]
+    cd, ht = _config_hover(d)
+    # Markers keep the dashboard's config language: fill = paint, shape = wheels.
+    fig.add_trace(go.Scatter(
+        x=np.asarray(d["vin_seq"]), y=y, mode="markers", showlegend=False,
+        marker=dict(color=[COLOR_DISPLAY.get(c, "#888888") for c in d["color"]],
+                    symbol=[WHEEL_SYMBOL.get(w, "circle") for w in d["wheels_short"]],
+                    size=10, line=dict(color="#2b2b2b", width=0.6)),
+        customdata=cd, hovertemplate=ht))
+    for label, sym in WHEEL_SYMBOL.items():                # wheel-symbol legend
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode="markers", name=label,
+            marker=dict(color="#999", size=10, symbol=sym,
+                        line=dict(color="#2b2b2b", width=0.6))))
+    fig.update_layout(
+        template="plotly_white", height=max(420, 42 * len(combos) + 180),
+        xaxis_title="VIN sequence number  (production order →)",
+        yaxis=dict(tickmode="array", tickvals=list(range(len(combos))),
+                   ticktext=combos, automargin=True, autorange="reversed"),
+        legend_title="Wheels", hovermode="closest")
+    return fig
