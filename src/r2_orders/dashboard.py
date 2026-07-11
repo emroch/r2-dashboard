@@ -152,6 +152,7 @@ function themeCharts(dark){
  var t=dark?DARK:LIGHT;
  document.querySelectorAll('.js-plotly-plot').forEach(function(gd){
   if(!gd.layout)return;
+  var managed=['#2b2b2b','#aab0b8'];
   var up={'font.color':t.text,'paper_bgcolor':'rgba(0,0,0,0)',
           'plot_bgcolor':'rgba(0,0,0,0)'};
   Object.keys(gd.layout).forEach(function(k){
@@ -165,8 +166,16 @@ function themeCharts(dark){
     up[k+'.font.color']=t.text;up[k+'.title.font.color']=t.text;
    }
   });
+  (gd.layout.shapes||[]).forEach(function(sh,i){
+   var sc=sh.line&&sh.line.color?String(sh.line.color).toLowerCase():null;
+   if(sc&&managed.indexOf(sc)>=0)up['shapes['+i+'].line.color']=t.edge;
+  });
+  (gd.layout.annotations||[]).forEach(function(an,i){
+   var ac=an.font&&an.font.color?String(an.font.color).toLowerCase():null;
+   if(ac&&managed.indexOf(ac)>=0)up['annotations['+i+'].font.color']=t.edge;
+  });
   try{window.Plotly.relayout(gd,up);}catch(e){}
-  var managed=['#2b2b2b','#aab0b8'],idx=[],staridx=[];
+  var idx=[],staridx=[];
   (gd.data||[]).forEach(function(tr,i){
    var lc=tr.marker&&tr.marker.line?tr.marker.line.color:null;
    if(typeof lc==='string'&&managed.indexOf(lc.toLowerCase())>=0)idx.push(i);
