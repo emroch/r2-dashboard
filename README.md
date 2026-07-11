@@ -72,3 +72,7 @@ python tests/test_parsing.py     # no pytest required
 # or
 pytest tests/
 ```
+
+## Roadmap
+
+Planned improvements are tracked in [ROADMAP.md](ROADMAP.md).
