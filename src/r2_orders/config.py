@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 # --------------------------------------------------------------------------
 # Paths
@@ -51,51 +52,29 @@ AS_OF = pd.Timestamp(NOW.date())
 # Bloomington-Normal, IL assembly plant.
 FACTORY = (40.5142, -88.9906)
 
-# Rivian paint colors, measured off-screen with a color meter (RGB -> hex).
-# COLOR_HEX = {
-#     "Catalina Cove": "#1F4456",   # (31, 68, 86)   dark teal-blue
-#     "Launch Green": "#6C6E5A",    # (108, 110, 90) muted olive
-#     "Forest Green": "#354535",    # (53, 69, 53)   dark green
-#     "Borealis": "#2D204E",        # (45, 32, 78)   deep purple
-#     "Half Moon Grey": "#535154",  # (83, 81, 84)   dark warm grey
-#     "Esker Silver": "#92949C",    # (146, 148, 156) cool silver
-#     "Glacier White": "#F2F2F2",   # (242, 242, 242) near-white
-#     "Midnight": "#000009",        # (0, 0, 9)      black
-# }
-COLOR_HEX = {
-    "Catalina Cove": "#437EA1",   # (67, 126, 161) dark teal-blue
-    "Launch Green": "#8C9A83",    # (140, 154, 131) muted olive
-    "Forest Green": "#354535",    # (53, 69, 53)   dark green
-    "Borealis": "#2D204E",        # (45, 32, 78)   deep purple
-    "Half Moon Grey": "#666666",  # (102, 102, 102) dark warm grey
-    "Esker Silver": "#CCCCCC",    # (204, 204, 204) cool silver
-    "Glacier White": "#F2F2F2",   # (242, 242, 242) near-white
-    "Midnight": "#000009",        # (0, 0, 9)      black
-}
-COLOR_ORDER = ["Catalina Cove", "Launch Green", "Forest Green", "Borealis",
-               "Half Moon Grey", "Esker Silver", "Glacier White", "Midnight"]
+# --------------------------------------------------------------------------
+# Colors & marker encodings — loaded from palette.yaml so the whole color/marker
+# vocabulary (paints, interiors, wheels, regions, delivery types) is editable as
+# data. Adding a new paint is a one-entry edit there, not a code change.
+# --------------------------------------------------------------------------
+with open(Path(__file__).parent / "palette.yaml") as _fh:
+    _PALETTE = yaml.safe_load(_fh)
 
-# Per-color boost overrides (Catalina Cove dialed back from electric blue).
-COLOR_BOOST_PARAMS = {"Catalina Cove": dict(sat_mul=1.25, sat_add=0.0)}
+# Exterior paints. COLOR_ORDER drives legend/axis ordering.
+COLOR_HEX = dict(_PALETTE["paints"])
+COLOR_ORDER = list(_PALETTE["paint_order"])
 
-# Wheels -> marker symbol (dual-encoding with paint color).
-WHEEL_SYMBOL = {'21" Liquid Tungsten': "circle", '20" Black Sand': "diamond"}
+# Interior bar colors and wheels -> Plotly marker symbol.
+INTERIOR_COLOR = dict(_PALETTE["interiors"])
+WHEEL_SYMBOL = dict(_PALETTE["wheels"])
 
-# Interior take-rate bar colors, evocative of the material (name minus the
-# " Signature" suffix). Near-black / near-white so the two read as dark vs light.
-INTERIOR_COLOR = {
-    "Black Crater": "#2F2F35",    # dark charcoal, almost black
-    "Coastal Cloud": "#EAEAEE",   # light smoke, almost white
-}
+# Region -> color (geographic + destination charts).
+REGION_COLOR = dict(_PALETTE["regions"])
 
-# Delivery-estimate certainty -> point opacity.
-# TYPE_OPACITY = {"explicit": 1.0, "range": 0.9, "month": 0.85,
-#                 "window": 0.8, "unknown": 0.25}
-TYPE_OPACITY = {"explicit": 1.0, "range": 1.0, "month": 1.0,
-                "window": 1.0, "unknown": 1.0}
-TYPE_ORDER = ["explicit", "window", "range", "month"]
-TYPE_COLOR = {"explicit": "#1f77b4", "window": "#ff7f0e",
-              "range": "#2ca02c", "month": "#9467bd"}
+# Delivery-estimate certainty: color, marker opacity, and firm->vague order.
+TYPE_COLOR = {t: d["color"] for t, d in _PALETTE["delivery_types"].items()}
+TYPE_OPACITY = {t: d["opacity"] for t, d in _PALETTE["delivery_types"].items()}
+TYPE_ORDER = list(_PALETTE["delivery_type_order"])
 
 # State -> (region, lat, lon). Coords are rough state centroids; BC uses
 # metro Vancouver since that is where the reservation-holder is.
@@ -137,9 +116,6 @@ STATE_INFO = {
     "YT": ("Canada", 63.7, -135.5), "NT": ("Canada", 64.8, -119.0),
     "NU": ("Canada", 70.2, -90.7),
 }
-REGION_COLOR = {"West": "#e45756", "Midwest": "#4c78a8", "South": "#f58518",
-                "Northeast": "#54a24b", "Canada": "#b279a2"}
-
 # Tokens that mean "no date given".
 UNKNOWN_TOKENS = {
     "", "0", "n/a", "na", "none", "none given yet", "not given",
