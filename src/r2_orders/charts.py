@@ -7,8 +7,23 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, WHISKER_HEX
-from .config import (COLOR_ORDER, FACTORY, INTERIOR_COLOR, REGION_COLOR,
+from .config import (AS_OF, COLOR_ORDER, FACTORY, INTERIOR_COLOR, REGION_COLOR,
                      TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER, WHEEL_SYMBOL)
+
+# Theme-aware "today" reference line at the run date (AS_OF). Baked in the
+# light-theme grey; the dashboard's theme toggle re-tints managed greys — in
+# shapes and their labels too — so it flips with the rest of the chart chrome.
+_TODAY = dict(line_width=1.5, line_dash="dash", line_color="#2b2b2b",
+              annotation_text="Today", annotation_font_color="#2b2b2b",
+              annotation_font_size=10)
+
+
+def _add_today_vline(fig, **kw):
+    fig.add_vline(x=AS_OF, annotation_position="top", **_TODAY, **kw)
+
+
+def _add_today_hline(fig, **kw):
+    fig.add_hline(y=AS_OF, annotation_position="top right", **_TODAY, **kw)
 
 
 def _config_hover(df):
@@ -89,6 +104,7 @@ def fig_delivery_vs_vin(df):
         yaxis_title="Estimated delivery date  (whiskers = quoted window)",
         legend_title="Paint / wheels", height=640,
         hovermode="closest")
+    _add_today_hline(fig)  # horizontal — delivery date is the y-axis here
     return fig
 
 
@@ -128,6 +144,7 @@ def fig_dest_vs_delivery(df):
                    tickmode="array", tickvals=list(range(len(order))),
                    ticktext=labels),
         legend_title="Region", height=780, hovermode="closest")
+    _add_today_vline(fig)
     return fig
 
 
@@ -290,6 +307,7 @@ def fig_delivery_timeline(df):
                       xaxis_title="Estimated delivery date",
                       yaxis_title="Orders", legend_title="Estimate type",
                       bargap=0.05)
+    _add_today_vline(fig)
     return fig
 
 

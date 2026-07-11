@@ -16,12 +16,6 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   /`restyle` pass re-tints chart chrome on toggle — text, gridlines, geo land/borders,
   legend boxes, marker/bar borders (dark-grey ↔ light-grey), and the factory ★
   marker. Data-encoding colors (paints/bars/regions) are deliberately left fixed.
-  Page chrome is driven by CSS custom properties (`:root` / `html[data-theme="dark"]`);
-  a header toggle persists the choice (`localStorage`) and respects
-  `prefers-color-scheme`, set before first paint to avoid a flash. Charts use
-  transparent backgrounds so the themed card shows through, and a `Plotly.relayout`
-  pass re-tints chart chrome (text, gridlines, geo land/borders, legend boxes) on
-  toggle — data-encoding colors (paints/bars/regions) are deliberately left fixed.
 
 - [ ] **Interactive filters** · M
   Client-side filtering by state/region, config (color, wheels, interior),
@@ -34,6 +28,13 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
 - [ ] **Accessibility & responsive layout** · M
   Color-blind-safe palette option, ARIA labels, and a layout that reflows for
   narrow/mobile screens (the 3 stacked geo maps and wide charts especially).
+
+- [x] **"Today" reference line on delivery-date charts** · S · *done*
+  Theme-aware dashed "Today" marker at the run date (`AS_OF`): horizontal on
+  delivery-vs-VIN (#1, where delivery date is the y-axis), vertical on
+  destination-vs-delivery (#2) and the delivery timeline (#7). Line + label
+  re-tint with the theme toggle. Skipped the reservation/order timeline (#6) —
+  its axes are historical, so "today" would just pin to the right edge.
 
 ## Data pipeline & correctness
 
