@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "r2-orders"
+version = "1.0.0"
+description = "Parse, sanitize, and visualize Rivian R2 forum pre-order data into an interactive Plotly dashboard."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pandas",
+    "numpy",
+    "plotly",
+]
+
+[project.scripts]
+r2-orders = "r2_orders.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
