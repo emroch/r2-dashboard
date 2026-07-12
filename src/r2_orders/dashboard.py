@@ -470,7 +470,10 @@ def build_dashboard(df, report, resv):
           '2024-03-07 are treated as invalid; reservations already present in the '
           'orders sheet are dropped as duplicates. &#8220;Last updated&#8221; is '
           'when a sheet&#8217;s contents last changed between fetches. Hover the '
-          'highlighted stat cards (&#9432;) for the sanitized entries.</p>')
+          'highlighted stat cards (&#9432;) for the sanitized entries. Charts with '
+          'a legend are interactive &mdash; click an entry to hide that series, '
+          'double-click to isolate one; charts 1 &amp; 3 add an &#8220;isolate '
+          'paint&#8221; dropdown.</p>')
 
     # Chart-navigation sidebar: one link per section (charts + QA panel).
     nav_items = [("sec-%d" % (i + 1), t) for i, (t, _, _) in enumerate(SECTIONS)]
