@@ -133,6 +133,29 @@ section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.4
 .tip th,.tip td{text-align:left;padding:2px 12px 2px 0;white-space:nowrap;}
 .tip th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);}
 .tip td:first-child{color:var(--tip-td1);}
+.qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+ gap:16px;margin-top:6px;}
+.qa-cat{border:1px solid var(--card-bd);border-radius:8px;padding:10px 12px;}
+.qa-cat h3{margin:0 0 3px;font-size:13.5px;color:var(--sec-title);}
+.qa-n{display:inline-block;min-width:18px;text-align:center;padding:0 6px;
+ margin-left:7px;border-radius:10px;background:var(--tip-th);color:var(--fg);
+ font-size:11px;font-weight:600;}
+.qa-note{margin:0 0 7px;color:var(--desc);font-size:11.5px;line-height:1.4;}
+.qa table{border-collapse:collapse;font-size:11.5px;width:100%;display:block;
+ max-height:220px;overflow:auto;}
+.qa th,.qa td{text-align:left;padding:2px 10px 2px 0;white-space:nowrap;}
+.qa th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);
+ position:sticky;top:0;background:var(--card-bg);}
+.qa td:first-child{color:var(--tip-td1);}
+.qa-none{margin:2px 0 0;color:var(--desc);font-size:12px;}
+.qa-conv{margin-top:16px;border:1px solid var(--card-bd);border-radius:8px;
+ padding:10px 12px;}
+.qa-conv h3{margin:0 0 3px;font-size:13.5px;color:var(--sec-title);}
+.qa-conv table{border-collapse:collapse;font-size:11.5px;width:100%;
+ display:block;max-height:260px;overflow:auto;}
+.qa-conv th,.qa-conv td{text-align:left;padding:2px 16px 2px 0;white-space:nowrap;}
+.qa-conv th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);
+ position:sticky;top:0;background:var(--card-bg);}
 footer{color:var(--footer);font-size:12px;text-align:center;padding:20px;}
 footer a{color:#4c78a8;text-decoration:none;}
 footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;border-radius:3px;}
@@ -253,6 +276,56 @@ def _src_line(name, meta, extra):
                updated))
 
 
+# Data-quality categories: (report["quality"] key, heading, one-line note).
+_QA_CATS = [
+    ("unparseable", "Unparseable delivery estimates",
+     "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("fuzzy_dups", "Possible duplicate usernames",
+     "Usernames that normalize alike (case/space/punctuation) but weren't merged "
+     "by the exact-duplicate dedup."),
+    ("vin_unrec", "Unrecoverable VINs",
+     "VIN tokens too redacted to recover a sequence number."),
+    ("bad_dates", "Invalid dates dropped",
+     "Order/reservation dates outside the plausible window, cleared."),
+]
+
+
+def _quality_section(quality, cap=40):
+    """The data-quality / anomaly panel: things flagged for human review rather
+    than auto-corrected. Each category lists the affected (#, user, detail)."""
+    blocks = []
+    for key, name, note in _QA_CATS:
+        rows = quality.get(key, [])
+        if rows:
+            body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
+                           % (_esc(i), _esc(u), _esc(d)) for i, u, d in rows[:cap])
+            if len(rows) > cap:
+                body += ('<tr><td></td><td></td><td>&hellip; and %d more</td></tr>'
+                         % (len(rows) - cap))
+            content = ('<table><tr><th>#</th><th>user</th><th>detail</th></tr>'
+                       '%s</table>' % body)
+        else:
+            content = '<p class="qa-none">None &#10003;</p>'
+        blocks.append('<div class="qa-cat"><h3>%s<span class="qa-n">%d</span></h3>'
+                      '<p class="qa-note">%s</p>%s</div>'
+                      % (_esc(name), len(rows), _esc(note), content))
+    conv = quality.get("conversions", [])
+    conv_body = "".join("<tr><td>%s</td><td>%s</td><td>%s</td></tr>"
+                        % (_esc(r), _esc(t), _esc(res)) for r, t, res in conv)
+    conv_html = (
+        '<div class="qa-conv"><h3>Delivery date parsing'
+        '<span class="qa-n">%d</span></h3>'
+        '<p class="qa-note">Every distinct delivery string that parsed, and the '
+        'date or range it became — for sanity-checking the normalization.</p>'
+        '<table><tr><th>raw</th><th>type</th><th>parsed</th></tr>%s</table></div>'
+        % (len(conv), conv_body))
+    return ('<section><h2>11 · Data quality &amp; anomalies</h2>'
+            '<p class="desc">Rows flagged for human review — surfaced here, not '
+            'auto-corrected. An empty category means nothing tripped that '
+            'check.</p><div class="qa">%s</div>%s</section>'
+            % ("".join(blocks), conv_html))
+
+
 def build_dashboard(df, report, resv):
     parts = []
     for i, (title, desc, builder) in enumerate(SECTIONS):
@@ -268,9 +341,14 @@ def build_dashboard(df, report, resv):
         parts.append(
             '<section><h2>%s</h2><p class="desc">%s</p>%s</section>'
             % (title, desc, frag))
+    parts.append(_quality_section(report["quality"]))
 
     dc = report["delivery_counts"]
     firm = dc.get("explicit", 0)
+    rangewin = dc.get("window", 0) + dc.get("range", 0) + dc.get("month", 0)
+    unparseable = report["quality"]["unparseable"]
+    # unknown = "no date given" (missing/placeholder) + unparseable; split them.
+    no_date = dc.get("unknown", 0) - len(unparseable)
     san = report["sanitized"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
     captions = {
@@ -280,6 +358,7 @@ def build_dashboard(df, report, resv):
         "VINs de-obfuscated": "Obfuscated VINs recovered (original → value)",
         "VINs recovered": "VINs that could not be recovered (dropped)",
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
+        "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
     }
     stat_groups = [
         ("Cohort", [
@@ -287,20 +366,24 @@ def build_dashboard(df, report, resv):
             ("Incomplete reservations", rr["n_incomplete"], None),
             ("Total demand", report["n_dedup"] + rr["n_incomplete"], None),
         ]),
-        ("Duplicates removed", [
+        ("Cleaned / removed", [
             ("Order duplicates", report["n_raw"] - report["n_dedup"],
              san["Duplicates removed"]),
             ("Reservation duplicates", rr["n_self_dupes"], rr["self_dupe_records"]),
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
+            ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
+             san["Invalid dates dropped"]),
         ]),
         ("VIN recovery", [
             ("VINs recovered", report["vin_present"], san["VINs recovered"]),
             ("VINs de-obfuscated", report["vin_obfuscated"], san["VINs de-obfuscated"]),
         ]),
-        ("Delivery dates", [
-            ("Firm delivery dates", firm, None),
-            ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
-             san["Invalid dates dropped"]),
+        # Partitions all orders: firm + range/window + no date + unparseable = total.
+        ("Delivery estimate (of %d orders)" % report["n_dedup"], [
+            ("Firm date", firm, None),
+            ("Range / window", rangewin, None),
+            ("No date given", no_date, None),
+            ("Unparseable", len(unparseable), unparseable),
         ]),
     ]
     stat_html = "".join(
