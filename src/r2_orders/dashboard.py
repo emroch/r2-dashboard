@@ -287,6 +287,9 @@ _QA_CATS = [
      "VIN tokens too redacted to recover a sequence number."),
     ("bad_dates", "Invalid dates dropped",
      "Order/reservation dates outside the plausible window, cleared."),
+    ("override_issues", "Override issues",
+     "Manual fix-ups in overrides.yaml that referenced an unknown field or a "
+     "username with no matching order."),
 ]
 
 
@@ -359,6 +362,7 @@ def build_dashboard(df, report, resv):
         "VINs recovered": "VINs that could not be recovered (dropped)",
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
+        "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
     }
     stat_groups = [
         ("Cohort", [
@@ -373,6 +377,7 @@ def build_dashboard(df, report, resv):
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
             ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
              san["Invalid dates dropped"]),
+            ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
         ]),
         ("VIN recovery", [
             ("VINs recovered", report["vin_present"], san["VINs recovered"]),

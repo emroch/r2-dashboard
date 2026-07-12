@@ -93,6 +93,11 @@ def main():
         print("  %s (%d):" % (label, len(rows)))
         for i, u, d in rows:
             print("     #%-4s %-20s %s" % (i, u, d))
+    issues = report["quality"]["override_issues"]
+    if issues:
+        print("  ! Override issues (%d):" % len(issues))
+        for i, u, d in issues:
+            print("     #%-4s %-20s %s" % (i, u, d))
     print("-" * 64)
     for m in (orders_meta, resv_meta):
         if m["changed"] and m["cache"]:
