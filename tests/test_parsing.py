@@ -11,6 +11,8 @@ import os
 import sys
 from datetime import date
 
+import pandas as pd
+
 # Self-path: put the repo's src/ dir on sys.path so `import r2_orders` works
 # whether run via pytest or directly.
 _SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -19,7 +21,8 @@ if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
 from r2_orders.parsing import (clean_vin, haversine_mi, loc_to_state,
-                               _fix_numeric_typos, _parse_monthname)
+                               parse_delivery, _fix_numeric_typos,
+                               _parse_monthname)
 from r2_orders.config import FACTORY
 
 
@@ -75,6 +78,14 @@ def test_haversine_ca_to_factory_hundreds_of_miles():
     # California centroid to the Normal, IL plant is well over a few hundred miles.
     d = haversine_mi(36.78, -119.42)
     assert d > 300
+
+
+def test_parse_delivery_numeric_range():
+    # "M/D-M/D" ranges (e.g. "7/30-7/31") parse to a range spanning both dates.
+    out = parse_delivery("7/30-7/31", pd.Timestamp("2026-06-15"))
+    assert out["type"] == "range"
+    assert out["min"] == pd.Timestamp("2026-07-30")
+    assert out["max"] == pd.Timestamp("2026-07-31")
 
 
 def _run_all():

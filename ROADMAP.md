@@ -76,10 +76,12 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   Warn (and fail loudly, not silently mis-map) when the sheet's header row
   changes shape or column names — the loaders currently assume a fixed layout.
 
-- [ ] **Data-quality / anomaly panel** · S–M
-  Surface a QA summary: impossible/malformed dates, out-of-range VINs, likely
-  duplicate usernames not auto-merged, and unparseable delivery strings — so the
-  "unknown" buckets are inspectable rather than just counted.
+- [x] **Data-quality / anomaly panel** · S–M · *done*
+  Section 11 surfaces a QA summary — unparseable delivery strings, possible
+  duplicate usernames not auto-merged, unrecoverable VINs, and dropped invalid
+  dates — plus a delivery-string→parsed-date conversion table for sanity-checking
+  the normalization. The header delivery-estimate cards now partition every order
+  (firm + range/window + no-date + unparseable = total).
 
 ## Fetch & hosting
 

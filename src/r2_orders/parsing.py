@@ -156,6 +156,24 @@ def parse_delivery(raw, order_date):
         out.update(est=est, min=est, max=est, type="window", anchor_fallback=fb)
         return out
 
+    # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", or same-month "7/30-31"
+    # (year assumed 2026, matching the single M/D case below).
+    md = re.search(r"(\d{1,2})/(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})(?:/(\d{1,2}))?",
+                   low)
+    if md:
+        m1, d1, a, b = md.groups()
+        m1, d1 = int(m1), int(d1)
+        m2, d2 = (int(a), int(b)) if b else (m1, int(a))  # M/D-M/D vs M/D-D
+        try:
+            dmin, dmax = (pd.Timestamp(date(2026, m1, d1)),
+                          pd.Timestamp(date(2026, m2, d2)))
+        except ValueError:
+            dmin = dmax = None
+        if dmin is not None and dmax >= dmin:
+            out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2,
+                       type="range")
+            return out
+
     # Single explicit / month date.
     for parser, arg in ((_parse_numeric, _fix_numeric_typos(raw)),
                         (_parse_monthname, raw)):

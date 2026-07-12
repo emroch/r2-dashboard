@@ -14,7 +14,8 @@ import pandas as pd
 
 from .config import (AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN, ORDERS_COLUMNS,
                      RESERVATIONS_COLUMNS, RESV_DATE_MIN, SPARE_TOKENS,
-                     WHEELS_21_CONTAINS, WHEELS_LABEL_20, WHEELS_LABEL_21)
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
+                     WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
 
@@ -123,6 +124,48 @@ def load_and_clean(text, meta):
     df["order_display"] = df["order_date"].dt.strftime("%b %d, %Y").fillna("—")
     df["est_display"] = df["delivery_est"].dt.strftime("%b %d, %Y").fillna("—")
 
+    # --- Data-quality flags (surfaced in the QA panel; not auto-corrected) ---
+    # Delivery text that isn't a known "no date" placeholder yet still didn't
+    # parse into a date/range/window — i.e. a genuine parse miss worth review.
+    unparseable = []
+    for _, r in df.iterrows():
+        low = r["delivery_raw"].strip().lower()
+        if (r["delivery_type"] == "unknown" and low
+                and low not in UNKNOWN_TOKENS
+                and not any(s in low for s in UNKNOWN_SUBSTRINGS)):
+            unparseable.append((r["orig_num"], r["user"], r["delivery_raw"]))
+    # Usernames that normalize alike (case/space/punctuation) but weren't merged
+    # by the exact-lowercase dedup — possibly the same person entered twice.
+    by_norm = {}
+    for _, r in df.iterrows():
+        key = "".join(ch for ch in r["user"].lower() if ch.isalnum())
+        by_norm.setdefault(key, []).append((r["orig_num"], r["user"]))
+    fuzzy_dups = []
+    for recs in by_norm.values():
+        users = [u for _, u in recs]
+        if len(set(users)) > 1:
+            for onum, u in recs:
+                others = ", ".join(sorted(set(users) - {u}))
+                fuzzy_dups.append((onum, u, "normalizes like: %s" % others))
+
+    # Delivery-string -> parsed date/range for the audit panel: each distinct
+    # raw that produced a date, so the normalization can be eyeballed.
+    seen, conversions = set(), []
+    for raw, prs in zip(df["delivery_raw"], parsed):
+        r = raw.strip()
+        if not r or r in seen or prs["type"] == "unknown":
+            continue
+        seen.add(r)
+        if pd.notna(prs["min"]) and pd.notna(prs["max"]) and prs["max"] > prs["min"]:
+            res = "%s → %s" % (prs["min"].strftime("%Y-%m-%d"),
+                               prs["max"].strftime("%Y-%m-%d"))
+        elif pd.notna(prs["est"]):
+            res = prs["est"].strftime("%Y-%m-%d")
+        else:
+            res = "—"
+        conversions.append((r, prs["type"], res))
+    conversions.sort(key=lambda t: t[0].lower())
+
     report = {
         "source": meta["label"],
         "n_raw": n_raw, "n_dedup": n_dedup,
@@ -137,6 +180,13 @@ def load_and_clean(text, meta):
             "VINs de-obfuscated": deobf_records,
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
+        },
+        "quality": {
+            "unparseable": unparseable,
+            "fuzzy_dups": fuzzy_dups,
+            "vin_unrec": unrec_records,
+            "bad_dates": date_records,
+            "conversions": conversions,
         },
     }
     return df, report, parsed
