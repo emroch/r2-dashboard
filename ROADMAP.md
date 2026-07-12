@@ -42,10 +42,12 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   links and stat cards live in a scrollable intro block that scrolls away. (Also
   fixed the geographic-demand legends to use constant-size swatches.)
 
-- [ ] **Chart-navigation sidebar with scroll-spy** — **(requested)** · M
-  A sidebar listing the chart headings that highlights the section currently in
-  view (scroll-spy via `IntersectionObserver`) and lets you jump to any chart.
-  Collapses to a menu (hamburger) button when the viewport is too narrow.
+- [x] **Chart-navigation sidebar with scroll-spy** — **(requested)** · M · *done*
+  Launch-Green left rail listing every section; an `IntersectionObserver`
+  scroll-spy highlights the one in view, and links smooth-scroll to their chart.
+  A top-left hamburger toggles it at any width (pushes content on wide, overlays
+  with a backdrop on narrow). Header/sidebar greens are sourced from the palette
+  (Forest Green header, Launch Green rail) as a nod to the Rivian paints.
 
 - [x] **Range/uncertainty whiskers on destination-vs-delivery (#2)** — **(requested)** · S–M · *done*
   Show delivery-window uncertainty on the destination-vs-delivery chart (#2) as

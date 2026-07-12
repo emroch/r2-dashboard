@@ -7,7 +7,7 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
                      fig_order_timeline, fig_vin_by_config, fig_vin_vs_order)
-from .config import DASHBOARD
+from .config import COLOR_HEX, DASHBOARD
 
 SECTIONS = [
     ("1 · Delivery date vs. VIN sequence",
@@ -85,16 +85,18 @@ html[data-theme="dark"]{
 body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  margin:0;background:var(--bg);color:var(--fg);
  transition:background .2s ease,color .2s ease;}
-/* Pinned bar: title + theme toggle + disclaimer stay visible while scrolling. */
-.topbar{position:sticky;top:0;z-index:50;background:#12261f;color:#fff;
- padding:12px 40px;box-shadow:0 2px 8px rgba(0,0,0,.22);}
-.topbar-row{display:flex;align-items:center;justify-content:space-between;gap:18px;}
-.topbar h1{margin:0;font-size:20px;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+/* Pinned bar: hamburger + title + theme toggle + disclaimer stay visible. */
+.topbar{position:sticky;top:0;z-index:50;background:var(--header-bg,#12261f);
+ color:#fff;padding:12px 40px;box-shadow:0 2px 8px rgba(0,0,0,.22);}
+.topbar-row{display:flex;align-items:center;gap:14px;}
+.topbar h1{margin:0;font-size:20px;flex:1;}
 .topbar p.disclaimer{margin:8px 0 0;padding:5px 10px;font-weight:600;
  font-size:12.5px;color:#ffe0b0;background:rgba(255,180,80,.12);
  border-left:3px solid #f0a24b;border-radius:4px;}
 /* Scrollable intro: source links + methodology + stat cards scroll away. */
-.intro{background:#12261f;color:#fff;padding:8px 40px 22px;}
+.intro{background:var(--header-bg,#12261f);color:#fff;padding:8px 40px 22px;}
 .intro p{margin:0;color:#cfe0d8;font-size:14px;}
 .intro p.src{margin:3px 0;font-size:13px;color:#dCe9e2;}
 .intro p.src a{color:#8fe3bf;text-decoration:none;border-bottom:1px dotted #6cae91;}
@@ -107,6 +109,32 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  border:1px solid var(--btn-bd);border-radius:20px;padding:6px 14px;
  font-size:12.5px;cursor:pointer;line-height:1;white-space:nowrap;}
 .themebtn:hover{filter:brightness(1.15);}
+.navbtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
+ border:1px solid var(--btn-bd);border-radius:8px;padding:5px 11px;font-size:15px;
+ line-height:1;cursor:pointer;}
+.navbtn:hover{filter:brightness(1.15);}
+/* Chart-nav sidebar: Launch-Green rail, hidden by default, toggled by the
+   hamburger (nav-shown on <html>); pushes content on wide, overlays on narrow. */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:220px;overflow-y:auto;
+ z-index:60;background:var(--side-bg,#8C9A83);border-right:1px solid rgba(0,0,0,.18);
+ box-shadow:2px 0 10px rgba(0,0,0,.12);transform:translateX(-100%);
+ transition:transform .2s ease;}
+html.nav-shown .sidebar{transform:translateX(0);}
+.side-title{padding:14px 16px 8px;font-size:10.5px;text-transform:uppercase;
+ letter-spacing:.08em;color:#33452f;}
+.sidebar a{display:block;padding:6px 14px;font-size:12.5px;color:#1e2a1a;
+ text-decoration:none;border-left:3px solid transparent;line-height:1.35;}
+.sidebar a:hover{background:rgba(0,0,0,.07);}
+.sidebar a.active{border-left-color:#12261f;color:#0e1a10;font-weight:600;
+ background:rgba(255,255,255,.34);}
+.nav-backdrop{display:none;}
+.main{margin-left:0;transition:margin-left .2s ease;}
+@media (min-width:901px){html.nav-shown .main{margin-left:220px;}}
+@media (max-width:900px){
+ html.nav-shown .nav-backdrop{display:block;position:fixed;inset:0;z-index:55;
+  background:rgba(0,0,0,.4);}
+}
+section{scroll-margin-top:104px;}
 .wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
 section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:10px;
  margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px var(--card-sh);
@@ -167,7 +195,9 @@ HEAD_JS = """
 (function(){try{var t=localStorage.getItem('r2theme');
 if(t!=='dark'&&t!=='light'){t=(window.matchMedia&&
 window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
-document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+document.documentElement.setAttribute('data-theme',t);
+if(window.innerWidth>900)document.documentElement.classList.add('nav-shown');
+}catch(e){}})();
 """
 
 # Runs at end of <body>: wire the toggle and re-theme the (already-rendered)
@@ -236,6 +266,33 @@ window.addEventListener('load',function(){
   apply(nt);
  });
 });
+})();
+"""
+
+# Chart-navigation sidebar: hamburger toggle (narrow screens) + scroll-spy that
+# highlights the section currently in view via IntersectionObserver.
+NAV_JS = """
+(function(){
+ var el=document.documentElement;
+ function close(){el.classList.remove('nav-shown');}
+ var tgl=document.getElementById('navToggle');
+ if(tgl)tgl.addEventListener('click',function(){el.classList.toggle('nav-shown');});
+ var bd=document.getElementById('navBackdrop');
+ if(bd)bd.addEventListener('click',close);
+ var links={};
+ document.querySelectorAll('.sidebar a[data-sec]').forEach(function(a){
+  links[a.getAttribute('data-sec')]=a;
+  a.addEventListener('click',function(){if(window.innerWidth<=900)close();});
+ });
+ var secs=document.querySelectorAll('section[id]');
+ if(secs.length&&'IntersectionObserver' in window){
+  var obs=new IntersectionObserver(function(entries){
+   entries.forEach(function(e){
+    if(e.isIntersecting)for(var k in links)links[k].classList.toggle('active',k===e.target.id);
+   });
+  },{rootMargin:'-45% 0px -50% 0px',threshold:0});
+  secs.forEach(function(s){obs.observe(s);});
+ }
 })();
 """
 
@@ -322,7 +379,7 @@ def _quality_section(quality, cap=40):
         'date or range it became — for sanity-checking the normalization.</p>'
         '<table><tr><th>raw</th><th>type</th><th>parsed</th></tr>%s</table></div>'
         % (len(conv), conv_body))
-    return ('<section><h2>11 · Data quality &amp; anomalies</h2>'
+    return ('<section id="sec-11"><h2>11 · Data quality &amp; anomalies</h2>'
             '<p class="desc">Rows flagged for human review — surfaced here, not '
             'auto-corrected. An empty category means nothing tripped that '
             'check.</p><div class="qa">%s</div>%s</section>'
@@ -342,8 +399,8 @@ def build_dashboard(df, report, resv):
                            include_plotlyjs=(True if i == 0 else False),
                            default_width="100%")
         parts.append(
-            '<section><h2>%s</h2><p class="desc">%s</p>%s</section>'
-            % (title, desc, frag))
+            '<section id="sec-%d"><h2>%s</h2><p class="desc">%s</p>%s</section>'
+            % (i + 1, title, desc, frag))
     parts.append(_quality_section(report["quality"]))
 
     dc = report["delivery_counts"]
@@ -415,17 +472,36 @@ def build_dashboard(df, report, resv):
           'when a sheet&#8217;s contents last changed between fetches. Hover the '
           'highlighted stat cards (&#9432;) for the sanitized entries.</p>')
 
+    # Chart-navigation sidebar: one link per section (charts + QA panel).
+    nav_items = [("sec-%d" % (i + 1), t) for i, (t, _, _) in enumerate(SECTIONS)]
+    nav_items.append(("sec-%d" % (len(SECTIONS) + 1), "11 · Data quality & anomalies"))
+    nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
+                        for sid, t in nav_items)
+    sidebar_html = ('<nav class="sidebar" id="sidebar"><div class="side-title">'
+                    'Charts</div>%s</nav>' % nav_links)
+
+    # Header/sidebar chrome takes its greens from the palette (a nod to the
+    # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
+    chrome_css = ":root{--header-bg:%s;--side-bg:%s;}" % (
+        COLOR_HEX.get("Forest Green", "#226222"),
+        COLOR_HEX.get("Launch Green", "#8C9A83"))
+
     html = """<!doctype html><html><head><meta charset="utf-8">
-<title>Rivian R2 Orders — Dashboard</title><style>%s</style>
+<title>Rivian R2 Orders — Dashboard</title><style>%s
+%s</style>
 <script>%s</script></head><body>
-<header class="topbar"><div class="topbar-row">%s<button id="themeToggle" class="themebtn" type="button" aria-label="Toggle color theme">☾ Dark</button></div>%s</header>
+%s<div class="nav-backdrop" id="navBackdrop"></div>
+<div class="main">
+<header class="topbar"><div class="topbar-row"><button id="navToggle" class="navbtn" type="button" aria-label="Toggle chart menu">☰</button>%s<button id="themeToggle" class="themebtn" type="button" aria-label="Toggle color theme">☾ Dark</button></div>%s</header>
 <div class="intro">%s
 <div class="statwrap">%s</div></div>
 <div class="wrap">%s</div>
 <footer>Generated by <code>r2_orders</code> · <a href="https://github.com/emroch" target="_blank" rel="noopener">emroch</a> · built with AI assistance.</footer>
+</div>
 <script>%s</script>
-</body></html>""" % (PAGE_CSS, HEAD_JS, title_html, disclaimer_html, intro_html,
-                     stat_html, "".join(parts), THEME_JS)
+</body></html>""" % (PAGE_CSS, chrome_css, HEAD_JS, sidebar_html, title_html,
+                     disclaimer_html, intro_html, stat_html, "".join(parts),
+                     THEME_JS + NAV_JS)
 
     with open(DASHBOARD, "w") as fh:
         fh.write(html)
