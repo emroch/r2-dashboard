@@ -1,0 +1,24 @@
+# Manual fix-ups — corrections / fill-ins applied after fetch, before cleaning.
+#
+# Keyed by Username (case-insensitive). Each entry sets one or more RAW fields
+# for that person, which then flow through the normal cleaning (VIN recovery,
+# date parsing, geo, etc.). Use when someone posted more detail in the forum but
+# didn't update the source sheet. Version-controlled and auditable: every applied
+# change — and every problem (unknown field / no matching user) — shows in the
+# cleaning report and the data-quality panel. Idempotent; never mutates the cache.
+#
+# Valid fields: orig_num, user, resv_raw, order_raw, vin_raw, delivery_raw,
+# buylease, loc_raw, trim, launch, color, interior, wheels, autonomy, tow, spare,
+# r1_owner, r1_keep, r1_model, other_vehicles.
+#
+# Example (commented out):
+# overrides:
+#   SomeUser:
+#     vin_raw: "1234"            # forum-confirmed VIN, missing from the sheet
+#     delivery_raw: "7/30/2026"  # posted a firm date after submitting
+
+overrides:
+  hodags:
+    # delivery delayed from 6/30 -> 7/10
+    # https://www.rivianforums.com/forum/threads/r2-order-timeline-data-point-vin-assigned-in-steps-stage.60108/post-1043872
+    delivery_raw: "7/10/2026"

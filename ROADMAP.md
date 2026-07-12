@@ -56,14 +56,13 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
 
 ## Data pipeline & correctness
 
-- [ ] **Manual fix-ups / overrides layer** — **(requested)** · M
-  A version-controlled patch file (YAML/JSON, keyed by username) applied
-  immediately after fetch, to correct or fill in partial entries when someone
-  posted more detail in the forum but didn't update the source sheet. Should be:
-  idempotent, non-destructive to the raw cache, validated against the schema,
-  and surfaced in the sanitization report + stat-card hovers (like the existing
-  dedup/de-obfuscation records) so every override is auditable. Natural home:
-  `data/overrides.yaml` (tracked in git, unlike the ignored caches).
+- [x] **Manual fix-ups / overrides layer** — **(requested)** · M · *done*
+  `src/r2_orders/overrides.yaml` (username → raw-field corrections) is applied
+  right after dedup, so fixes flow through normal cleaning. Case-insensitive,
+  schema-validated, idempotent, and non-destructive to the cache. Applied changes
+  show in a "Manual fix-ups" stat card + the report; bad field names / unknown
+  usernames surface as "Override issues" in the QA panel. (Lives in the package
+  with the other tracked YAMLs, since `data/` is git-ignored.)
 
 - [x] **Externalize schema & enum config** · S–M · *done*
   The full color/marker vocabulary, sheet sources, column maps, sanitize bounds,

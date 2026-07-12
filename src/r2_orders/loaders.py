@@ -13,11 +13,36 @@ import numpy as np
 import pandas as pd
 
 from .config import (AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN, ORDERS_COLUMNS,
-                     RESERVATIONS_COLUMNS, RESV_DATE_MIN, SPARE_TOKENS,
-                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
-                     WHEELS_LABEL_20, WHEELS_LABEL_21)
+                     OVERRIDES, RESERVATIONS_COLUMNS, RESV_DATE_MIN,
+                     SPARE_TOKENS, UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS,
+                     WHEELS_21_CONTAINS, WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
+
+
+def _apply_overrides(df, overrides):
+    """Apply manual fix-ups (username -> {raw field: value}) in place, before
+    cleaning, so the values flow through the normal pipeline. Case-insensitive
+    username match; validates field names against the schema. Idempotent.
+    Returns (applied_records, issue_records) for the report/QA panel."""
+    valid = set(ORDERS_COLUMNS)
+    idx_by_user = {u.lower(): i for i, u in zip(df.index, df["user"])}
+    applied, issues = [], []
+    for uname, fields in (overrides or {}).items():
+        i = idx_by_user.get(str(uname).lower())
+        if i is None:
+            issues.append(("—", str(uname), "no matching order row"))
+            continue
+        onum, disp = df.at[i, "orig_num"], df.at[i, "user"]
+        for field, value in (fields or {}).items():
+            if field not in valid:
+                issues.append((onum, disp, "unknown field '%s'" % field))
+                continue
+            old, new = df.at[i, field], str(value).strip()
+            if old != new:
+                df.at[i, field] = new
+                applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
+    return applied, issues
 
 
 def load_and_clean(text, meta):
@@ -54,6 +79,9 @@ def load_and_clean(text, meta):
                                 "duplicate of #%s (kept)" % kept["orig_num"]))
     df = df.drop_duplicates("_ukey", keep="first").sort_index()
     n_dedup = len(df)
+
+    # --- Manual fix-ups (applied to raw fields before cleaning) ---
+    override_records, override_issues = _apply_overrides(df, OVERRIDES)
 
     # --- VIN ---
     vin = df["vin_raw"].apply(clean_vin)
@@ -180,6 +208,7 @@ def load_and_clean(text, meta):
             "VINs de-obfuscated": deobf_records,
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
+            "Manual fix-ups": override_records,
         },
         "quality": {
             "unparseable": unparseable,
@@ -187,6 +216,7 @@ def load_and_clean(text, meta):
             "vin_unrec": unrec_records,
             "bad_dates": date_records,
             "conversions": conversions,
+            "override_issues": override_issues,
         },
     }
     return df, report, parsed
