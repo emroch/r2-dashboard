@@ -6,7 +6,7 @@ derive the tinted window whiskers (WHISKER_HEX).
 """
 import colorsys
 
-from .config import COLOR_HEX
+from .config import COLOR_HEX, REGION_COLOR
 
 
 def _hex_to_rgb(h):
@@ -17,16 +17,17 @@ def _rgb_to_hex(r, g, b):
     return "#%02X%02X%02X" % (round(r * 255), round(g * 255), round(b * 255))
 
 
-def _whisker_color(h, light=0.52, sat=0.20):
-    """Medium grey with a slight tint of the paint, so window whiskers stay
-    visible on white while still keying to their color."""
+def _whisker_color(h, light=0.56, sat=0.14):
+    """Light-medium grey with just a hint of the source hue, so window whiskers
+    stay subtle (a tinted grey) yet still key to their series on white or dark."""
     r, g, b = _hex_to_rgb(h)
     hue, _, s = colorsys.rgb_to_hls(r, g, b)
     return _rgb_to_hex(*colorsys.hls_to_rgb(hue, light, sat if s > 0.06 else 0.0))
 
 
 # COLOR_DISPLAY is the palette used for markers/legend (the palette.yaml hex
-# values are already tuned for on-screen legibility); WHISKER_HEX tints the
-# delivery-window whiskers per paint.
+# values are already tuned for on-screen legibility); WHISKER_HEX / REGION_WHISKER
+# tint the delivery-window whiskers per paint and per region (subtle tinted grey).
 COLOR_DISPLAY = {n: h for n, h in COLOR_HEX.items()}
 WHISKER_HEX = {n: _whisker_color(h) for n, h in COLOR_HEX.items()}
+REGION_WHISKER = {n: _whisker_color(h) for n, h in REGION_COLOR.items()}

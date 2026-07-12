@@ -17,12 +17,16 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   legend boxes, marker/bar borders (dark-grey ↔ light-grey), and the factory ★
   marker. Data-encoding colors (paints/bars/regions) are deliberately left fixed.
 
-- [x] **Interactive filters** · M · *done (v1: built-ins)*
-  Shipped the lean "Plotly built-ins" version: legend click-to-hide /
-  double-click-to-isolate is surfaced in the header note, and charts 1 & 3 gained
-  an "isolate paint" dropdown (updatemenus visibility toggles). A full cross-chart
-  filter — re-aggregating every chart in JS by state/config/buy-lease/VIN-status —
-  was considered and deferred as a larger future build.
+- [x] **Interactive filters** · M · *done (v2: per-series legend)*
+  Legend-driven filtering with pinned axes (fixed type + range) so toggling or
+  zooming never rescales the view, keeping configs comparable. Charts 1 & 3 split
+  each config into per-(paint × wheel) legend entries (marker shape = wheels),
+  each toggling / double-click-isolating on its own; on chart 1 each series'
+  delivery-window whiskers ride its legendgroup, and a whisker on/off button
+  declutters. Chart 2's whiskers are region-paired (tinted grey) with the same
+  toggle; chart 6 uses `toggleitem` so its stacked reservation series toggle
+  independently. A full cross-chart filter — re-aggregating every chart in JS by
+  state/config/buy-lease/VIN-status — was considered and deferred as a larger build.
 
 - [ ] **Per-chart export & data table** · S
   PNG export (Plotly already supports it) plus a "download this chart's data as
