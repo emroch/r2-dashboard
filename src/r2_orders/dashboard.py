@@ -2,6 +2,7 @@
 build_dashboard entry point that renders every chart into a single HTML file.
 """
 import pandas as pd
+from textwrap import dedent
 
 from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
@@ -11,55 +12,48 @@ from .config import COLOR_HEX, DASHBOARD
 
 SECTIONS = [
     ("1 · Delivery date vs. VIN sequence",
-     "Each point is an order with both a VIN and a delivery estimate. Color = "
-     "paint, marker shape = wheels; whiskers span the quoted delivery window "
-     "(firm single-date estimates show as bare points). Clusters of one color "
-     "across a VIN range hint at same-config cars built in sequence. Swatch "
-     "colors are brightened from the measured paints for on-screen separation.",
+     dedent("""Each point is an order with both a VIN and a delivery estimate. Color = paint, marker shape = wheels;
+               whiskers span the quoted delivery window. Clusters of one color across a VIN range hint at same-config
+               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one."""),
      fig_delivery_vs_vin),
     ("2 · Destination vs. delivery date",
-     "States ordered by distance from the Normal, IL plant (closest at bottom). "
-     "A downward-right tilt would mean farther destinations deliver later.",
+     dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
+               farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
+               the legend to hide it, or double-click to isolate one."""),
      fig_dest_vs_delivery),
     ("3 · VIN sequence vs. order date",
-     "Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows "
-     "how tightly production sequence tracks order timing.",
+     dedent("""Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how tightly production
+               sequence tracks order timing. Click a config in the legend to hide it, or double-click to isolate
+               one."""),
      fig_vin_vs_order),
     ("4 · Configuration take-rates",
-     "What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% "
-     "uniform across the cohort, so they are omitted here.)",
+     dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
+               so they are omitted here.)"""),
      fig_config_dashboard),
     ("5 · Color × wheels combinations",
-     "Most common full builds — the combos that would form the clusters in chart 1.",
+     dedent("""Most common full builds — the combos that would form the clusters in chart 1."""),
      fig_color_wheel_heatmap),
     ("6 · Reservation & order timeline",
-     "The top panel stacks reservation-only holders (incomplete orders, from "
-     "the separate reservations sheet) beneath those who have since locked an "
-     "order. The 3/7/2024 reveal week is ~20x the next-biggest week, so the "
-     "y-axis is clipped just above the tail (the reveal bar is annotated with "
-     "its true height) to keep the 2-year trickle readable. The bottom shows "
-     "when orders were finalized (clustering in June 2026).",
+     dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
+               above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
+               the y-axis is clipped just above the tail to keep the 2-year trickle readable. The bottom shows when
+               orders were finalized."""),
      fig_order_timeline),
     ("7 · Estimated delivery timeline",
-     "When the cohort expects delivery, stacked by how firm the estimate is.",
+     dedent("""When the cohort expects delivery, stacked by how firm the estimate is."""),
      fig_delivery_timeline),
     ("8 · Geographic demand",
-     "Three stacked maps of demand around the Normal, IL plant, each with its "
-     "own legend: orders with an assigned VIN, all orders, and total demand "
-     "(orders + incomplete reservations). Bubble area = count; the first two "
-     "share a scale, while total demand (~20x larger) scales to its own. Skews "
-     "to CA / Pacific NW / TX.",
+     dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
+               total demand (orders + incomplete reservations). Bubble area = count; the first two share a scale, while
+               total demand (~20x larger) scales to its own."""),
      fig_geo),
     ("9 · Estimate certainty vs. VIN status",
-     "Orders with an assigned VIN carry far more firm dates — a sanity check and a "
-     "signal of how far along each order is.",
+     dedent("""Share of orders with known delivery dates."""),
      fig_certainty_by_vin),
     ("10 · VIN sequence by configuration",
-     "Each VIN-assigned order at its production sequence (x), grouped into rows "
-     "by full configuration (trim · color · wheels); marker fill = paint, shape = "
-     "wheels. Clusters along a row suggest same-config cars were built in a batch. "
-     "Everyone is Performance (Launch Edition) today — Premium and Standard rows "
-     "will appear as those trims ship.",
+     dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·
+               color · wheels); marker fill = paint, shape = wheels. Clusters along a row suggest same-config cars were
+               built in a batch."""),
      fig_vin_by_config),
 ]
 
@@ -239,6 +233,9 @@ function themeCharts(dark){
    var ac=an.font&&an.font.color?String(an.font.color).toLowerCase():null;
    if(ac&&managed.indexOf(ac)>=0)up['annotations['+i+'].font.color']=t.edge;
   });
+  // Filter dropdowns/buttons keep a fixed light background + dark text (not
+  // theme-swapped): their hover highlight is a fixed bright fill, so dark text
+  // stays legible in both idle and hover states, in light or dark mode.
   try{window.Plotly.relayout(gd,up);}catch(e){}
   var idx=[],staridx=[];
   (gd.data||[]).forEach(function(tr,i){
@@ -472,8 +469,8 @@ def build_dashboard(df, report, resv):
           'when a sheet&#8217;s contents last changed between fetches. Hover the '
           'highlighted stat cards (&#9432;) for the sanitized entries. Charts with '
           'a legend are interactive &mdash; click an entry to hide that series, '
-          'double-click to isolate one; charts 1 &amp; 3 add an &#8220;isolate '
-          'paint&#8221; dropdown.</p>')
+          'double-click to isolate one; see each chart&#8217;s note for its '
+          'paint, region, and wheel filters.</p>')
 
     # Chart-navigation sidebar: one link per section (charts + QA panel).
     nav_items = [("sec-%d" % (i + 1), t) for i, (t, _, _) in enumerate(SECTIONS)]

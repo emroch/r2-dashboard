@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .colors import COLOR_DISPLAY, WHISKER_HEX
+from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from .config import (AS_OF, COLOR_ORDER, FACTORY, INTERIOR_COLOR, REGION_COLOR,
                      TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER, WHEEL_SYMBOL)
 
@@ -24,6 +24,32 @@ def _add_today_vline(fig, **kw):
 
 def _add_today_hline(fig, **kw):
     fig.add_hline(y=AS_OF, annotation_position="top right", **_TODAY, **kw)
+
+
+def _num_range(vals, pad_frac=0.03, min_pad=1.0):
+    """A padded [lo, hi] for a numeric axis (None if empty). Setting an explicit
+    range fixes the axis so toggling series — or a custom zoom — never triggers
+    an auto-rescale, keeping configs comparable across filter states."""
+    v = pd.Series(vals).dropna()
+    if v.empty:
+        return None
+    lo, hi = float(v.min()), float(v.max())
+    pad = max((hi - lo) * pad_frac, min_pad)
+    return [lo - pad, hi + pad]
+
+
+def _date_range(series, pad_frac=0.03, min_days=3, include=None):
+    """A padded [lo, hi] (as strings) for a date axis spanning every series in
+    `series` plus `include` (e.g. the today line). None if all empty."""
+    v = pd.concat([pd.Series(s) for s in series]).dropna()
+    if v.empty:
+        return None
+    lo, hi = v.min(), v.max()
+    if include is not None:
+        inc = pd.Timestamp(include)
+        lo, hi = min(lo, inc), max(hi, inc)
+    pad = max((hi - lo) * pad_frac, pd.Timedelta(days=min_days))
+    return [str(lo - pad), str(hi + pad)]
 
 
 def _config_hover(df):
@@ -45,54 +71,55 @@ def _config_hover(df):
     return cd, ht
 
 
-def _config_traces(df):
-    """One trace per paint color (symbol=wheels, opacity=certainty) + a
-    legend key for the wheel symbols."""
-    cd, ht = _config_hover(df)
-    traces = []
+def _config_wheel_traces(d):
+    """Yield per-(color, wheel) subframes in legend order (COLOR_ORDER, then
+    wheel). Each becomes its own legend entry, so paint × wheel series toggle
+    and isolate independently. Yields (color, wheel, symbol, sub)."""
     for color in COLOR_ORDER:
-        mask = (df["color"] == color).values
-        if not mask.any():
+        cmask = (d["color"] == color).values
+        if not cmask.any():
             continue
-        sub = df[mask]
-        symbols = [WHEEL_SYMBOL[w] for w in sub["wheels_short"]]
-        opac = [TYPE_OPACITY.get(t, 0.4) for t in sub["delivery_type"]]
-        traces.append(dict(mask=mask, color=color, symbols=symbols,
-                           opac=opac, cd=cd[mask], ht=ht, sub=sub))
-    return traces
+        for wheel, sym in WHEEL_SYMBOL.items():
+            sub = d[cmask & (d["wheels_short"] == wheel).values]
+            if not sub.empty:
+                yield color, wheel, sym, sub
 
 
-def _paint_isolate_menu(paint_of):
-    """A visibility-only 'isolate paint' dropdown (Plotly updatemenus). paint_of
-    is the paint name per trace index, or None for traces (e.g. wheel-symbol
-    legend keys) that should stay visible in every view."""
-    present = [c for c in COLOR_ORDER if c in paint_of]
-    if len(present) < 2:
+def _whisker_toggle_menu(whisker_idx, x=0.0):
+    """A show/hide toggle for the (separate) whisker traces — a declutter
+    control. Targets only the whisker trace indices, so it's independent of the
+    legend's per-series toggling. Empty if there are no whiskers."""
+    if not whisker_idx:
         return []
-    buttons = [dict(label="All paints", method="restyle",
-                    args=[{"visible": [True] * len(paint_of)}])]
-    for c in present:
-        vis = [(p is None or p == c) for p in paint_of]
-        buttons.append(dict(label=c, method="restyle", args=[{"visible": vis}]))
-    return [dict(type="dropdown", direction="down", showactive=True, buttons=buttons,
-                 x=0, xanchor="left", y=1.02, yanchor="bottom", pad=dict(b=2),
+    idx = list(whisker_idx)
+    return [dict(type="buttons", direction="right", showactive=True, x=x,
+                 xanchor="left", y=1.02, yanchor="bottom", pad=dict(b=2),
                  bgcolor="rgba(255,255,255,0.9)", bordercolor="#cccccc",
-                 font=dict(size=11))]
+                 font=dict(size=11, color="#2b2b2b"),
+                 buttons=[dict(label="Whiskers", method="restyle",
+                              args=[{"visible": True}, idx]),
+                          dict(label="No whiskers", method="restyle",
+                              args=[{"visible": False}, idx])])]
 
 
 def fig_delivery_vs_vin(df):
     """#1 Estimated delivery date vs VIN sequence, coded by config.
 
-    Window/range estimates get whiskers spanning their min-max delivery span.
+    One legend entry per paint × wheel (marker shape encodes the wheel), each
+    toggling/isolating that series — its markers and whiskers share a
+    legendgroup, so hiding a series takes its whiskers with it (no strays). A
+    whisker on/off button declutters. Window/range estimates get whiskers
+    spanning their min-max delivery span.
     """
     d = df[df["vin_present"] & df["delivery_est"].notna()]
     fig = go.Figure()
     xs = d["vin_seq"].astype(float)
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
-    paint_of = []
-    for t in _config_traces(d):
-        s = t["sub"]
-        # Whiskers (min-max span + caps) for estimates that are a window/range.
+    whisk = []
+    for color, wheel, sym, s in _config_wheel_traces(d):
+        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
+        # Whiskers (min-max span + caps) for window/range estimates, in the
+        # series' legendgroup so they toggle/isolate with its markers.
         xw, yw = [], []
         for x, mn, mx in zip(s["vin_seq"], s["delivery_min"], s["delivery_max"]):
             if pd.notna(mn) and pd.notna(mx) and mx > mn:
@@ -100,33 +127,38 @@ def fig_delivery_vs_vin(df):
                 xw += [x, x, None, x - cap, x + cap, None, x - cap, x + cap, None]
                 yw += [a, b, None, b, b, None, a, a, None]
         if xw:
+            whisk.append(len(fig.data))
             fig.add_trace(go.Scatter(
-                x=xw, y=yw, mode="lines", legendgroup="paint", showlegend=False,
+                x=xw, y=yw, mode="lines", legendgroup=grp, showlegend=False,
                 hoverinfo="skip", opacity=0.7,
-                line=dict(color=WHISKER_HEX[t["color"]], width=1.4)))
-            paint_of.append(t["color"])
+                line=dict(color=WHISKER_HEX[color], width=1.4)))
+        cd, ht = _config_hover(s)
+        opac = [TYPE_OPACITY.get(t, 0.4) for t in s["delivery_type"]]
         fig.add_trace(go.Scatter(
             x=np.asarray(s["vin_seq"]), y=np.asarray(s["delivery_est"]),
-            mode="markers", name=t["color"], legendgroup="paint",
-            marker=dict(color=COLOR_DISPLAY[t["color"]], size=11,
-                        symbol=t["symbols"], opacity=t["opac"],
+            mode="markers", name=grp, legendgroup=grp,
+            marker=dict(color=COLOR_DISPLAY[color], size=11,
+                        symbol=sym, opacity=opac,
                         line=dict(color="#2b2b2b", width=0.8)),
-            customdata=t["cd"], hovertemplate=t["ht"]))
-        paint_of.append(t["color"])
-    # Wheel-symbol legend keys (kept visible in every isolate view).
-    for label, sym in WHEEL_SYMBOL.items():
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode="markers", name=label, legendgroup="wheels",
-            marker=dict(color="#999", size=11, symbol=sym,
-                        line=dict(color="#2b2b2b", width=0.8))))
-        paint_of.append(None)
-    menu = _paint_isolate_menu(paint_of)
+            customdata=cd, hovertemplate=ht))
+    menu = _whisker_toggle_menu(whisk, x=0.0)
+    # Fixed ranges + pinned axis types so toggling series or zooming never
+    # rescales the view; span the today line too.
+    xax = dict(title_text="VIN sequence number  (production order →)", type="linear")
+    yax = dict(title_text="Estimated delivery date  (whiskers = quoted window)",
+               type="date")
+    xr = _num_range(d["vin_seq"], min_pad=cap * 1.5)
+    yr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]],
+                     include=AS_OF)
+    if xr:
+        xax["range"] = xr
+    if yr:
+        yax["range"] = yr
     fig.update_layout(
-        template="plotly_white",
-        xaxis_title="VIN sequence number  (production order →)",
-        yaxis_title="Estimated delivery date  (whiskers = quoted window)",
-        legend_title="Paint / wheels", height=640, hovermode="closest",
-        updatemenus=menu)
+        template="plotly_white", xaxis=xax, yaxis=yax,
+        legend=dict(title_text="Paint · wheels", groupclick="togglegroup",
+                    tracegroupgap=0),
+        height=640, hovermode="closest", updatemenus=menu)
     if menu:
         fig.update_layout(margin=dict(t=54))
     _add_today_hline(fig)  # horizontal — delivery date is the y-axis here
@@ -134,7 +166,10 @@ def fig_delivery_vs_vin(df):
 
 
 def fig_dest_vs_delivery(df):
-    """#2 Destination (state, ordered by distance from factory) vs delivery."""
+    """#2 Destination (state, ordered by distance from factory) vs delivery.
+
+    Per region: markers plus min-max delivery whiskers sharing a per-region
+    legendgroup, so clicking a region toggles its points and whiskers together."""
     d = df[df["delivery_est"].notna() & df["dist_mi"].notna()].copy()
     order = (d.groupby("state")["dist_mi"].first().sort_values(ascending=True)
              .index.tolist())
@@ -142,7 +177,7 @@ def fig_dest_vs_delivery(df):
     fig = go.Figure()
     rng = np.random.RandomState(7)
     cap = 0.14  # whisker end-cap half-height, in y (state) units
-    panels, xw, yw = [], [], []
+    panels = []
     for region in ["Midwest", "South", "Northeast", "West", "Canada"]:
         sub = d[d["region"] == region]
         if sub.empty:
@@ -150,24 +185,30 @@ def fig_dest_vs_delivery(df):
         jitter = (rng.rand(len(sub)) - 0.5) * 0.55
         y = [ypos[s] + j for s, j in zip(sub["state"], jitter)]
         panels.append((region, sub, y))
-        # Horizontal whiskers (min-max span + end caps) for estimates that carry
-        # a range: week windows, explicit ranges, and whole-month estimates.
+    # Whiskers first so they sit behind the markers; a tinted grey keyed to the
+    # region, in its legendgroup so they hide/isolate with its points.
+    whisk = []
+    for region, sub, y in panels:
+        xw, yw = [], []
         for mn, mx, yy in zip(sub["delivery_min"], sub["delivery_max"], y):
             if pd.notna(mn) and pd.notna(mx) and mx > mn:
                 a, b = mn.strftime("%Y-%m-%d"), mx.strftime("%Y-%m-%d")
                 xw += [a, b, None, a, a, None, b, b, None]
                 yw += [yy, yy, None, yy - cap, yy + cap, None,
                        yy - cap, yy + cap, None]
-    if xw:
-        fig.add_trace(go.Scatter(
-            x=xw, y=yw, mode="lines", showlegend=False, hoverinfo="skip",
-            line=dict(color="#8a9099", width=1), opacity=0.7))
+        if xw:
+            whisk.append(len(fig.data))
+            fig.add_trace(go.Scatter(
+                x=xw, y=yw, mode="lines", legendgroup=region, showlegend=False,
+                hoverinfo="skip", opacity=0.7,
+                line=dict(color=REGION_WHISKER[region], width=1)))
     for region, sub, y in panels:
         cd = np.stack([sub["user"].values, sub["state"].values,
                        sub["dist_mi"].round(0).values, sub["est_display"].values,
                        sub["delivery_type"].values, sub["color"].values], axis=-1)
         fig.add_trace(go.Scatter(
             x=np.asarray(sub["delivery_est"]), y=y, mode="markers", name=region,
+            legendgroup=region,
             marker=dict(color=REGION_COLOR[region], size=9, opacity=0.8,
                         line=dict(color="#2b2b2b", width=0.5)),
             customdata=cd,
@@ -178,47 +219,55 @@ def fig_dest_vs_delivery(df):
                            "(%{customdata[4]})<extra></extra>")))
     labels = ["%s  (%.0f mi)" % (s, d[d["state"] == s]["dist_mi"].iloc[0])
               for s in order]
+    menu = _whisker_toggle_menu(whisk, x=0.0)
+    xax = dict(title_text="Estimated delivery date")
+    xr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]],
+                     include=AS_OF)
+    if xr:
+        xax["range"] = xr
     fig.update_layout(
         template="plotly_white",
-        xaxis_title="Estimated delivery date",
+        xaxis=xax,
         yaxis=dict(title="Destination — nearest to factory at bottom",
                    tickmode="array", tickvals=list(range(len(order))),
-                   ticktext=labels),
-        legend_title="Region", height=780, hovermode="closest")
+                   ticktext=labels, range=[-0.7, len(order) - 0.3]),
+        legend=dict(title_text="Region", groupclick="togglegroup", tracegroupgap=0),
+        height=780, hovermode="closest", updatemenus=menu)
+    if menu:
+        fig.update_layout(margin=dict(t=54))
     _add_today_vline(fig)
     return fig
 
 
 def fig_vin_vs_order(df):
-    """#3 VIN sequence vs R2 order date, coded by config."""
+    """#3 VIN sequence vs R2 order date, coded by config. One legend entry per
+    paint × wheel (marker shape encodes the wheel), each toggling/isolating that
+    series independently."""
     d = df[df["vin_present"] & df["order_date"].notna()]
     fig = go.Figure()
-    paint_of = []
-    for t in _config_traces(d):
-        s = t["sub"]
+    for color, wheel, sym, s in _config_wheel_traces(d):
+        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
+        cd, ht = _config_hover(s)
         fig.add_trace(go.Scatter(
             x=np.asarray(s["order_date"]), y=np.asarray(s["vin_seq"]),
-            mode="markers",
-            name=t["color"], legendgroup="paint",
-            marker=dict(color=COLOR_DISPLAY[t["color"]], size=11,
-                        symbol=t["symbols"], opacity=0.9,
+            mode="markers", name=grp, legendgroup=grp,
+            marker=dict(color=COLOR_DISPLAY[color], size=11,
+                        symbol=sym, opacity=0.9,
                         line=dict(color="#2b2b2b", width=0.8)),
-            customdata=t["cd"], hovertemplate=t["ht"]))
-        paint_of.append(t["color"])
-    for label, sym in WHEEL_SYMBOL.items():
-        fig.add_trace(go.Scatter(
-            x=[None], y=[None], mode="markers", name=label, legendgroup="wheels",
-            marker=dict(color="#999", size=11, symbol=sym,
-                        line=dict(color="#2b2b2b", width=0.8))))
-        paint_of.append(None)
-    menu = _paint_isolate_menu(paint_of)
+            customdata=cd, hovertemplate=ht))
+    xax = dict(title_text="R2 order date", type="date")
+    yax = dict(title_text="VIN sequence number", type="linear")
+    xr = _date_range([d["order_date"]], include=AS_OF)
+    yr = _num_range(d["vin_seq"])
+    if xr:
+        xax["range"] = xr
+    if yr:
+        yax["range"] = yr
     fig.update_layout(
-        template="plotly_white",
-        xaxis_title="R2 order date", yaxis_title="VIN sequence number",
-        legend_title="Paint / wheels", height=640, hovermode="closest",
-        updatemenus=menu)
-    if menu:
-        fig.update_layout(margin=dict(t=54))
+        template="plotly_white", xaxis=xax, yaxis=yax,
+        legend=dict(title_text="Paint · wheels", groupclick="togglegroup",
+                    tracegroupgap=0),
+        height=640, hovermode="closest")
     return fig
 
 
@@ -334,7 +383,7 @@ def fig_order_timeline(df, resv=None):
     fig.update_layout(template="plotly_white", height=720, bargap=0.05,
                       barmode="stack",
                       legend=dict(orientation="h", yanchor="bottom", y=1.10,
-                                  xanchor="left", x=0),
+                                  xanchor="left", x=0, groupclick="toggleitem"),
                       margin=dict(t=90))
     fig.update_yaxes(title_text="Reservations", row=1, col=1)
     fig.update_yaxes(title_text="Orders", row=2, col=1)
