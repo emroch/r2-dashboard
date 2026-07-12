@@ -62,6 +62,24 @@ def _config_traces(df):
     return traces
 
 
+def _paint_isolate_menu(paint_of):
+    """A visibility-only 'isolate paint' dropdown (Plotly updatemenus). paint_of
+    is the paint name per trace index, or None for traces (e.g. wheel-symbol
+    legend keys) that should stay visible in every view."""
+    present = [c for c in COLOR_ORDER if c in paint_of]
+    if len(present) < 2:
+        return []
+    buttons = [dict(label="All paints", method="restyle",
+                    args=[{"visible": [True] * len(paint_of)}])]
+    for c in present:
+        vis = [(p is None or p == c) for p in paint_of]
+        buttons.append(dict(label=c, method="restyle", args=[{"visible": vis}]))
+    return [dict(type="dropdown", direction="down", showactive=True, buttons=buttons,
+                 x=0, xanchor="left", y=1.02, yanchor="bottom", pad=dict(b=2),
+                 bgcolor="rgba(255,255,255,0.9)", bordercolor="#cccccc",
+                 font=dict(size=11))]
+
+
 def fig_delivery_vs_vin(df):
     """#1 Estimated delivery date vs VIN sequence, coded by config.
 
@@ -71,6 +89,7 @@ def fig_delivery_vs_vin(df):
     fig = go.Figure()
     xs = d["vin_seq"].astype(float)
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
+    paint_of = []
     for t in _config_traces(d):
         s = t["sub"]
         # Whiskers (min-max span + caps) for estimates that are a window/range.
@@ -85,6 +104,7 @@ def fig_delivery_vs_vin(df):
                 x=xw, y=yw, mode="lines", legendgroup="paint", showlegend=False,
                 hoverinfo="skip", opacity=0.7,
                 line=dict(color=WHISKER_HEX[t["color"]], width=1.4)))
+            paint_of.append(t["color"])
         fig.add_trace(go.Scatter(
             x=np.asarray(s["vin_seq"]), y=np.asarray(s["delivery_est"]),
             mode="markers", name=t["color"], legendgroup="paint",
@@ -92,18 +112,23 @@ def fig_delivery_vs_vin(df):
                         symbol=t["symbols"], opacity=t["opac"],
                         line=dict(color="#2b2b2b", width=0.8)),
             customdata=t["cd"], hovertemplate=t["ht"]))
-    # Wheel-symbol legend keys.
+        paint_of.append(t["color"])
+    # Wheel-symbol legend keys (kept visible in every isolate view).
     for label, sym in WHEEL_SYMBOL.items():
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode="markers", name=label, legendgroup="wheels",
             marker=dict(color="#999", size=11, symbol=sym,
                         line=dict(color="#2b2b2b", width=0.8))))
+        paint_of.append(None)
+    menu = _paint_isolate_menu(paint_of)
     fig.update_layout(
         template="plotly_white",
         xaxis_title="VIN sequence number  (production order →)",
         yaxis_title="Estimated delivery date  (whiskers = quoted window)",
-        legend_title="Paint / wheels", height=640,
-        hovermode="closest")
+        legend_title="Paint / wheels", height=640, hovermode="closest",
+        updatemenus=menu)
+    if menu:
+        fig.update_layout(margin=dict(t=54))
     _add_today_hline(fig)  # horizontal — delivery date is the y-axis here
     return fig
 
@@ -168,6 +193,7 @@ def fig_vin_vs_order(df):
     """#3 VIN sequence vs R2 order date, coded by config."""
     d = df[df["vin_present"] & df["order_date"].notna()]
     fig = go.Figure()
+    paint_of = []
     for t in _config_traces(d):
         s = t["sub"]
         fig.add_trace(go.Scatter(
@@ -178,15 +204,21 @@ def fig_vin_vs_order(df):
                         symbol=t["symbols"], opacity=0.9,
                         line=dict(color="#2b2b2b", width=0.8)),
             customdata=t["cd"], hovertemplate=t["ht"]))
+        paint_of.append(t["color"])
     for label, sym in WHEEL_SYMBOL.items():
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode="markers", name=label, legendgroup="wheels",
             marker=dict(color="#999", size=11, symbol=sym,
                         line=dict(color="#2b2b2b", width=0.8))))
+        paint_of.append(None)
+    menu = _paint_isolate_menu(paint_of)
     fig.update_layout(
         template="plotly_white",
         xaxis_title="R2 order date", yaxis_title="VIN sequence number",
-        legend_title="Paint / wheels", height=640, hovermode="closest")
+        legend_title="Paint / wheels", height=640, hovermode="closest",
+        updatemenus=menu)
+    if menu:
+        fig.update_layout(margin=dict(t=54))
     return fig
 
 

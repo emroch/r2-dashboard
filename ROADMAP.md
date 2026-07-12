@@ -17,9 +17,12 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   legend boxes, marker/bar borders (dark-grey ↔ light-grey), and the factory ★
   marker. Data-encoding colors (paints/bars/regions) are deliberately left fixed.
 
-- [ ] **Interactive filters** · M
-  Client-side filtering by state/region, config (color, wheels, interior),
-  purchase vs. lease, and "VIN-assigned only" — updates all charts at once.
+- [x] **Interactive filters** · M · *done (v1: built-ins)*
+  Shipped the lean "Plotly built-ins" version: legend click-to-hide /
+  double-click-to-isolate is surfaced in the header note, and charts 1 & 3 gained
+  an "isolate paint" dropdown (updatemenus visibility toggles). A full cross-chart
+  filter — re-aggregating every chart in JS by state/config/buy-lease/VIN-status —
+  was considered and deferred as a larger future build.
 
 - [ ] **Per-chart export & data table** · S
   PNG export (Plotly already supports it) plus a "download this chart's data as
