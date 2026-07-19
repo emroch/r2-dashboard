@@ -43,6 +43,17 @@ def test_clean_vin_below_threshold():
     assert clean_vin("50") == (None, False, False)
 
 
+def test_clean_vin_trailing_x_dropped():
+    # A trailing X redacts the low-order digit(s), so the magnitude is unknown
+    # (218X is 2180-2189) — dropped, not understated to 218. Leading X still
+    # recovers the full sequence.
+    assert clean_vin("218X") == (None, False, True)
+    assert clean_vin("226X") == (None, False, True)
+    assert clean_vin("00426X") == (None, False, True)
+    assert clean_vin("15XX") == (None, False, True)
+    assert clean_vin("XX816") == (816, True, True)
+
+
 def test_fix_numeric_typos_concatenated():
     assert _fix_numeric_typos("6302026") == "6/30/2026"
 
@@ -99,6 +110,23 @@ def test_parse_delivery_window_anchor():
     assert win["max"] == order + pd.Timedelta(weeks=8)
     exp = parse_delivery("07/14/2026", order)
     assert exp["type"] == "explicit" and pd.isna(exp["anchor"])
+
+
+def test_apply_additions_appends_new_and_flags_conflicts():
+    # Additions append forum-only rows; a name already in the sheet or an unknown
+    # field is flagged (the latter still adds the row, minus the bad field).
+    from r2_orders.loaders import _apply_additions
+    df = pd.DataFrame({"orig_num": ["1"], "user": ["Alice"], "vin_raw": ["1200"]})
+    add_df, added, issues = _apply_additions(df, {
+        "Bob": {"vin_raw": "1500", "loc_raw": "CA"},   # new -> appended
+        "alice": {"vin_raw": "9"},                     # already in sheet -> issue
+        "Carol": {"bogus": "x"},                       # unknown field -> issue
+    })
+    users = list(add_df["user"])
+    assert "Bob" in users and "Carol" in users and "Alice" not in users
+    assert len(added) == 2 and add_df.loc[add_df["user"] == "Bob", "loc_raw"].iloc[0] == "CA"
+    assert any("already in orders sheet" in d for _, _, d in issues)
+    assert any("unknown field" in d for _, _, d in issues)
 
 
 def _run_all():

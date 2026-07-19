@@ -342,8 +342,9 @@ _QA_CATS = [
     ("bad_dates", "Invalid dates dropped",
      "Order/reservation dates outside the plausible window, cleared."),
     ("override_issues", "Override issues",
-     "Manual fix-ups in overrides.yaml that referenced an unknown field or a "
-     "username with no matching order."),
+     "Manual fix-ups or additions in overrides.yaml that referenced an unknown "
+     "field, a username with no matching order, or an addition already in the "
+     "sheet."),
 ]
 
 
@@ -421,15 +422,17 @@ def build_dashboard(df, report, resv):
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
+        "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
     }
     stat_groups = [
         ("Cohort", [
             ("Unique orders", report["n_dedup"], None),
+            ("Manual additions", report["n_added"], san["Manual additions"]),
             ("Incomplete reservations", rr["n_incomplete"], None),
             ("Total demand", report["n_dedup"] + rr["n_incomplete"], None),
         ]),
         ("Cleaned / removed", [
-            ("Order duplicates", report["n_raw"] - report["n_dedup"],
+            ("Order duplicates", len(san["Duplicates removed"]),
              san["Duplicates removed"]),
             ("Reservation duplicates", rr["n_self_dupes"], rr["self_dupe_records"]),
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
