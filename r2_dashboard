@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Build the Rivian R2 dashboard: fetch the live sheets, clean the data, and
+render the HTML page (plus the tidy CSV). Run from the repo root: `./r2_dashboard`.
+
+This is a run-in-place project, not an installed package — the launcher just puts
+src/ on the import path and hands off to the pipeline. Equivalent to running
+`python3 src/pipeline.py`.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
+
+from pipeline import main  # noqa: E402  (import must follow the sys.path setup)
+
+if __name__ == "__main__":
+    main()

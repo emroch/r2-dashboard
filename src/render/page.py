@@ -9,7 +9,7 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
                      fig_order_timeline, fig_vin_by_config, fig_vin_vs_order)
-from .config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
+from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
 # Display order = list order. Section numbers (chart titles + sidebar links) are
 # assigned from position at render time, so reordering this list is all it takes;

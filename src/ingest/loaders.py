@@ -12,7 +12,7 @@ import io
 import numpy as np
 import pandas as pd
 
-from .config import (ADDITIONS, AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN,
+from config import (ADDITIONS, AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN,
                      ORDERS_COLUMNS, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, SPARE_TOKENS, UNKNOWN_SUBSTRINGS,
                      UNKNOWN_TOKENS, WHEELS_21_CONTAINS, WHEELS_LABEL_20,
