@@ -12,10 +12,11 @@ import io
 import numpy as np
 import pandas as pd
 
-from .config import (AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN, ORDERS_COLUMNS,
-                     OVERRIDES, RESERVATIONS_COLUMNS, RESV_DATE_MIN,
-                     SPARE_TOKENS, UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS,
-                     WHEELS_21_CONTAINS, WHEELS_LABEL_20, WHEELS_LABEL_21)
+from .config import (ADDITIONS, AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN,
+                     ORDERS_COLUMNS, OVERRIDES, RESERVATIONS_COLUMNS,
+                     RESV_DATE_MIN, SPARE_TOKENS, UNKNOWN_SUBSTRINGS,
+                     UNKNOWN_TOKENS, WHEELS_21_CONTAINS, WHEELS_LABEL_20,
+                     WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
 
@@ -43,6 +44,41 @@ def _apply_overrides(df, overrides):
                 df.at[i, field] = new
                 applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
     return applied, issues
+
+
+def _apply_additions(df, additions):
+    """Append forum-only orders (username -> {raw field: value}) that are NOT in
+    the sheet, as new rows, so they flow through cleaning like any other row.
+    Case-insensitive; validates field names; guards against names already in the
+    sheet (use overrides for those) and duplicate additions; tags each new row
+    orig_num='add'. Returns (add_df | None, added_records, issue_records)."""
+    valid = set(ORDERS_COLUMNS)
+    sheet_users = {str(u).lower() for u in df["user"]}
+    seen, new_rows, added, issues = set(), [], [], []
+    for uname, fields in (additions or {}).items():
+        key = str(uname).lower()
+        if key in sheet_users:
+            issues.append(("—", str(uname),
+                           "addition already in orders sheet (use overrides)"))
+            continue
+        if key in seen:
+            issues.append(("—", str(uname), "duplicate addition entry (skipped)"))
+            continue
+        seen.add(key)
+        row = {c: "" for c in ORDERS_COLUMNS}
+        row["user"], row["orig_num"] = str(uname), "add"
+        set_fields = []
+        for field, value in (fields or {}).items():
+            if field not in valid:
+                issues.append(("add", str(uname), "unknown field '%s'" % field))
+                continue
+            row[field] = str(value).strip()
+            set_fields.append(field)
+        new_rows.append(row)
+        added.append(("add", str(uname),
+                      "manual entry — " + ", ".join(sorted(set_fields))))
+    add_df = pd.DataFrame(new_rows, columns=ORDERS_COLUMNS) if new_rows else None
+    return add_df, added, issues
 
 
 def load_and_clean(text, meta):
@@ -77,11 +113,17 @@ def load_and_clean(text, meta):
         for _, r in grp.iloc[1:].iterrows():
             dup_records.append((r["orig_num"], r["user"],
                                 "duplicate of #%s (kept)" % kept["orig_num"]))
-    df = df.drop_duplicates("_ukey", keep="first").sort_index()
-    n_dedup = len(df)
+    df = (df.drop_duplicates("_ukey", keep="first").sort_index()
+          .drop(columns=["_score", "_ukey"]).reset_index(drop=True))
+    n_sheet = len(df)  # unique orders from the sheet (before manual additions)
 
-    # --- Manual fix-ups (applied to raw fields before cleaning) ---
+    # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
+    #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
     override_records, override_issues = _apply_overrides(df, OVERRIDES)
+    add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
+    if add_df is not None:
+        df = pd.concat([df, add_df], ignore_index=True)
+    n_dedup = len(df)  # unique orders total (sheet uniques + manual additions)
 
     # --- VIN ---
     vin = df["vin_raw"].apply(clean_vin)
@@ -205,6 +247,7 @@ def load_and_clean(text, meta):
     report = {
         "source": meta["label"],
         "n_raw": n_raw, "n_dedup": n_dedup,
+        "n_sheet": n_sheet, "n_added": len(add_records),
         "dupes": list(dupe_keys),
         "vin_present": int(df["vin_present"].sum()),
         "vin_obfuscated": int((df["vin_obfuscated"] & df["vin_present"]).sum()),
@@ -217,6 +260,7 @@ def load_and_clean(text, meta):
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
             "Manual fix-ups": override_records,
+            "Manual additions": add_records,
         },
         "quality": {
             "unparseable": unparseable,
@@ -224,7 +268,7 @@ def load_and_clean(text, meta):
             "vin_unrec": unrec_records,
             "bad_dates": date_records,
             "conversions": conversions,
-            "override_issues": override_issues,
+            "override_issues": override_issues + add_issues,
         },
     }
     return df, report, parsed

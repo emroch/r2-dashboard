@@ -1,10 +1,17 @@
-# Manual fix-ups — corrections / fill-ins applied after fetch, before cleaning.
+# Manual curation — corrections and forum-only orders applied after fetch,
+# before cleaning. Both sections are keyed by Username (case-insensitive) and
+# flow through the normal cleaning (VIN recovery, date parsing, geo, etc.):
 #
-# Keyed by Username (case-insensitive). Each entry sets one or more RAW fields
-# for that person, which then flow through the normal cleaning (VIN recovery,
-# date parsing, geo, etc.). Use when someone posted more detail in the forum but
-# didn't update the source sheet. Version-controlled and auditable: every applied
-# change — and every problem (unknown field / no matching user) — shows in the
+#   overrides:  edit one or more RAW fields on a person ALREADY in the orders
+#               sheet. Use when someone posted more detail in the forum but did
+#               not update the sheet. A username with no matching order is
+#               reported as an issue.
+#   additions:  append a forum-only order NOT in the sheet (a whole new row).
+#               Give as many raw fields as you have. A username already in the
+#               sheet is reported as an issue (use overrides for those instead).
+#
+# Version-controlled and auditable: every applied change/addition — and every
+# problem (unknown field / no matching or already-present user) — shows in the
 # cleaning report and the data-quality panel. Idempotent; never mutates the cache.
 #
 # Valid fields: orig_num, user, resv_raw, order_raw, vin_raw, delivery_raw,
@@ -16,20 +23,18 @@
 #   SomeUser:
 #     vin_raw: "1234"            # forum-confirmed VIN, missing from the sheet
 #     delivery_raw: "7/30/2026"  # posted a firm date after submitting
+# additions:
+#   ForumOnlyUser:
+#     vin_raw: "1500"
+#     delivery_raw: "8/1/2026"
+#     loc_raw: "CA"
+#     color: "Launch Green"
 
 overrides:
   # delivery delayed from 6/30 -> 7/10
   # https://www.rivianforums.com/forum/threads/r2-order-timeline-data-point-vin-assigned-in-steps-stage.60108/post-1043872
   hodags:
     delivery_raw: "7/10/2026"
-  # VIN update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047115
-  ev_dan:
-    vin_raw: "3112"
-  # VIN update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047279
-  jediknight:
-    vin_raw: "15XX"
   # delivery update
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047369
   NCSwa:
@@ -42,10 +47,6 @@ overrides:
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1048085
   dduffey:
     delivery_raw: "7/18/2026"
-  # VIN update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1048634
-  solidbrix:
-    vin_raw: "00426X"
   # delivery delayed 7/20-7/24
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049355
   "california gold":
@@ -59,7 +60,12 @@ overrides:
   RivianPGH:
     delivery_raw: "7/20/2026"
     vin_raw: "218X"
-  # no tracking entry
+  # probable typo (2027 -> 2026)
+  Ti3vom:
+    delivery_raw: "8/6/2026"
+
+additions:
+  # forum-only order — not in the tracker sheet
   # https://www.rivianforums.com/forum/threads/r2-esker-silver-road-trip-report.61400/post-1047128
   jtg11:
     delivery_raw: "7/8/2026"

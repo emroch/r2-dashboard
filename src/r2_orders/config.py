@@ -49,9 +49,12 @@ _SCHEMA = _load("schema.yaml")     # sources, column maps, sanitize, option voca
 _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
 
-# Manual fix-ups (username -> {raw field: value}), applied after fetch. Empty by
-# default; see overrides.yaml for the format.
-OVERRIDES = _load("overrides.yaml").get("overrides") or {}
+# Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
+# OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
+# orders not in the sheet. Both are username-keyed and empty by default.
+_CURATION = _load("overrides.yaml")
+OVERRIDES = _CURATION.get("overrides") or {}
+ADDITIONS = _CURATION.get("additions") or {}
 
 # --- Live sources (schema.yaml) -------------------------------------------
 # EXPORT_URL is the CSV endpoint; VIEW_URL is the human sheet linked in the header.

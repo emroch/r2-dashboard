@@ -19,13 +19,20 @@ def clean_vin(token):
     """Return (seq:int|None, present:bool, obfuscated:bool).
 
     VIN Assigned holds the last 3-4 digits of the VIN (production sequence
-    number, ~700-2900). Some are obfuscated with leading X's (X1435, XX816).
-    Fully redacted values like XXXX0 are unrecoverable.
+    number, ~700-2900). LEADING X's redact high-order digits, so the remaining
+    digits are the full sequence and recover cleanly (X1435 -> 1435, XX816 ->
+    816). A TRAILING X redacts the low-order digit(s), so the value is unknown
+    within a factor of ten (218X is 2180-2189, not 218) — rather than understate
+    it, treat it as unrecoverable and drop it. Fully redacted values like XXXX0
+    are unrecoverable too.
     """
     token = (token or "").strip()
     if token == "":
         return (None, False, False)
     had_x = "x" in token.lower()
+    # Trailing X redacts the low-order digit(s): magnitude unknown -> drop.
+    if token.lower().endswith("x"):
+        return (None, False, True)
     digits = re.sub(r"\D", "", token)
     if digits == "":
         return (None, False, had_x)
