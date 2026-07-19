@@ -105,7 +105,7 @@ def _whisker_toggle_menu(whisker_idx, x=0.0):
 
 
 def fig_delivery_vs_vin(df):
-    """#1 Estimated delivery date vs VIN sequence, coded by config.
+    """Estimated delivery date vs VIN sequence, coded by config.
 
     One legend entry per paint × wheel (marker shape encodes the wheel), each
     toggling/isolating that series — its markers and whiskers share a
@@ -168,7 +168,7 @@ def fig_delivery_vs_vin(df):
 
 
 def fig_dest_vs_delivery(df):
-    """#2 Destination (state, ordered by distance from factory) vs delivery.
+    """Destination (state, ordered by distance from factory) vs delivery.
 
     Per region: markers plus min-max delivery whiskers sharing a per-region
     legendgroup, so clicking a region toggles its points and whiskers together."""
@@ -242,7 +242,7 @@ def fig_dest_vs_delivery(df):
 
 
 def fig_vin_vs_order(df):
-    """#3 VIN sequence vs R2 order date, coded by config. One legend entry per
+    """VIN sequence vs R2 order date, coded by config. One legend entry per
     paint × wheel (marker shape encodes the wheel), each toggling/isolating that
     series independently."""
     d = df[df["vin_present"] & df["order_date"].notna()]
@@ -274,7 +274,7 @@ def fig_vin_vs_order(df):
 
 
 def fig_config_dashboard(df):
-    """#4 Config take-rate small-multiples."""
+    """Config take-rate small-multiples."""
     fig = make_subplots(
         rows=2, cols=3,
         subplot_titles=("Exterior color", "Wheels", "Interior",
@@ -317,7 +317,7 @@ def fig_config_dashboard(df):
 
 
 def fig_color_wheel_heatmap(df):
-    """#5 Color x wheels config-combo counts."""
+    """Color x wheels config-combo counts."""
     wheels = ['20" Black Sand', '21" Liquid Tungsten']
     colors = [c for c in COLOR_ORDER if (df["color"] == c).any()]
     z, text = [], []
@@ -340,7 +340,7 @@ def fig_color_wheel_heatmap(df):
 
 
 def fig_order_timeline(df, resv=None):
-    """#6 Reservation vs. order timeline. The reservation panel stacks two
+    """Reservation vs. order timeline. The reservation panel stacks two
     series: holders who have since ordered vs. reservation-only (incomplete)."""
     fig = make_subplots(
         rows=2, cols=1,
@@ -396,7 +396,7 @@ def fig_order_timeline(df, resv=None):
 
 
 def fig_delivery_timeline(df):
-    """#7 Estimated delivery timeline, stacked by estimate certainty."""
+    """Estimated delivery timeline, stacked by estimate certainty."""
     fig = go.Figure()
     for t in TYPE_ORDER:
         s = df[(df["delivery_type"] == t) & df["delivery_est"].notna()]
@@ -422,7 +422,7 @@ def _geo_counts(frame):
 
 
 def fig_geo(df, resv=None):
-    """#8 Geographic demand in three stacked maps, each with its own legend:
+    """Geographic demand in three stacked maps, each with its own legend:
     orders with a VIN, all orders, and total demand (orders + incomplete
     reservations). Bubble area = count.
 
@@ -483,7 +483,7 @@ def fig_geo(df, resv=None):
 
 
 def fig_certainty_by_vin(df):
-    """#9 Delivery-estimate certainty for VIN-assigned vs. not, as donut charts
+    """Delivery-estimate certainty for VIN-assigned vs. not, as donut charts
     so the type mix reads as percentages within each group."""
     groups = [("VIN assigned", df[df["vin_present"]]),
               ("No VIN yet", df[~df["vin_present"]])]
@@ -508,7 +508,7 @@ def fig_certainty_by_vin(df):
 
 
 def fig_vin_by_config(df):
-    """#10 VIN sequence per full configuration (trim · color · wheels).
+    """VIN sequence per full configuration (trim · color · wheels).
 
     Each VIN-assigned order sits at its production sequence (x); rows group
     orders by configuration. Clusters along a row hint at same-config cars built
