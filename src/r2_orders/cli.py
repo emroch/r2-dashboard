@@ -86,7 +86,11 @@ def main():
             continue
         seen[raw] = True
         est = p["est"].strftime("%Y-%m-%d") if not pd.isna(p["est"]) else "—"
-        print("  %-42s -> %-8s %s" % (repr(raw), p["type"], est))
+        anc = ""
+        if p["type"] == "window" and not pd.isna(p["anchor"]):
+            anc = "  [anchor %s%s]" % (p["anchor"].strftime("%Y-%m-%d"),
+                                       ", as-of" if p["anchor_fallback"] else "")
+        print("  %-42s -> %-8s %s%s" % (repr(raw), p["type"], est, anc))
     print("-" * 64)
     print("Sanitized entries (also shown as stat-card hovers in the dashboard):")
     for label, rows in report["sanitized"].items():
