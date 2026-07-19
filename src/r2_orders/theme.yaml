@@ -1,0 +1,126 @@
+# R2 Orders — page & chart chrome for light / dark mode.
+#
+# Data-encoding colors (paints, regions, delivery types, chart fills) live in
+# palette.yaml. THIS file is the UI chrome: the page's CSS custom properties and
+# the chart chrome the theme toggle swaps. Editing a value here is a data change,
+# no code edit. Loaded by config.py at import.
+
+# ---------------------------------------------------------------------------
+# CSS custom properties. `light` -> :root, `dark` -> html[data-theme="dark"],
+# `fixed` -> :root too but never overridden (theme-independent page chrome, e.g.
+# the always-green header/sidebar). Each key K becomes the property --K.
+# ---------------------------------------------------------------------------
+css:
+  light:
+    bg: "#fafafa"
+    fg: "#1c1c1c"
+    card-bg: "#ffffff"
+    card-bd: "#e6e6e6"
+    card-sh: "rgba(0,0,0,.04)"
+    sec-title: "#12261f"
+    desc: "#555555"
+    tip-bg: "#ffffff"
+    tip-fg: "#223333"
+    tip-bd: "#ccdddd"
+    tip-cap: "#12261f"
+    tip-th: "#dddddd"
+    tip-thc: "#667080"
+    tip-td1: "#8a90a0"
+    footer: "#888888"
+    code-bg: "#eeeeee"
+    code-fg: inherit
+    btn-bg: "rgba(255,255,255,.14)"
+    btn-fg: "#eafff4"
+    btn-bd: "rgba(255,255,255,.32)"
+    link: "#2f6f9f"
+    warn: "#9a6a00"
+    chg: "#2e7d32"
+    stat-bg: "#f3ae3d"  # Compass Yellow
+  dark:
+    bg: "#15171c"
+    fg: "#dfe4ea"
+    card-bg: "#1e2127"
+    card-bd: "#2f343d"
+    card-sh: "rgba(0,0,0,.45)"
+    sec-title: "#bfe6d2"
+    desc: "#aab3bd"
+    tip-bg: "#242830"
+    tip-fg: "#d7dde3"
+    tip-bd: "#3a404a"
+    tip-cap: "#bfe6d2"
+    tip-th: "#3a404a"
+    tip-thc: "#9aa4b0"
+    tip-td1: "#8a93a0"
+    footer: "#8a929c"
+    code-bg: "#2a2f37"
+    code-fg: "#dfe4ea"
+    btn-bg: "rgba(255,255,255,.10)"
+    btn-fg: "#eafff4"
+    btn-bd: "rgba(255,255,255,.24)"
+    link: "#8fc9ef"
+    warn: "#ffd27f"
+    chg: "#8fdf8f"
+    stat-bg: "#f3ae3d"  # Compass Yellow
+  fixed:                        # header / sidebar / disclaimer chrome (same in both themes)
+    topbar-fg: "#ffffff"
+    topbar-sh: "rgba(0,0,0,.22)"
+    disc-fg: "#ffe0b0"
+    disc-bg: "rgba(255,180,80,.12)"
+    disc-bd: "#f3ae3d"   # Compass Yellow
+    side-bd: "rgba(0,0,0,.18)"
+    side-sh: "rgba(0,0,0,.12)"
+    side-title: "#33452f"
+    side-fg: "#1e2a1a"
+    side-hover: "rgba(0,0,0,.07)"
+    side-active-bd: "#12261f"
+    side-active-fg: "#0e1a10"
+    side-active-bg: "rgba(255,255,255,.34)"
+    backdrop: "rgba(0,0,0,.4)"
+    chip-fg: "#1c1c1c"
+    tip-sh: "rgba(0,0,0,.22)"
+    footer-link: "#4c78a8"
+
+# ---------------------------------------------------------------------------
+# Chart chrome. The `light` values are baked into the server-rendered charts;
+# the theme toggle (THEME_JS) swaps to `dark`. Covers font, gridlines, axis
+# lines, geo land/borders, legend boxes, the "managed" marker/line edge grey,
+# and the factory star.
+# ---------------------------------------------------------------------------
+chart:
+  light:
+    text: "#1c1c1c"
+    grid: "#e9e9e9"
+    line: "#c9c9c9"
+    land: "#f2f2f0"
+    sub: "#c4c4c4"
+    country: "#9e9e9e"
+    legbg: "rgba(255,255,255,0.75)"
+    legbd: "#dddddd"
+    edge: "#2b2b2b"
+    star: "#111111"
+  dark:
+    text: "#d7dde3"
+    grid: "#333941"
+    line: "#4a515a"
+    land: "#2a2d33"
+    sub: "#474d56"
+    country: "#5c636d"
+    legbg: "rgba(30,33,38,0.85)"
+    legbd: "#4a515a"
+    edge: "#aab0b8"
+    star: "#e8e8e8"
+
+# ---------------------------------------------------------------------------
+# Static chart accents (not swapped by the theme toggle).
+# ---------------------------------------------------------------------------
+chart_ui:
+  control_bg: "rgba(255,255,255,0.9)"     # filter dropdown / whisker toggle
+  control_border: "#cccccc"
+  control_fg: "#2b2b2b"
+  annotation_bg: "rgba(255,255,255,0.9)"  # reveal-week callout (chart 6)
+  annotation_border: "#cdd"
+  annotation_text: "#33475a"
+  annotation_arrow: "#4c78a8"
+  pie_gap: "#ffffff"                       # donut slice separators (chart 9)
+  muted: "#888888"                         # unmapped-category / fallback grey
+  key_marker: "#999999"                    # legend-key marker (chart 10)

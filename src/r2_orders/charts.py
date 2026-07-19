@@ -7,14 +7,16 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
-from .config import (AS_OF, COLOR_ORDER, FACTORY, INTERIOR_COLOR, REGION_COLOR,
-                     TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER, WHEEL_SYMBOL)
+from .config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, REGION_COLOR, TAKE_RATE,
+                     TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
+                     WHEEL_SYMBOL)
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
 # shapes and their labels too — so it flips with the rest of the chart chrome.
-_TODAY = dict(line_width=1.5, line_dash="dash", line_color="#2b2b2b",
-              annotation_text="Today", annotation_font_color="#2b2b2b",
+_TODAY = dict(line_width=1.5, line_dash="dash", line_color=CHART["edge"],
+              annotation_text="Today", annotation_font_color=CHART["edge"],
               annotation_font_size=10)
 
 
@@ -94,8 +96,8 @@ def _whisker_toggle_menu(whisker_idx, x=0.0):
     idx = list(whisker_idx)
     return [dict(type="buttons", direction="right", showactive=True, x=x,
                  xanchor="left", y=1.02, yanchor="bottom", pad=dict(b=2),
-                 bgcolor="rgba(255,255,255,0.9)", bordercolor="#cccccc",
-                 font=dict(size=11, color="#2b2b2b"),
+                 bgcolor=CHART_UI["control_bg"], bordercolor=CHART_UI["control_border"],
+                 font=dict(size=11, color=CHART_UI["control_fg"]),
                  buttons=[dict(label="Whiskers", method="restyle",
                               args=[{"visible": True}, idx]),
                           dict(label="No whiskers", method="restyle",
@@ -139,7 +141,7 @@ def fig_delivery_vs_vin(df):
             mode="markers", name=grp, legendgroup=grp,
             marker=dict(color=COLOR_DISPLAY[color], size=11,
                         symbol=sym, opacity=opac,
-                        line=dict(color="#2b2b2b", width=0.8)),
+                        line=dict(color=CHART["edge"], width=0.8)),
             customdata=cd, hovertemplate=ht))
     menu = _whisker_toggle_menu(whisk, x=0.0)
     # Fixed ranges + pinned axis types so toggling series or zooming never
@@ -210,7 +212,7 @@ def fig_dest_vs_delivery(df):
             x=np.asarray(sub["delivery_est"]), y=y, mode="markers", name=region,
             legendgroup=region,
             marker=dict(color=REGION_COLOR[region], size=9, opacity=0.8,
-                        line=dict(color="#2b2b2b", width=0.5)),
+                        line=dict(color=CHART["edge"], width=0.5)),
             customdata=cd,
             hovertemplate=("<b>%{customdata[0]}</b> — %{customdata[1]}<br>"
                            "%{customdata[2]:.0f} mi from Normal, IL<br>"
@@ -253,7 +255,7 @@ def fig_vin_vs_order(df):
             mode="markers", name=grp, legendgroup=grp,
             marker=dict(color=COLOR_DISPLAY[color], size=11,
                         symbol=sym, opacity=0.9,
-                        line=dict(color="#2b2b2b", width=0.8)),
+                        line=dict(color=CHART["edge"], width=0.8)),
             customdata=cd, hovertemplate=ht))
     xax = dict(title_text="R2 order date", type="date")
     yax = dict(title_text="VIN sequence number", type="linear")
@@ -282,32 +284,32 @@ def fig_config_dashboard(df):
     cc = df["color"].value_counts()  # descending by popularity
     fig.add_trace(go.Bar(x=list(cc.index), y=np.asarray(cc.values),
                          marker_color=[COLOR_DISPLAY[c] for c in cc.index],
-                         marker_line=dict(color="#2b2b2b", width=1),
+                         marker_line=dict(color=CHART["edge"], width=1),
                          showlegend=False), 1, 1)
 
     wc = df["wheels_short"].value_counts()
     fig.add_trace(go.Bar(x=list(wc.index), y=np.asarray(wc.values),
-                         marker_color="#4c78a8", showlegend=False), 1, 2)
+                         marker_color=TAKE_RATE["wheels"], showlegend=False), 1, 2)
 
     ic = df["interior"].value_counts()
     ic_names = [s.replace(" Signature", "") for s in ic.index]
     fig.add_trace(go.Bar(x=ic_names, y=np.asarray(ic.values),
-                         marker_color=[INTERIOR_COLOR.get(n, "#8899a6")
+                         marker_color=[INTERIOR_COLOR.get(n, TAKE_RATE["interior_fallback"])
                                        for n in ic_names],
-                         marker_line=dict(color="#2b2b2b", width=1),
+                         marker_line=dict(color=CHART["edge"], width=1),
                          showlegend=False), 1, 3)
 
     bc = df["buylease"].value_counts()
     fig.add_trace(go.Bar(x=list(bc.index), y=np.asarray(bc.values),
-                         marker_color="#f58518", showlegend=False), 2, 1)
+                         marker_color=TAKE_RATE["buylease"], showlegend=False), 2, 1)
 
     sc = df["opted_spare"].map({True: "Yes", False: "No"}).value_counts()
     fig.add_trace(go.Bar(x=list(sc.index), y=np.asarray(sc.values),
-                         marker_color="#e45756", showlegend=False), 2, 2)
+                         marker_color=TAKE_RATE["spare"], showlegend=False), 2, 2)
 
     rc = df["r1_owner"].replace("", "Blank").value_counts()
     fig.add_trace(go.Bar(x=list(rc.index), y=np.asarray(rc.values),
-                         marker_color="#54a24b", showlegend=False), 2, 3)
+                         marker_color=TAKE_RATE["r1_owner"], showlegend=False), 2, 3)
 
     fig.update_layout(template="plotly_white", height=680,
                       title_text=None, bargap=0.25)
@@ -329,7 +331,7 @@ def fig_color_wheel_heatmap(df):
         text.append(trow)
     fig = go.Figure(go.Heatmap(
         z=z, x=wheels, y=colors, text=text, texttemplate="%{text}",
-        textfont=dict(size=14), colorscale="Blues", showscale=True,
+        textfont=dict(size=14), colorscale=HEATMAP_COLORSCALE, showscale=True,
         hovertemplate="%{y} + %{x}<br>%{z} orders<extra></extra>"))
     fig.update_layout(template="plotly_white", height=520,
                       xaxis_title="Wheels", yaxis_title="Exterior color",
@@ -347,15 +349,15 @@ def fig_order_timeline(df, resv=None):
     week = 86400000 * 7  # ms
     fig.add_trace(go.Histogram(
         x=np.asarray(df["resv_date"].dropna()), name="Reserved & ordered",
-        legendgroup="r", marker_color="#f58518",
+        legendgroup="r", marker_color=TIMELINE_COLORS["ordered"],
         xbins=dict(size=week)), 1, 1)
     if resv is not None and len(resv):
         fig.add_trace(go.Histogram(
             x=np.asarray(resv["resv_date"].dropna()),
             name="Reserved only (incomplete)", legendgroup="r",
-            marker_color="#4c78a8", xbins=dict(size=week)), 1, 1)
+            marker_color=TIMELINE_COLORS["reserved_only"], xbins=dict(size=week)), 1, 1)
     fig.add_trace(go.Histogram(x=np.asarray(df["order_date"].dropna()),
-                               marker_color="#f58518", showlegend=False,
+                               marker_color=TIMELINE_COLORS["ordered"], showlegend=False,
                                xbins=dict(size=86400000 * 3)), 2, 1)  # 3-day bins
 
     # The 3/7/2024 reveal week (~20x the next-biggest week) flattens everything
@@ -376,9 +378,12 @@ def fig_order_timeline(df, resv=None):
                 text=("Reveal week (Mar 2024): %s reservations —<br>"
                       "y-axis clipped at %d to show the tail"
                       % (format(spike, ","), cap)),
-                showarrow=True, arrowhead=2, arrowwidth=1.3, arrowcolor="#4c78a8",
-                ax=120, ay=-6, align="left", font=dict(size=11, color="#33475a"),
-                bgcolor="rgba(255,255,255,0.9)", bordercolor="#cdd", borderwidth=1)
+                showarrow=True, arrowhead=2, arrowwidth=1.3,
+                arrowcolor=CHART_UI["annotation_arrow"],
+                ax=120, ay=-6, align="left",
+                font=dict(size=11, color=CHART_UI["annotation_text"]),
+                bgcolor=CHART_UI["annotation_bg"],
+                bordercolor=CHART_UI["annotation_border"], borderwidth=1)
 
     fig.update_layout(template="plotly_white", height=720, bargap=0.05,
                       barmode="stack",
@@ -447,7 +452,7 @@ def fig_geo(df, resv=None):
         legends[legend_key] = dict(
             x=1.01, xanchor="left", y=y_top - rowh / 2, yanchor="middle",
             title=dict(text="Region"), font=dict(size=11), itemsizing="constant",
-            bgcolor="rgba(255,255,255,0.75)", bordercolor="#ddd", borderwidth=1)
+            bgcolor=CHART["legbg"], bordercolor=CHART["legbd"], borderwidth=1)
         if not len(g):
             continue
         ref_max = g["n"].max() if title.startswith("Total") else order_max
@@ -460,18 +465,18 @@ def fig_geo(df, resv=None):
                 mode="markers",
                 marker=dict(size=np.asarray(sub["n"]), sizemode="area",
                             sizeref=sref, sizemin=3,
-                            color=REGION_COLOR.get(region, "#888"),
-                            line=dict(color="#2b2b2b", width=0.5)),
+                            color=REGION_COLOR.get(region, CHART_UI["muted"]),
+                            line=dict(color=CHART["edge"], width=0.5)),
                 customdata=np.asarray(sub["n"]),
                 hovertemplate="%{text}: %{customdata}<extra></extra>"), i, 1)
         fig.add_trace(go.Scattergeo(
             lat=[FACTORY[0]], lon=[FACTORY[1]], mode="markers", name="Factory",
-            showlegend=False, marker=dict(size=11, symbol="star", color="#111"),
+            showlegend=False, marker=dict(size=11, symbol="star", color=CHART["star"]),
             hovertemplate="Rivian plant — Normal, IL<extra></extra>"), i, 1)
     fig.update_geos(scope="north america", resolution=50, showland=True,
-                    landcolor="#f2f2f0", showlakes=False,
-                    showsubunits=True, subunitcolor="#c4c4c4", subunitwidth=0.5,
-                    showcountries=True, countrycolor="#9e9e9e", countrywidth=0.7)
+                    landcolor=CHART["land"], showlakes=False,
+                    showsubunits=True, subunitcolor=CHART["sub"], subunitwidth=0.5,
+                    showcountries=True, countrycolor=CHART["country"], countrywidth=0.7)
     fig.update_layout(template="plotly_white", height=380 * n,
                       margin=dict(l=0, r=140, t=30, b=0), **legends)
     return fig
@@ -483,7 +488,7 @@ def fig_certainty_by_vin(df):
     groups = [("VIN assigned", df[df["vin_present"]]),
               ("No VIN yet", df[~df["vin_present"]])]
     all_types = TYPE_ORDER + ["unknown"]
-    tcolor = dict(TYPE_COLOR, unknown="#bbbbbb")
+    tcolor = TYPE_COLOR  # includes "unknown" (from palette.yaml delivery_types)
     fig = make_subplots(
         rows=1, cols=len(groups),
         specs=[[{"type": "domain"} for _ in groups]],
@@ -494,7 +499,7 @@ def fig_certainty_by_vin(df):
             labels=all_types, values=counts, hole=0.5, sort=False,
             direction="clockwise", showlegend=(i == 1),
             marker=dict(colors=[tcolor[t] for t in all_types],
-                        line=dict(color="#fff", width=1)),
+                        line=dict(color=CHART_UI["pie_gap"], width=1)),
             texttemplate="%{percent}", textposition="inside",
             hovertemplate="%{label}: %{value} (%{percent})<extra></extra>"), 1, i)
     fig.update_layout(template="plotly_white", height=460,
@@ -532,15 +537,15 @@ def fig_vin_by_config(df):
     # Markers keep the dashboard's config language: fill = paint, shape = wheels.
     fig.add_trace(go.Scatter(
         x=np.asarray(d["vin_seq"]), y=y, mode="markers", showlegend=False,
-        marker=dict(color=[COLOR_DISPLAY.get(c, "#888888") for c in d["color"]],
+        marker=dict(color=[COLOR_DISPLAY.get(c, CHART_UI["muted"]) for c in d["color"]],
                     symbol=[WHEEL_SYMBOL.get(w, "circle") for w in d["wheels_short"]],
-                    size=10, line=dict(color="#2b2b2b", width=0.6)),
+                    size=10, line=dict(color=CHART["edge"], width=0.6)),
         customdata=cd, hovertemplate=ht))
     for label, sym in WHEEL_SYMBOL.items():                # wheel-symbol legend
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode="markers", name=label,
-            marker=dict(color="#999", size=10, symbol=sym,
-                        line=dict(color="#2b2b2b", width=0.6))))
+            marker=dict(color=CHART_UI["key_marker"], size=10, symbol=sym,
+                        line=dict(color=CHART["edge"], width=0.6))))
     fig.update_layout(
         template="plotly_white", height=max(420, 42 * len(combos) + 180),
         xaxis_title="VIN sequence number  (production order →)",
