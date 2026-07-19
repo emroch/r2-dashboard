@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
-from .config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
+from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
                      HEATMAP_COLORSCALE, INTERIOR_COLOR, REGION_COLOR, TAKE_RATE,
                      TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
                      WHEEL_SYMBOL)

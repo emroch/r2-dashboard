@@ -1,4 +1,4 @@
-"""Unit tests for r2_orders.parsing.
+"""Unit tests for ingest.parsing.
 
 Runs under pytest, but also standalone without it:
 
@@ -13,17 +13,17 @@ from datetime import date
 
 import pandas as pd
 
-# Self-path: put the repo's src/ dir on sys.path so `import r2_orders` works
+# Self-path: put the repo's src/ dir on sys.path so the source modules import
 # whether run via pytest or directly.
 _SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "src")
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
-from r2_orders.parsing import (clean_vin, haversine_mi, loc_to_state,
-                               parse_delivery, _fix_numeric_typos,
-                               _parse_monthname)
-from r2_orders.config import FACTORY
+from ingest.parsing import (
+    clean_vin, haversine_mi, loc_to_state, parse_delivery,
+    _fix_numeric_typos, _parse_monthname)
+from config import FACTORY
 
 
 def test_clean_vin_obfuscated_recoverable():
@@ -115,7 +115,7 @@ def test_parse_delivery_window_anchor():
 def test_apply_additions_appends_new_and_flags_conflicts():
     # Additions append forum-only rows; a name already in the sheet or an unknown
     # field is flagged (the latter still adds the row, minus the bad field).
-    from r2_orders.loaders import _apply_additions
+    from ingest.loaders import _apply_additions
     df = pd.DataFrame({"orig_num": ["1"], "user": ["Alice"], "vin_raw": ["1200"]})
     add_df, added, issues = _apply_additions(df, {
         "Bob": {"vin_raw": "1500", "loc_raw": "CA"},   # new -> appended
