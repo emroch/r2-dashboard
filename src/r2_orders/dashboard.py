@@ -11,51 +11,54 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_order_timeline, fig_vin_by_config, fig_vin_vs_order)
 from .config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
+# Display order = list order. Section numbers (chart titles + sidebar links) are
+# assigned from position at render time, so reordering this list is all it takes;
+# grouped here as build -> timing -> production/VIN -> geography.
 SECTIONS = [
-    ("1 · Delivery date vs. VIN sequence",
-     dedent("""Each point is an order with both a VIN and a delivery estimate. Color = paint, marker shape = wheels;
-               whiskers span the quoted delivery window. Clusters of one color across a VIN range hint at same-config
-               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one."""),
-     fig_delivery_vs_vin),
-    ("2 · Destination vs. delivery date",
-     dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
-               farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
-               the legend to hide it, or double-click to isolate one."""),
-     fig_dest_vs_delivery),
-    ("3 · VIN sequence vs. order date",
-     dedent("""Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how tightly production
-               sequence tracks order timing. Click a config in the legend to hide it, or double-click to isolate
-               one."""),
-     fig_vin_vs_order),
-    ("4 · Configuration take-rates",
+    ("Configuration take-rates",
      dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
                so they are omitted here.)"""),
      fig_config_dashboard),
-    ("5 · Color × wheels combinations",
-     dedent("""Most common full builds — the combos that would form the clusters in chart 1."""),
+    ("Color × wheels combinations",
+     dedent("""Most common full builds — the combos that would form the clusters in the delivery-vs-VIN chart."""),
      fig_color_wheel_heatmap),
-    ("6 · Reservation & order timeline",
+    ("Reservation & order timeline",
      dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
                above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
                the y-axis is clipped just above the tail to keep the 2-year trickle readable. The bottom shows when
                orders were finalized."""),
      fig_order_timeline),
-    ("7 · Estimated delivery timeline",
+    ("Estimated delivery timeline",
      dedent("""When the cohort expects delivery, stacked by how firm the estimate is."""),
      fig_delivery_timeline),
-    ("8 · Geographic demand",
-     dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
-               total demand (orders + incomplete reservations). Bubble area = count; the first two share a scale, while
-               total demand (~20x larger) scales to its own."""),
-     fig_geo),
-    ("9 · Estimate certainty vs. VIN status",
+    ("Estimate certainty vs. VIN status",
      dedent("""Share of orders with known delivery dates."""),
      fig_certainty_by_vin),
-    ("10 · VIN sequence by configuration",
+    ("VIN sequence vs. order date",
+     dedent("""Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how tightly production
+               sequence tracks order timing. Click a config in the legend to hide it, or double-click to isolate
+               one."""),
+     fig_vin_vs_order),
+    ("Delivery date vs. VIN sequence",
+     dedent("""Each point is an order with both a VIN and a delivery estimate. Color = paint, marker shape = wheels;
+               whiskers span the quoted delivery window. Clusters of one color across a VIN range hint at same-config
+               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one."""),
+     fig_delivery_vs_vin),
+    ("VIN sequence by configuration",
      dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·
                color · wheels); marker fill = paint, shape = wheels. Clusters along a row suggest same-config cars were
                built in a batch."""),
      fig_vin_by_config),
+    ("Geographic demand",
+     dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
+               total demand (orders + incomplete reservations). Bubble area = count; the first two share a scale, while
+               total demand (~20x larger) scales to its own."""),
+     fig_geo),
+    ("Destination vs. delivery date",
+     dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
+               farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
+               the legend to hide it, or double-click to isolate one."""),
+     fig_dest_vs_delivery),
 ]
 
 def _css_block(sel, vars_):
@@ -353,7 +356,7 @@ _QA_CATS = [
 ]
 
 
-def _quality_section(quality, cap=40):
+def _quality_section(quality, num, cap=40):
     """The data-quality / anomaly panel: things flagged for human review rather
     than auto-corrected. Each category lists the affected (#, user, detail)."""
     blocks = []
@@ -386,11 +389,11 @@ def _quality_section(quality, cap=40):
         '<table><tr><th>raw</th><th>type</th><th>anchor</th><th>parsed</th></tr>'
         '%s</table></div>'
         % (len(conv), conv_body))
-    return ('<section id="sec-11"><h2>11 · Data quality &amp; anomalies</h2>'
+    return ('<section id="sec-%d"><h2>%d · Data quality &amp; anomalies</h2>'
             '<p class="desc">Rows flagged for human review — surfaced here, not '
             'auto-corrected. An empty category means nothing tripped that '
             'check.</p><div class="qa">%s</div>%s</section>'
-            % ("".join(blocks), conv_html))
+            % (num, num, "".join(blocks), conv_html))
 
 
 def build_dashboard(df, report, resv):
@@ -405,10 +408,12 @@ def build_dashboard(df, report, resv):
         frag = fig.to_html(full_html=False,
                            include_plotlyjs=(True if i == 0 else False),
                            default_width="100%")
+        # Numbering (DOM order): the summary card is section 1, so charts are
+        # 2..N+1 and the data-quality panel is N+2.
         parts.append(
-            '<section id="sec-%d"><h2>%s</h2><p class="desc">%s</p>%s</section>'
-            % (i + 1, title, desc, frag))
-    parts.append(_quality_section(report["quality"]))
+            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>%s</section>'
+            % (i + 2, i + 2, _esc(title), desc, frag))
+    parts.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]
     firm = dc.get("explicit", 0)
@@ -468,7 +473,7 @@ def build_dashboard(df, report, resv):
     disclaimer_html = ('<p class="disclaimer">All data is self-reported by forum '
                        'users — treat as indicative, not official.</p>')
     intro_html = (
-        '<h2>Sources &amp; summary</h2>'
+        '<h2>1 · Sources &amp; summary</h2>'
         + _src_line("Orders & Deliveries sheet", om,
                     "%d unique orders" % report["n_dedup"])
         + _src_line("Reservations sheet", rm,
@@ -484,13 +489,17 @@ def build_dashboard(df, report, resv):
           'double-click to isolate one; see each chart&#8217;s note for its '
           'paint, region, and wheel filters.</p>')
 
-    # Chart-navigation sidebar: one link per section (charts + QA panel).
-    nav_items = [("sec-%d" % (i + 1), t) for i, (t, _, _) in enumerate(SECTIONS)]
-    nav_items.append(("sec-%d" % (len(SECTIONS) + 1), "11 · Data quality & anomalies"))
+    # Chart-navigation sidebar: the summary card (1), each chart (2..N+1), and
+    # the QA panel (N+2), numbered by position to match the section headings.
+    nav_items = [("sec-1", "1 · Sources & summary")]
+    nav_items += [("sec-%d" % (i + 2), "%d · %s" % (i + 2, t))
+                  for i, (t, _, _) in enumerate(SECTIONS)]
+    qa_num = len(SECTIONS) + 2
+    nav_items.append(("sec-%d" % qa_num, "%d · Data quality & anomalies" % qa_num))
     nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
                         for sid, t in nav_items)
     sidebar_html = ('<nav class="sidebar" id="sidebar"><div class="side-title">'
-                    'Charts</div>%s</nav>' % nav_links)
+                    'Sections</div>%s</nav>' % nav_links)
 
     # Header/sidebar chrome takes its greens from the palette (a nod to the
     # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
@@ -506,7 +515,7 @@ def build_dashboard(df, report, resv):
 %s<div class="nav-backdrop" id="navBackdrop"></div>
 <div class="main">
 <div class="wrap">
-<section class="intro">%s
+<section class="intro" id="sec-1">%s
 <div class="statwrap">%s</div></section>
 %s</div>
 <footer>Generated by <code>r2_orders</code> · <a href="https://github.com/emroch" target="_blank" rel="noopener">emroch</a> · built with Claude Code.</footer>
