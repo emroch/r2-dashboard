@@ -11,7 +11,8 @@ Structure:
 ```
 src/r2_orders/
   config.py     paths, run timestamps (NOW/AS_OF) + loaders for the YAML config files below
-  palette.yaml  colors & marker encodings — paints, interiors, wheels, regions, delivery-type colors/opacity
+  palette.yaml  data-encoding colors & markers — paints, interiors, wheels, regions, delivery-type colors, chart fills (take-rate/timeline), heatmap scale
+  theme.yaml    page & chart chrome for light/dark — CSS custom properties + chart retint colors + static chart accents
   schema.yaml   sheet sources (keys/gids/labels), column maps, sanitize bounds, option take-rate vocab
   geo.yaml      state/province -> region + coordinates, factory location, province-name aliases
   delivery.yaml delivery-estimate normalization — unknown tokens/substrings, explicit overrides, month names
@@ -69,5 +70,5 @@ Dependencies (pandas, numpy, plotly) are expected to be available in the environ
 ## Guidance
 
 - Data is always pulled live from the source sheets and cached under `data/raw/` (timestamped, change-detected) — there are **no hand-maintained snapshots**, so do not add or rely on manual CSV copies. Write cleaned/derived data to `data/processed/`; never mutate the raw caches.
-- Configuration lives in YAML files loaded by `config.py` at import — `palette.yaml` (colors/markers), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet). Adding a paint, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
+- Configuration lives in YAML files loaded by `config.py` at import — `palette.yaml` (data-encoding colors/markers + chart fills), `theme.yaml` (page & chart chrome for light/dark), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.

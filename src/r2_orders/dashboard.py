@@ -1,6 +1,7 @@
 """Dashboard assembly: the section registry, page CSS, HTML helpers, and the
 build_dashboard entry point that renders every chart into a single HTML file.
 """
+import json
 import pandas as pd
 from textwrap import dedent
 
@@ -8,7 +9,7 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
                      fig_order_timeline, fig_vin_by_config, fig_vin_vs_order)
-from .config import COLOR_HEX, DASHBOARD
+from .config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
 SECTIONS = [
     ("1 · Delivery date vs. VIN sequence",
@@ -57,48 +58,45 @@ SECTIONS = [
      fig_vin_by_config),
 ]
 
-PAGE_CSS = """
-:root{
- --bg:#fafafa; --fg:#1c1c1c;
- --card-bg:#ffffff; --card-bd:#e6e6e6; --card-sh:rgba(0,0,0,.04);
- --sec-title:#12261f; --desc:#555555;
- --tip-bg:#ffffff; --tip-fg:#223333; --tip-bd:#ccdddd; --tip-cap:#12261f;
- --tip-th:#dddddd; --tip-thc:#667080; --tip-td1:#8a90a0;
- --footer:#888888; --code-bg:#eeeeee; --code-fg:inherit;
- --btn-bg:rgba(255,255,255,.14); --btn-fg:#eafff4; --btn-bd:rgba(255,255,255,.32);
-}
-html[data-theme="dark"]{
- --bg:#15171c; --fg:#dfe4ea;
- --card-bg:#1e2127; --card-bd:#2f343d; --card-sh:rgba(0,0,0,.45);
- --sec-title:#bfe6d2; --desc:#aab3bd;
- --tip-bg:#242830; --tip-fg:#d7dde3; --tip-bd:#3a404a; --tip-cap:#bfe6d2;
- --tip-th:#3a404a; --tip-thc:#9aa4b0; --tip-td1:#8a93a0;
- --footer:#8a929c; --code-bg:#2a2f37; --code-fg:#dfe4ea;
- --btn-bg:rgba(255,255,255,.10); --btn-fg:#eafff4; --btn-bd:rgba(255,255,255,.24);
-}
+def _css_block(sel, vars_):
+    """One CSS rule of `--name:value;` custom properties from a {name: value} map."""
+    return "%s{%s}" % (sel, "".join("--%s:%s;" % (k, v) for k, v in vars_.items()))
+
+
+# :root carries the light theme plus the theme-independent `fixed` chrome (the
+# always-green header/sidebar/disclaimer); the dark block overrides only what
+# changes. Every value lives in theme.yaml — see config.THEME_CSS.
+_THEME_VARS_CSS = "\n%s\n%s\n" % (
+    _css_block(":root", dict(THEME_CSS["light"], **THEME_CSS["fixed"])),
+    _css_block('html[data-theme="dark"]', THEME_CSS["dark"]))
+
+PAGE_CSS = _THEME_VARS_CSS + """
 body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  margin:0;background:var(--bg);color:var(--fg);
  transition:background .2s ease,color .2s ease;}
 html{scroll-behavior:smooth;}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
-/* Pinned bar: hamburger + title + theme toggle + disclaimer stay visible. */
-.topbar{position:sticky;top:0;z-index:50;background:var(--header-bg,#12261f);
- color:#fff;padding:12px 40px;box-shadow:0 2px 8px rgba(0,0,0,.22);}
-.topbar-row{display:flex;align-items:center;gap:14px;}
-.topbar h1{margin:0;font-size:20px;flex:1;}
+/* Pinned bar: spans the full width across the top; the sidebar tucks in beneath
+   it. Hamburger + title + theme toggle + disclaimer stay visible. */
+.topbar{position:sticky;top:0;z-index:60;background:var(--header-bg);
+ color:var(--topbar-fg);padding:12px 40px;box-shadow:0 2px 8px var(--topbar-sh);}
+.topbar-row{display:flex;align-items:flex-start;gap:14px;}
+.topbar-head{flex:1;min-width:0;}
+.topbar h1{margin:0;font-size:20px;}
+/* Disclaimer lives in the title column, so it insets to align with the title. */
 .topbar p.disclaimer{margin:8px 0 0;padding:5px 10px;font-weight:600;
- font-size:12.5px;color:#ffe0b0;background:rgba(255,180,80,.12);
- border-left:3px solid #f0a24b;border-radius:4px;}
-/* Scrollable intro: source links + methodology + stat cards scroll away. */
-.intro{background:var(--header-bg,#12261f);color:#fff;padding:8px 40px 22px;}
-.intro p{margin:0;color:#cfe0d8;font-size:14px;}
-.intro p.src{margin:3px 0;font-size:13px;color:#dCe9e2;}
-.intro p.src a{color:#8fe3bf;text-decoration:none;border-bottom:1px dotted #6cae91;}
-.intro p.src a:hover{color:#b9f2d6;}
-.intro p.meth{margin:10px 0 0;color:#9fb8ad;font-size:12.5px;line-height:1.5;}
-.intro .warn{color:#ffd27f;}
-.intro .chg{color:#a9e8a9;font-weight:600;}
-.intro .dim{color:#8ba79b;}
+ font-size:12.5px;color:var(--disc-fg);background:var(--disc-bg);
+ border-left:3px solid var(--disc-bd);border-radius:4px;}
+/* Intro is a normal body-section card now (see the `section` rules below); only
+   its inner text/links need styling, themed like the rest of the page. */
+.intro p{margin:0;color:var(--fg);font-size:14px;}
+.intro p.src{margin:3px 0;font-size:13px;color:var(--desc);}
+.intro p.src a{color:var(--link);text-decoration:none;border-bottom:1px dotted currentColor;}
+.intro p.src a:hover{filter:brightness(1.15);}
+.intro p.meth{margin:10px 0 0;color:var(--desc);font-size:12.5px;line-height:1.5;}
+.intro .warn{color:var(--warn);font-weight:600;}
+.intro .chg{color:var(--chg);font-weight:600;}
+.intro .dim{color:var(--desc);}
 .themebtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
  border:1px solid var(--btn-bd);border-radius:20px;padding:6px 14px;
  font-size:12.5px;cursor:pointer;line-height:1;white-space:nowrap;}
@@ -109,26 +107,26 @@ html{scroll-behavior:smooth;}
 .navbtn:hover{filter:brightness(1.15);}
 /* Chart-nav sidebar: Launch-Green rail, hidden by default, toggled by the
    hamburger (nav-shown on <html>); pushes content on wide, overlays on narrow. */
-.sidebar{position:fixed;top:0;left:0;bottom:0;width:220px;overflow-y:auto;
- z-index:60;background:var(--side-bg,#8C9A83);border-right:1px solid rgba(0,0,0,.18);
- box-shadow:2px 0 10px rgba(0,0,0,.12);transform:translateX(-100%);
+.sidebar{position:fixed;top:var(--header-h,92px);left:0;bottom:0;width:220px;overflow-y:auto;
+ z-index:55;background:var(--side-bg,#8C9A83);border-right:1px solid var(--side-bd);
+ box-shadow:2px 0 10px var(--side-sh);transform:translateX(-100%);
  transition:transform .2s ease;}
 html.nav-shown .sidebar{transform:translateX(0);}
 .side-title{padding:14px 16px 8px;font-size:10.5px;text-transform:uppercase;
- letter-spacing:.08em;color:#33452f;}
-.sidebar a{display:block;padding:6px 14px;font-size:12.5px;color:#1e2a1a;
+ letter-spacing:.08em;color:var(--side-title);}
+.sidebar a{display:block;padding:6px 14px;font-size:12.5px;color:var(--side-fg);
  text-decoration:none;border-left:3px solid transparent;line-height:1.35;}
-.sidebar a:hover{background:rgba(0,0,0,.07);}
-.sidebar a.active{border-left-color:#12261f;color:#0e1a10;font-weight:600;
- background:rgba(255,255,255,.34);}
+.sidebar a:hover{background:var(--side-hover);}
+.sidebar a.active{border-left-color:var(--side-active-bd);color:var(--side-active-fg);font-weight:600;
+ background:var(--side-active-bg);}
 .nav-backdrop{display:none;}
 .main{margin-left:0;transition:margin-left .2s ease;}
 @media (min-width:901px){html.nav-shown .main{margin-left:220px;}}
 @media (max-width:900px){
- html.nav-shown .nav-backdrop{display:block;position:fixed;inset:0;z-index:55;
-  background:rgba(0,0,0,.4);}
+ html.nav-shown .nav-backdrop{display:block;position:fixed;z-index:54;
+  top:var(--header-h,92px);left:0;right:0;bottom:0;background:var(--backdrop);}
 }
-section{scroll-margin-top:104px;}
+section{scroll-margin-top:calc(var(--header-h,92px) + 8px);}
 .wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
 section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:10px;
  margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px var(--card-sh);
@@ -138,9 +136,9 @@ section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.4
 .statwrap{margin-top:14px;}
 .statgroup{margin-top:12px;}
 .sglabel{display:block;font-size:10.5px;text-transform:uppercase;
- letter-spacing:.08em;color:#8fae9f;margin:0 0 5px 2px;}
+ letter-spacing:.08em;color:var(--desc);margin:0 0 5px 2px;}
 .stats{display:flex;flex-wrap:wrap;gap:12px;}
-.stat{position:relative;background:#1c3a2e;color:#fff;border-radius:8px;
+.stat{position:relative;background:var(--stat-bg);color:var(--chip-fg);border-radius:8px;
  padding:10px 18px;font-size:12.5px;white-space:nowrap;min-width:96px;}
 .stat b{font-size:18px;display:block;line-height:1.25;}
 .stat.has-tip{cursor:help;}
@@ -148,7 +146,7 @@ section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.4
 .stat .tip{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;
  background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-bd);
  border-radius:8px;font-weight:400;
- box-shadow:0 6px 20px rgba(0,0,0,.22);padding:9px 11px;max-height:300px;overflow:auto;}
+ box-shadow:0 6px 20px var(--tip-sh);padding:9px 11px;max-height:300px;overflow:auto;}
 .stat:hover .tip{display:block;}
 .tipcap{font-weight:600;color:var(--tip-cap);margin-bottom:5px;font-size:12px;}
 .tip table{border-collapse:collapse;font-size:11.5px;}
@@ -179,7 +177,7 @@ section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.4
 .qa-conv th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);
  position:sticky;top:0;background:var(--card-bg);}
 footer{color:var(--footer);font-size:12px;text-align:center;padding:20px;}
-footer a{color:#4c78a8;text-decoration:none;}
+footer a{color:var(--footer-link);text-decoration:none;}
 footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;border-radius:3px;}
 """
 
@@ -194,24 +192,25 @@ if(window.innerWidth>900)document.documentElement.classList.add('nav-shown');
 }catch(e){}})();
 """
 
+# The light/dark chart-chrome objects come from theme.yaml (config.CHART_CHROME),
+# injected into the script below so THEME_JS and the baked-in chart colors agree.
+_CHROME_JS = "var LIGHT=%s;var DARK=%s;" % (
+    json.dumps(CHART_CHROME["light"], separators=(",", ":")),
+    json.dumps(CHART_CHROME["dark"], separators=(",", ":")))
+
 # Runs at end of <body>: wire the toggle and re-theme the (already-rendered)
 # Plotly charts. Data-encoding colors (markers/bars/paints) are left untouched;
 # only chart chrome — text, gridlines, geo land/borders, legend boxes, and the
 # transparent backgrounds that let the themed card show through — is swapped.
 THEME_JS = """
 (function(){
-var LIGHT={text:'#1c1c1c',grid:'#e9e9e9',line:'#c9c9c9',land:'#f2f2f0',
- sub:'#c4c4c4',country:'#9e9e9e',legbg:'rgba(255,255,255,0.75)',legbd:'#dddddd',
- edge:'#2b2b2b',star:'#111111'};
-var DARK={text:'#d7dde3',grid:'#333941',line:'#4a515a',land:'#2a2d33',
- sub:'#474d56',country:'#5c636d',legbg:'rgba(30,33,38,0.85)',legbd:'#4a515a',
- edge:'#aab0b8',star:'#e8e8e8'};
+%s
 function themeCharts(dark){
  if(!window.Plotly)return;
  var t=dark?DARK:LIGHT;
  document.querySelectorAll('.js-plotly-plot').forEach(function(gd){
   if(!gd.layout)return;
-  var managed=['#2b2b2b','#aab0b8'];
+  var managed=[LIGHT.edge,DARK.edge];
   var up={'font.color':t.text,'paper_bgcolor':'rgba(0,0,0,0)',
           'plot_bgcolor':'rgba(0,0,0,0)'};
   Object.keys(gd.layout).forEach(function(k){
@@ -264,7 +263,7 @@ window.addEventListener('load',function(){
  });
 });
 })();
-"""
+""" % _CHROME_JS
 
 # Chart-navigation sidebar: hamburger toggle (narrow screens) + scroll-spy that
 # highlights the section currently in view via IntersectionObserver.
@@ -290,6 +289,12 @@ NAV_JS = """
   },{rootMargin:'-45% 0px -50% 0px',threshold:0});
   secs.forEach(function(s){obs.observe(s);});
  }
+ // Tuck the sidebar/backdrop below the full-width header (its height is dynamic).
+ function setHeaderH(){var h=document.querySelector('.topbar');
+  if(h)el.style.setProperty('--header-h',h.offsetHeight+'px');}
+ setHeaderH();
+ window.addEventListener('resize',setHeaderH);
+ window.addEventListener('load',setHeaderH);
 })();
 """
 
@@ -463,7 +468,7 @@ def build_dashboard(df, report, resv):
     disclaimer_html = ('<p class="disclaimer">All data is self-reported by forum '
                        'users — treat as indicative, not official.</p>')
     intro_html = (
-        '<p>Sources:</p>'
+        '<h2>Sources &amp; summary</h2>'
         + _src_line("Orders & Deliveries sheet", om,
                     "%d unique orders" % report["n_dedup"])
         + _src_line("Reservations sheet", rm,
@@ -491,23 +496,24 @@ def build_dashboard(df, report, resv):
     # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
     chrome_css = ":root{--header-bg:%s;--side-bg:%s;}" % (
         COLOR_HEX.get("Forest Green", "#226222"),
-        COLOR_HEX.get("Launch Green", "#8C9A83"))
+        COLOR_HEX.get("Launch Green", "#91aa81"))
 
     html = """<!doctype html><html><head><meta charset="utf-8">
 <title>Rivian R2 Orders — Dashboard</title><style>%s
 %s</style>
 <script>%s</script></head><body>
+<header class="topbar"><div class="topbar-row"><button id="navToggle" class="navbtn" type="button" aria-label="Toggle chart menu">☰</button><div class="topbar-head">%s%s</div><button id="themeToggle" class="themebtn" type="button" aria-label="Toggle color theme">☾ Dark</button></div></header>
 %s<div class="nav-backdrop" id="navBackdrop"></div>
 <div class="main">
-<header class="topbar"><div class="topbar-row"><button id="navToggle" class="navbtn" type="button" aria-label="Toggle chart menu">☰</button>%s<button id="themeToggle" class="themebtn" type="button" aria-label="Toggle color theme">☾ Dark</button></div>%s</header>
-<div class="intro">%s
-<div class="statwrap">%s</div></div>
-<div class="wrap">%s</div>
+<div class="wrap">
+<section class="intro">%s
+<div class="statwrap">%s</div></section>
+%s</div>
 <footer>Generated by <code>r2_orders</code> · <a href="https://github.com/emroch" target="_blank" rel="noopener">emroch</a> · built with Claude Code.</footer>
 </div>
 <script>%s</script>
-</body></html>""" % (PAGE_CSS, chrome_css, HEAD_JS, sidebar_html, title_html,
-                     disclaimer_html, intro_html, stat_html, "".join(parts),
+</body></html>""" % (PAGE_CSS, chrome_css, HEAD_JS, title_html, disclaimer_html,
+                     sidebar_html, intro_html, stat_html, "".join(parts),
                      THEME_JS + NAV_JS)
 
     with open(DASHBOARD, "w") as fh:

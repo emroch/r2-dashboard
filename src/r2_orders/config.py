@@ -48,6 +48,7 @@ _PALETTE = _load("palette.yaml")   # colors & marker encodings
 _SCHEMA = _load("schema.yaml")     # sources, column maps, sanitize, option vocab
 _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
+_THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
@@ -77,6 +78,10 @@ REGION_COLOR = dict(_PALETTE["regions"])
 TYPE_COLOR = {t: d["color"] for t, d in _PALETTE["delivery_types"].items()}
 TYPE_OPACITY = {t: d["opacity"] for t, d in _PALETTE["delivery_types"].items()}
 TYPE_ORDER = list(_PALETTE["delivery_type_order"])
+# Single-series chart fills (bars/histograms) + the heatmap colorscale name.
+TAKE_RATE = dict(_PALETTE["take_rate"])
+TIMELINE_COLORS = dict(_PALETTE["timeline"])
+HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Orders: positional field names for the block starting at "#". Reservations:
@@ -113,3 +118,13 @@ UNKNOWN_SUBSTRINGS = list(_DELIV["unknown_substrings"])
 DELIVERY_OVERRIDES = {raw: (v["min"], v["max"], v["type"])
                       for raw, v in _DELIV["overrides"].items()}
 MONTHS = dict(_DELIV["months"])
+
+# --- Page & chart chrome (theme.yaml) -------------------------------------
+# THEME_CSS drives the CSS custom properties (light / dark / theme-independent
+# fixed); CHART_CHROME is the chart chrome the theme toggle swaps, and CHART is
+# the light half baked into the server-rendered charts; CHART_UI holds static
+# (non-swapped) chart accents.
+THEME_CSS = _THEME["css"]
+CHART_CHROME = _THEME["chart"]
+CHART = _THEME["chart"]["light"]
+CHART_UI = _THEME["chart_ui"]

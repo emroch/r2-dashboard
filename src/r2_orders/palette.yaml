@@ -67,3 +67,21 @@ delivery_types:
 
 # Stack / iteration order for the firm->vague delivery types (excludes unknown).
 delivery_type_order: [explicit, window, range, month]
+
+# ---------------------------------------------------------------------------
+# Single-series chart fills. Unlike the vocab above these don't encode a
+# category (one color per whole series) — they just tint a bar or histogram —
+# but they live here so every data color is in one place.
+# ---------------------------------------------------------------------------
+take_rate:                    # config take-rate bars (chart 4)
+  wheels: "#4c78a8"
+  buylease: "#f58518"
+  spare: "#e45756"
+  r1_owner: "#54a24b"
+  interior_fallback: "#8899a6"  # interior not found in `interiors` above
+
+timeline:                     # reservation / order timeline (chart 6)
+  ordered: "#f58518"          # "reserved & ordered" bars + order-date bars
+  reserved_only: "#4c78a8"    # reservation-only (incomplete) bars
+
+heatmap_colorscale: Blues     # color x wheels combo heatmap (chart 5)

@@ -14,11 +14,12 @@ src/r2_orders/
   __init__.py         package docstring + __version__
   __main__.py         python -m r2_orders entry point
   config.py           paths, run timestamps + loaders for the YAML config files
-  palette.yaml        colors & marker encodings (paints, interiors, wheels, regions, types)
+  palette.yaml        data-encoding colors & markers (paints, interiors, wheels, regions, types, chart fills)
+  theme.yaml          page & chart chrome for light/dark (CSS variables + chart retint colors)
   schema.yaml         sheet sources, column maps, sanitize bounds, option vocab
   geo.yaml            state/province -> region + coordinates, factory, province aliases
   delivery.yaml       delivery-estimate normalization (tokens, overrides, month names)
-  overrides.yaml      manual per-username fix-ups applied after fetch
+  overrides.yaml      manual curation: overrides (edit existing rows) + additions (forum-only orders)
   colors.py           color-transform functions + derived display palettes
   parsing.py          pure parsing / VIN / date / geo helpers
   loaders.py          load_and_clean, load_reservations
