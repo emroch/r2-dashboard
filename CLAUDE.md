@@ -10,7 +10,7 @@ Structure:
 
 ```
 r2_dashboard        run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
-requirements.txt    pandas, numpy, plotly, PyYAML
+requirements.txt    pandas, numpy, plotly, PyYAML, beautifulsoup4
 src/
   config.py         paths, run timestamps (NOW/AS_OF) + loaders for the conf/ YAML files below
   pipeline.py       main() orchestration + report printing (fetch -> clean -> render)
@@ -21,10 +21,10 @@ src/
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
     charts.py       the ten fig_* chart builders + helpers
-    page.py         template loading, HTML helpers, SECTIONS, build_dashboard
-  templates/        page shell + assets filled at render time
-    page.html       the HTML shell ({{token}} placeholders)
-    styles.css      the page stylesheet (theme vars are generated + prepended)
+    page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
+  templates/        valid standalone page shell + assets, filled at render time
+    page.html       valid HTML shell — empty id'd slots, populated via the DOM
+    styles.css      the page stylesheet (its own <style> slot; theme vars separate)
     head.js         pre-paint theme set (no flash); theme.js re-tints charts on toggle; nav.js sidebar scroll-spy
   conf/             the data/config YAML (loaded by config.py at import)
     palette.yaml    data-encoding colors & markers — paints, interiors, wheels, regions, delivery-type colors, chart fills (take-rate/timeline), heatmap scale
@@ -56,7 +56,7 @@ Outputs:
 
 Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/`.
 
-Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML) are expected to be available in the environment; there is no venv. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
+Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4) are expected to be available in the environment; there is no venv. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
 
 ## CSV structure and quirks
 

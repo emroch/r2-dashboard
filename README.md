@@ -11,7 +11,7 @@ tidy CSV plus a 10-chart HTML dashboard.
 
 ```
 r2_dashboard          run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
-requirements.txt      pandas, numpy, plotly, PyYAML
+requirements.txt      pandas, numpy, plotly, PyYAML, beautifulsoup4
 src/
   config.py           paths, run timestamps + loaders for the conf/ YAML files
   pipeline.py         main() orchestration + report printing (fetch -> clean -> render)
@@ -22,10 +22,10 @@ src/
   render/             build the webpage
     colors.py         color-transform functions + derived display palettes
     charts.py         the ten fig_* chart builders + helpers
-    page.py           template loading, HTML helpers, SECTIONS, build_dashboard
-  templates/          page shell + assets filled at render time
-    page.html         HTML shell ({{token}} placeholders)
-    styles.css        page stylesheet (generated theme vars prepended)
+    page.py           BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
+  templates/          valid standalone page shell + assets, filled at render time
+    page.html         valid HTML shell (empty id'd slots, populated via the DOM)
+    styles.css        page stylesheet (its own <style> slot)
     head.js           pre-paint theme set (no flash)
     theme.js          re-tint chart chrome on light/dark toggle
     nav.js            sidebar hamburger + scroll-spy
@@ -53,7 +53,7 @@ From the project root:
 ```
 
 It's a run-in-place project (no install step). Dependencies are listed in
-`requirements.txt` (pandas, numpy, plotly, PyYAML).
+`requirements.txt` (pandas, numpy, plotly, PyYAML, beautifulsoup4).
 
 ## Outputs
 
