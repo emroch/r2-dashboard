@@ -88,6 +88,19 @@ def test_parse_delivery_numeric_range():
     assert out["max"] == pd.Timestamp("2026-07-31")
 
 
+def test_parse_delivery_window_anchor():
+    # A week-window is measured from the order date and records that anchor;
+    # absolute types (explicit/range/month) leave the anchor unset.
+    order = pd.Timestamp("2026-06-20")
+    win = parse_delivery("4-8 weeks", order)
+    assert win["type"] == "window" and win["anchor_fallback"] is False
+    assert win["anchor"] == order
+    assert win["min"] == order + pd.Timedelta(weeks=4)
+    assert win["max"] == order + pd.Timedelta(weeks=8)
+    exp = parse_delivery("07/14/2026", order)
+    assert exp["type"] == "explicit" and pd.isna(exp["anchor"])
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

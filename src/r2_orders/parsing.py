@@ -122,13 +122,15 @@ def _anchor(order_date):
 def parse_delivery(raw, order_date):
     """Normalize a delivery estimate.
 
-    Returns dict(est, min, max, type, anchor_fallback). Relative week-windows
-    are measured from the customer's R2 order date (per requirement).
+    Returns dict(est, min, max, type, anchor, anchor_fallback). Relative
+    week-windows are measured from `anchor` — the customer's R2 order date, or
+    the as-of date when that is missing/invalid (anchor_fallback=True). Absolute
+    types (explicit / range / month) leave anchor as NaT.
     """
     raw = (raw or "").strip()
     low = raw.lower()
     out = {"est": pd.NaT, "min": pd.NaT, "max": pd.NaT, "type": "unknown",
-           "anchor_fallback": False}
+           "anchor": pd.NaT, "anchor_fallback": False}
     if low in UNKNOWN_TOKENS or any(s in low for s in UNKNOWN_SUBSTRINGS):
         return out
 
@@ -147,13 +149,14 @@ def parse_delivery(raw, order_date):
         out.update(min=anchor + pd.Timedelta(weeks=lo),
                    max=anchor + pd.Timedelta(weeks=hi),
                    est=anchor + pd.Timedelta(weeks=(lo + hi) / 2.0),
-                   type="window", anchor_fallback=fb)
+                   type="window", anchor=anchor, anchor_fallback=fb)
         return out
     if ("week" in low or "wk" in low) and single:
         w = int(single.group(1))
         anchor, fb = _anchor(order_date)
         est = anchor + pd.Timedelta(weeks=w)
-        out.update(est=est, min=est, max=est, type="window", anchor_fallback=fb)
+        out.update(est=est, min=est, max=est, type="window",
+                   anchor=anchor, anchor_fallback=fb)
         return out
 
     # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", or same-month "7/30-31"

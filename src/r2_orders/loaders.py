@@ -191,7 +191,15 @@ def load_and_clean(text, meta):
             res = prs["est"].strftime("%Y-%m-%d")
         else:
             res = "—"
-        conversions.append((r, prs["type"], res))
+        # Windows are relative, so record the anchor they were measured from
+        # (order date, or the as-of date when that is missing/invalid). Absolute
+        # types (explicit/range/month) have no anchor.
+        anchor = ""
+        if prs["type"] == "window" and pd.notna(prs["anchor"]):
+            anchor = prs["anchor"].strftime("%Y-%m-%d")
+            if prs["anchor_fallback"]:
+                anchor += " (as-of)"
+        conversions.append((r, prs["type"], res, anchor))
     conversions.sort(key=lambda t: t[0].lower())
 
     report = {

@@ -18,7 +18,59 @@
 #     delivery_raw: "7/30/2026"  # posted a firm date after submitting
 
 overrides:
+  # delivery delayed from 6/30 -> 7/10
+  # https://www.rivianforums.com/forum/threads/r2-order-timeline-data-point-vin-assigned-in-steps-stage.60108/post-1043872
   hodags:
-    # delivery delayed from 6/30 -> 7/10
-    # https://www.rivianforums.com/forum/threads/r2-order-timeline-data-point-vin-assigned-in-steps-stage.60108/post-1043872
     delivery_raw: "7/10/2026"
+  # VIN update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047115
+  ev_dan:
+    vin_raw: "3112"
+  # VIN update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047279
+  jediknight:
+    vin_raw: "15XX"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047369
+  NCSwa:
+    delivery_raw: "7/15/2026"
+  # VIN update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047660
+  adagia:
+    vin_raw: "02275"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1048085
+  dduffey:
+    delivery_raw: "7/18/2026"
+  # VIN update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1048634
+  solidbrix:
+    vin_raw: "00426X"
+  # delivery delayed 7/20-7/24
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049355
+  "california gold":
+    delivery_raw: "7/24/2026"
+  # delivery delayed 7/10-7/14
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049498
+  bpmcc503:
+    delivery_raw: "7/14/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049653
+  RivianPGH:
+    delivery_raw: "7/20/2026"
+    vin_raw: "218X"
+  # no tracking entry
+  # https://www.rivianforums.com/forum/threads/r2-esker-silver-road-trip-report.61400/post-1047128
+  jtg11:
+    delivery_raw: "7/8/2026"
+    vin_raw: "226X"
+    loc_raw: "OH"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "Both"
