@@ -1,15 +1,18 @@
 """Dashboard assembly: the section registry, template loading, HTML helpers,
 and the build_dashboard entry point that renders every chart into one HTML file.
 
-The page's static assets — the stylesheet, the head/theme/nav scripts, and the
-page shell — live as real files under templates/; this module fills them with
-the computed chart fragments, stat cards, and generated theme variables.
+The page's static assets live as real files under templates/ — page.html (a
+valid, standalone HTML shell with id'd slots) plus styles.css and the
+head/theme/nav scripts. build_dashboard parses the shell with BeautifulSoup and
+populates it by element id (theme vars, stat cards, nav links, chart sections),
+then splices Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
 """
 import json
-import re
 import pandas as pd
 from pathlib import Path
 from textwrap import dedent
+
+from bs4 import BeautifulSoup
 
 from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
@@ -24,12 +27,6 @@ _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
 def _tpl(name):
     """Read a template file (CSS/JS/HTML shell) from templates/."""
     return (_TPL_DIR / name).read_text(encoding="utf-8")
-
-
-def _fill(tpl, **ctx):
-    """Replace each {{name}} token in `tpl` with ctx[name]. Single-pass, so
-    injected values (chart HTML, stat cards) are not rescanned for tokens."""
-    return re.sub(r"\{\{(\w+)\}\}", lambda m: ctx[m.group(1)], tpl)
 
 
 # Display order = list order. Section numbers (chart titles + sidebar links) are
@@ -93,8 +90,6 @@ def _css_block(sel, vars_):
 _THEME_VARS_CSS = "\n%s\n%s\n" % (
     _css_block(":root", dict(THEME_CSS["light"], **THEME_CSS["fixed"])),
     _css_block('html[data-theme="dark"]', THEME_CSS["dark"]))
-
-PAGE_CSS = _THEME_VARS_CSS + _tpl("styles.css")
 
 # Runs in <head> before first paint: set the theme (saved > OS preference) so
 # the page chrome never flashes the wrong colors.
@@ -212,7 +207,12 @@ def _quality_section(quality, num, cap=40):
 
 
 def build_dashboard(df, report, resv):
-    parts = []
+    # Each chart section wraps a <!--PLOT:n--> comment placeholder; the Plotly
+    # fragments are spliced in verbatim after the DOM is serialized, so Plotly's
+    # markup (incl. the ~5 MB embedded plotly.js) is never re-parsed. Numbering
+    # (DOM order): the summary card is section 1, charts are 2..N+1, the
+    # data-quality panel is N+2.
+    plots, sections = {}, []
     for i, (title, desc, builder) in enumerate(SECTIONS):
         fig = (builder(df, resv) if builder in (fig_geo, fig_order_timeline)
                else builder(df))
@@ -220,15 +220,14 @@ def build_dashboard(df, report, resv):
         # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
                           plot_bgcolor="rgba(0,0,0,0)")
-        frag = fig.to_html(full_html=False,
-                           include_plotlyjs=(True if i == 0 else False),
-                           default_width="100%")
-        # Numbering (DOM order): the summary card is section 1, so charts are
-        # 2..N+1 and the data-quality panel is N+2.
-        parts.append(
-            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>%s</section>'
-            % (i + 2, i + 2, _esc(title), desc, frag))
-    parts.append(_quality_section(report["quality"], len(SECTIONS) + 2))
+        n = i + 2
+        plots[n] = fig.to_html(full_html=False,
+                               include_plotlyjs=(True if i == 0 else False),
+                               default_width="100%")
+        sections.append(
+            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
+            '<!--PLOT:%d--></section>' % (n, n, _esc(title), desc, n))
+    sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]
     firm = dc.get("explicit", 0)
@@ -284,9 +283,6 @@ def build_dashboard(df, report, resv):
                                  for k, v, rows in cards))
         for gtitle, cards in stat_groups)
 
-    title_html = '<h1>Rivian R2 Orders — Production &amp; Logistics Dashboard</h1>'
-    disclaimer_html = ('<p class="disclaimer">All data is self-reported by forum '
-                       'users — treat as indicative, not official.</p>')
     intro_html = (
         '<h2>1 · Sources &amp; summary</h2>'
         + _src_line("Orders & Deliveries sheet", om,
@@ -313,20 +309,30 @@ def build_dashboard(df, report, resv):
     nav_items.append(("sec-%d" % qa_num, "%d · Data quality & anomalies" % qa_num))
     nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
                         for sid, t in nav_items)
-    sidebar_html = ('<nav class="sidebar" id="sidebar"><div class="side-title">'
-                    'Sections</div>%s</nav>' % nav_links)
-
     # Header/sidebar chrome takes its greens from the palette (a nod to the
     # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
     chrome_css = ":root{--header-bg:%s;--side-bg:%s;}" % (
         COLOR_HEX.get("Forest Green", "#226222"),
         COLOR_HEX.get("Launch Green", "#91aa81"))
 
-    html = _fill(_tpl("page.html"),
-                 page_css=PAGE_CSS, chrome_css=chrome_css, head_js=HEAD_JS,
-                 title=title_html, disclaimer=disclaimer_html,
-                 sidebar=sidebar_html, intro=intro_html, stats=stat_html,
-                 sections="".join(parts), scripts=THEME_JS + NAV_JS)
+    # Populate the (valid, standalone) template's DOM by element id, then splice
+    # the Plotly fragments into their placeholders. Script/style content is set
+    # via .string, which bs4 emits raw (no entity-escaping of < > &).
+    soup = BeautifulSoup(_tpl("page.html"), "html.parser")
+    soup.find(id="theme-vars").string = _THEME_VARS_CSS
+    soup.find(id="page-style").string = _tpl("styles.css")
+    soup.find(id="chrome-vars").string = chrome_css
+    soup.find(id="head-init").string = HEAD_JS
+    soup.find(id="theme-script").string = THEME_JS
+    soup.find(id="nav-script").string = NAV_JS
+    soup.find(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
+    soup.find(id="sec-1").append(BeautifulSoup(
+        intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
+    soup.find("div", class_="wrap").append(
+        BeautifulSoup("".join(sections), "html.parser"))
 
-    with open(DASHBOARD, "w") as fh:
+    html = str(soup)
+    for n, frag in plots.items():
+        html = html.replace("<!--PLOT:%d-->" % n, frag, 1)
+    with open(DASHBOARD, "w", encoding="utf-8") as fh:
         fh.write(html)

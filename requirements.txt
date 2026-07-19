@@ -2,3 +2,4 @@ pandas
 numpy
 plotly
 PyYAML
+beautifulsoup4
