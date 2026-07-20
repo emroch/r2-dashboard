@@ -103,3 +103,7 @@ pytest tests/
 ## Roadmap
 
 Planned improvements are tracked in [ROADMAP.md](ROADMAP.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Eric Roch
