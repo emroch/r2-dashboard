@@ -144,6 +144,10 @@ def load_and_clean(text, meta):
     # --- Simple dates ---
     df["resv_date"] = df["resv_raw"].apply(parse_simple_date)
     df["order_date"] = df["order_raw"].apply(parse_simple_date)
+    # .apply returns Timestamp/None as object dtype on pandas >= 2 (1.x inferred
+    # datetime64); pin so the range checks below and the .dt accessor still work.
+    df["resv_date"] = pd.to_datetime(df["resv_date"], errors="coerce")
+    df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
 
     # --- Discard nonsensical dates (unrecoverable) ---
     # Valid order dates fall in [2026-06-09 (ordering opened), today]; valid
@@ -175,6 +179,10 @@ def load_and_clean(text, meta):
     df["delivery_max"] = [p["max"] for p in parsed]
     df["delivery_type"] = [p["type"] for p in parsed]
     df["delivery_anchor_fallback"] = [p["anchor_fallback"] for p in parsed]
+    # Same object-dtype pitfall (pandas >= 2): the est/min/max lists mix
+    # Timestamp and NaT/None, so pin them to datetime64 for .dt and whiskers.
+    for _c in ("delivery_est", "delivery_min", "delivery_max"):
+        df[_c] = pd.to_datetime(df[_c], errors="coerce")
 
     # --- Config normalization ---
     df["wheels_short"] = np.where(df["wheels"].str.contains(WHEELS_21_CONTAINS),
@@ -319,6 +327,7 @@ def load_reservations(text, order_users):
 
     # Reservation date must fall in [2024-03-07 reveal, today]; null others.
     resv["resv_date"] = resv["resv_raw"].apply(parse_simple_date)
+    resv["resv_date"] = pd.to_datetime(resv["resv_date"], errors="coerce")
     bad = resv["resv_date"].notna() & ((resv["resv_date"] < RESV_DATE_MIN)
                                        | (resv["resv_date"] > AS_OF))
     resv.loc[bad, "resv_date"] = pd.NaT
