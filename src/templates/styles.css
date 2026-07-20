@@ -1,0 +1,109 @@
+
+body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+ margin:0;background:var(--bg);color:var(--fg);
+ transition:background .2s ease,color .2s ease;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+/* Pinned bar: spans the full width across the top; the sidebar tucks in beneath
+   it. Hamburger + title + theme toggle + disclaimer stay visible. */
+.topbar{position:sticky;top:0;z-index:60;background:var(--header-bg);
+ color:var(--topbar-fg);padding:12px 40px;box-shadow:0 2px 8px var(--topbar-sh);}
+.topbar-row{display:flex;align-items:flex-start;gap:14px;}
+.topbar-head{flex:1;min-width:0;}
+.topbar h1{margin:0;font-size:20px;}
+/* Disclaimer lives in the title column, so it insets to align with the title. */
+.topbar p.disclaimer{margin:8px 0 0;padding:5px 10px;font-weight:600;
+ font-size:12.5px;color:var(--disc-fg);background:var(--disc-bg);
+ border-left:3px solid var(--disc-bd);border-radius:4px;}
+/* Intro is a normal body-section card now (see the `section` rules below); only
+   its inner text/links need styling, themed like the rest of the page. */
+.intro p{margin:0;color:var(--fg);font-size:14px;}
+.intro p.src{margin:3px 0;font-size:13px;color:var(--desc);}
+.intro p.src a{color:var(--link);text-decoration:none;border-bottom:1px dotted currentColor;}
+.intro p.src a:hover{filter:brightness(1.15);}
+.intro p.meth{margin:10px 0 0;color:var(--desc);font-size:12.5px;line-height:1.5;}
+.intro .warn{color:var(--warn);font-weight:600;}
+.intro .chg{color:var(--chg);font-weight:600;}
+.intro .dim{color:var(--desc);}
+.themebtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
+ border:1px solid var(--btn-bd);border-radius:20px;padding:6px 14px;
+ font-size:12.5px;cursor:pointer;line-height:1;white-space:nowrap;}
+.themebtn:hover{filter:brightness(1.15);}
+.navbtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
+ border:1px solid var(--btn-bd);border-radius:8px;padding:5px 11px;font-size:15px;
+ line-height:1;cursor:pointer;}
+.navbtn:hover{filter:brightness(1.15);}
+/* Chart-nav sidebar: Launch-Green rail, hidden by default, toggled by the
+   hamburger (nav-shown on <html>); pushes content on wide, overlays on narrow. */
+.sidebar{position:fixed;top:var(--header-h,92px);left:0;bottom:0;width:220px;overflow-y:auto;
+ z-index:55;background:var(--side-bg,#8C9A83);border-right:1px solid var(--side-bd);
+ box-shadow:2px 0 10px var(--side-sh);transform:translateX(-100%);
+ transition:transform .2s ease;}
+html.nav-shown .sidebar{transform:translateX(0);}
+.side-title{padding:14px 16px 8px;font-size:10.5px;text-transform:uppercase;
+ letter-spacing:.08em;color:var(--side-title);}
+.sidebar a{display:block;padding:6px 14px;font-size:12.5px;color:var(--side-fg);
+ text-decoration:none;border-left:3px solid transparent;line-height:1.35;}
+.sidebar a:hover{background:var(--side-hover);}
+.sidebar a.active{border-left-color:var(--side-active-bd);color:var(--side-active-fg);font-weight:600;
+ background:var(--side-active-bg);}
+.nav-backdrop{display:none;}
+.main{margin-left:0;transition:margin-left .2s ease;}
+@media (min-width:901px){html.nav-shown .main{margin-left:220px;}}
+@media (max-width:900px){
+ html.nav-shown .nav-backdrop{display:block;position:fixed;z-index:54;
+  top:var(--header-h,92px);left:0;right:0;bottom:0;background:var(--backdrop);}
+}
+section{scroll-margin-top:calc(var(--header-h,92px) + 8px);}
+.wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
+section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:10px;
+ margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px var(--card-sh);
+ transition:background .2s ease,border-color .2s ease;}
+section h2{margin:0 0 4px;font-size:19px;color:var(--sec-title);}
+section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.45;}
+.statwrap{margin-top:14px;}
+.statgroup{margin-top:12px;}
+.sglabel{display:block;font-size:10.5px;text-transform:uppercase;
+ letter-spacing:.08em;color:var(--desc);margin:0 0 5px 2px;}
+.stats{display:flex;flex-wrap:wrap;gap:12px;}
+.stat{position:relative;background:var(--stat-bg);color:var(--chip-fg);border-radius:8px;
+ padding:10px 18px;font-size:12.5px;white-space:nowrap;min-width:96px;}
+.stat b{font-size:18px;display:block;line-height:1.25;}
+.stat.has-tip{cursor:help;}
+.stat .i{opacity:.55;font-size:11px;margin-left:2px;}
+.stat .tip{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;
+ background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-bd);
+ border-radius:8px;font-weight:400;
+ box-shadow:0 6px 20px var(--tip-sh);padding:9px 11px;max-height:300px;overflow:auto;}
+.stat:hover .tip{display:block;}
+.tipcap{font-weight:600;color:var(--tip-cap);margin-bottom:5px;font-size:12px;}
+.tip table{border-collapse:collapse;font-size:11.5px;}
+.tip th,.tip td{text-align:left;padding:2px 12px 2px 0;white-space:nowrap;}
+.tip th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);}
+.tip td:first-child{color:var(--tip-td1);}
+.qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+ gap:16px;margin-top:6px;}
+.qa-cat{border:1px solid var(--card-bd);border-radius:8px;padding:10px 12px;}
+.qa-cat h3{margin:0 0 3px;font-size:13.5px;color:var(--sec-title);}
+.qa-n{display:inline-block;min-width:18px;text-align:center;padding:0 6px;
+ margin-left:7px;border-radius:10px;background:var(--tip-th);color:var(--fg);
+ font-size:11px;font-weight:600;}
+.qa-note{margin:0 0 7px;color:var(--desc);font-size:11.5px;line-height:1.4;}
+.qa table{border-collapse:collapse;font-size:11.5px;width:100%;display:block;
+ max-height:220px;overflow:auto;}
+.qa th,.qa td{text-align:left;padding:2px 10px 2px 0;white-space:nowrap;}
+.qa th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);
+ position:sticky;top:0;background:var(--card-bg);}
+.qa td:first-child{color:var(--tip-td1);}
+.qa-none{margin:2px 0 0;color:var(--desc);font-size:12px;}
+.qa-conv{margin-top:16px;border:1px solid var(--card-bd);border-radius:8px;
+ padding:10px 12px;}
+.qa-conv h3{margin:0 0 3px;font-size:13.5px;color:var(--sec-title);}
+.qa-conv table{border-collapse:collapse;font-size:11.5px;width:100%;
+ display:block;max-height:260px;overflow:auto;}
+.qa-conv th,.qa-conv td{text-align:left;padding:2px 16px 2px 0;white-space:nowrap;}
+.qa-conv th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);
+ position:sticky;top:0;background:var(--card-bg);}
+footer{color:var(--footer);font-size:12px;text-align:center;padding:20px;}
+footer a{color:var(--footer-link);text-decoration:none;}
+footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;border-radius:3px;}

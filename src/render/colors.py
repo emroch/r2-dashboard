@@ -6,7 +6,7 @@ derive the tinted window whiskers (WHISKER_HEX).
 """
 import colorsys
 
-from .config import COLOR_HEX, REGION_COLOR
+from config import COLOR_HEX, REGION_COLOR
 
 
 def _hex_to_rgb(h):

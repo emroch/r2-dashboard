@@ -1,15 +1,15 @@
-"""Command-line orchestration: fetch both sheets, clean, write the tidy CSV,
+"""Pipeline orchestration: fetch both sheets, clean, write the tidy CSV,
 build the dashboard, and print the cleaning report.
 """
 import os
 
 import pandas as pd
 
-from .config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
+from config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
                      ORDERS_SLUG, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG)
-from .dashboard import build_dashboard
-from .fetch import fetch_sheet
-from .loaders import load_and_clean, load_reservations
+from render.page import build_dashboard
+from ingest.fetch import fetch_sheet
+from ingest.loaders import load_and_clean, load_reservations
 
 
 def main():
@@ -108,3 +108,7 @@ def main():
             print("Cached (new data)  : %s" % os.path.basename(m["cache"]))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
     print("Wrote: %s" % os.path.basename(DASHBOARD))
+
+
+if __name__ == "__main__":
+    main()
