@@ -134,18 +134,28 @@ def _stat_card(label, value, rows=None, caption="", cap=60):
             % (_esc(value), _esc(label), tip))
 
 
+def _fmt_time(dt):
+    """Render a timestamp as a <time> carrying the absolute instant (ISO 8601 with
+    offset) so client JS can localize it to the viewer's timezone; the server text
+    is the build-timezone fallback shown when JS is off."""
+    if dt is None:
+        return "—"
+    aware = dt.astimezone()  # naive build-local datetime -> attach local offset
+    return ('<time datetime="%s" data-r2time>%s</time>'
+            % (aware.isoformat(timespec="minutes"),
+               aware.strftime("%Y-%m-%d %H:%M %Z")))
+
+
 def _src_line(name, meta, extra):
-    """One header line: linked sheet name, count, fetched + last-updated times,
-    and offline/changed badges."""
-    fetched = meta["fetched_at"].strftime("%Y-%m-%d %H:%M")
-    updated = meta["updated_at"].strftime("%Y-%m-%d %H:%M") if meta["updated_at"] else "—"
+    """One header line: linked sheet name, count, fetched + last-updated times
+    (viewer-localized via <time>), and the offline badge."""
     live = ("" if meta["live"]
             else ' <span class="warn">(offline — showing cached copy)</span>')
     return ('<p class="src"><a href="%s" target="_blank" rel="noopener">%s</a> — %s '
             '<span class="dim">·</span> fetched %s%s '
             '<span class="dim">·</span> last updated %s</p>'
-            % (meta["view_url"], _esc(name), _esc(extra), fetched, live,
-               updated))
+            % (meta["view_url"], _esc(name), _esc(extra),
+               _fmt_time(meta["fetched_at"]), live, _fmt_time(meta["updated_at"])))
 
 
 # Data-quality categories: (report["quality"] key, heading, one-line note).
@@ -290,6 +300,9 @@ def build_dashboard(df, report, resv):
         + _src_line("Reservations sheet", rm,
                     "%d incomplete reservations (of %d rows)"
                     % (rr["n_incomplete"], rr["n_raw"]))
+        + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
+          ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
+          ' owner/reservation trackers are compiled from</p>'
         + '<p class="meth">Delivery windows are measured from each customer&#8217;s '
           'R2 order date. Order dates before 2026-06-09 and reservations before '
           '2024-03-07 are treated as invalid; reservations already present in the '
