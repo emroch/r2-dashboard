@@ -10,7 +10,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
-from .config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, FACTORY, MONTHS,
+from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, FACTORY, MONTHS,
                      ORDER_ANCHOR_MIN, STATE_INFO, UNKNOWN_SUBSTRINGS,
                      UNKNOWN_TOKENS, VIN_SEQ_MIN)
 

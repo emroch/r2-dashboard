@@ -1,6 +1,6 @@
 # Roadmap
 
-Tracked improvements for the `r2-orders` dashboard. Items marked **(requested)**
+Tracked improvements for the `r2_dashboard` project. Items marked **(requested)**
 were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
 **M** ≈ a day, **L** ≈ multi-day. Unchecked = not started.
 
@@ -66,7 +66,7 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
 ## Data pipeline & correctness
 
 - [x] **Manual fix-ups / overrides layer** — **(requested)** · M · *done*
-  `src/r2_orders/overrides.yaml` (username → raw-field corrections) is applied
+  `src/conf/overrides.yaml` (username → raw-field corrections) is applied
   right after dedup, so fixes flow through normal cleaning. Case-insensitive,
   schema-validated, idempotent, and non-destructive to the cache. Applied changes
   show in a "Manual fix-ups" stat card + the report; bad field names / unknown
@@ -147,5 +147,5 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   ruff + a formatter + pre-commit hooks; add type hints and a mypy pass.
 
 - [ ] **Dependency hygiene** · S
-  Declare/pin runtime versions and add a `dev` extra (pytest, ruff, mypy) in
-  `pyproject.toml`.
+  Pin runtime versions in `requirements.txt` and add a dev requirements set
+  (pytest, ruff, mypy).

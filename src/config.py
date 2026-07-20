@@ -3,8 +3,8 @@ data files (palette.yaml, schema.yaml, geo.yaml, delivery.yaml).
 
 Kept import-light on purpose so every other module can pull constants from here
 without a circular dependency. NOW/AS_OF are evaluated at import time. The
-color/marker, schema, geo, and delivery tables all live in the sibling YAML
-files — editing those is a data change, not a code change.
+color/marker, schema, geo, and delivery tables all live in the YAML files under
+conf/ — editing those is a data change, not a code change.
 """
 from datetime import datetime
 from pathlib import Path
@@ -15,8 +15,8 @@ import yaml
 # --------------------------------------------------------------------------
 # Paths
 # --------------------------------------------------------------------------
-# Project root is two levels above this file: src/r2_orders/config.py -> ROOT.
-ROOT = Path(__file__).resolve().parents[2]
+# Project root is one level above this file: src/config.py -> ROOT (repo root).
+ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = ROOT / "data" / "raw"
 DATA_PROCESSED = ROOT / "data" / "processed"
 OUTPUT_DIR = ROOT / "output"
@@ -34,13 +34,13 @@ NOW = datetime.now()
 AS_OF = pd.Timestamp(NOW.date())
 
 # --------------------------------------------------------------------------
-# Externalized config files — edit these (data), not the code below.
+# Externalized config files (src/conf/*.yaml) — edit these (data), not the code.
 # --------------------------------------------------------------------------
-_HERE = Path(__file__).parent
+_CONF = Path(__file__).parent / "conf"
 
 
 def _load(name):
-    with open(_HERE / name) as fh:
+    with open(_CONF / name) as fh:
         return yaml.safe_load(fh)
 
 

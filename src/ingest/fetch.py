@@ -10,7 +10,7 @@ import sys
 import urllib.request
 from datetime import datetime
 
-from .config import (CACHE_TS_FMT, DATA_RAW, EXPORT_URL, NOW, VIEW_URL)
+from config import (CACHE_TS_FMT, DATA_RAW, EXPORT_URL, NOW, VIEW_URL)
 
 
 def _http_get(url):
