@@ -105,15 +105,20 @@ were asked for directly; the rest are proposed. Rough effort: **S** ≈ hours,
   - **Recommended path:** start with a **scheduled rebuild + Worker proxy**
     (below) so the "button" just kicks a rebuild/refresh; move to full
     client-side (Pyodide) only if we want true on-demand, backend-free fetches.
+  - **Shipped:** static hosting + the scheduled rebuild + the Worker proxy are
+    live (dashboard at emroch.com/r2-dashboard); only the in-page "Fetch" button
+    remains — a Worker `POST` → GitHub `repository_dispatch` to kick the workflow.
 
-- [ ] **Scheduled auto-refresh** · S–M
-  A GitHub Action (or cron) that re-runs the pipeline on a schedule, commits the
-  refreshed cache/outputs (or deploys them), so the published dashboard stays
-  current without anyone running the CLI. Pairs naturally with the web app.
+- [x] **Scheduled auto-refresh** · S–M · *done*
+  A daily GitHub Actions workflow (`.github/workflows/deploy.yml`) re-runs the
+  pipeline, deploys the static output to Cloudflare Pages, and commits the
+  refreshed `data/raw/` caches back — the published dashboard stays current and
+  the fetch history accrues without any manual CLI runs.
 
 - [ ] **Historical trend tracking** · M
-  The timestamped, change-detected caches in `data/raw/` are already a dated
-  history — mine them to chart how metrics evolve over time (order volume,
+  `data/raw/` is now committed on every refresh, so the timestamped,
+  change-detected caches are accruing as a dated history in git — mine them to
+  chart how metrics evolve over time (order volume,
   VIN-assignment rate, delivery-estimate firmness) and add a "what changed since
   last fetch" feed (new orders, newly-assigned VINs).
 

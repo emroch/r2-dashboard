@@ -1,0 +1,59 @@
+name: Deploy
+
+# Build the dashboard and publish it to Cloudflare Pages. GitHub Actions is the
+# only place the Python pipeline runs (pandas/plotly + a live fetch); Cloudflare
+# just serves (Pages) and routes (a Worker maps emroch.com/r2-dashboard -> Pages).
+on:
+  schedule:
+    - cron: "0 12 * * *"        # daily, ~12:00 UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "data/raw/**"           # the fetch-history commit below must not re-trigger
+
+permissions:
+  contents: write               # to commit refreshed data/raw caches back
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  TZ: America/Chicago           # sensible "as of" / Today dates on the dashboard
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build dashboard (fetch -> clean -> render)
+        run: python3 src/pipeline.py
+
+      - name: Stage deploy directory
+        run: |
+          mkdir -p dist
+          cp output/r2_orders_dashboard.html dist/index.html
+          cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=r2-dashboard --branch=main
+
+      - name: Persist fetch history
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/raw
+          git diff --cached --quiet || (git commit -m "data: refresh caches [skip ci]" && git push)
