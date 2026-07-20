@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 .venv/
+.wrangler/
 .DS_Store
 .claude/
 output/
