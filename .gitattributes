@@ -1,0 +1,4 @@
+# Raw sheet exports arrive with CRLF line endings; keep them byte-for-byte (no
+# EOL conversion) so the committed fetch history matches what was fetched and the
+# scheduled CI commits don't churn on line endings. Still treated as diffable text.
+data/raw/*.csv -text

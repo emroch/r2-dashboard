@@ -5,5 +5,6 @@ __pycache__/
 .DS_Store
 .claude/
 output/
-# All data is fetched live and cached/generated — nothing here is hand-maintained.
-data/
+# Derived artifacts are regenerated each run; the raw fetch caches under
+# data/raw/ ARE tracked as the dated, change-detected fetch history (trend data).
+/data/processed/

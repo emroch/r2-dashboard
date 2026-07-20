@@ -37,7 +37,7 @@ src/
     delivery.yaml     delivery-estimate normalization (tokens, overrides, month names)
     overrides.yaml    manual curation: overrides (edit existing rows) + additions (forum-only orders)
 data/
-  raw/                timestamped live caches (git-ignored)
+  raw/                timestamped live caches (committed as dated fetch history)
   processed/          cleaned CSV output
 output/               dashboard HTML output
 tests/
@@ -73,7 +73,24 @@ Two live Google Sheets, pulled on demand via their CSV export endpoint:
 
 The data is self-reported and noisy; treat all figures as indicative. It is
 always pulled live and cached under `data/raw/`; there are no hand-maintained
-snapshots.
+snapshots — the raw caches are committed, so `data/raw/` is a dated,
+change-detected history of the sheets (useful for trend analysis).
+
+## Deployment
+
+The dashboard is published at **https://emroch.com/r2-dashboard** on Cloudflare's
+free tier, refreshed automatically:
+
+- **GitHub Actions** (`.github/workflows/deploy.yml`) runs the pipeline daily (and
+  on demand / on push), deploys the static output to a **Cloudflare Pages** project
+  via Wrangler, and commits any refreshed `data/raw/` caches back so the fetch
+  history accrues.
+- A small **Cloudflare Worker** (`worker/`) routes `emroch.com/r2-dashboard*` to
+  that Pages project (the HTML is self-contained, so no asset rewriting is needed).
+
+The Python build runs only in Actions — Cloudflare serves and routes but can't run
+pandas/plotly. One-time setup (API token, secrets, Pages project, Worker deploy) is
+noted in the workflow and `worker/` files.
 
 ## Tests
 

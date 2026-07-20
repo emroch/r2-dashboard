@@ -1,0 +1,10 @@
+# Cloudflare Worker that routes emroch.com/r2-dashboard* to the r2-dashboard
+# Pages project. Deploy once:  cd worker && npx wrangler login && npx wrangler deploy
+name = "r2-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+routes = [
+  { pattern = "emroch.com/r2-dashboard",   zone_name = "emroch.com" },
+  { pattern = "emroch.com/r2-dashboard/*", zone_name = "emroch.com" },
+]
