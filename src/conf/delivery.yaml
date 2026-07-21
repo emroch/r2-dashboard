@@ -22,17 +22,28 @@ unknown_tokens:
 unknown_substrings:
   - "demo this saturday"
 
-# Ambiguous / multi-endpoint delivery strings resolved explicitly.
+# Genuinely ambiguous strings the generic parsers can't resolve — exact match only.
+# (Named-month ranges like "July 16-August 16" and within-month phrases like
+# "End of July" are now handled generically in parsing.parse_delivery.)
 # raw string -> {min ISO date, max ISO date, type}
 overrides:
-  "July 16-August 16":  {min: "2026-07-16", max: "2026-08-16", type: range}
-  "June 30-July 28":    {min: "2026-06-30", max: "2026-07-28", type: range}
-  "June 29-30":         {min: "2026-06-29", max: "2026-06-30", type: range}
-  "July 11th-17th":     {min: "2026-07-11", max: "2026-07-17", type: range}
-  "August - September": {min: "2026-08-01", max: "2026-09-30", type: range}
-  "Nov/Dec 2026":       {min: "2026-11-01", max: "2026-12-31", type: range}
+  # Two dash-dates joined by a slash: the generic range parser misreads the inner
+  # "/" as an M/D separator, so pin this shape explicitly.
   "7-13-26/8-10-26":    {min: "2026-07-13", max: "2026-08-10", type: range}
-  "End of July":        {min: "2026-07-25", max: "2026-07-31", type: month}
+
+# Fuzzy within-month modifiers: keyword (lowercased substring) -> [start_day, end_day];
+# end_day -1 means that month's last day. Produces a ~week "range" window, e.g.
+# "End of July" -> 7/25-7/31, "early August" -> 8/1-8/7, "mid-September" -> 9/12-9/18.
+month_modifiers:
+  "beginning of": [1, 7]
+  "start of":     [1, 7]
+  "first week":   [1, 7]
+  "early":        [1, 7]
+  "mid":          [12, 18]
+  "middle of":    [12, 18]
+  "late":         [25, -1]
+  "last week":    [25, -1]
+  "end of":       [25, -1]
 
 # Month name -> number (code matches the first 3 letters, lowercased).
 months: {jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
