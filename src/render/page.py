@@ -170,6 +170,9 @@ _QA_CATS = [
      "VIN tokens too redacted to recover a sequence number."),
     ("bad_dates", "Invalid dates dropped",
      "Order/reservation dates outside the plausible window, cleared."),
+    ("availability_drops", "Premature-config orders dropped",
+     "Orders whose selected trim, paint, or interior wasn't orderable yet on the "
+     "order date — removed entirely, not counted as orders."),
     ("override_issues", "Override issues",
      "Manual fix-ups or additions in overrides.yaml that referenced an unknown "
      "field, a username with no matching order, or an addition already in the "
@@ -257,6 +260,7 @@ def build_dashboard(df, report, resv):
         "VINs de-obfuscated": "Obfuscated VINs recovered (original → value)",
         "VINs recovered": "VINs that could not be recovered (dropped)",
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
+        "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
         "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
@@ -275,6 +279,8 @@ def build_dashboard(df, report, resv):
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
             ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
              san["Invalid dates dropped"]),
+            ("Premature configs dropped", report["n_premature"],
+             san["Premature configs dropped"]),
             ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
         ]),
         ("VIN recovery", [
