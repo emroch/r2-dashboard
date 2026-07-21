@@ -9,7 +9,10 @@ output/
 # Derived artifacts are regenerated each run; the raw fetch caches under
 # data/raw/ ARE tracked as the dated, change-detected fetch history (trend data).
 /data/processed/
-/dist/                # CI deploy-staging dir (workflow "Stage deploy directory")
+# CI deploy-staging dir (the workflow's "Stage deploy directory" step).
+# NOTE: .gitignore has no inline comments — a trailing "# ..." on this line would
+# become part of the pattern and silently stop ignoring dist/.
+/dist/
 # cloudflare/wrangler-action runs `npm i wrangler` in the workspace at deploy
 # time (the runner has no preinstalled wrangler), creating these in the repo
 # root — which then trips wrangler's own "uncommitted changes" check. Ignore so
