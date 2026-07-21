@@ -1,0 +1,109 @@
+name: PR preview
+
+# Build + test every pull request, and (for same-repo PRs) deploy an isolated
+# Cloudflare Pages *preview* so the result can be reviewed live. Previews deploy
+# to a non-production branch, so they get their own pr-N.r2-dashboard.pages.dev
+# host and NEVER touch the production alias the Worker serves at
+# emroch.com/r2-dashboard.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read            # previews never commit (data/raw is a main-only concern)
+  pull-requests: write      # to post the preview-URL comment
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true  # supersede in-flight builds when the PR is updated
+
+env:
+  TZ: America/Chicago
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Build + test run for EVERY PR (no secrets needed) — the pre-merge safety
+      # net, incl. validating Dependabot's action-bump PRs against the new
+      # versions before they merge.
+      - name: Run tests
+        run: python3 tests/test_parsing.py
+
+      - name: Build dashboard (fetch -> clean -> render)
+        run: python3 src/pipeline.py
+
+      - name: Stage deploy directory
+        run: |
+          mkdir -p dist
+          cp output/r2_orders_dashboard.html dist/index.html
+          cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
+
+      # Preview deploy + comment: same-repo, non-Dependabot PRs only (forks and
+      # Dependabot have no access to the CLOUDFLARE_* secrets). A non-production
+      # --branch makes this a preview; the production alias is left untouched.
+      - name: Deploy preview to Cloudflare Pages
+        id: preview
+        if: >-
+          github.event.pull_request.head.repo.full_name == github.repository
+          && github.actor != 'dependabot[bot]'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=r2-dashboard --branch=pr-${{ github.event.pull_request.number }} --commit-dirty=true
+
+      - name: Comment preview URL on the PR
+        if: steps.preview.outcome == 'success'
+        uses: actions/github-script@v9
+        env:
+          ALIAS_URL: ${{ steps.preview.outputs.pages-deployment-alias-url }}
+          DEPLOY_URL: ${{ steps.preview.outputs.deployment-url }}
+        with:
+          script: |
+            const alias = process.env.ALIAS_URL;
+            const unique = process.env.DEPLOY_URL;
+            const marker = '<!-- r2-preview -->';
+            const body = [
+              marker,
+              '### 🔎 Preview deploy',
+              '',
+              '| | URL |',
+              '| --- | --- |',
+              `| **Preview (latest for this PR)** | ${alias || unique} |`,
+              `| This exact build | ${unique} |`,
+              '',
+              `From \`${context.sha.slice(0, 7)}\` — production (\`emroch.com/r2-dashboard\`) is untouched.`,
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const prev = comments.find((c) => c.body && c.body.includes(marker));
+            if (prev) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: prev.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
