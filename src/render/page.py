@@ -13,6 +13,7 @@ from pathlib import Path
 from textwrap import dedent
 
 from bs4 import BeautifulSoup
+from plotly.offline import get_plotlyjs
 
 from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
@@ -218,10 +219,10 @@ def _quality_section(quality, num, cap=40):
 
 def build_dashboard(df, report, resv):
     # Each chart section wraps a <!--PLOT:n--> comment placeholder; the Plotly
-    # fragments are spliced in verbatim after the DOM is serialized, so Plotly's
-    # markup (incl. the ~5 MB embedded plotly.js) is never re-parsed. Numbering
-    # (DOM order): the summary card is section 1, charts are 2..N+1, the
-    # data-quality panel is N+2.
+    # fragments are spliced in verbatim after the DOM is serialized (never
+    # re-parsed). Plotly.js is emitted as a separate plotly.min.js (not inlined)
+    # so browsers cache it — see the first chart below + the write at the end.
+    # Numbering (DOM order): summary card is 1, charts 2..N+1, QA panel N+2.
     plots, sections = {}, []
     for i, (title, desc, builder) in enumerate(SECTIONS):
         fig = (builder(df, resv) if builder in (fig_geo, fig_order_timeline)
@@ -231,8 +232,10 @@ def build_dashboard(df, report, resv):
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
                           plot_bgcolor="rgba(0,0,0,0)")
         n = i + 2
+        # First chart references an external plotly.min.js (written next to the
+        # page below) instead of inlining ~5 MB; the rest reuse window.Plotly.
         plots[n] = fig.to_html(full_html=False,
-                               include_plotlyjs=(True if i == 0 else False),
+                               include_plotlyjs=("directory" if i == 0 else False),
                                default_width="100%")
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
@@ -347,5 +350,8 @@ def build_dashboard(df, report, resv):
     html = str(soup)
     for n, frag in plots.items():
         html = html.replace("<!--PLOT:%d-->" % n, frag, 1)
+    # to_html's "directory" mode references plotly.min.js but doesn't write it.
+    out_dir = Path(DASHBOARD).parent
+    (out_dir / "plotly.min.js").write_text(get_plotlyjs(), encoding="utf-8")
     with open(DASHBOARD, "w", encoding="utf-8") as fh:
         fh.write(html)
