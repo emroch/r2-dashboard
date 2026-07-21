@@ -26,11 +26,13 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip                       # cache the pip wheel downloads...
+          cache-dependency-path: requirements.txt   # ...keyed on the pinned deps
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -44,16 +46,21 @@ jobs:
           cp output/r2_orders_dashboard.html dist/index.html
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=r2-dashboard --branch=main
-
       - name: Persist fetch history
+        # Commit any new data/raw caches BEFORE deploying: dist/, output/ and
+        # data/processed/ are gitignored, so once data/raw is committed the tree
+        # is clean at deploy time. That silences wrangler's "uncommitted changes"
+        # warning and lets it tag the deployment with this commit. The empty-diff
+        # guard + paths-ignore + [skip ci] keep this from triggering another run.
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/raw
           git diff --cached --quiet || (git commit -m "data: refresh caches [skip ci]" && git push)
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=r2-dashboard --branch=main

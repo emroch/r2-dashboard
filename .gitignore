@@ -9,3 +9,4 @@ output/
 # Derived artifacts are regenerated each run; the raw fetch caches under
 # data/raw/ ARE tracked as the dated, change-detected fetch history (trend data).
 /data/processed/
+/dist/                # CI deploy-staging dir (workflow "Stage deploy directory")
