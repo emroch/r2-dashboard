@@ -4,15 +4,16 @@ VIN recovery, date normalization (simple dates + noisy free-text delivery
 estimates), great-circle distance to the factory, and location->state mapping.
 No I/O, no plotting — just transforms over the raw fields.
 """
+import calendar
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
 
 from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, FACTORY, MONTHS,
-                     ORDER_ANCHOR_MIN, STATE_INFO, UNKNOWN_SUBSTRINGS,
-                     UNKNOWN_TOKENS, VIN_SEQ_MIN)
+                     MONTH_MODIFIERS, ORDER_ANCHOR_MIN, STATE_INFO,
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VIN_SEQ_MIN)
 
 
 def clean_vin(token):
@@ -101,22 +102,139 @@ def _parse_numeric(s):
 
 
 def _parse_monthname(s):
-    """Month-name date, optional day/year. Return ('explicit'|'month', date)."""
+    """Named-month date -> ('explicit'|'month', date).
+
+    Handles the day on either side of the month ("August 3", "3 Aug", "3rd
+    August"), optional ordinal suffixes, dash separators, and 2- or 4-digit years
+    ("31 Jul 26", "3 Aug 2026"). The month is spelled out, so there's no US-vs-non-
+    US day/month ambiguity here — that only affects all-numeric dates elsewhere.
+    """
     low = s.lower().replace(",", " ")
-    year_m = re.search(r"(20\d{2})", low)
-    year = int(year_m.group(1)) if year_m else 2026
-    low = re.sub(r"20\d{2}", " ", low)  # drop year so it isn't read as a day
     m = re.search(r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*", low)
     if not m:
         return None
     mn = MONTHS[m.group(1)]
-    day_m = re.search(r"\b(\d{1,2})\b", low[m.end():])
-    if day_m:
+    before, after = low[:m.start()], low[m.end():]
+
+    # A 4-digit 20xx year anywhere wins and is stripped so it can't be read as a day.
+    ym = re.search(r"\b(20\d{2})\b", low)
+    year = int(ym.group(1)) if ym else 2026
+    before = re.sub(r"\b20\d{2}\b", " ", before)
+    after = re.sub(r"\b20\d{2}\b", " ", after)
+
+    # Day: prefer a 1-2 digit number immediately BEFORE the month ("3 Aug",
+    # "31 Jul 26"); else the first such number AFTER it ("Aug 3", "Aug 08").
+    db = re.search(r"(\d{1,2})(?:st|nd|rd|th)?[\s\-]*$", before)
+    if db:
+        day = int(db.group(1))
+        # With a leading day, a trailing 2-digit number is the year, not the day.
+        ty = re.search(r"^[\s\-]*(\d{2})\b", after)
+        if ty and not ym:
+            year = 2000 + int(ty.group(1))
+    else:
+        da = re.search(r"(\d{1,2})(?:st|nd|rd|th)?", after)
+        day = int(da.group(1)) if da else None
+
+    if day is not None:
         try:
-            return ("explicit", date(year, mn, int(day_m.group(1))))
+            return ("explicit", date(year, mn, day))
         except ValueError:
             pass
     return ("month", date(year, mn, 15))
+
+
+# Month-name alternation (captures the 3-letter key; trailing letters are the
+# rest of the word). Shared by the range/modifier parsers below.
+_MONTHS_ALT = r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
+# Two named-month (or same-month day) endpoints joined by a range separator.
+# Groups: (month1, day1, month2, day2); day1/day2 and month2 are optional.
+_MONTHRANGE_RE = re.compile(
+    _MONTHS_ALT + r"\.?\s*(?:(\d{1,2})(?:st|nd|rd|th)?)?\s*"
+    r"(?:-|–|—|/|to|thru|through|&|and)\s*"
+    r"(?:" + _MONTHS_ALT + r"\.?\s*)?(?:(\d{1,2})(?:st|nd|rd|th)?)?")
+
+
+def _parse_monthname_range(s):
+    """Named-month range -> (start, end) dates, or None.
+
+    Covers two named-month endpoints ("July 16-August 16", "June 30-July 28"), a
+    same-month day range ("June 29-30", "July 11th-17th"), whole-month spans
+    ("August - September", "Nov/Dec 2026"), and Dec->Jan year rollover. A missing
+    start day is the 1st; a missing end day is that month's last day.
+    """
+    low = s.lower().replace(",", " ")
+    year_m = re.search(r"(20\d{2})", low)
+    year = int(year_m.group(1)) if year_m else 2026
+    low = re.sub(r"20\d{2}", " ", low)  # drop year so it isn't read as a day
+    m = _MONTHRANGE_RE.search(low)
+    if not m:
+        return None
+    mon1, d1, mon2, d2 = m.groups()
+    if not (mon2 or d2):            # need a real second endpoint to be a range
+        return None
+    mo1 = MONTHS[mon1]
+    mo2 = MONTHS[mon2] if mon2 else mo1
+    y2 = year + 1 if mo2 < mo1 else year   # Dec -> Jan rolls into the next year
+    d1 = int(d1) if d1 else 1
+    d2 = int(d2) if d2 else calendar.monthrange(y2, mo2)[1]
+    try:
+        start, end = date(year, mo1, d1), date(y2, mo2, d2)
+    except ValueError:
+        return None
+    return (start, end) if end >= start else None
+
+
+# A within-month modifier bound to the month it qualifies ("end of July",
+# "mid-September", "first week August"). Built from the MONTH_MODIFIERS keys,
+# longest first so "middle of" wins over "mid". Group 1 = keyword, 2 = month.
+_MODIFIER_RE = (re.compile(
+    r"(" + "|".join(re.escape(k) for k in
+                    sorted(MONTH_MODIFIERS, key=len, reverse=True)) + r")"
+    r"[\s\-]*" + _MONTHS_ALT) if MONTH_MODIFIERS else None)
+
+
+def _parse_month_modifier(s):
+    """Within-month modifier -> (start, end) dates, or None. Maps a fuzzy phrase
+    ("end of July", "early August", "mid-September") to a ~week window inside the
+    month it is attached to, via MONTH_MODIFIERS (keyword -> [start_day, end_day],
+    -1 = month end). The keyword must sit immediately before its month, so
+    "end of July or early August" resolves as end-of-July, not early-July."""
+    if _MODIFIER_RE is None:
+        return None
+    low = s.lower().replace(",", " ")
+    year_m = re.search(r"(20\d{2})", low)
+    year = int(year_m.group(1)) if year_m else 2026
+    low = re.sub(r"20\d{2}", " ", low)
+    m = _MODIFIER_RE.search(low)
+    if not m:
+        return None
+    d1, d2 = MONTH_MODIFIERS[m.group(1)]
+    mo = MONTHS[m.group(2)]
+    last = calendar.monthrange(year, mo)[1]
+    s1 = last if d1 == -1 else min(d1, last)
+    s2 = last if d2 == -1 else min(d2, last)
+    s1, s2 = min(s1, s2), max(s1, s2)
+    try:
+        return (date(year, mo, s1), date(year, mo, s2))
+    except ValueError:
+        return None
+
+
+def _parse_week_of(s):
+    """"Week of <date>" -> the calendar week (Mon-Sun) containing that date, as
+    (start, end) dates, or None. The date part reuses the numeric / month-name
+    single-date parsers, so "Week of 8/10" and "Week of August 3rd" both resolve;
+    the given day is snapped back to its Monday and forward to that Sunday."""
+    m = re.search(r"week\s+(?:of|beginning|starting|commencing)\s+(.+)$", s.lower())
+    if not m:
+        return None
+    rest = m.group(1).strip()
+    res = _parse_numeric(_fix_numeric_typos(rest)) or _parse_monthname(rest)
+    if not res or res[0] != "explicit":   # need a specific day to locate the week
+        return None
+    d = res[1]
+    monday = d - timedelta(days=d.weekday())   # weekday(): Mon=0 .. Sun=6
+    return (monday, monday + timedelta(days=6))
 
 
 def _anchor(order_date):
@@ -166,6 +284,13 @@ def parse_delivery(raw, order_date):
                    anchor=anchor, anchor_fallback=fb)
         return out
 
+    # "Week of <date>": the calendar week (Mon-Sun) that contains that date.
+    wk = _parse_week_of(raw)
+    if wk:
+        dmin, dmax = pd.Timestamp(wk[0]), pd.Timestamp(wk[1])
+        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
+        return out
+
     # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", same-month "7/30-31", or
     # full dates with years "7/28/2026 - 8/3/2026". Years are optional; a missing
     # year defaults to 2026 (matching the single M/D case below), and a year given
@@ -189,6 +314,22 @@ def parse_delivery(raw, order_date):
             out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2,
                        type="range")
             return out
+
+    # Named-month ranges: "July 16-August 16", "June 29-30", "August - September",
+    # "Nov/Dec 2026" — two named-month (or same-month day) endpoints.
+    mr = _parse_monthname_range(raw)
+    if mr:
+        dmin, dmax = pd.Timestamp(mr[0]), pd.Timestamp(mr[1])
+        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
+        return out
+
+    # Within-month modifiers: "end of July", "early August", "mid-September" — a
+    # bounded ~week window (more precise than a bare month, hence type "range").
+    mm = _parse_month_modifier(raw)
+    if mm:
+        dmin, dmax = pd.Timestamp(mm[0]), pd.Timestamp(mm[1])
+        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
+        return out
 
     # Single explicit / month date.
     for parser, arg in ((_parse_numeric, _fix_numeric_typos(raw)),
