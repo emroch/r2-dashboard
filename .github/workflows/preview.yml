@@ -48,7 +48,9 @@ jobs:
         run: |
           mkdir -p dist
           cp output/r2_orders_dashboard.html dist/index.html
+          cp output/plotly.min.js dist/plotly.min.js
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
+          cp src/templates/_headers dist/_headers
 
       # Preview deploy + comment: same-repo, non-Dependabot PRs only (forks and
       # Dependabot have no access to the CLOUDFLARE_* secrets). A non-production
