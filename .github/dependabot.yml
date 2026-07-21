@@ -1,0 +1,13 @@
+# Keep the GitHub Actions used by the workflows current — their runtimes get
+# deprecated roughly yearly (e.g. the Node 20 -> 24 bump), and a dormant repo
+# would otherwise silently fail a scheduled deploy. Scoped to actions ONLY: the
+# pinned pip deps are left alone on purpose (pandas et al. break across majors,
+# and the deploy workflow has no pre-merge test of a bump), so those get bumped
+# deliberately, not automatically. Security advisories are handled separately by
+# Dependabot alerts (repo Settings), which stay on.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
