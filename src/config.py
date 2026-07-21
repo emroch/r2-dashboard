@@ -137,6 +137,11 @@ UNKNOWN_SUBSTRINGS = list(_DELIV["unknown_substrings"])
 DELIVERY_OVERRIDES = {raw: (v["min"], v["max"], v["type"])
                       for raw, v in _DELIV["overrides"].items()}
 MONTHS = dict(_DELIV["months"])
+# Fuzzy within-month modifiers: lowercased keyword -> (start_day, end_day), where
+# end_day == -1 means that month's last day. Used by parse_delivery for phrases
+# like "end of July" / "early August".
+MONTH_MODIFIERS = {str(k).lower(): tuple(v)
+                   for k, v in (_DELIV.get("month_modifiers") or {}).items()}
 
 # --- Page & chart chrome (theme.yaml) -------------------------------------
 # THEME_CSS drives the CSS custom properties (light / dark / theme-independent
