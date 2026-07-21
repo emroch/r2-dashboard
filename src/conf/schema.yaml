@@ -45,3 +45,26 @@ options:
   opted_in_tokens: ["yes", "included"]  # Autonomy+ / Tow: count these as opted-in
   spare_tokens: ["yes"]                 # Compact spare: only explicit "yes"
   wheels_21_contains: "21"              # wheels text containing this = 21" trim
+
+# Option availability: the earliest date each not-yet-released trim / paint /
+# interior could actually be ordered. An order whose R2 order date precedes the
+# availability of ANY option it selected can't be a confirmed order (the config
+# wasn't buildable yet), so the whole row is DROPPED — not merely date-nulled —
+# and surfaced in the cleaning report + the data-quality panel.
+#
+# Keys are matched case-insensitively as a PREFIX of the sheet value, so "Standard"
+# covers "Standard AWD" / "Standard RWD LR" / "Standard RWD" and "Premium" covers
+# "Premium AWD"; "Performance" (the launch trim) is unaffected. Use "unreleased"
+# for an option with no announced date — every order for it is dropped until a
+# real date is set here. This is self-maintaining: as each option ships, its
+# genuine orders naturally post-date its availability and are kept automatically,
+# so entries only ever leave this list — there are no per-user overrides to chase.
+availability:
+  trim:
+    Premium: unreleased
+    Standard: unreleased
+  color:
+    Forest Green: "2026-08-01"
+    Borealis: "2026-09-01"
+  interior:
+    Coastal Cloud Signature: "2026-08-01"

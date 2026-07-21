@@ -106,6 +106,25 @@ WHEELS_21_CONTAINS = str(_OPT["wheels_21_contains"])
 WHEELS_LABEL_21 = next(k for k in WHEEL_SYMBOL if WHEELS_21_CONTAINS in k)
 WHEELS_LABEL_20 = next(k for k in WHEEL_SYMBOL if WHEELS_21_CONTAINS not in k)
 
+# --- Option availability (schema.yaml) ------------------------------------
+# {column: [(prefix_lower, available_from | None)]}: the earliest date each
+# not-yet-released trim/paint/interior could be ordered. None == "unreleased"
+# (no order for it is valid yet). The loader drops any order selecting an option
+# before its available_from — the config wasn't buildable at order time.
+def _avail_date(value):
+    if pd.isna(value):
+        return None
+    if str(value).strip().lower() in ("", "unreleased", "tbd", "none", "n/a"):
+        return None
+    return pd.Timestamp(value)
+
+
+AVAILABILITY = {
+    col: [(str(opt).strip().lower(), _avail_date(when))
+          for opt, when in (opts or {}).items()]
+    for col, opts in (_SCHEMA.get("availability") or {}).items()
+}
+
 # --- Geo (geo.yaml) -------------------------------------------------------
 # Bloomington-Normal, IL assembly plant + state/province lookup tables.
 FACTORY = tuple(_GEO["factory"])

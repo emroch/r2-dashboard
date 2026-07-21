@@ -63,6 +63,8 @@ def main():
           % report["bad_order"])
     print("Discarded reservations   : %d (outside 2024-03-07 … today)"
           % report["bad_resv"])
+    print("Premature configs dropped: %d (option not orderable on the order date)"
+          % report["n_premature"])
     print("Delivery estimate types  : %s" % report["delivery_counts"])
     print("Window anchor fallbacks  : %d (bad/early order date -> as-of date)"
           % report["anchor_fallback"])
