@@ -185,6 +185,23 @@ def test_parse_delivery_non_us_numeric_dropped():
     assert parse_delivery("31/8/2026", pd.NaT)["type"] == "unknown"
 
 
+def test_parse_delivery_week_of():
+    # "Week of <date>" -> the Mon-Sun week containing that date. Aug 3, 2026 is a
+    # Monday, so its week is 8/3 (Mon) .. 8/9 (Sun).
+    out = parse_delivery("Week of August 3rd", pd.NaT)
+    assert out["type"] == "range"
+    assert out["min"] == pd.Timestamp("2026-08-03")
+    assert out["max"] == pd.Timestamp("2026-08-09")
+    # A mid-week date snaps back to the same Monday (Aug 5 is a Wednesday).
+    mid = parse_delivery("week of August 5", pd.NaT)
+    assert mid["min"] == pd.Timestamp("2026-08-03")
+    assert mid["max"] == pd.Timestamp("2026-08-09")
+    # Numeric date form works too (8/10/2026 is a Monday).
+    num = parse_delivery("week of 8/10/2026", pd.NaT)
+    assert num["min"] == pd.Timestamp("2026-08-10")
+    assert num["max"] == pd.Timestamp("2026-08-16")
+
+
 def test_parse_delivery_window_anchor():
     # A week-window is measured from the order date and records that anchor;
     # absolute types (explicit/range/month) leave the anchor unset.
