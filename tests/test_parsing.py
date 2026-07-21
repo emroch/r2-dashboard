@@ -160,6 +160,31 @@ def test_parse_delivery_monthname_ordinal_single():
     assert out["est"] == pd.Timestamp("2026-07-18")
 
 
+def test_parse_delivery_day_first_monthname():
+    # "dd Month yyyy" and related (day BEFORE a named month), incl. 2-digit years
+    # and dash separators. The month is named, so there is no dd/mm ambiguity.
+    cases = [
+        ("3 Aug 2026",      "2026-08-03"),
+        ("31 Jul 26",       "2026-07-31"),   # 2-digit trailing year, not the day
+        ("23 June 2026",    "2026-06-23"),
+        ("3-Aug-2026",      "2026-08-03"),   # dash separators
+        ("3rd August 2026", "2026-08-03"),   # ordinal + day-first
+    ]
+    for s, d in cases:
+        out = parse_delivery(s, pd.NaT)
+        assert out["type"] == "explicit", s
+        assert out["est"] == pd.Timestamp(d), s
+    # Day-after still works; a bare month + year stays a whole-month estimate.
+    assert parse_delivery("Aug 3, 2026", pd.NaT)["est"] == pd.Timestamp("2026-08-03")
+    assert parse_delivery("August 2026", pd.NaT)["type"] == "month"
+
+
+def test_parse_delivery_non_us_numeric_dropped():
+    # All-numeric dates are read as US m/d/y; an impossible-as-US date is dropped
+    # (unknown), NOT reinterpreted as d/m/y. "31/8/2026" has no valid US reading.
+    assert parse_delivery("31/8/2026", pd.NaT)["type"] == "unknown"
+
+
 def test_parse_delivery_window_anchor():
     # A week-window is measured from the order date and records that anchor;
     # absolute types (explicit/range/month) leave the anchor unset.
