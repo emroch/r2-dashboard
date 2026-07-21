@@ -10,3 +10,11 @@ output/
 # data/raw/ ARE tracked as the dated, change-detected fetch history (trend data).
 /data/processed/
 /dist/                # CI deploy-staging dir (workflow "Stage deploy directory")
+# cloudflare/wrangler-action runs `npm i wrangler` in the workspace at deploy
+# time (the runner has no preinstalled wrangler), creating these in the repo
+# root — which then trips wrangler's own "uncommitted changes" check. Ignore so
+# the deploy sees a clean tree. This is a Python project; the Worker uses npx and
+# has no package.json of its own.
+node_modules/
+/package.json
+/package-lock.json
