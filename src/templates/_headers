@@ -1,0 +1,7 @@
+# Cloudflare Pages: browser-cache the Plotly bundle. This applies when Pages
+# serves directly on *.pages.dev (production origin + PR previews); the Worker
+# sets the same header on the emroch.com/r2-dashboard path. Fixed filename + a
+# day of caching (cheap ETag revalidation after) — no version churn, and a
+# stale copy after a rare plotly bump still renders (stable API) and self-heals.
+/plotly.min.js
+  Cache-Control: public, max-age=86400

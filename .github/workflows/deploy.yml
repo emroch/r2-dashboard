@@ -44,7 +44,9 @@ jobs:
         run: |
           mkdir -p dist
           cp output/r2_orders_dashboard.html dist/index.html
+          cp output/plotly.min.js dist/plotly.min.js
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
+          cp src/templates/_headers dist/_headers
 
       - name: Persist fetch history
         # Commit any new data/raw caches BEFORE deploying: dist/, output/ and
