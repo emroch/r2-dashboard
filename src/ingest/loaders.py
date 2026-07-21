@@ -12,11 +12,11 @@ import io
 import numpy as np
 import pandas as pd
 
-from config import (ADDITIONS, AS_OF, OPTED_IN_TOKENS, ORDER_DATE_MIN,
-                     ORDERS_COLUMNS, OVERRIDES, RESERVATIONS_COLUMNS,
-                     RESV_DATE_MIN, SPARE_TOKENS, UNKNOWN_SUBSTRINGS,
-                     UNKNOWN_TOKENS, WHEELS_21_CONTAINS, WHEELS_LABEL_20,
-                     WHEELS_LABEL_21)
+from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
+                     ORDER_DATE_MIN, ORDERS_COLUMNS, OVERRIDES,
+                     RESERVATIONS_COLUMNS, RESV_DATE_MIN, SPARE_TOKENS,
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
+                     WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
 
@@ -81,6 +81,48 @@ def _apply_additions(df, additions):
     return add_df, added, issues
 
 
+# Column -> human noun for the drop reason (matches the sheet's own wording).
+_AVAIL_NOUN = {"trim": "trim", "color": "paint", "interior": "interior"}
+
+
+def _availability_mask(df):
+    """Flag orders whose selected trim/paint/interior wasn't orderable yet on the
+    order date — the config wasn't buildable, so it isn't a real confirmed order.
+
+    AVAILABILITY maps each column to (prefix, available_from) rules; available_from
+    is None for "unreleased" options (never orderable yet). Prefixes match the
+    sheet value case-insensitively, so "Standard" catches every Standard-* trim.
+    Compares against the (already sanitized) order date: an unreleased option, or a
+    still-future/unreleased option whose order date is missing/typo'd (nulled just
+    above), drops regardless; an available option with a missing date is kept
+    (can't be disproven). Returns (drop_mask aligned to df.index, drop_records)."""
+    reasons = {}  # df index -> reason string (first matching option wins)
+    for col, rules in AVAILABILITY.items():
+        if col not in df.columns or not rules:
+            continue
+        vals = df[col].astype(str).str.strip()
+        low = vals.str.lower()
+        for prefix, avail in rules:
+            for i in df.index[low.str.startswith(prefix)]:
+                if i in reasons:
+                    continue
+                od = df.at[i, "order_date"]
+                what = "%s %s" % (vals.at[i], _AVAIL_NOUN.get(col, col))
+                if avail is None:
+                    reasons[i] = "%s not orderable yet (unreleased)" % what
+                elif pd.isna(od):
+                    if avail > AS_OF:  # config still unavailable as of today
+                        reasons[i] = ("%s not orderable until %s (no order date)"
+                                      % (what, avail.date()))
+                elif od < avail:
+                    reasons[i] = ("%s not orderable until %s (order %s)"
+                                  % (what, avail.date(), df.at[i, "order_raw"]))
+    mask = pd.Series(df.index.isin(list(reasons)), index=df.index)
+    records = [(df.at[i, "orig_num"], df.at[i, "user"], reasons[i])
+               for i in df.index if i in reasons]
+    return mask, records
+
+
 def load_and_clean(text, meta):
     # The orders sheet export carries title/notes rows above the header AND a
     # leading blank column (so "#" sits at index 1, not 0). Parse with the csv
@@ -123,7 +165,8 @@ def load_and_clean(text, meta):
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)
-    n_dedup = len(df)  # unique orders total (sheet uniques + manual additions)
+    # n_dedup (the final cohort size the dashboard counts) is set after the
+    # not-yet-orderable-config drop below, so it excludes those rows.
 
     # --- VIN ---
     vin = df["vin_raw"].apply(clean_vin)
@@ -149,27 +192,44 @@ def load_and_clean(text, meta):
     df["resv_date"] = pd.to_datetime(df["resv_date"], errors="coerce")
     df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
 
-    # --- Discard nonsensical dates (unrecoverable) ---
+    # --- Discard nonsensical dates + drop not-yet-orderable configs ---
     # Valid order dates fall in [2026-06-09 (ordering opened), today]; valid
     # reservations in [2024-03-07 (reveal), today]. Values before the floor are
-    # usually the reservation date typed into the order field; values after
-    # today are typos (often a delivery date). Null them either way.
-    bad_order = df["order_date"].notna() & ((df["order_date"] < ORDER_DATE_MIN)
-                                            | (df["order_date"] > AS_OF))
-    bad_resv = df["resv_date"].notna() & ((df["resv_date"] < RESV_DATE_MIN)
-                                          | (df["resv_date"] > AS_OF))
-    n_bad_order, n_bad_resv = int(bad_order.sum()), int(bad_resv.sum())
-    date_records = []
-    for _, r in df[bad_order].iterrows():
-        why = "future" if r["order_date"] > AS_OF else "too early"
-        date_records.append((r["orig_num"], r["user"],
-                             "order date %s → dropped (%s)" % (r["order_raw"], why)))
-    for _, r in df[bad_resv].iterrows():
-        why = "future" if r["resv_date"] > AS_OF else "too early"
-        date_records.append((r["orig_num"], r["user"],
-                             "reservation %s → dropped (%s)" % (r["resv_raw"], why)))
+    # usually the reservation date typed into the order field; values after today
+    # are typos (often a delivery date). Null them either way — FIRST, so a
+    # future/typo order date can't shield a not-yet-orderable config from the drop
+    # below (the availability check reads a nulled date as "no order date").
+    order_future = df["order_date"] > AS_OF
+    resv_future = df["resv_date"] > AS_OF
+    bad_order = df["order_date"].notna() & (order_future
+                                            | (df["order_date"] < ORDER_DATE_MIN))
+    bad_resv = df["resv_date"].notna() & (resv_future
+                                          | (df["resv_date"] < RESV_DATE_MIN))
     df.loc[bad_order, "order_date"] = pd.NaT
     df.loc[bad_resv, "resv_date"] = pd.NaT
+
+    # Orders whose trim/paint/interior wasn't orderable on the order date aren't
+    # real confirmed orders — drop the whole row (see _availability_mask).
+    drop_mask, premature_records = _availability_mask(df)
+
+    # Report each out-of-range date as a stat-card / QA entry, but not for rows
+    # we're dropping outright — those surface under "Premature configs dropped"
+    # instead, so each cleaned entry lands in exactly one category.
+    keep_bad_order = bad_order & ~drop_mask
+    keep_bad_resv = bad_resv & ~drop_mask
+    n_bad_order, n_bad_resv = int(keep_bad_order.sum()), int(keep_bad_resv.sum())
+    date_records = []
+    for i in df.index[keep_bad_order]:
+        why = "future" if order_future.at[i] else "too early"
+        date_records.append((df.at[i, "orig_num"], df.at[i, "user"],
+                             "order date %s → dropped (%s)" % (df.at[i, "order_raw"], why)))
+    for i in df.index[keep_bad_resv]:
+        why = "future" if resv_future.at[i] else "too early"
+        date_records.append((df.at[i, "orig_num"], df.at[i, "user"],
+                             "reservation %s → dropped (%s)" % (df.at[i, "resv_raw"], why)))
+
+    df = df[~drop_mask].reset_index(drop=True)
+    n_dedup = len(df)  # final cohort: dedup + additions − not-yet-orderable drops
 
     # --- Delivery estimate (windows anchored to order date) ---
     parsed = [parse_delivery(r, o)
@@ -262,11 +322,13 @@ def load_and_clean(text, meta):
         "delivery_counts": df["delivery_type"].value_counts().to_dict(),
         "anchor_fallback": int(df["delivery_anchor_fallback"].sum()),
         "bad_order": n_bad_order, "bad_resv": n_bad_resv,
+        "n_premature": len(premature_records),
         "sanitized": {
             "Duplicates removed": dup_records,
             "VINs de-obfuscated": deobf_records,
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
+            "Premature configs dropped": premature_records,
             "Manual fix-ups": override_records,
             "Manual additions": add_records,
         },
@@ -275,6 +337,7 @@ def load_and_clean(text, meta):
             "fuzzy_dups": fuzzy_dups,
             "vin_unrec": unrec_records,
             "bad_dates": date_records,
+            "availability_drops": premature_records,
             "conversions": conversions,
             "override_issues": override_issues + add_issues,
         },

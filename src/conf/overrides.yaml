@@ -64,18 +64,6 @@ overrides:
   Ti3vom:
     delivery_raw: "8/6/2026"
 
-  # Coastal Cloud interior is not yet orderable
-  cwoodjr1963:
-    delivery_raw: "unknown"
-  Bar_Down:
-    delivery_raw: "unknown"
-  staples:
-    delivery_raw: "unknown"
-  tintin007:
-    delivery_raw: "unknown"
-  "Riv Raider":
-    delivery_raw: "unknown"
-
 additions:
   # forum-only order — not in the tracker sheet
   # https://www.rivianforums.com/forum/threads/r2-esker-silver-road-trip-report.61400/post-1047128
