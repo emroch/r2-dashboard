@@ -166,17 +166,23 @@ def parse_delivery(raw, order_date):
                    anchor=anchor, anchor_fallback=fb)
         return out
 
-    # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", or same-month "7/30-31"
-    # (year assumed 2026, matching the single M/D case below).
-    md = re.search(r"(\d{1,2})/(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})(?:/(\d{1,2}))?",
-                   low)
+    # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", same-month "7/30-31", or
+    # full dates with years "7/28/2026 - 8/3/2026". Years are optional; a missing
+    # year defaults to 2026 (matching the single M/D case below), and a year given
+    # on only one side applies to both.
+    md = re.search(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\s*(?:-|–|—|to)\s*"
+                   r"(\d{1,2})(?:/(\d{1,2}))?(?:/(\d{2,4}))?", low)
     if md:
-        m1, d1, a, b = md.groups()
+        m1, d1, y1, a, b, y2 = md.groups()
         m1, d1 = int(m1), int(d1)
         m2, d2 = (int(a), int(b)) if b else (m1, int(a))  # M/D-M/D vs M/D-D
+        yr1 = int(y1) if y1 else (int(y2) if y2 else 2026)
+        yr2 = int(y2) if y2 else yr1
+        yr1 += 2000 if yr1 < 100 else 0
+        yr2 += 2000 if yr2 < 100 else 0
         try:
-            dmin, dmax = (pd.Timestamp(date(2026, m1, d1)),
-                          pd.Timestamp(date(2026, m2, d2)))
+            dmin, dmax = (pd.Timestamp(date(yr1, m1, d1)),
+                          pd.Timestamp(date(yr2, m2, d2)))
         except ValueError:
             dmin = dmax = None
         if dmin is not None and dmax >= dmin:
