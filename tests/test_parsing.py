@@ -112,6 +112,54 @@ def test_parse_delivery_full_date_range_with_years():
     assert one["type"] == "range" and one["min"] == pd.Timestamp("2026-07-28")
 
 
+def test_parse_delivery_monthname_range():
+    # Named-month ranges span both endpoints; whole-month spans fill to month end.
+    cases = [
+        ("July 16-August 16", "2026-07-16", "2026-08-16"),
+        ("June 30-July 28",   "2026-06-30", "2026-07-28"),
+        ("June 29-30",        "2026-06-29", "2026-06-30"),  # same-month day range
+        ("July 11th-17th",    "2026-07-11", "2026-07-17"),  # ordinals
+        ("August - September", "2026-08-01", "2026-09-30"),  # whole-month span
+        ("Nov/Dec 2026",      "2026-11-01", "2026-12-31"),  # slash + trailing year
+    ]
+    for s, mn, mx in cases:
+        out = parse_delivery(s, pd.NaT)
+        assert out["type"] == "range", s
+        assert out["min"] == pd.Timestamp(mn), s
+        assert out["max"] == pd.Timestamp(mx), s
+    # A single month name is NOT a range — it stays a whole-month estimate.
+    assert parse_delivery("August 2026", pd.NaT)["type"] == "month"
+
+
+def test_parse_delivery_month_modifier():
+    # Within-month phrases resolve to a bounded ~week window (type "range").
+    end = parse_delivery("End of July", pd.NaT)
+    assert end["type"] == "range"
+    assert end["min"] == pd.Timestamp("2026-07-25")
+    assert end["max"] == pd.Timestamp("2026-07-31")
+    early = parse_delivery("early August 2026", pd.NaT)
+    assert early["min"] == pd.Timestamp("2026-08-01")
+    assert early["max"] == pd.Timestamp("2026-08-07")
+    mid = parse_delivery("mid-September", pd.NaT)
+    assert mid["min"] == pd.Timestamp("2026-09-12")
+    assert mid["max"] == pd.Timestamp("2026-09-18")
+    week = parse_delivery("first week August 2026", pd.NaT)
+    assert week["min"] == pd.Timestamp("2026-08-01")
+    assert week["max"] == pd.Timestamp("2026-08-07")
+    # A modifier binds to its ADJACENT month: "end of July or early August" is
+    # end-of-July (the leading phrase), not early-July from mismatching "early".
+    both = parse_delivery("end of July or early August", pd.NaT)
+    assert both["min"] == pd.Timestamp("2026-07-25")
+    assert both["max"] == pd.Timestamp("2026-07-31")
+
+
+def test_parse_delivery_monthname_ordinal_single():
+    # A single month-name date with an ordinal suffix is explicit, not a bare month.
+    out = parse_delivery("July 18th, 2026", pd.NaT)
+    assert out["type"] == "explicit"
+    assert out["est"] == pd.Timestamp("2026-07-18")
+
+
 def test_parse_delivery_window_anchor():
     # A week-window is measured from the order date and records that anchor;
     # absolute types (explicit/range/month) leave the anchor unset.
