@@ -102,20 +102,42 @@ def _parse_numeric(s):
 
 
 def _parse_monthname(s):
-    """Month-name date, optional day/year. Return ('explicit'|'month', date)."""
+    """Named-month date -> ('explicit'|'month', date).
+
+    Handles the day on either side of the month ("August 3", "3 Aug", "3rd
+    August"), optional ordinal suffixes, dash separators, and 2- or 4-digit years
+    ("31 Jul 26", "3 Aug 2026"). The month is spelled out, so there's no US-vs-non-
+    US day/month ambiguity here — that only affects all-numeric dates elsewhere.
+    """
     low = s.lower().replace(",", " ")
-    year_m = re.search(r"(20\d{2})", low)
-    year = int(year_m.group(1)) if year_m else 2026
-    low = re.sub(r"20\d{2}", " ", low)  # drop year so it isn't read as a day
     m = re.search(r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*", low)
     if not m:
         return None
     mn = MONTHS[m.group(1)]
-    # Accept an optional ordinal suffix so "July 18th" -> explicit, not a bare month.
-    day_m = re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\b", low[m.end():])
-    if day_m:
+    before, after = low[:m.start()], low[m.end():]
+
+    # A 4-digit 20xx year anywhere wins and is stripped so it can't be read as a day.
+    ym = re.search(r"\b(20\d{2})\b", low)
+    year = int(ym.group(1)) if ym else 2026
+    before = re.sub(r"\b20\d{2}\b", " ", before)
+    after = re.sub(r"\b20\d{2}\b", " ", after)
+
+    # Day: prefer a 1-2 digit number immediately BEFORE the month ("3 Aug",
+    # "31 Jul 26"); else the first such number AFTER it ("Aug 3", "Aug 08").
+    db = re.search(r"(\d{1,2})(?:st|nd|rd|th)?[\s\-]*$", before)
+    if db:
+        day = int(db.group(1))
+        # With a leading day, a trailing 2-digit number is the year, not the day.
+        ty = re.search(r"^[\s\-]*(\d{2})\b", after)
+        if ty and not ym:
+            year = 2000 + int(ty.group(1))
+    else:
+        da = re.search(r"(\d{1,2})(?:st|nd|rd|th)?", after)
+        day = int(da.group(1)) if da else None
+
+    if day is not None:
         try:
-            return ("explicit", date(year, mn, int(day_m.group(1))))
+            return ("explicit", date(year, mn, day))
         except ValueError:
             pass
     return ("month", date(year, mn, 15))
