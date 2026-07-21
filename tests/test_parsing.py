@@ -99,6 +99,19 @@ def test_parse_delivery_numeric_range():
     assert out["max"] == pd.Timestamp("2026-07-31")
 
 
+def test_parse_delivery_full_date_range_with_years():
+    # Full "M/D/YYYY - M/D/YYYY" ranges (regression: huebetcha's
+    # "7/28/2026 - 8/3/2026" used to fall through to "unknown" because the
+    # 4-digit years broke the M/D range regex).
+    out = parse_delivery("7/28/2026 - 8/3/2026", pd.Timestamp("2026-07-14"))
+    assert out["type"] == "range"
+    assert out["min"] == pd.Timestamp("2026-07-28")
+    assert out["max"] == pd.Timestamp("2026-08-03")
+    # A year on only one side still applies to both.
+    one = parse_delivery("7/28 - 8/3/2026", pd.Timestamp("2026-07-14"))
+    assert one["type"] == "range" and one["min"] == pd.Timestamp("2026-07-28")
+
+
 def test_parse_delivery_window_anchor():
     # A week-window is measured from the order date and records that anchor;
     # absolute types (explicit/range/month) leave the anchor unset.
