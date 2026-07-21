@@ -6,7 +6,7 @@ No I/O, no plotting — just transforms over the raw fields.
 """
 import calendar
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -220,6 +220,23 @@ def _parse_month_modifier(s):
         return None
 
 
+def _parse_week_of(s):
+    """"Week of <date>" -> the calendar week (Mon-Sun) containing that date, as
+    (start, end) dates, or None. The date part reuses the numeric / month-name
+    single-date parsers, so "Week of 8/10" and "Week of August 3rd" both resolve;
+    the given day is snapped back to its Monday and forward to that Sunday."""
+    m = re.search(r"week\s+(?:of|beginning|starting|commencing)\s+(.+)$", s.lower())
+    if not m:
+        return None
+    rest = m.group(1).strip()
+    res = _parse_numeric(_fix_numeric_typos(rest)) or _parse_monthname(rest)
+    if not res or res[0] != "explicit":   # need a specific day to locate the week
+        return None
+    d = res[1]
+    monday = d - timedelta(days=d.weekday())   # weekday(): Mon=0 .. Sun=6
+    return (monday, monday + timedelta(days=6))
+
+
 def _anchor(order_date):
     """Anchor for relative windows: the order date, else the as-of date."""
     if pd.isna(order_date) or order_date < ORDER_ANCHOR_MIN:
@@ -265,6 +282,13 @@ def parse_delivery(raw, order_date):
         est = anchor + pd.Timedelta(weeks=w)
         out.update(est=est, min=est, max=est, type="window",
                    anchor=anchor, anchor_fallback=fb)
+        return out
+
+    # "Week of <date>": the calendar week (Mon-Sun) that contains that date.
+    wk = _parse_week_of(raw)
+    if wk:
+        dmin, dmax = pd.Timestamp(wk[0]), pd.Timestamp(wk[1])
+        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
         return out
 
     # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", same-month "7/30-31", or
