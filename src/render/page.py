@@ -18,7 +18,8 @@ from plotly.offline import get_plotlyjs
 from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
-                     fig_order_timeline, fig_vin_by_config, fig_vin_vs_order)
+                     fig_order_timeline, fig_state_totals, fig_vin_by_config,
+                     fig_vin_vs_order)
 from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
 # templates/ sits alongside this render/ package, under the src/ root.
@@ -71,8 +72,15 @@ SECTIONS = [
     ("Geographic demand",
      dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
                total demand (orders + incomplete reservations). Bubble area = count; the first two share a scale, while
-               total demand (~20x larger) scales to its own."""),
+               total demand (~20x larger) scales to its own. The bars beside each map give that panel's per-region
+               total."""),
      fig_geo),
+    ("Orders by state",
+     dedent("""Every state that has ordered, sorted by total. Each bar splits into VIN-assigned and not-yet-assigned
+               orders, which stack to the state's full count — so bar length is the state total, while the split shows
+               how far along production is there. Easier to compare than bubble area for the long tail of one- and
+               two-order states."""),
+     fig_state_totals),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
                farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
