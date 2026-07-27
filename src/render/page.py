@@ -82,11 +82,12 @@ SECTIONS = [
                two-order states."""),
      fig_state_totals),
     ("Paint preference by location",
-     dedent("""Does color taste vary geographically? Both panels are 100% stacked, so each region's or state's paint mix
-               is comparable regardless of its order volume — the West has ~70x Canada's. Bar labels carry the sample
-               size (n=), and hover gives the underlying counts. The state panel is limited to states with enough orders
-               to be meaningful; below that a single order swings the mix by 100 points, so the rest stay summarized in
-               the region panel."""),
+     dedent("""Does color taste vary geographically? All three panels are 100% stacked, so each row's paint mix is
+               comparable regardless of order volume — the West has ~70x Canada's. The overall row on top is the
+               baseline: read a region against it to see which paints it over- or under-indexes on. Bar labels carry the
+               sample size (n=), and hover gives the underlying counts. The state panel is limited to states with enough
+               orders to be meaningful; below that a single order swings the mix by 100 points, so the rest stay
+               summarized in the region panel."""),
      fig_paint_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
