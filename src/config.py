@@ -82,6 +82,8 @@ TYPE_ORDER = list(_PALETTE["delivery_type_order"])
 TAKE_RATE = dict(_PALETTE["take_rate"])
 TIMELINE_COLORS = dict(_PALETTE["timeline"])
 HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
+# Per-state totals bars: VIN-assigned vs. not (stacked to each state's total).
+STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Orders: positional field names for the block starting at "#". Reservations:

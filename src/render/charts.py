@@ -8,9 +8,9 @@ from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, REGION_COLOR, TAKE_RATE,
-                     TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
-                     WHEEL_SYMBOL)
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, REGION_COLOR,
+                     STATE_TOTALS_COLORS, TAKE_RATE, TIMELINE_COLORS,
+                     TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER, WHEEL_SYMBOL)
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -421,38 +421,64 @@ def _geo_counts(frame):
             .reset_index().dropna(subset=["lat"]))
 
 
+def _region_counts(frame):
+    """Per-region totals for a panel, ascending so the biggest bar sits on top
+    of a horizontal bar chart. Unmapped rows are excluded to stay consistent
+    with the map bubbles, which can only plot located states."""
+    g = frame.dropna(subset=["lat"])
+    return (g.groupby("region").size().sort_values(ascending=True)
+            if len(g) else pd.Series(dtype="int64"))
+
+
 def fig_geo(df, resv=None):
-    """Geographic demand in three stacked maps, each with its own legend:
-    orders with a VIN, all orders, and total demand (orders + incomplete
-    reservations). Bubble area = count.
+    """Geographic demand: three stacked maps, each paired with its region totals.
+
+    Rows are orders with a VIN, all orders, and total demand (orders + incomplete
+    reservations). Bubble area = count; the bar beside each map gives that
+    panel's per-region total, so the map's visual weight has exact numbers next
+    to it.
 
     The VIN and all-orders panels share a bubble scale (comparable magnitudes);
     total demand is ~20x larger, so it scales to its own max."""
-    panels = [("VIN assigned", _geo_counts(df[df["vin_present"]])),
-              ("All orders", _geo_counts(df))]
+    panels = [("VIN assigned", df[df["vin_present"]]),
+              ("All orders", df)]
     if resv is not None and len(resv):
         cols = ["user", "state", "lat", "lon", "region"]
-        combined = pd.concat([df[cols], resv[cols]], ignore_index=True)
         panels.append(("Total demand (orders + incomplete reservations)",
-                       _geo_counts(combined)))
+                       pd.concat([df[cols], resv[cols]], ignore_index=True)))
+    panels = [(t, _geo_counts(f), _region_counts(f)) for t, f in panels]
 
     n = len(panels)
     vs = 0.05
+    # Two columns per row: the map, then that panel's region totals. Subplot
+    # titles are placed only on the maps (the bars are self-labeling).
     fig = make_subplots(
-        rows=n, cols=1, specs=[[{"type": "scattergeo"}] for _ in range(n)],
-        subplot_titles=[t for t, _ in panels], vertical_spacing=vs)
+        rows=n, cols=2, column_widths=[0.74, 0.26], horizontal_spacing=0.08,
+        specs=[[{"type": "scattergeo"}, {"type": "xy"}] for _ in range(n)],
+        subplot_titles=[s for t, _, _ in panels for s in (t, "")],
+        vertical_spacing=vs)
 
-    order_max = max([g["n"].max() for t, g in panels[:2] if len(g)] or [1])
+    order_max = max([g["n"].max() for t, g, _ in panels[:2] if len(g)] or [1])
     rowh = (1 - vs * (n - 1)) / n
     legends = {}
-    for i, (title, g) in enumerate(panels, start=1):
-        geo_key = "geo" if i == 1 else "geo%d" % i
+    for i, (title, g, reg) in enumerate(panels, start=1):
         legend_key = "legend" if i == 1 else "legend%d" % i
         y_top = 1 - (i - 1) * (rowh + vs)
         legends[legend_key] = dict(
             x=1.01, xanchor="left", y=y_top - rowh / 2, yanchor="middle",
             title=dict(text="Region"), font=dict(size=11), itemsizing="constant",
             bgcolor=CHART["legbg"], bordercolor=CHART["legbd"], borderwidth=1)
+        # Region totals (col 2) — one bar per region, colored to match the map.
+        if len(reg):
+            fig.add_trace(go.Bar(
+                x=np.asarray(reg.values), y=np.asarray(reg.index),
+                orientation="h", showlegend=False,
+                marker=dict(color=[REGION_COLOR.get(r, CHART_UI["muted"])
+                                   for r in reg.index],
+                            line=dict(color=CHART["edge"], width=0.5)),
+                text=np.asarray(reg.values), textposition="outside",
+                cliponaxis=False, textfont=dict(size=10),
+                hovertemplate="%{y}: %{x}<extra></extra>"), i, 2)
         if not len(g):
             continue
         ref_max = g["n"].max() if title.startswith("Total") else order_max
@@ -477,8 +503,60 @@ def fig_geo(df, resv=None):
                     landcolor=CHART["land"], showlakes=False,
                     showsubunits=True, subunitcolor=CHART["sub"], subunitwidth=0.5,
                     showcountries=True, countrycolor=CHART["country"], countrywidth=0.7)
-    fig.update_layout(template="plotly_white", height=380 * n,
+    # Headroom for the outside count labels; no gridlines (the labels are exact).
+    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False,
+                     rangemode="tozero", automargin=True)
+    fig.update_yaxes(ticksuffix="  ", automargin=True)
+    for i in range(1, n + 1):
+        vals = panels[i - 1][2]
+        if len(vals):
+            fig.update_xaxes(range=[0, float(vals.max()) * 1.18], row=i, col=2)
+    fig.update_layout(template="plotly_white", height=380 * n, bargap=0.35,
                       margin=dict(l=0, r=140, t=30, b=0), **legends)
+    return fig
+
+
+def fig_state_totals(df):
+    """Per-state order counts, split into VIN-assigned vs. not.
+
+    Every state that has ordered, sorted by total. The two segments stack to the
+    state's full order count, so the bar length is the state total while the
+    split shows how far along production is for that state. Complements the maps
+    above, where the long tail of one- and two-order states is hard to compare
+    by bubble area."""
+    d = df.dropna(subset=["lat"])
+    fig = go.Figure()
+    if d.empty:
+        fig.update_layout(template="plotly_white", height=420)
+        return fig
+    tot = d.groupby("state").size().sort_values(ascending=True)
+    vin = d[d["vin_present"]].groupby("state").size().reindex(tot.index, fill_value=0)
+    novin = tot - vin
+    states = np.asarray(tot.index)
+    for name, vals, color in (("VIN assigned", vin, STATE_TOTALS_COLORS["vin"]),
+                              ("No VIN yet", novin, STATE_TOTALS_COLORS["no_vin"])):
+        fig.add_trace(go.Bar(
+            x=np.asarray(vals.values), y=states, orientation="h", name=name,
+            marker=dict(color=color, line=dict(color=CHART["edge"], width=0.5)),
+            hovertemplate="%%{y} — %s: %%{x}<extra></extra>" % name))
+    # Total at the end of each stacked bar (an invisible bar carrying the label).
+    fig.add_trace(go.Bar(
+        x=np.zeros(len(states)), y=states, orientation="h", showlegend=False,
+        marker=dict(color="rgba(0,0,0,0)"), hoverinfo="skip",
+        text=np.asarray(tot.values), textposition="outside", cliponaxis=False,
+        textfont=dict(size=10)))
+    # ~18px per state keeps the labels legible as the tail grows.
+    fig.update_layout(
+        template="plotly_white", barmode="stack", bargap=0.25,
+        height=max(420, 34 + 18 * len(states)),
+        margin=dict(l=0, r=30, t=10, b=40),
+        xaxis=dict(title="Orders", rangemode="tozero",
+                   range=[0, float(tot.max()) * 1.08]),
+        yaxis=dict(ticksuffix="  ", automargin=True),
+        legend=dict(title=dict(text="VIN status"), orientation="h",
+                    yanchor="bottom", y=1.01, xanchor="right", x=1,
+                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
+                    borderwidth=1))
     return fig
 
 
