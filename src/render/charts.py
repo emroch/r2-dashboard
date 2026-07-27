@@ -340,34 +340,42 @@ def fig_color_wheel_heatmap(df):
 
 
 def fig_paint_by_location(df, min_state_orders=5):
-    """Paint mix by region, and by the states with enough orders to be meaningful.
+    """Paint mix overall, by region, and by the states with enough orders.
 
-    Both panels are 100% stacked, so a region/state's color preference is
+    All three panels are 100% stacked, so a region/state's color preference is
     comparable regardless of how many orders it placed (the West has ~70x
-    Canada's volume). Absolute counts ride along in the hover and as an "n=" tick
-    suffix. Segments use the real paint colors, in the shared COLOR_ORDER.
+    Canada's volume). The overall row on top is the baseline to read the rest
+    against — whether a region over- or under-indexes on a paint. Absolute counts
+    ride along in the hover and as an "n=" tick suffix. Segments use the real
+    paint colors, in the shared COLOR_ORDER.
 
     Paint x state is ~45% empty and most states have 1-3 orders, where a single
     order swings the mix by 100 points — so the state panel is limited to states
     with at least `min_state_orders`, and the rest stay summarized by region.
     """
-    d = df.dropna(subset=["lat"])
+    d = df.dropna(subset=["lat"]).copy()
+    counts = d["state"].value_counts()
+    states = counts[counts >= min_state_orders].sort_values(ascending=True).index
     fig = make_subplots(
-        rows=2, cols=1, row_heights=[0.42, 0.58], vertical_spacing=0.12,
-        subplot_titles=("By region", "By state (%d+ orders)" % min_state_orders))
+        rows=3, cols=1, vertical_spacing=0.09,
+        # The overall row is a single bar; give the panels roughly the height
+        # their bar counts need so no row looks stretched or crushed.
+        row_heights=[0.1, 0.28, 0.62],
+        subplot_titles=("All orders", "By region",
+                        "By state (%d+ orders)" % min_state_orders))
     if d.empty:
         fig.update_layout(template="plotly_white", height=560)
         return fig
 
     colors = [c for c in COLOR_ORDER if (d["color"] == c).any()]
-    counts = d["state"].value_counts()
-    keep = counts[counts >= min_state_orders].index
+    keep = set(states)
     # Ascending so the biggest sits on top in each horizontal panel.
     regions = d["region"].value_counts().sort_values(ascending=True).index
-    states = counts[counts >= min_state_orders].sort_values(ascending=True).index
+    # A constant column lets the overall row reuse the same grouping code path.
+    d["_all"] = "All orders"
 
-    for row, (col, keys) in enumerate(((("region"), regions), (("state"), states)),
-                                      start=1):
+    panels = [("_all", ["All orders"]), ("region", regions), ("state", states)]
+    for row, (col, keys) in enumerate(panels, start=1):
         sub = d[d["state"].isin(keep)] if col == "state" else d
         tot = sub[col].value_counts()
         # "NAME  n=" labels keep the sample size visible next to every bar, so a
@@ -389,7 +397,7 @@ def fig_paint_by_location(df, min_state_orders=5):
     fig.update_yaxes(ticksuffix="  ", automargin=True)
     fig.update_layout(
         template="plotly_white", barmode="stack", bargap=0.28,
-        height=300 + 24 * len(states),
+        height=380 + 24 * len(states),
         margin=dict(l=0, r=20, t=52, b=40),
         legend=dict(title=dict(text="Exterior paint"), traceorder="normal",
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
