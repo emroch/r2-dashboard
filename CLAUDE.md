@@ -56,7 +56,28 @@ Outputs:
 
 Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/`.
 
-Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4) are expected to be available in the environment; there is no venv. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
+### Matching CI locally (`./ci_env`)
+
+The system Python here is 3.9 + pandas 1.x, but CI runs Python 3.12 + the pinned
+`requirements.txt` (pandas 2.x). That gap hides real bugs — a delivery typo parsing to
+year 1326 raises `OutOfBoundsDatetime` on pandas 1.x but coerces to `NaT` on 2.x, so
+"works locally" proves nothing about the deploy. `./ci_env` builds a venv (`.venv-ci/`,
+gitignored) from the pinned requirements via `uv` and runs against it:
+
+```sh
+./ci_env check          # tests + full pipeline under the CI stack (what CI does)
+./ci_env test --both    # run the suite under BOTH stacks — catches version-dependent behavior
+./ci_env build          # just the pipeline
+./ci_env python …       # any command under the CI stack
+```
+
+It re-creates the venv automatically when `requirements.txt` changes, so the local stack
+can't drift from the pins. It prefers the exact CI interpreter and falls back to the
+newest local `python3.x` if that download is unavailable (the library versions are what
+matter for parity). **Run `./ci_env check` before pushing** anything that touches parsing
+or rendering.
+
+Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
 
 ## CSV structure and quirks
 

@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 *.egg-info/
 .venv/
+# CI-mirroring venv built by ./ci_env (python + the pinned requirements.txt).
+.venv-ci/
 .wrangler/
 .DS_Store
 .claude/
