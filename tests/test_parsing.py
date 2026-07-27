@@ -185,6 +185,19 @@ def test_parse_delivery_non_us_numeric_dropped():
     assert parse_delivery("31/8/2026", pd.NaT)["type"] == "unknown"
 
 
+def test_parse_delivery_implausible_year_is_unknown():
+    # A typo can parse cleanly but land centuries away: "8/1326" (meant 8/13/26)
+    # reads as month 8 of year 1326. pandas 1.x raises OutOfBoundsDatetime on that
+    # Timestamp (crashing the run) while pandas 2.x accepts it and would silently
+    # publish the bad date, so parse_delivery must reject it outright.
+    for s in ("8/1326", "7/1/1900", "1/1/1970", "12/25/2099"):
+        out = parse_delivery(s, pd.NaT)
+        assert out["type"] == "unknown", s
+        assert pd.isna(out["est"]), s
+    # Plausible years still parse normally.
+    assert parse_delivery("8/13/26", pd.NaT)["est"] == pd.Timestamp("2026-08-13")
+
+
 def test_parse_delivery_week_of():
     # "Week of <date>" -> the Mon-Sun week containing that date. Aug 3, 2026 is a
     # Monday, so its week is 8/3 (Mon) .. 8/9 (Sun).

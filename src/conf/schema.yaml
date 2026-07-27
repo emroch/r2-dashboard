@@ -39,6 +39,12 @@ sanitize:
   reservation_date_min: "2024-03-07"  # R2 reveal / reservations opened
   order_anchor_min: "2026-01-01"      # order dates below this don't anchor windows
   vin_seq_min: 100                    # VIN sequence below this = unusable/redacted
+  # Plausible year window for a parsed DELIVERY estimate. A typo can parse
+  # cleanly but land centuries off ("8/1326", meant 8/13/26, reads as year 1326);
+  # anything outside this window is treated as unparseable and flagged in the
+  # data-quality panel rather than plotted.
+  delivery_year_min: 2024
+  delivery_year_max: 2035
 
 # Option take-rate vocabulary (values compared lowercased).
 options:

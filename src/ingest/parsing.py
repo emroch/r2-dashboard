@@ -11,9 +11,10 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, FACTORY, MONTHS,
-                     MONTH_MODIFIERS, ORDER_ANCHOR_MIN, STATE_INFO,
-                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VIN_SEQ_MIN)
+from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, DELIVERY_YEAR_MAX,
+                     DELIVERY_YEAR_MIN, FACTORY, MONTHS, MONTH_MODIFIERS,
+                     ORDER_ANCHOR_MIN, STATE_INFO, UNKNOWN_SUBSTRINGS,
+                     UNKNOWN_TOKENS, VIN_SEQ_MIN)
 
 
 def clean_vin(token):
@@ -244,6 +245,20 @@ def _anchor(order_date):
     return order_date, False
 
 
+def _plausible(*dates):
+    """True if every date falls in the plausible delivery-year window.
+
+    A typo can parse cleanly but land centuries away — "8/1326" (meant 8/13/26)
+    reads as month 8 of year 1326. pandas 1.x raises OutOfBoundsDatetime on such
+    a Timestamp (crashing the run) while pandas 2.x accepts it as a second-unit
+    Timestamp and silently publishes the bad date, so guard here rather than
+    relying on Timestamp construction to fail. Out-of-window values fall through
+    to "unknown" and surface in the data-quality panel as unparseable.
+    """
+    return all(d is not None and DELIVERY_YEAR_MIN <= d.year <= DELIVERY_YEAR_MAX
+               for d in dates)
+
+
 def parse_delivery(raw, order_date):
     """Normalize a delivery estimate.
 
@@ -286,7 +301,7 @@ def parse_delivery(raw, order_date):
 
     # "Week of <date>": the calendar week (Mon-Sun) that contains that date.
     wk = _parse_week_of(raw)
-    if wk:
+    if wk and _plausible(*wk):
         dmin, dmax = pd.Timestamp(wk[0]), pd.Timestamp(wk[1])
         out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
         return out
@@ -310,7 +325,7 @@ def parse_delivery(raw, order_date):
                           pd.Timestamp(date(yr2, m2, d2)))
         except ValueError:
             dmin = dmax = None
-        if dmin is not None and dmax >= dmin:
+        if dmin is not None and dmax >= dmin and _plausible(dmin, dmax):
             out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2,
                        type="range")
             return out
@@ -318,7 +333,7 @@ def parse_delivery(raw, order_date):
     # Named-month ranges: "July 16-August 16", "June 29-30", "August - September",
     # "Nov/Dec 2026" — two named-month (or same-month day) endpoints.
     mr = _parse_monthname_range(raw)
-    if mr:
+    if mr and _plausible(*mr):
         dmin, dmax = pd.Timestamp(mr[0]), pd.Timestamp(mr[1])
         out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
         return out
@@ -326,7 +341,7 @@ def parse_delivery(raw, order_date):
     # Within-month modifiers: "end of July", "early August", "mid-September" — a
     # bounded ~week window (more precise than a bare month, hence type "range").
     mm = _parse_month_modifier(raw)
-    if mm:
+    if mm and _plausible(*mm):
         dmin, dmax = pd.Timestamp(mm[0]), pd.Timestamp(mm[1])
         out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
         return out
@@ -335,7 +350,7 @@ def parse_delivery(raw, order_date):
     for parser, arg in ((_parse_numeric, _fix_numeric_typos(raw)),
                         (_parse_monthname, raw)):
         res = parser(arg)
-        if res:
+        if res and _plausible(res[1]):
             typ, dt = res
             ts = pd.Timestamp(dt)
             if typ == "month":

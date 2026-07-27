@@ -95,6 +95,9 @@ ORDER_DATE_MIN = pd.Timestamp(_SAN["order_date_min"])
 RESV_DATE_MIN = pd.Timestamp(_SAN["reservation_date_min"])
 ORDER_ANCHOR_MIN = pd.Timestamp(_SAN["order_anchor_min"])
 VIN_SEQ_MIN = int(_SAN["vin_seq_min"])
+# Plausible year window for a parsed delivery estimate (typo guard).
+DELIVERY_YEAR_MIN = int(_SAN["delivery_year_min"])
+DELIVERY_YEAR_MAX = int(_SAN["delivery_year_max"])
 
 # --- Option take-rate vocabulary (schema.yaml) ----------------------------
 _OPT = _SCHEMA["options"]
