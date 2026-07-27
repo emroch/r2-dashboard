@@ -339,6 +339,72 @@ def fig_color_wheel_heatmap(df):
     return fig
 
 
+def fig_paint_by_location(df, min_state_orders=5):
+    """Paint mix overall, by region, and by the states with enough orders.
+
+    All three panels are 100% stacked, so a region/state's color preference is
+    comparable regardless of how many orders it placed (the West has ~70x
+    Canada's volume). The overall row on top is the baseline to read the rest
+    against — whether a region over- or under-indexes on a paint. Absolute counts
+    ride along in the hover and as an "n=" tick suffix. Segments use the real
+    paint colors, in the shared COLOR_ORDER.
+
+    Paint x state is ~45% empty and most states have 1-3 orders, where a single
+    order swings the mix by 100 points — so the state panel is limited to states
+    with at least `min_state_orders`, and the rest stay summarized by region.
+    """
+    d = df.dropna(subset=["lat"]).copy()
+    counts = d["state"].value_counts()
+    states = counts[counts >= min_state_orders].sort_values(ascending=True).index
+    fig = make_subplots(
+        rows=3, cols=1, vertical_spacing=0.09,
+        # The overall row is a single bar; give the panels roughly the height
+        # their bar counts need so no row looks stretched or crushed.
+        row_heights=[0.1, 0.28, 0.62],
+        subplot_titles=("All orders", "By region",
+                        "By state (%d+ orders)" % min_state_orders))
+    if d.empty:
+        fig.update_layout(template="plotly_white", height=560)
+        return fig
+
+    colors = [c for c in COLOR_ORDER if (d["color"] == c).any()]
+    keep = set(states)
+    # Ascending so the biggest sits on top in each horizontal panel.
+    regions = d["region"].value_counts().sort_values(ascending=True).index
+    # A constant column lets the overall row reuse the same grouping code path.
+    d["_all"] = "All orders"
+
+    panels = [("_all", ["All orders"]), ("region", regions), ("state", states)]
+    for row, (col, keys) in enumerate(panels, start=1):
+        sub = d[d["state"].isin(keep)] if col == "state" else d
+        tot = sub[col].value_counts()
+        # "NAME  n=" labels keep the sample size visible next to every bar, so a
+        # 100% split off a handful of orders can't be mistaken for a solid trend.
+        labels = ["%s  n=%d" % (k, tot[k]) for k in keys]
+        for c in colors:
+            n = [int(((sub[col] == k) & (sub["color"] == c)).sum()) for k in keys]
+            pct = [100.0 * v / tot[k] for v, k in zip(n, keys)]
+            fig.add_trace(go.Bar(
+                x=pct, y=labels, orientation="h", name=c, legendgroup=c,
+                showlegend=(row == 1), customdata=np.array(n),
+                marker=dict(color=COLOR_DISPLAY[c],
+                            line=dict(color=CHART["edge"], width=0.5)),
+                hovertemplate=("%{y}<br>" + c
+                               + ": %{customdata} orders (%{x:.0f}%)<extra></extra>")),
+                row, 1)
+
+    fig.update_xaxes(range=[0, 100], ticksuffix="%", showgrid=True)
+    fig.update_yaxes(ticksuffix="  ", automargin=True)
+    fig.update_layout(
+        template="plotly_white", barmode="stack", bargap=0.28,
+        height=380 + 24 * len(states),
+        margin=dict(l=0, r=20, t=52, b=40),
+        legend=dict(title=dict(text="Exterior paint"), traceorder="normal",
+                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
+                    borderwidth=1))
+    return fig
+
+
 def fig_order_timeline(df, resv=None):
     """Reservation vs. order timeline. The reservation panel stacks two
     series: holders who have since ordered vs. reservation-only (incomplete)."""
