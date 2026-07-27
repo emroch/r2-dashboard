@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Local environment that mirrors CI (.github/workflows/deploy.yml):
+# Python 3.12 + the pinned requirements.txt, in a venv at .venv-ci/.
+#
+# Why: the system python here is 3.9 with pandas 1.x, which diverges from CI's
+# 3.12 + pandas 2.x in ways that hide real bugs. A delivery typo parsing to year
+# 1326, for example, raises OutOfBoundsDatetime on pandas 1.x but coerces to NaT
+# on 2.x — opposite behaviors, so "works locally" proved nothing about the deploy.
+# Run checks here before pushing.
+#
+#   ./ci_env test      run the unit tests under the CI stack (default)
+#   ./ci_env build     run the full pipeline (fetch -> clean -> render)
+#   ./ci_env check     tests + build, i.e. what CI does before deploying
+#   ./ci_env shell     print the activate line for an interactive session
+#   ./ci_env python …  run any python command under the CI stack
+#   ./ci_env sync      (re)create the venv from requirements.txt and exit
+#
+# Add --both to `test` to run the suite under BOTH the CI stack and the system
+# python, which is how you catch version-dependent behavior:
+#
+#   ./ci_env test --both
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+PY_VERSION="$(sed -n 's/.*python-version: *"\([0-9.]*\)".*/\1/p' \
+    .github/workflows/deploy.yml | head -1)"
+PY_VERSION="${PY_VERSION:-3.12}"
+VENV=".venv-ci"
+PY="$VENV/bin/python"
+STAMP="$VENV/.requirements.sha"
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "error: uv not found — install with: brew install uv" >&2
+    echo "       (uv provides the CPython $PY_VERSION build that CI uses)" >&2
+    exit 1
+fi
+
+# Pick the interpreter to build the venv from. Prefer the exact CI version; uv
+# will download that CPython build if it isn't installed. If the download is
+# blocked (restricted network) fall back to the newest local python3.x that
+# still satisfies the pins — pandas 2.x / numpy 2.x need >= 3.9, and what
+# actually matters for parity is the *library* major versions, not the patch
+# release of the interpreter. `./ci_env sync` prints what was used.
+pick_python() {
+    if uv python find "$PY_VERSION" >/dev/null 2>&1; then
+        echo "$PY_VERSION"; return
+    fi
+    if uv venv --python "$PY_VERSION" "$VENV.probe" >/dev/null 2>&1; then
+        rm -rf "$VENV.probe"; echo "$PY_VERSION"; return
+    fi
+    rm -rf "$VENV.probe"
+    for cand in 3.13 3.12 3.11 3.10; do
+        if command -v "python$cand" >/dev/null 2>&1; then
+            echo "warn: CPython $PY_VERSION unavailable (download blocked?); using local python$cand" >&2
+            echo "$cand"; return
+        fi
+    done
+    echo "$PY_VERSION"   # let uv fail with its own message
+}
+
+# Recreate the venv when missing or when requirements.txt changed, so the local
+# stack can't silently drift from the pins CI installs.
+want="$(shasum requirements.txt | cut -d' ' -f1)"
+if [ ! -x "$PY" ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$want" ]; then
+    use_py="$(pick_python)"
+    echo "==> creating $VENV (python $use_py, pinned requirements)" >&2
+    rm -rf "$VENV"
+    uv venv --python "$use_py" "$VENV" >&2
+    uv pip install --python "$PY" -q -r requirements.txt >&2
+    echo "$want" > "$STAMP"
+fi
+
+cmd="${1:-test}"
+[ $# -gt 0 ] && shift || true
+
+banner() {
+    printf '\n\033[1m== %s ==\033[0m  (%s)\n' "$1" "$("$2" --version 2>&1)"
+}
+
+case "$cmd" in
+    sync)
+        "$PY" -c 'import sys,pandas,numpy,plotly,yaml,bs4
+print("ready: python %s | pandas %s | numpy %s | plotly %s"
+      % (sys.version.split()[0], pandas.__version__, numpy.__version__,
+         plotly.__version__))'
+        ;;
+    test)
+        if [ "${1:-}" = "--both" ]; then
+            banner "CI stack" "$PY";      "$PY" tests/test_parsing.py
+            banner "system python" python3; python3 tests/test_parsing.py
+        else
+            banner "CI stack" "$PY";      "$PY" tests/test_parsing.py
+        fi
+        ;;
+    build)
+        banner "CI stack" "$PY"
+        "$PY" src/pipeline.py
+        ;;
+    check)
+        banner "CI stack" "$PY"
+        "$PY" tests/test_parsing.py
+        "$PY" src/pipeline.py
+        ;;
+    shell)
+        echo "source $VENV/bin/activate"
+        ;;
+    python)
+        exec "$PY" "$@"
+        ;;
+    *)
+        sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+        exit 1
+        ;;
+esac
