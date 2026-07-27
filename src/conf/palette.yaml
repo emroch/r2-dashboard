@@ -85,3 +85,12 @@ timeline:                     # reservation / order timeline (chart 6)
   reserved_only: "#4c78a8"    # reservation-only (incomplete) bars
 
 heatmap_colorscale: Blues     # color x wheels combo heatmap (chart 5)
+
+# ---------------------------------------------------------------------------
+# Per-state totals bars: VIN-assigned vs. not, stacked so the pair sums to that
+# state's order count. Encodes VIN status (not region), so it deliberately sits
+# outside the `regions` palette above.
+# ---------------------------------------------------------------------------
+state_totals:
+  vin: "#4c78a8"              # VIN assigned
+  no_vin: "#c2ccd6"           # ordered, no VIN yet
