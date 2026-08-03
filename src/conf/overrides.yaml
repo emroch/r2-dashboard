@@ -63,6 +63,54 @@ overrides:
   # probable typo (2027 -> 2026)
   Ti3vom:
     delivery_raw: "8/6/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1051958/
+  dmartin:
+    delivery_raw: "7/23/2026"
+  # VIN/delivery update
+  # https://www.rivianforums.com/forum/posts/1053263/
+  # https://www.rivianforums.com/forum/threads/forest-green-r2-now-on-display-at-rivian-factory.61807/post-1056256
+  Josh X:
+    delivery_raw: "7/25/2026"
+    vin_raw: "1345"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1053908/
+  DaveA:
+    delivery_raw: "8/5/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1054733/
+  jtm1631:
+    delivery_raw: "8/4/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1060326/
+  KCP:
+    delivery_raw: "8/19/2026"
+  # vin/delivery update
+  # https://www.rivianforums.com/forum/posts/1060756/
+  # https://www.rivianforums.com/forum/posts/1059992/
+  tkauftheil:
+    delivery_raw: "8/27/2026"
+    vin_raw: "X42XX"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1061910/
+  cwq93r:
+    delivery_raw: "8/6/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1062205/
+  R1TCA:
+    delivery_raw: "7/28/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1062358/
+  Super_Dave:
+    delivery_raw: "8/4/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1064384/
+  pretzelsaremakingmethirsty:
+    delivery_raw: "8/5/2026"
+  # delivery estimate
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
+  jediknight:
+    delivery_raw: "8/3/26 - 8/7/26"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -80,3 +128,51 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "Both"
+  # forum-only order — not in the tracker sheet
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1059229
+  # https://www.rivianforums.com/forum/posts/1056526/
+  benpellow:
+    resv_raw: "3/7/2024"
+    order_raw: "6/30/2026"
+    delivery_raw: "8/6/2026"
+    vin_raw: "2934"
+    loc_raw: "IL"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # non-forum user
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1064979
+  Eric9610's Dad:
+    resv_raw: "3/7/2024"
+    order_raw: "7/22/2026"
+    delivery_raw: "TBD"
+    vin_raw: "5411"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Launch Green"
+    interior: "Black Crater Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+  # forum-only order — not in the tracker sheet
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065145
+  windshieldfarmer:
+    resv_raw: "5/28/2026"
+    order_raw: "7/28/2026"
+    delivery_raw: "8/14/2026"
+    vin_raw: "23XX"
+    loc_raw: "KS"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Glacier White"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    spare: "Yes"
