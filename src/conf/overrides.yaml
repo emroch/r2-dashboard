@@ -160,6 +160,8 @@ additions:
     wheels: '21” Liquid Tungsten All-Season'
     autonomy: "Included"
     tow: "Included"
+  # forum-only order — not in the tracker sheet
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065145
   windshieldfarmer:
     resv_raw: "5/28/2026"
     order_raw: "7/28/2026"
