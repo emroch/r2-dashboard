@@ -32,13 +32,19 @@ function themeCharts(dark){
   // theme-swapped): their hover highlight is a fixed bright fill, so dark text
   // stays legible in both idle and hover states, in light or dark mode.
   try{window.Plotly.relayout(gd,up);}catch(e){}
-  var idx=[],staridx=[];
+  var idx=[],staridx=[],boxidx=[];
   (gd.data||[]).forEach(function(tr,i){
    var lc=tr.marker&&tr.marker.line?tr.marker.line.color:null;
    if(typeof lc==='string'&&managed.indexOf(lc.toLowerCase())>=0)idx.push(i);
    if(tr.marker&&tr.marker.symbol==='star')staridx.push(i);
+   // Box outlines/whiskers carry their color on the TRACE's line, not
+   // marker.line, so they need their own pass or they keep the light-theme
+   // near-black and vanish against the dark card.
+   var bl=tr.line?tr.line.color:null;
+   if(tr.type==='box'&&typeof bl==='string'&&managed.indexOf(bl.toLowerCase())>=0)boxidx.push(i);
   });
   if(idx.length){try{window.Plotly.restyle(gd,{'marker.line.color':t.edge},idx);}catch(e){}}
+  if(boxidx.length){try{window.Plotly.restyle(gd,{'line.color':t.edge},boxidx);}catch(e){}}
   if(staridx.length){try{window.Plotly.restyle(gd,{'marker.color':t.star},staridx);}catch(e){}}
  });
 }

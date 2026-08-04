@@ -45,11 +45,12 @@ SECTIONS = [
     ("Configured price",
      dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
                destination, doc fees, taxes, or incentives. The top panel gives one bar per exact price (the cohort lands
-               on a small set of totals, so binning would hide real structure) with the median and mean marked. The
-               middle panel splits the average price into base plus each option category, which is where the variation
-               is while nearly everyone is on one trim. The bottom panel is a box per trim, and fills in as Premium and
-               Standard ship. Orders whose configuration hits a price Rivian hasn't published are excluded rather than
-               counted as zero — see the data-quality panel."""),
+               on a small set of totals, so binning would hide real structure), with the median's own label highlighted
+               and the mean shown as a stat. The middle panel covers the option spend alone — the base is a constant per
+               trim, so the choices are the interesting part — with each category's take rate alongside, since a big
+               average means something different when everyone pays a little rather than a few paying a lot. The bottom
+               panel is a box per trim, and fills in as Premium and Standard ship. Orders whose configuration hits a
+               price Rivian hasn't published are excluded rather than counted as zero — see the data-quality panel."""),
      fig_price),
     ("Reservation & order timeline",
      dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
