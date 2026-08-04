@@ -1,0 +1,174 @@
+# R2 pricing — every publicly announced trim, drive system, option, and add-on.
+#
+# Feeds the configured-vehicle price for each order (issue #11): a trim's base
+# price plus its drive system and the upcharges for the paint, wheels, interior,
+# package, and add-ons that order selected. DELIBERATELY EXCLUDES destination,
+# doc fees, taxes, and incentives — configured vehicle price only. Purchase vs.
+# lease doesn't change it either, so that stays a grouping dimension.
+#
+# Prices are whole US dollars:
+#   null  = not published / not yet known. Any order needing it gets an UNKNOWN
+#           price — reported in an explicit "unknown price" bucket rather than
+#           silently dropped, and excluded from the mean/median.
+#   0     = offered at no extra cost (standard on that trim).
+#
+# WHY WHEELS ARE SHAPED DIFFERENTLY FROM PAINT/INTERIOR:
+# Paint, interior, and add-on upcharges are identical on every trim that offers
+# them, so they're priced once in the catalogs below and each trim lists which it
+# offers. Wheels are not — the 21" Liquid Tungsten is standard on Performance but
+# a $2,000 upgrade on Premium — so each trim carries its own wheel map
+# (name -> upcharge), encoding availability and price together. Every trim offers
+# exactly two.
+#
+# MATCHING: keys must match the sheet's values exactly, including the curly
+# right-quote in the wheel names ('21” …', not '21" …') and "Half Moon Grey"
+# without a hyphen. Comparison is case- and whitespace-insensitive, but not
+# spelling-insensitive. Trim names match in FULL, never by prefix — "Standard RWD"
+# is a prefix of "Standard RWD LR", so prefix matching would misprice the
+# long-range car by $3,500.
+#
+# AVAILABILITY: a trim's `paints` / `interiors` lists and `wheels` map define what
+# it offers, extended by `paints_by_drive` and `paints_by_package` for paints that
+# a specific drive system or package unlocks. An order listing something not
+# offered on its configuration is still priced from the catalog, and is flagged in
+# the dashboard's data-quality panel as an impossible configuration (the sheet is
+# self-reported, so bad combinations happen). This is separate from schema.yaml's
+# `availability`, which is about WHEN a config became orderable.
+
+# ---------------------------------------------------------------------------
+# Paint — same upcharge on every trim that offers it. Order matches
+# palette.yaml's paint_order.
+# ---------------------------------------------------------------------------
+paints:
+  Catalina Cove:  2000      # Premium, Performance
+  Launch Green:   2000      # Performance, and only with the Launch Package
+  Forest Green:   1500      # not on the base Standard Rear-Wheel Drive
+  Borealis:       2000      # Performance only
+  Half Moon Grey: 1500      # not on the base Standard Rear-Wheel Drive
+  Esker Silver:      0      # standard on every trim
+  Glacier White:  1000
+  Midnight:       2000
+
+# ---------------------------------------------------------------------------
+# Interior — same upcharge on every trim that offers it. Standard gets the
+# non-Signature Black Crater; Premium and Performance get the Signature version
+# and can upgrade to Coastal Cloud.
+# ---------------------------------------------------------------------------
+interiors:
+  Black Crater:               0   # Standard only (non-Signature)
+  Black Crater Signature:     0   # Premium, Performance
+  Coastal Cloud Signature: 1000   # Premium, Performance
+
+# ---------------------------------------------------------------------------
+# Drive system — only the Standard trim offers a choice. Premium and Performance
+# are All-Wheel Drive as standard with no long-range distinction, so they carry
+# no drive_systems map and add nothing here.
+# ---------------------------------------------------------------------------
+drive_systems:
+  Rear-Wheel Drive:               0
+  Rear-Wheel Drive Long Range: 3500
+  All-Wheel Drive Long Range:  7000
+
+# ---------------------------------------------------------------------------
+# Standalone add-ons — charged a la carte at the same price on every trim.
+# `autonomy` and `tow` are only charged when the order's package doesn't already
+# include them (see `packages`).
+# ---------------------------------------------------------------------------
+options:
+  autonomy: 2500            # Autonomy+
+  tow:       900            # Tow Package
+  spare:     755            # Compact Spare Tire
+
+# ---------------------------------------------------------------------------
+# Packages — a single price that bundles other options, which are then never
+# charged again, and can unlock otherwise-unavailable paint.
+#
+# The Launch Package carries NO upcharge: it currently covers every Performance
+# vehicle, so $57,990 already is the Launch Edition price. Its only effects on
+# price are making Autonomy+ and Tow free and unlocking Launch Green. When Rivian
+# stops offering it, the base stays $57,990 and Performance orders with
+# `Launch Package = No` simply get charged for Autonomy+ / Tow individually — no
+# config change needed here. (It also includes a special-edition key fob, which
+# has no price impact.)
+#
+# The order's "Launch Package" column is the authority for whether a package
+# applies. The Autonomy+ / Tow columns are NOT: 22 current orders answer "Yes"
+# there while also having the Launch Package, since both "Yes" and "Included"
+# just mean opted in.
+# ---------------------------------------------------------------------------
+packages:
+  launch:
+    price:    0
+    includes: [autonomy, tow]
+
+# ---------------------------------------------------------------------------
+# Trims — base price, what the trim offers, and its wheel pricing.
+#
+# `base`              price with no options, before drive system or upcharges.
+# `packages`          packages orderable on this trim.
+# `drive_systems`     which drive systems this trim offers (Standard only).
+# `paints`            catalog paints offered on every configuration of the trim.
+# `paints_by_drive`   extra paints unlocked by a specific drive system.
+# `paints_by_package` extra paints unlocked by a specific package.
+# `interiors`         catalog interiors offered.
+# `wheels`            name -> upcharge FOR THIS TRIM (0 = standard equipment).
+# ---------------------------------------------------------------------------
+trims:
+  Performance:
+    base:      57990         # Launch Edition price today (package adds $0)
+    packages:  [launch]
+    paints:    [Esker Silver, Glacier White, Midnight, Half Moon Grey,
+                Forest Green, Catalina Cove, Borealis]
+    paints_by_package:
+      launch:  [Launch Green]
+    interiors: [Black Crater Signature, Coastal Cloud Signature]
+    wheels:
+      '21” Liquid Tungsten All-Season':    0   # standard
+      '20” Black Sand All-Terrain':     1000
+
+  Premium:
+    base:      53990         # All-Wheel Drive standard
+    packages:  []
+    paints:    [Esker Silver, Glacier White, Midnight, Half Moon Grey,
+                Forest Green, Catalina Cove]
+    interiors: [Black Crater Signature, Coastal Cloud Signature]
+    wheels:
+      '20” Bicolor Carbon All-Season':     0   # standard
+      '21” Liquid Tungsten All-Season': 2000
+
+  Standard:
+    base:      44990
+    packages:  []
+    drive_systems: [Rear-Wheel Drive, Rear-Wheel Drive Long Range,
+                    All-Wheel Drive Long Range]
+    paints:    [Esker Silver, Glacier White, Midnight]
+    # Half Moon Grey and Forest Green aren't offered on the base Rear-Wheel
+    # Drive car, only on the long-range variants.
+    paints_by_drive:
+      Rear-Wheel Drive Long Range: [Half Moon Grey, Forest Green]
+      All-Wheel Drive Long Range:  [Half Moon Grey, Forest Green]
+    interiors: [Black Crater]
+    wheels:
+      '19” Machined Graphite All-Season':   0   # standard
+      '20” Bicolor Carbon All-Season':   1000
+
+# ---------------------------------------------------------------------------
+# Sheet trim labels -> (trim, drive system).
+#
+# The sheet has a single Trim column and no drive-system column, so a Standard
+# order has to encode both in one label. Map each spelling the sheet uses to the
+# trim and drive system it means; unmapped labels are looked up in `trims`
+# directly. Matched in full, never by prefix.
+#
+# TODO: no Standard orders exist yet, so these labels are the expected spellings
+# rather than confirmed ones — check against the sheet when Standard ordering
+# opens, and note that "All-Wheel Drive Long Range" may appear as either
+# "Standard AWD" or "Standard AWD LR".
+# ---------------------------------------------------------------------------
+trim_aliases:
+  Standard RWD:     { trim: Standard, drive_system: Rear-Wheel Drive }
+  Standard RWD LR:  { trim: Standard, drive_system: Rear-Wheel Drive Long Range }
+  Standard AWD:     { trim: Standard, drive_system: All-Wheel Drive Long Range }
+  Standard AWD LR:  { trim: Standard, drive_system: All-Wheel Drive Long Range }
+  Premium AWD:      { trim: Premium }
+  Performance AWD:  { trim: Performance }

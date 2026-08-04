@@ -49,6 +49,7 @@ _SCHEMA = _load("schema.yaml")     # sources, column maps, sanitize, option voca
 _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
 _THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
+_PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
@@ -129,6 +130,23 @@ AVAILABILITY = {
           for opt, when in (opts or {}).items()]
     for col, opts in (_SCHEMA.get("availability") or {}).items()
 }
+
+# --- Configured-vehicle pricing (pricing.yaml) ----------------------------
+# Catalogs shared across trims (paints/interiors/add-ons cost the same wherever
+# they're offered) plus per-trim data. Wheels live INSIDE each trim, since the
+# same wheel can be standard on one trim and a paid upgrade on the next. A price
+# of None means "not published yet" -> the order's price is unknown, reported in
+# an explicit bucket rather than dropped. See pricing.yaml's header.
+PRICE_PAINTS = dict(_PRICE["paints"])
+PRICE_INTERIORS = dict(_PRICE["interiors"])
+PRICE_DRIVE_SYSTEMS = dict(_PRICE["drive_systems"])
+PRICE_OPTIONS = dict(_PRICE["options"])
+PRICE_PACKAGES = {k: dict(v) for k, v in _PRICE["packages"].items()}
+PRICE_TRIMS = {k: dict(v) for k, v in _PRICE["trims"].items()}
+# Sheet trim label -> {trim, drive_system}: a Standard order encodes both in one
+# label because the sheet has no drive-system column.
+PRICE_TRIM_ALIASES = {k: dict(v)
+                      for k, v in (_PRICE.get("trim_aliases") or {}).items()}
 
 # --- Geo (geo.yaml) -------------------------------------------------------
 # Bloomington-Normal, IL assembly plant + state/province lookup tables.
