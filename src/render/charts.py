@@ -412,6 +412,49 @@ def _priced(df):
     return df[df["price"].notna()]
 
 
+def _chart_title(text):
+    """Layout title for a chart that shares a section with others, so each plot
+    keeps its own heading. No explicit font color — it inherits layout.font, which
+    THEME_JS re-tints, so the title follows the light/dark toggle."""
+    return dict(text=text, x=0, xanchor="left", y=0.99, yanchor="top",
+                font=dict(size=14))
+
+
+# Label priority when two of a box's summary stats are too close to print side by
+# side: the median matters most, the quartiles least.
+_BOX_STATS = (("median", 0.50, 0), ("min", 0.0, 1), ("max", 1.0, 2),
+              ("Q1", 0.25, 3), ("Q3", 0.75, 4))
+
+
+def _label_box_stats(fig, values, y_label, span):
+    """Print a box's five-number summary beneath it instead of in a hover tooltip.
+
+    Plotly's default box hover stacks all five stats and repeats the trace name on
+    every line, which is noise when the series is already labelled on the axis.
+    Printing the numbers in the gap under the box makes them readable at a glance.
+
+    Stats that share a value are merged (Q1 == median happens whenever the cohort
+    clusters on one price), and where two distinct stats still sit closer than ~8%
+    of the axis span, the lower-priority one is dropped rather than overprinted.
+    """
+    v = pd.Series(list(values)).astype(float)
+    groups = {}
+    for name, q, pri in _BOX_STATS:
+        val = round(float(v.quantile(q)))
+        groups.setdefault(val, []).append((pri, name))
+    merged = [(min(p for p, _ in g), val, " · ".join(n for _, n in sorted(g)))
+              for val, g in groups.items()]
+    kept = []
+    for pri, val, name in sorted(merged):                 # most important first
+        if all(abs(val - k[0]) >= span * 0.08 for k in kept):
+            kept.append((val, name))
+    for val, name in kept:
+        fig.add_annotation(
+            x=val, y=y_label, yshift=-30, showarrow=False, align="center",
+            text="%s<br>$%s" % (name, format(val, ",")),
+            font=dict(size=9, color=CHART["edge"]))
+
+
 def fig_price_distribution(df):
     """How many orders landed on each exact configured price.
 
@@ -451,8 +494,9 @@ def fig_price_distribution(df):
              % (format(round(mean), ","), format(round(d["price"].min()), ","),
                 format(round(d["price"].max()), ",")))
     fig.update_layout(
-        template="plotly_white", bargap=0.3, height=180 + 26 * len(counts),
-        margin=dict(l=0, r=30, t=20, b=45),
+        template="plotly_white", bargap=0.3, height=210 + 26 * len(counts),
+        title=_chart_title("Price distribution"),
+        margin=dict(l=0, r=30, t=46, b=45),
         xaxis=dict(title_text="Orders", rangemode="tozero",
                    range=[0, float(counts.max()) * 1.14]),
         yaxis=dict(ticksuffix="  ", automargin=True))
@@ -519,8 +563,9 @@ def fig_price_options(df):
              % (format(round(opt_mean), ","),
                 100.0 * opt_mean / float(d["price"].mean())))
     fig.update_layout(
-        template="plotly_white", bargap=0.34, height=150 + 42 * len(rows),
-        margin=dict(l=0, r=30, t=20, b=45),
+        template="plotly_white", bargap=0.34, height=180 + 42 * len(rows),
+        title=_chart_title("Where the option money goes"),
+        margin=dict(l=0, r=30, t=46, b=45),
         # Wide headroom: the outside labels carry the take-rate text.
         xaxis=dict(title_text="Average dollars per order", rangemode="tozero",
                    tickprefix="$", tickformat=",",
@@ -557,10 +602,17 @@ def fig_price_by_trim(df):
             # so the outline and whiskers stay legible in dark mode.
             line=dict(color=CHART["edge"], width=1.2),
             fillcolor=PRICE_COLORS["bar"],
-            hovertemplate="$%{x:,.0f}<extra></extra>"))
+            # Hover only the outlier points. The box's own five-number summary is
+            # printed beneath it instead — Plotly's box tooltip stacks all five
+            # stats and repeats the series name on each line.
+            hoveron="points", hovertemplate="$%{x:,.0f}<extra></extra>"))
 
     lo, hi = float(d["price"].min()), float(d["price"].max())
     pad = max((hi - lo) * 0.08, 500.0)
+    span = (hi + pad) - (lo - pad)
+    for trim in have:
+        _label_box_stats(fig, d.loc[d["price_trim"] == trim, "price"],
+                         labels[trim], span)
     # A transparent point per empty trim creates its category on the axis; the
     # note then sits in the plot area at that row, like the option panel's
     # "none paid yet", instead of a floating caption the margin could clip.
@@ -573,8 +625,11 @@ def fig_price_by_trim(df):
             showarrow=False, xanchor="left", yanchor="middle",
             font=dict(size=10, color=CHART["edge"]))
     fig.update_layout(
-        template="plotly_white", height=140 + 52 * len(PRICE_TRIMS),
-        margin=dict(l=0, r=30, t=20, b=45),
+        template="plotly_white", boxgap=0.45,
+        # Room under each box for its summary labels.
+        height=170 + 74 * len(PRICE_TRIMS),
+        title=_chart_title("Configured price by trim"),
+        margin=dict(l=0, r=30, t=46, b=45),
         xaxis=dict(title_text="Configured price", tickprefix="$", tickformat=",",
                    range=[lo - pad, hi + pad]),
         # Keep the lineup in pricing.yaml order, top-down, whether or not a trim
