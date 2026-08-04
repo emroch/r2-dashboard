@@ -487,8 +487,8 @@ def fig_price_distribution(df):
         textfont=dict(size=10), customdata=np.asarray(prices),
         hovertemplate="$%{customdata:,.0f} — %{x} orders<extra></extra>"))
     fig.add_annotation(
-        x=0.99, xref="paper", y=0.02, yref="paper", xanchor="right",
-        yanchor="bottom", showarrow=False,
+        x=0.99, xref="x domain", y=0.99, yref="y domain", xanchor="right",
+        yanchor="top", showarrow=False,
         font=dict(size=11, color=CHART["edge"]),
         text="mean $%s   ·   range $%s – $%s"
              % (format(round(mean), ","), format(round(d["price"].min()), ","),
@@ -550,7 +550,10 @@ def fig_price_options(df):
         showlegend=False,
         marker=dict(color=PRICE_COLORS["accent"],
                     line=dict(color=CHART["edge"], width=0.5)),
-        text=["$%s   %s" % (format(round(r[1]), ","), r[2]) for r in rows],
+        # Amount and take-rate on separate lines: as one line this ran off the
+        # right edge on a phone-width viewport, and stacking roughly halves the
+        # label's width without costing any row height.
+        text=["$%s<br>%s" % (format(round(r[1]), ","), r[2]) for r in rows],
         textposition="outside", cliponaxis=False, textfont=dict(size=10),
         customdata=np.array([r[3] for r in rows]),
         hovertemplate="%{y}: $%{x:,.0f} avg across all orders"
@@ -566,10 +569,13 @@ def fig_price_options(df):
         template="plotly_white", bargap=0.34, height=180 + 42 * len(rows),
         title=_chart_title("Where the option money goes"),
         margin=dict(l=0, r=30, t=46, b=45),
-        # Wide headroom: the outside labels carry the take-rate text.
+        # Headroom for the outside labels, which carry the take-rate text. Sized
+        # from the longest label rather than a round multiple: the take-rate text
+        # runs to roughly 1.4x the largest bar, and anything beyond that is dead
+        # width (2.1x left a third of the panel empty).
         xaxis=dict(title_text="Average dollars per order", rangemode="tozero",
                    tickprefix="$", tickformat=",",
-                   range=[0, max(r[1] for r in rows) * 2.1] if rows else None),
+                   range=[0, max(r[1] for r in rows) * 1.5] if rows else None),
         yaxis=dict(ticksuffix="  ", automargin=True))
     return fig
 
@@ -625,9 +631,11 @@ def fig_price_by_trim(df):
             showarrow=False, xanchor="left", yanchor="middle",
             font=dict(size=10, color=CHART["edge"]))
     fig.update_layout(
-        template="plotly_white", boxgap=0.45,
-        # Room under each box for its summary labels.
-        height=170 + 74 * len(PRICE_TRIMS),
+        template="plotly_white",
+        # A tall band per trim left ~60px of dead space under each row. Keep the
+        # band just deep enough for the box plus its summary labels, and thin the
+        # box (boxgap) so the labels clear its lower edge.
+        boxgap=0.62, height=104 + 72 * len(PRICE_TRIMS),
         title=_chart_title("Configured price by trim"),
         margin=dict(l=0, r=30, t=46, b=45),
         xaxis=dict(title_text="Configured price", tickprefix="$", tickformat=",",
