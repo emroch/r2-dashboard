@@ -407,100 +407,140 @@ def fig_paint_by_location(df, min_state_orders=5):
 
 
 def fig_price(df):
-    """Configured price in three panels: the distribution, what the average
-    dollar buys, and a box per trim.
+    """Configured price in three panels: the distribution, where the option money
+    goes, and a box per trim.
 
-    Panel 1 is one bar per distinct price (the cohort lands on a small set of
-    exact totals, so a binned histogram would blur real structure), with median
-    and mean reference lines. Panel 2 decomposes the cohort's average price into
-    base plus each option category, which is where the interesting variation
-    lives while everyone is on one trim. Panel 3 is the per-trim box-and-whisker,
-    which fills in as Premium and Standard ship.
+    Panel 1 is one bar per distinct price — the cohort lands on a small set of
+    exact totals, so binning would blur real structure. The median's own label is
+    highlighted rather than drawn as a reference line: this axis measures ORDERS,
+    not dollars, so a price-valued vline would sit thousands of units off-scale and
+    flatten every bar. The mean rides along as a corner stat for the same reason.
+
+    Panel 2 covers the option spend only. Including the base would put a ~$58,000
+    bar next to a ~$400 one and make everything but the base invisible, and the
+    base is a constant per trim anyway — the choices are the interesting part. Each
+    bar carries its take rate, so a big average reads differently when it comes
+    from everyone paying a little vs. a few paying a lot.
+
+    Panel 3 is the per-trim box, filling in as Premium and Standard ship; trims
+    with no orders are named in the panel title rather than as a floating
+    annotation that the margin would clip.
 
     Orders whose configuration hit an unpublished price are excluded here and
     counted separately in the report, never folded in as zero.
     """
     d = df[df["price"].notna()]
-    fig = make_subplots(
-        rows=3, cols=1, vertical_spacing=0.11, row_heights=[0.42, 0.31, 0.27],
-        subplot_titles=("Price distribution", "Where the money goes (cohort average)",
-                        "By trim"))
-    if d.empty:
+    n = len(d)
+    if not n:
+        fig = make_subplots(rows=3, cols=1)
         fig.update_layout(template="plotly_white", height=640)
         return fig
 
+    order = [t for t in PRICE_TRIMS if (d["price_trim"] == t).any()]
+    missing = [t for t in PRICE_TRIMS if t not in order]
+    opt_mean = float((d["price"] - d["price_base"].fillna(0)).mean())
+    med, mean = float(d["price"].median()), float(d["price"].mean())
+    fig = make_subplots(
+        rows=3, cols=1, vertical_spacing=0.10, row_heights=[0.44, 0.30, 0.26],
+        subplot_titles=(
+            "Price distribution",
+            "Where the option money goes  ·  $%s average per order (%.1f%% of price)"
+            % (format(round(opt_mean), ","), 100.0 * opt_mean / mean),
+            "By trim" + ("  ·  no orders yet: " + ", ".join(missing) if missing
+                         else "")))
+
     money = "$%{x:,.0f}"
-    # --- Panel 1: one bar per exact price ---
+    # --- Panel 1: one bar per exact price, median's label highlighted ---
     counts = d["price"].value_counts().sort_index()
+    prices = list(counts.index)
+    # The median can fall between two observed prices (even n), so highlight the
+    # bar nearest to it rather than requiring an exact hit.
+    mi = min(range(len(prices)), key=lambda i: abs(prices[i] - med))
+    labels = [format(round(p), ",") for p in prices]
+    labels[mi] = "<b>%s  ◄ median</b>" % labels[mi]
     fig.add_trace(go.Bar(
-        x=np.asarray(counts.values),
-        y=[format(round(p), ",") for p in counts.index],
-        orientation="h", showlegend=False,
-        marker=dict(color=TAKE_RATE["wheels"],
+        x=np.asarray(counts.values), y=labels, orientation="h", showlegend=False,
+        marker=dict(color=[TAKE_RATE["buylease"] if i == mi else TAKE_RATE["wheels"]
+                           for i in range(len(prices))],
                     line=dict(color=CHART["edge"], width=0.5)),
         text=np.asarray(counts.values), textposition="outside", cliponaxis=False,
-        textfont=dict(size=10),
-        hovertemplate="$%{y} — %{x} orders<extra></extra>"), 1, 1)
+        textfont=dict(size=10), customdata=np.asarray(prices),
+        hovertemplate="$%{customdata:,.0f} — %{x} orders<extra></extra>"), 1, 1)
+    fig.add_annotation(
+        row=1, col=1, x=0.99, xref="x domain", y=0.04, yref="y domain",
+        xanchor="right", yanchor="bottom", showarrow=False,
+        font=dict(size=11, color=CHART["edge"]),
+        text="mean $%s   ·   range $%s – $%s"
+             % (format(round(mean), ","), format(round(d["price"].min()), ","),
+                format(round(d["price"].max()), ",")))
 
-    # --- Panel 2: average price decomposition ---
-    # Base first, then each option category, largest contribution downward.
-    labels, values = ["Base"], [float(d["price_base"].fillna(0).mean())]
-    cats = [("price_drive", "Drive system"), ("price_package", "Package"),
-            ("price_paint", "Paint"), ("price_wheels", "Wheels"),
-            ("price_interior", "Interior"), ("price_spare", "Compact spare"),
+    # --- Panel 2: option spend per category, with take rate ---
+    cats = [("price_drive", "Drive system"), ("price_paint", "Paint"),
+            ("price_wheels", "Wheels"), ("price_interior", "Interior"),
+            ("price_spare", "Compact spare"),
             ("price_autonomy_tow", "Autonomy+ / Tow")]
+    rows_ = []
     for col, label in cats:
-        v = float(d[col].fillna(0).mean())
-        if v:                                   # skip categories nobody paid for
-            labels.append(label)
-            values.append(v)
+        v = d[col].fillna(0)
+        avg = float(v.mean())
+        paid = v[v > 0]
+        # Keep a zero category only when it's a live choice for this cohort (an
+        # interior upgrade exists but nobody has one yet); drop the structurally
+        # inapplicable ones so the panel doesn't list empty rows.
+        if not avg and label not in ("Interior",):
+            continue
+        if len(paid):
+            pct = 100.0 * len(paid) / n
+            # A handful of orders rounds to "0% chose", which reads as nobody —
+            # give the raw count instead when the share is under a percent.
+            note = ("%d of %d paid · $%s" % (len(paid), n,
+                                             format(round(paid.mean()), ","))
+                    if pct < 1 else
+                    "%.0f%% chose · $%s avg" % (pct,
+                                                format(round(paid.mean()), ",")))
+        else:
+            note = "none paid yet"
+        rows_.append((label, avg, note, len(paid)))
+    # Largest spend at the top of a horizontal panel = last in the trace order.
+    rows_.sort(key=lambda r: r[1])
     fig.add_trace(go.Bar(
-        x=values[::-1], y=labels[::-1], orientation="h", showlegend=False,
-        marker=dict(color=[TAKE_RATE["buylease"] if l != "Base"
-                           else CHART_UI["muted"] for l in labels[::-1]],
+        x=[r[1] for r in rows_], y=[r[0] for r in rows_], orientation="h",
+        showlegend=False,
+        marker=dict(color=TAKE_RATE["buylease"],
                     line=dict(color=CHART["edge"], width=0.5)),
-        text=["$%s" % format(round(v), ",") for v in values[::-1]],
+        text=["$%s   %s" % (format(round(r[1]), ","), r[2]) for r in rows_],
         textposition="outside", cliponaxis=False, textfont=dict(size=10),
-        hovertemplate="%{y}: " + money + " avg<extra></extra>"), 2, 1)
+        customdata=np.array([r[3] for r in rows_]),
+        hovertemplate="%{y}: " + money + " avg across all orders"
+                      "<br>%{customdata} orders paid for it<extra></extra>"), 2, 1)
 
     # --- Panel 3: box per trim, in the pricing.yaml order ---
-    order = [t for t in PRICE_TRIMS if (d["price_trim"] == t).any()]
     for trim in order:
         sub = d[d["price_trim"] == trim]
         fig.add_trace(go.Box(
             x=np.asarray(sub["price"]), name="%s  n=%d" % (trim, len(sub)),
             orientation="h", showlegend=False, boxmean=True,
             marker=dict(color=TAKE_RATE["wheels"], outliercolor=CHART["edge"]),
+            # CHART["edge"] here is theme-managed: THEME_JS re-tints box line
+            # colors, so the outline and whiskers stay legible in dark mode.
             line=dict(color=CHART["edge"], width=1.2),
             fillcolor=TAKE_RATE["wheels"],
             hovertemplate=money + "<extra></extra>"), 3, 1)
-    # Name the trims that exist in the catalog but have no orders yet, so the
-    # panel reads as "not ordered yet" rather than looking incomplete.
-    missing = [t for t in PRICE_TRIMS if t not in order]
-    if missing:
-        fig.add_annotation(
-            row=3, col=1, x=0, xref="x domain", y=-0.35, yref="y domain",
-            xanchor="left", showarrow=False, font=dict(size=10, color=CHART["edge"]),
-            text="no orders yet: " + ", ".join(missing))
 
-    med, mean = float(d["price"].median()), float(d["price"].mean())
-    for val, dash, label in ((med, "solid", "median"), (mean, "dash", "mean")):
-        fig.add_vline(x=val, row=1, col=1, line_width=1.4, line_dash=dash,
-                      line_color=CHART["edge"], annotation_position="top",
-                      annotation_text="%s $%s" % (label, format(round(val), ",")),
-                      annotation_font_size=10,
-                      annotation_font_color=CHART["edge"])
-
-    fig.update_xaxes(title_text="Orders", row=1, col=1, rangemode="tozero")
-    fig.update_xaxes(title_text="Average dollars", row=2, col=1,
-                     rangemode="tozero")
+    # Panel 1 counts orders; panels 2-3 are in dollars. Headroom on the count and
+    # spend axes keeps the outside text labels from being clipped.
+    fig.update_xaxes(title_text="Orders", row=1, col=1, rangemode="tozero",
+                     range=[0, float(counts.max()) * 1.14])
+    fig.update_xaxes(title_text="Average dollars per order", row=2, col=1,
+                     rangemode="tozero", tickprefix="$", tickformat=",",
+                     range=[0, max(r[1] for r in rows_) * 2.0] if rows_ else None)
     fig.update_xaxes(title_text="Configured price", row=3, col=1, tickprefix="$",
                      tickformat=",")
     fig.update_yaxes(ticksuffix="  ", automargin=True)
     fig.update_yaxes(tickprefix="$", row=1, col=1)
     fig.update_layout(template="plotly_white", bargap=0.3,
-                      height=420 + 26 * len(counts) + 30 * len(order),
-                      margin=dict(l=0, r=30, t=60, b=40))
+                      height=300 + 26 * len(counts) + 46 * len(order),
+                      margin=dict(l=0, r=30, t=60, b=50))
     return fig
 
 
