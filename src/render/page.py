@@ -18,7 +18,7 @@ from plotly.offline import get_plotlyjs
 from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
-                     fig_order_timeline, fig_paint_by_location,
+                     fig_order_timeline, fig_paint_by_location, fig_price,
                      fig_state_totals, fig_vin_by_config, fig_vin_vs_order)
 from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
@@ -42,6 +42,15 @@ SECTIONS = [
     ("Color × wheels combinations",
      dedent("""Most common full builds — the combos that would form the clusters in the delivery-vs-VIN chart."""),
      fig_color_wheel_heatmap),
+    ("Configured price",
+     dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
+               destination, doc fees, taxes, or incentives. The top panel gives one bar per exact price (the cohort lands
+               on a small set of totals, so binning would hide real structure) with the median and mean marked. The
+               middle panel splits the average price into base plus each option category, which is where the variation
+               is while nearly everyone is on one trim. The bottom panel is a box per trim, and fills in as Premium and
+               Standard ship. Orders whose configuration hits a price Rivian hasn't published are excluded rather than
+               counted as zero — see the data-quality panel."""),
+     fig_price),
     ("Reservation & order timeline",
      dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
                above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
@@ -151,6 +160,11 @@ def _stat_card(label, value, rows=None, caption="", cap=60):
             % (_esc(value), _esc(label), tip))
 
 
+def _money(v):
+    """Whole-dollar money for the stat cards; em dash when there's nothing to show."""
+    return "—" if v is None else "$%s" % format(round(v), ",")
+
+
 def _fmt_time(dt):
     """Render a timestamp as a <time> carrying the absolute instant (ISO 8601 with
     offset) so client JS can localize it to the viewer's timezone; the server text
@@ -189,6 +203,10 @@ _QA_CATS = [
     ("availability_drops", "Premature-config orders dropped",
      "Orders whose selected trim, paint, or interior wasn't orderable yet on the "
      "order date — removed entirely, not counted as orders."),
+    ("price_issues", "Configuration pricing issues",
+     "Options the sheet reports that aren't offered on that order's trim, or that "
+     "have no published price. Flagged for review, not corrected: the order keeps "
+     "a best-effort price unless a price is genuinely unknown."),
     ("override_issues", "Override issues",
      "Manual fix-ups or additions in overrides.yaml that referenced an unknown "
      "field, a username with no matching order, or an addition already in the "
@@ -268,6 +286,7 @@ def build_dashboard(df, report, resv):
     # unknown = "no date given" (missing/placeholder) + unparseable; split them.
     no_date = dc.get("unknown", 0) - len(unparseable)
     san = report["sanitized"]
+    pz = report["price"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
     captions = {
         "Order duplicates": "Rows removed as duplicates in the orders sheet",
@@ -278,6 +297,7 @@ def build_dashboard(df, report, resv):
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
         "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
+        "Unpriced": "Orders whose configuration hit a price that isn't published yet (excluded from the price stats)",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
         "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
     }
@@ -309,6 +329,14 @@ def build_dashboard(df, report, resv):
             ("Range / window", rangewin, None),
             ("No date given", no_date, None),
             ("Unparseable", len(unparseable), unparseable),
+        ]),
+        # Configured vehicle price (no destination/doc/taxes). "Unpriced" keeps the
+        # mean/median honest by showing what they were NOT computed over.
+        ("Configured price (of %d priced)" % pz["n_priced"], [
+            ("Mean", _money(pz["mean"]), None),
+            ("Median", _money(pz["median"]), None),
+            ("Range", "%s–%s" % (_money(pz["min"]), _money(pz["max"])), None),
+            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
         ]),
     ]
     stat_html = "".join(

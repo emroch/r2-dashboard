@@ -8,9 +8,10 @@ from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, REGION_COLOR,
-                     STATE_TOTALS_COLORS, TAKE_RATE, TIMELINE_COLORS,
-                     TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER, WHEEL_SYMBOL)
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_TRIMS,
+                     REGION_COLOR, STATE_TOTALS_COLORS, TAKE_RATE,
+                     TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
+                     WHEEL_SYMBOL)
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -402,6 +403,104 @@ def fig_paint_by_location(df, min_state_orders=5):
         legend=dict(title=dict(text="Exterior paint"), traceorder="normal",
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
                     borderwidth=1))
+    return fig
+
+
+def fig_price(df):
+    """Configured price in three panels: the distribution, what the average
+    dollar buys, and a box per trim.
+
+    Panel 1 is one bar per distinct price (the cohort lands on a small set of
+    exact totals, so a binned histogram would blur real structure), with median
+    and mean reference lines. Panel 2 decomposes the cohort's average price into
+    base plus each option category, which is where the interesting variation
+    lives while everyone is on one trim. Panel 3 is the per-trim box-and-whisker,
+    which fills in as Premium and Standard ship.
+
+    Orders whose configuration hit an unpublished price are excluded here and
+    counted separately in the report, never folded in as zero.
+    """
+    d = df[df["price"].notna()]
+    fig = make_subplots(
+        rows=3, cols=1, vertical_spacing=0.11, row_heights=[0.42, 0.31, 0.27],
+        subplot_titles=("Price distribution", "Where the money goes (cohort average)",
+                        "By trim"))
+    if d.empty:
+        fig.update_layout(template="plotly_white", height=640)
+        return fig
+
+    money = "$%{x:,.0f}"
+    # --- Panel 1: one bar per exact price ---
+    counts = d["price"].value_counts().sort_index()
+    fig.add_trace(go.Bar(
+        x=np.asarray(counts.values),
+        y=[format(round(p), ",") for p in counts.index],
+        orientation="h", showlegend=False,
+        marker=dict(color=TAKE_RATE["wheels"],
+                    line=dict(color=CHART["edge"], width=0.5)),
+        text=np.asarray(counts.values), textposition="outside", cliponaxis=False,
+        textfont=dict(size=10),
+        hovertemplate="$%{y} — %{x} orders<extra></extra>"), 1, 1)
+
+    # --- Panel 2: average price decomposition ---
+    # Base first, then each option category, largest contribution downward.
+    labels, values = ["Base"], [float(d["price_base"].fillna(0).mean())]
+    cats = [("price_drive", "Drive system"), ("price_package", "Package"),
+            ("price_paint", "Paint"), ("price_wheels", "Wheels"),
+            ("price_interior", "Interior"), ("price_spare", "Compact spare"),
+            ("price_autonomy_tow", "Autonomy+ / Tow")]
+    for col, label in cats:
+        v = float(d[col].fillna(0).mean())
+        if v:                                   # skip categories nobody paid for
+            labels.append(label)
+            values.append(v)
+    fig.add_trace(go.Bar(
+        x=values[::-1], y=labels[::-1], orientation="h", showlegend=False,
+        marker=dict(color=[TAKE_RATE["buylease"] if l != "Base"
+                           else CHART_UI["muted"] for l in labels[::-1]],
+                    line=dict(color=CHART["edge"], width=0.5)),
+        text=["$%s" % format(round(v), ",") for v in values[::-1]],
+        textposition="outside", cliponaxis=False, textfont=dict(size=10),
+        hovertemplate="%{y}: " + money + " avg<extra></extra>"), 2, 1)
+
+    # --- Panel 3: box per trim, in the pricing.yaml order ---
+    order = [t for t in PRICE_TRIMS if (d["price_trim"] == t).any()]
+    for trim in order:
+        sub = d[d["price_trim"] == trim]
+        fig.add_trace(go.Box(
+            x=np.asarray(sub["price"]), name="%s  n=%d" % (trim, len(sub)),
+            orientation="h", showlegend=False, boxmean=True,
+            marker=dict(color=TAKE_RATE["wheels"], outliercolor=CHART["edge"]),
+            line=dict(color=CHART["edge"], width=1.2),
+            fillcolor=TAKE_RATE["wheels"],
+            hovertemplate=money + "<extra></extra>"), 3, 1)
+    # Name the trims that exist in the catalog but have no orders yet, so the
+    # panel reads as "not ordered yet" rather than looking incomplete.
+    missing = [t for t in PRICE_TRIMS if t not in order]
+    if missing:
+        fig.add_annotation(
+            row=3, col=1, x=0, xref="x domain", y=-0.35, yref="y domain",
+            xanchor="left", showarrow=False, font=dict(size=10, color=CHART["edge"]),
+            text="no orders yet: " + ", ".join(missing))
+
+    med, mean = float(d["price"].median()), float(d["price"].mean())
+    for val, dash, label in ((med, "solid", "median"), (mean, "dash", "mean")):
+        fig.add_vline(x=val, row=1, col=1, line_width=1.4, line_dash=dash,
+                      line_color=CHART["edge"], annotation_position="top",
+                      annotation_text="%s $%s" % (label, format(round(val), ",")),
+                      annotation_font_size=10,
+                      annotation_font_color=CHART["edge"])
+
+    fig.update_xaxes(title_text="Orders", row=1, col=1, rangemode="tozero")
+    fig.update_xaxes(title_text="Average dollars", row=2, col=1,
+                     rangemode="tozero")
+    fig.update_xaxes(title_text="Configured price", row=3, col=1, tickprefix="$",
+                     tickformat=",")
+    fig.update_yaxes(ticksuffix="  ", automargin=True)
+    fig.update_yaxes(tickprefix="$", row=1, col=1)
+    fig.update_layout(template="plotly_white", bargap=0.3,
+                      height=420 + 26 * len(counts) + 30 * len(order),
+                      margin=dict(l=0, r=30, t=60, b=40))
     return fig
 
 

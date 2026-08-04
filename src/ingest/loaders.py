@@ -19,6 +19,7 @@ from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
                      WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
+from .pricing import PRICE_PARTS, price_order
 
 
 def _apply_overrides(df, overrides):
@@ -251,6 +252,24 @@ def load_and_clean(text, meta):
     df["opted_tow"] = df["tow"].str.lower().isin(OPTED_IN_TOKENS)
     df["opted_spare"] = df["spare"].str.lower().isin(SPARE_TOKENS)
 
+    # --- Configured price (pricing.yaml) ---
+    # Base + drive system + package + paint + wheels + interior + add-ons, with a
+    # per-category breakdown kept for the "where the money goes" panel. Options
+    # the sheet claims but the trim doesn't offer are flagged for review, not
+    # corrected — the order keeps a best-effort price and stays in the stats.
+    priced = [price_order(trim=t, launch=l, color=c, interior=i, wheels=w,
+                          autonomy=a, tow=tw, spare=s)
+              for t, l, c, i, w, a, tw, s
+              in zip(df["trim"], df["launch"], df["color"], df["interior"],
+                     df["wheels"], df["autonomy"], df["tow"], df["spare"])]
+    for col in PRICE_PARTS + ("price", "price_trim", "price_drive_system"):
+        df[col] = [p[0].get(col) for p in priced]
+    df["price"] = pd.to_numeric(df["price"], errors="coerce")
+    price_issues = [(onum, user, msg)
+                    for (_, msgs), onum, user in zip(priced, df["orig_num"],
+                                                     df["user"])
+                    for msg in msgs]
+
     # --- Location / geo ---
     geo_enrich(df)
     df["dist_mi"] = [haversine_mi(la, lo) for la, lo in zip(df["lat"], df["lon"])]
@@ -323,6 +342,23 @@ def load_and_clean(text, meta):
         "anchor_fallback": int(df["delivery_anchor_fallback"].sum()),
         "bad_order": n_bad_order, "bad_resv": n_bad_resv,
         "n_premature": len(premature_records),
+        # Configured-price summary. n_unpriced counts orders whose configuration
+        # hit a price that isn't published yet — reported as its own bucket so the
+        # mean/median are never quietly computed over a subset.
+        "price": {
+            "n_priced": int(df["price"].notna().sum()),
+            "n_unpriced": int(df["price"].isna().sum()),
+            "mean": (float(df["price"].mean()) if df["price"].notna().any()
+                     else None),
+            "median": (float(df["price"].median()) if df["price"].notna().any()
+                       else None),
+            "min": (float(df["price"].min()) if df["price"].notna().any()
+                    else None),
+            "max": (float(df["price"].max()) if df["price"].notna().any()
+                    else None),
+            "total": float(df["price"].sum()) if df["price"].notna().any() else 0.0,
+            "part_means": {c: float(df[c].fillna(0).mean()) for c in PRICE_PARTS},
+        },
         "sanitized": {
             "Duplicates removed": dup_records,
             "VINs de-obfuscated": deobf_records,
@@ -338,6 +374,7 @@ def load_and_clean(text, meta):
             "vin_unrec": unrec_records,
             "bad_dates": date_records,
             "availability_drops": premature_records,
+            "price_issues": price_issues,
             "conversions": conversions,
             "override_issues": override_issues + add_issues,
         },

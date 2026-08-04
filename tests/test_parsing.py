@@ -245,6 +245,82 @@ def test_apply_additions_appends_new_and_flags_conflicts():
     assert any("unknown field" in d for _, _, d in issues)
 
 
+def test_price_launch_edition_bundles_autonomy_and_tow():
+    # The Launch Package carries no upcharge and includes Autonomy+ and Tow, so a
+    # base Launch Edition is exactly the Performance base price even though the
+    # sheet marks both options as taken.
+    from ingest.pricing import price_order
+    parts, issues = price_order(
+        trim="Performance", launch="Yes", color="Esker Silver",
+        interior="Black Crater Signature", wheels="21” Liquid Tungsten All-Season",
+        autonomy="Included", tow="Included", spare="No")
+    assert parts["price"] == 57990, parts
+    assert parts["price_autonomy_tow"] == 0
+    assert issues == []
+
+
+def test_price_without_launch_package_charges_options():
+    # Same car without the package: Autonomy+ ($2,500) and Tow ($900) are billed.
+    # This is the future state once Rivian stops offering the Launch Package.
+    from ingest.pricing import price_order
+    parts, _ = price_order(
+        trim="Performance", launch="No", color="Esker Silver",
+        interior="Black Crater Signature", wheels="21” Liquid Tungsten All-Season",
+        autonomy="Yes", tow="Yes", spare="No")
+    assert parts["price"] == 57990 + 2500 + 900
+    assert parts["price_autonomy_tow"] == 3400
+
+
+def test_price_wheels_are_per_trim():
+    # The 21" Liquid Tungsten is standard on Performance but a $2,000 upgrade on
+    # Premium — the whole reason wheels are priced inside each trim.
+    from ingest.pricing import price_order
+    wheel = "21” Liquid Tungsten All-Season"
+    perf, _ = price_order(trim="Performance", launch="Yes", color="Esker Silver",
+                          interior="Black Crater Signature", wheels=wheel)
+    prem, _ = price_order(trim="Premium", color="Esker Silver",
+                          interior="Black Crater Signature", wheels=wheel)
+    assert perf["price_wheels"] == 0
+    assert prem["price_wheels"] == 2000
+    assert prem["price"] == 53990 + 2000
+
+
+def test_price_trim_alias_adds_drive_system_and_never_prefix_matches():
+    # "Standard RWD LR" must resolve to Standard + the $3,500 long-range drive,
+    # NOT to the base "Standard RWD" that is a prefix of it.
+    from ingest.pricing import price_order, resolve_trim
+    name, _, drive = resolve_trim("Standard RWD LR")
+    assert (name, drive) == ("Standard", "Rear-Wheel Drive Long Range")
+    lr, _ = price_order(trim="Standard RWD LR", color="Esker Silver",
+                        interior="Black Crater",
+                        wheels="19” Machined Graphite All-Season")
+    base, _ = price_order(trim="Standard RWD", color="Esker Silver",
+                          interior="Black Crater",
+                          wheels="19” Machined Graphite All-Season")
+    assert base["price"] == 44990
+    assert lr["price"] == 44990 + 3500
+
+
+def test_price_flags_option_not_offered_on_trim():
+    # Borealis is Performance-only. On Premium it's still priced (best effort) but
+    # reported as a configuration issue rather than silently accepted.
+    from ingest.pricing import price_order
+    parts, issues = price_order(trim="Premium", color="Borealis",
+                                interior="Black Crater Signature",
+                                wheels="20” Bicolor Carbon All-Season")
+    assert parts["price"] == 53990 + 2000
+    assert any("not offered on Premium" in m for m in issues), issues
+
+
+def test_price_unknown_trim_is_unpriced():
+    # An unrecognized trim can't be priced at all -> None, so the order lands in
+    # the explicit "unpriced" bucket instead of being counted as $0.
+    from ingest.pricing import price_order
+    parts, issues = price_order(trim="Sport Turbo", color="Esker Silver")
+    assert parts["price"] is None
+    assert any("unknown trim" in m for m in issues)
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
