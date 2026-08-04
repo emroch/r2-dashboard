@@ -18,8 +18,10 @@ from plotly.offline import get_plotlyjs
 from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
-                     fig_order_timeline, fig_paint_by_location, fig_price,
-                     fig_state_totals, fig_vin_by_config, fig_vin_vs_order)
+                     fig_order_timeline, fig_paint_by_location,
+                     fig_price_by_trim, fig_price_distribution,
+                     fig_price_options, fig_state_totals, fig_vin_by_config,
+                     fig_vin_vs_order)
 from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
 # templates/ sits alongside this render/ package, under the src/ root.
@@ -51,7 +53,7 @@ SECTIONS = [
                average means something different when everyone pays a little rather than a few paying a lot. The bottom
                panel is a box per trim, and fills in as Premium and Standard ship. Orders whose configuration hits a
                price Rivian hasn't published are excluded rather than counted as zero — see the data-quality panel."""),
-     fig_price),
+     (fig_price_distribution, fig_price_options, fig_price_by_trim)),
     ("Reservation & order timeline",
      dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
                above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
@@ -256,28 +258,40 @@ def _quality_section(quality, num, cap=40):
 
 
 def build_dashboard(df, report, resv):
-    # Each chart section wraps a <!--PLOT:n--> comment placeholder; the Plotly
-    # fragments are spliced in verbatim after the DOM is serialized (never
-    # re-parsed). Plotly.js is emitted as a separate plotly.min.js (not inlined)
-    # so browsers cache it — see the first chart below + the write at the end.
-    # Numbering (DOM order): summary card is 1, charts 2..N+1, QA panel N+2.
+    # Each chart section wraps one <!--PLOT:n--> comment placeholder per figure;
+    # the Plotly fragments are spliced in verbatim after the DOM is serialized
+    # (never re-parsed). Plotly.js is emitted as a separate plotly.min.js (not
+    # inlined) so browsers cache it — see the first figure below + the write at
+    # the end. Numbering (DOM order): summary card is 1, charts 2..N+1, QA N+2.
+    #
+    # A section's builder may be a TUPLE of builders, which renders as several
+    # separate plots under one heading. Separate figures (rather than subplot rows
+    # of one figure) give each chart its own zoom/pan and modebar, so panning one
+    # doesn't drag the others, and let CSS space them apart.
     plots, sections = {}, []
+    pid = 0
     for i, (title, desc, builder) in enumerate(SECTIONS):
-        fig = (builder(df, resv) if builder in (fig_geo, fig_order_timeline)
-               else builder(df))
-        # Transparent backgrounds let the themed section card show through, so
-        # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
-                          plot_bgcolor="rgba(0,0,0,0)")
+        builders = builder if isinstance(builder, tuple) else (builder,)
+        frags = []
+        for b in builders:
+            fig = (b(df, resv) if b in (fig_geo, fig_order_timeline) else b(df))
+            # Transparent backgrounds let the themed section card show through, so
+            # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                              plot_bgcolor="rgba(0,0,0,0)")
+            pid += 1
+            # The first figure on the page references an external plotly.min.js
+            # (written next to the page below) instead of inlining ~5 MB; the rest
+            # reuse window.Plotly.
+            plots[pid] = fig.to_html(
+                full_html=False,
+                include_plotlyjs=("directory" if pid == 1 else False),
+                default_width="100%")
+            frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
-        # First chart references an external plotly.min.js (written next to the
-        # page below) instead of inlining ~5 MB; the rest reuse window.Plotly.
-        plots[n] = fig.to_html(full_html=False,
-                               include_plotlyjs=("directory" if i == 0 else False),
-                               default_width="100%")
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
-            '<!--PLOT:%d--></section>' % (n, n, _esc(title), desc, n))
+            '%s</section>' % (n, n, _esc(title), desc, "".join(frags)))
     sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]
