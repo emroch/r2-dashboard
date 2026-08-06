@@ -61,6 +61,9 @@ section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:
  transition:background .2s ease,border-color .2s ease;}
 section h2{margin:0 0 4px;font-size:19px;color:var(--sec-title);}
 section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.45;}
+/* A section may hold several independent plots (each with its own zoom/modebar);
+   space them apart so stacked charts don't read as one crowded figure. */
+.plot + .plot{margin-top:22px;}
 .statwrap{margin-top:14px;}
 .statgroup{margin-top:12px;}
 .sglabel{display:block;font-size:10.5px;text-transform:uppercase;

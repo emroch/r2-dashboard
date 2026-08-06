@@ -19,7 +19,9 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
                      fig_order_timeline, fig_paint_by_location,
-                     fig_state_totals, fig_vin_by_config, fig_vin_vs_order)
+                     fig_price_by_trim, fig_price_distribution,
+                     fig_price_options, fig_state_totals, fig_vin_by_config,
+                     fig_vin_vs_order)
 from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
 
 # templates/ sits alongside this render/ package, under the src/ root.
@@ -42,6 +44,16 @@ SECTIONS = [
     ("Color × wheels combinations",
      dedent("""Most common full builds — the combos that would form the clusters in the delivery-vs-VIN chart."""),
      fig_color_wheel_heatmap),
+    ("Configured price",
+     dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
+               destination, doc fees, taxes, or incentives. The top panel gives one bar per exact price (the cohort lands
+               on a small set of totals, so binning would hide real structure), with the median's own label highlighted
+               and the mean shown as a stat. The middle panel covers the option spend alone — the base is a constant per
+               trim, so the choices are the interesting part — with each category's take rate alongside, since a big
+               average means something different when everyone pays a little rather than a few paying a lot. The bottom
+               panel is a box per trim, and fills in as Premium and Standard ship. Orders whose configuration hits a
+               price Rivian hasn't published are excluded rather than counted as zero — see the data-quality panel."""),
+     (fig_price_distribution, fig_price_options, fig_price_by_trim)),
     ("Reservation & order timeline",
      dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
                above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
@@ -151,6 +163,11 @@ def _stat_card(label, value, rows=None, caption="", cap=60):
             % (_esc(value), _esc(label), tip))
 
 
+def _money(v):
+    """Whole-dollar money for the stat cards; em dash when there's nothing to show."""
+    return "—" if v is None else "$%s" % format(round(v), ",")
+
+
 def _fmt_time(dt):
     """Render a timestamp as a <time> carrying the absolute instant (ISO 8601 with
     offset) so client JS can localize it to the viewer's timezone; the server text
@@ -189,6 +206,10 @@ _QA_CATS = [
     ("availability_drops", "Premature-config orders dropped",
      "Orders whose selected trim, paint, or interior wasn't orderable yet on the "
      "order date — removed entirely, not counted as orders."),
+    ("price_issues", "Configuration pricing issues",
+     "Options the sheet reports that aren't offered on that order's trim, or that "
+     "have no published price. Flagged for review, not corrected: the order keeps "
+     "a best-effort price unless a price is genuinely unknown."),
     ("override_issues", "Override issues",
      "Manual fix-ups or additions in overrides.yaml that referenced an unknown "
      "field, a username with no matching order, or an addition already in the "
@@ -237,28 +258,40 @@ def _quality_section(quality, num, cap=40):
 
 
 def build_dashboard(df, report, resv):
-    # Each chart section wraps a <!--PLOT:n--> comment placeholder; the Plotly
-    # fragments are spliced in verbatim after the DOM is serialized (never
-    # re-parsed). Plotly.js is emitted as a separate plotly.min.js (not inlined)
-    # so browsers cache it — see the first chart below + the write at the end.
-    # Numbering (DOM order): summary card is 1, charts 2..N+1, QA panel N+2.
+    # Each chart section wraps one <!--PLOT:n--> comment placeholder per figure;
+    # the Plotly fragments are spliced in verbatim after the DOM is serialized
+    # (never re-parsed). Plotly.js is emitted as a separate plotly.min.js (not
+    # inlined) so browsers cache it — see the first figure below + the write at
+    # the end. Numbering (DOM order): summary card is 1, charts 2..N+1, QA N+2.
+    #
+    # A section's builder may be a TUPLE of builders, which renders as several
+    # separate plots under one heading. Separate figures (rather than subplot rows
+    # of one figure) give each chart its own zoom/pan and modebar, so panning one
+    # doesn't drag the others, and let CSS space them apart.
     plots, sections = {}, []
+    pid = 0
     for i, (title, desc, builder) in enumerate(SECTIONS):
-        fig = (builder(df, resv) if builder in (fig_geo, fig_order_timeline)
-               else builder(df))
-        # Transparent backgrounds let the themed section card show through, so
-        # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
-                          plot_bgcolor="rgba(0,0,0,0)")
+        builders = builder if isinstance(builder, tuple) else (builder,)
+        frags = []
+        for b in builders:
+            fig = (b(df, resv) if b in (fig_geo, fig_order_timeline) else b(df))
+            # Transparent backgrounds let the themed section card show through, so
+            # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                              plot_bgcolor="rgba(0,0,0,0)")
+            pid += 1
+            # The first figure on the page references an external plotly.min.js
+            # (written next to the page below) instead of inlining ~5 MB; the rest
+            # reuse window.Plotly.
+            plots[pid] = fig.to_html(
+                full_html=False,
+                include_plotlyjs=("directory" if pid == 1 else False),
+                default_width="100%")
+            frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
-        # First chart references an external plotly.min.js (written next to the
-        # page below) instead of inlining ~5 MB; the rest reuse window.Plotly.
-        plots[n] = fig.to_html(full_html=False,
-                               include_plotlyjs=("directory" if i == 0 else False),
-                               default_width="100%")
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
-            '<!--PLOT:%d--></section>' % (n, n, _esc(title), desc, n))
+            '%s</section>' % (n, n, _esc(title), desc, "".join(frags)))
     sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]
@@ -268,6 +301,7 @@ def build_dashboard(df, report, resv):
     # unknown = "no date given" (missing/placeholder) + unparseable; split them.
     no_date = dc.get("unknown", 0) - len(unparseable)
     san = report["sanitized"]
+    pz = report["price"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
     captions = {
         "Order duplicates": "Rows removed as duplicates in the orders sheet",
@@ -278,6 +312,7 @@ def build_dashboard(df, report, resv):
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
         "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
+        "Unpriced": "Orders whose configuration hit a price that isn't published yet (excluded from the price stats)",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
         "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
     }
@@ -309,6 +344,14 @@ def build_dashboard(df, report, resv):
             ("Range / window", rangewin, None),
             ("No date given", no_date, None),
             ("Unparseable", len(unparseable), unparseable),
+        ]),
+        # Configured vehicle price (no destination/doc/taxes). "Unpriced" keeps the
+        # mean/median honest by showing what they were NOT computed over.
+        ("Configured price (of %d priced)" % pz["n_priced"], [
+            ("Mean", _money(pz["mean"]), None),
+            ("Median", _money(pz["median"]), None),
+            ("Range", "%s–%s" % (_money(pz["min"]), _money(pz["max"])), None),
+            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
         ]),
     ]
     stat_html = "".join(
