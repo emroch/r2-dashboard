@@ -321,6 +321,73 @@ def test_price_unknown_trim_is_unpriced():
     assert any("unknown trim" in m for m in issues)
 
 
+def test_reconcile_launch_bundles_and_flags_only_contradictions():
+    # The Launch Package column is authoritative. "Yes" vs "Included" is just a
+    # wording difference, so normalizing it is silent; the two real
+    # contradictions get reported.
+    from ingest.pricing import reconcile_launch_options
+    # Launch order saying "Yes" -> Included, no issue (the common sloppiness).
+    vals, issues = reconcile_launch_options("Yes", autonomy="Yes", tow="Included")
+    assert vals == {"autonomy": "Included", "tow": "Included"}
+    assert issues == []
+    # Launch order saying "No" -> Included, and flagged: the package bundles it.
+    vals, issues = reconcile_launch_options("Yes", autonomy="No", tow="Included")
+    assert vals["autonomy"] == "Included"
+    assert len(issues) == 1 and "autonomy" in issues[0]
+    # No package but "Included" -> Yes, flagged as added separately.
+    vals, issues = reconcile_launch_options("No", autonomy="Included", tow="No")
+    assert vals == {"autonomy": "Yes", "tow": "No"}
+    assert len(issues) == 1 and "added separately" in issues[0]
+    # No package, plain answers pass straight through.
+    vals, issues = reconcile_launch_options("No", autonomy="Yes", tow="No")
+    assert vals == {"autonomy": "Yes", "tow": "No"} and issues == []
+    # A blank answer on a Launch order is filled in, not flagged — nothing was
+    # contradicted, the reporter just didn't answer.
+    vals, issues = reconcile_launch_options("Yes", autonomy="", tow="")
+    assert vals == {"autonomy": "Included", "tow": "Included"} and issues == []
+
+
+def test_reconcile_launch_does_not_change_price():
+    # Reconciliation feeds pricing, so confirm it's price-neutral: a Launch order
+    # never pays for the bundled options however it answered, and a non-Launch
+    # "Included" pays exactly as an explicit "Yes" would.
+    from ingest.pricing import price_order, reconcile_launch_options
+    base = dict(trim="Performance", color="Esker Silver",
+                interior="Black Crater Signature",
+                wheels="21” Liquid Tungsten All-Season")
+    for raw in ("Yes", "Included", "No", ""):
+        v, _ = reconcile_launch_options("Yes", autonomy=raw, tow=raw)
+        parts, _ = price_order(launch="Yes", autonomy=v["autonomy"],
+                               tow=v["tow"], **base)
+        assert parts["price"] == 57990, (raw, parts["price"])
+    v, _ = reconcile_launch_options("No", autonomy="Included", tow="Included")
+    parts, _ = price_order(launch="No", autonomy=v["autonomy"], tow=v["tow"],
+                           **base)
+    assert parts["price"] == 57990 + 2500 + 900
+
+
+def test_config_panel_stacks_only_when_split_has_two_values():
+    # The stack is conditional: one trim renders plain bars and no legend, two
+    # trims split each bar and add the trim legend. Uses synthetic rows so the
+    # multi-trim path is covered before Premium/Standard actually ship.
+    import pandas as pd
+    from render.charts import fig_config_dashboard
+    cols = dict(color="Esker Silver", interior="Black Crater Signature",
+                wheels_short='21" Liquid Tungsten', buylease="Purchase",
+                opted_spare=True, r1_owner="No", r1_model="")
+    one = pd.DataFrame([dict(cols, trim="Performance") for _ in range(3)])
+    two = pd.DataFrame([dict(cols, trim="Performance") for _ in range(3)]
+                       + [dict(cols, trim="Premium") for _ in range(2)])
+    f1, f2 = fig_config_dashboard(one), fig_config_dashboard(two)
+    assert not any(t.showlegend for t in f1.data), "single trim should add no legend"
+    names = {t.name for t in f2.data if t.name}
+    assert {"Performance", "Premium"} <= names, names
+    # The wheels panel should now be two stacked traces summing to the 5 rows.
+    wheels = [t for t in f2.data if t.name in ("Performance", "Premium")
+              and t.x and t.x[0] == '21" Liquid Tungsten']
+    assert sum(int(v) for t in wheels for v in t.y) == 5
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
