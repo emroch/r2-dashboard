@@ -18,7 +18,7 @@ from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
                      UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
                      WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
-                      parse_simple_date)
+                      parse_simple_date, reconcile_r1_owner)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
 
 
@@ -255,10 +255,19 @@ def load_and_clean(text, meta):
              for l, a, t in zip(df["launch"], df["autonomy"], df["tow"])]
     df["autonomy_effective"] = [r[0]["autonomy"] for r in recon]
     df["tow_effective"] = [r[0]["tow"] for r in recon]
-    launch_issues = [(onum, user, msg)
-                     for (_, msgs), onum, user in zip(recon, df["orig_num"],
-                                                      df["user"])
-                     for msg in msgs]
+    # Contradictory answers, reconciled rather than dropped: the bundled options
+    # above, plus the R1-owner gate vs. its model follow-up. Both report what was
+    # assumed so a confirmed case can get an overrides.yaml entry instead.
+    conflicts = [(onum, user, msg)
+                 for (_, msgs), onum, user in zip(recon, df["orig_num"],
+                                                  df["user"])
+                 for msg in msgs]
+    r1 = [reconcile_r1_owner(o, m)
+          for o, m in zip(df["r1_owner"], df["r1_model"])]
+    df["r1_owner_effective"] = [v for v, _ in r1]
+    conflicts += [(onum, user, msg)
+                  for (_, msg), onum, user in zip(r1, df["orig_num"], df["user"])
+                  if msg]
     df["opted_autonomy"] = df["autonomy_effective"].str.lower().isin(OPTED_IN_TOKENS)
     df["opted_tow"] = df["tow_effective"].str.lower().isin(OPTED_IN_TOKENS)
     df["opted_spare"] = df["spare"].str.lower().isin(SPARE_TOKENS)
@@ -387,7 +396,7 @@ def load_and_clean(text, meta):
             "bad_dates": date_records,
             "availability_drops": premature_records,
             "price_issues": price_issues,
-            "launch_conflicts": launch_issues,
+            "answer_conflicts": conflicts,
             "conversions": conversions,
             "override_issues": override_issues + add_issues,
         },
