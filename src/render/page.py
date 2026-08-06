@@ -210,6 +210,13 @@ _QA_CATS = [
      "Options the sheet reports that aren't offered on that order's trim, or that "
      "have no published price. Flagged for review, not corrected: the order keeps "
      "a best-effort price unless a price is genuinely unknown."),
+    ("launch_conflicts", "Launch Package conflicts",
+     "Autonomy+ / Tow answers that contradict the Launch Package column, which is "
+     "authoritative. Reported after being reconciled — a Launch order answering "
+     "“No” still gets the bundled option, and a non-Launch order answering "
+     "“Included” is read as having added it separately. “Yes” and "
+     "“Included” are treated as the same answer, so that wording "
+     "difference is not listed here."),
     ("override_issues", "Override issues",
      "Manual fix-ups or additions in overrides.yaml that referenced an unknown "
      "field, a username with no matching order, or an addition already in the "

@@ -87,6 +87,9 @@ HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
 STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
 # Configured-price charts: neutral bar + Compass Yellow accent.
 PRICE_COLORS = dict(_PALETTE["price"])
+# Stacked take-rate panels: trim ramp, and which R1 an owner has.
+TRIM_COLORS = dict(_PALETTE["trims"])
+R1_MODEL_COLORS = dict(_PALETTE["r1_models"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Orders: positional field names for the block starting at "#". Reservations:

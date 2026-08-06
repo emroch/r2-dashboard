@@ -19,7 +19,7 @@ from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
                      WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date)
-from .pricing import PRICE_PARTS, price_order
+from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
 
 
 def _apply_overrides(df, overrides):
@@ -248,8 +248,19 @@ def load_and_clean(text, meta):
     # --- Config normalization ---
     df["wheels_short"] = np.where(df["wheels"].str.contains(WHEELS_21_CONTAINS),
                                   WHEELS_LABEL_21, WHEELS_LABEL_20)
-    df["opted_autonomy"] = df["autonomy"].str.lower().isin(OPTED_IN_TOKENS)
-    df["opted_tow"] = df["tow"].str.lower().isin(OPTED_IN_TOKENS)
+    # Reconcile the bundled options against the Launch Package column, which is
+    # authoritative — see reconcile_launch_options. The raw columns are kept as
+    # reported; the *_effective ones are what the take-rates and price use.
+    recon = [reconcile_launch_options(l, autonomy=a, tow=t)
+             for l, a, t in zip(df["launch"], df["autonomy"], df["tow"])]
+    df["autonomy_effective"] = [r[0]["autonomy"] for r in recon]
+    df["tow_effective"] = [r[0]["tow"] for r in recon]
+    launch_issues = [(onum, user, msg)
+                     for (_, msgs), onum, user in zip(recon, df["orig_num"],
+                                                      df["user"])
+                     for msg in msgs]
+    df["opted_autonomy"] = df["autonomy_effective"].str.lower().isin(OPTED_IN_TOKENS)
+    df["opted_tow"] = df["tow_effective"].str.lower().isin(OPTED_IN_TOKENS)
     df["opted_spare"] = df["spare"].str.lower().isin(SPARE_TOKENS)
 
     # --- Configured price (pricing.yaml) ---
@@ -261,7 +272,8 @@ def load_and_clean(text, meta):
                           autonomy=a, tow=tw, spare=s)
               for t, l, c, i, w, a, tw, s
               in zip(df["trim"], df["launch"], df["color"], df["interior"],
-                     df["wheels"], df["autonomy"], df["tow"], df["spare"])]
+                     df["wheels"], df["autonomy_effective"],
+                     df["tow_effective"], df["spare"])]
     for col in PRICE_PARTS + ("price", "price_trim", "price_drive_system"):
         df[col] = [p[0].get(col) for p in priced]
     df["price"] = pd.to_numeric(df["price"], errors="coerce")
@@ -375,6 +387,7 @@ def load_and_clean(text, meta):
             "bad_dates": date_records,
             "availability_drops": premature_records,
             "price_issues": price_issues,
+            "launch_conflicts": launch_issues,
             "conversions": conversions,
             "override_issues": override_issues + add_issues,
         },
