@@ -23,6 +23,11 @@ on:
       - ".github/workflows/worker.yml"
   workflow_dispatch:            # manual redeploy, e.g. after rotating the token
 
+permissions:
+  contents: read                # checkout only — the Worker deploy authenticates
+                                # to Cloudflare with its own API token, and this
+                                # workflow never writes to the repo or the PR
+
 concurrency:
   group: worker
   cancel-in-progress: false
