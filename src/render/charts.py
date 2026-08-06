@@ -600,19 +600,25 @@ def fig_price_options(df):
     if not n:
         fig.update_layout(template="plotly_white", height=300)
         return fig
-    cats = [("price_drive", "Drive system"), ("price_paint", "Paint"),
-            ("price_wheels", "Wheels"), ("price_interior", "Interior"),
-            ("price_spare", "Compact spare"),
-            ("price_autonomy_tow", "Autonomy+ / Tow")]
+    cats = [("price_drive", "Drive system", None),
+            ("price_paint", "Paint", None),
+            ("price_wheels", "Wheels", None),
+            # A zero row is kept only with a note explaining WHY it's zero,
+            # because "nobody bought the upgrade" and "everybody gets it free"
+            # look identical at $0 and mean opposite things.
+            ("price_interior", "Interior", "none paid yet"),
+            ("price_spare", "Compact spare", None),
+            ("price_autonomy_tow", "Autonomy+ / Tow", "bundled")]
+    # How many hold a bundled option without paying — the count behind that note.
+    held = 0
+    if {"opted_autonomy", "opted_tow"} <= set(d.columns):
+        held = int((d["opted_autonomy"] | d["opted_tow"]).sum())
     rows = []
-    for col, label in cats:
+    for col, label, zero_note in cats:
         v = d[col].fillna(0)
         avg, paid = float(v.mean()), v[v > 0]
-        # Keep a zero row only when it's a live choice for this cohort (an
-        # interior upgrade exists but nobody has one yet); drop the structurally
-        # inapplicable ones instead of listing empty rows.
-        if not avg and label not in ("Interior",):
-            continue
+        if not avg and zero_note is None:
+            continue            # structurally inapplicable — don't list an empty row
         if len(paid):
             pct = 100.0 * len(paid) / n
             # A handful of orders rounds to "0% chose", which reads as nobody —
@@ -622,8 +628,10 @@ def fig_price_options(df):
                     if pct < 1 else
                     "%.0f%% chose · $%s avg" % (pct,
                                                 format(round(paid.mean()), ",")))
+        elif zero_note == "bundled":
+            note = "included free for %d of %d" % (held, n)
         else:
-            note = "none paid yet"
+            note = zero_note
         rows.append((label, avg, note, len(paid)))
     rows.sort(key=lambda r: r[1])       # biggest spend on top of a horizontal bar
     opt_mean = float((d["price"] - d["price_base"].fillna(0)).mean())
