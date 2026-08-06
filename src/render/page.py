@@ -140,6 +140,11 @@ THEME_JS = _tpl("theme.js").replace("/*__CHROME_JS__*/", _CHROME_JS)
 # highlights the section currently in view via IntersectionObserver.
 NAV_JS = _tpl("nav.js")
 
+# Arbitrates the scroll wheel between zooming a map and scrolling the page
+# (see scrollzoom.js). Separate from nav.js so the scroll-spy and the wheel
+# arbitration stay independently readable.
+ZOOM_JS = _tpl("scrollzoom.js")
+
 
 def _esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -415,6 +420,7 @@ def build_dashboard(df, report, resv):
     soup.find(id="head-init").string = HEAD_JS
     soup.find(id="theme-script").string = THEME_JS
     soup.find(id="nav-script").string = NAV_JS
+    soup.find(id="zoom-script").string = ZOOM_JS
     soup.find(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
     soup.find(id="sec-1").append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
