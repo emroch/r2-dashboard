@@ -85,6 +85,53 @@ def _offered_paints(trim, drive, package):
     return out
 
 
+# What the Launch Package bundles, straight from pricing.yaml so the reconcile
+# below and the price above can't disagree about it.
+_LAUNCH_INCLUDES = tuple((PRICE_PACKAGES.get("launch") or {}).get("includes") or ())
+
+
+def reconcile_launch_options(launch, **values):
+    """Reconcile bundled-option answers against the Launch Package column.
+
+    The Launch Package column is authoritative: it bundles Autonomy+ and Tow, so a
+    Launch order has both no matter what those columns say. Reporters use "Yes" and
+    "Included" interchangeably (both just mean opted in), so normalizing Yes ->
+    Included on a Launch order is silent — it's a wording difference, not a
+    conflict. The two genuine contradictions are reported for review:
+
+      * Launch order that answered "No" — the package gives them the option
+        anyway, so the answer can't be right.
+      * Non-Launch order that answered "Included" — there's no package to include
+        it, so they must have added it separately ("Included" -> "Yes").
+
+    Takes the raw values as keywords (autonomy=..., tow=...) and returns
+    ({field: normalized}, [issue strings]). Fields the package doesn't bundle pass
+    through untouched.
+    """
+    has_launch = _norm(launch) in OPTED_IN_TOKENS
+    out, issues = {}, []
+    for field, raw in values.items():
+        text = str(raw or "").strip()
+        if field not in _LAUNCH_INCLUDES:
+            out[field] = text
+            continue
+        low = _norm(text)
+        if has_launch:
+            # Bundled: the answer is "Included" regardless. Only an explicit "No"
+            # contradicts the package and is worth a look.
+            out[field] = "Included"
+            if low and low not in OPTED_IN_TOKENS:
+                issues.append("%s %r with Launch Package → Included "
+                              "(the package bundles it)" % (field, text))
+        elif low == "included":
+            out[field] = "Yes"
+            issues.append("%s 'Included' without Launch Package → Yes "
+                          "(assuming it was added separately)" % field)
+        else:
+            out[field] = text
+    return out, issues
+
+
 def price_order(trim="", launch="", color="", interior="", wheels="",
                 autonomy="", tow="", spare=""):
     """Price one order's configuration.

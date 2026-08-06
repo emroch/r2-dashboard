@@ -104,3 +104,25 @@ state_totals:
 price:
   bar: "#4c78a8"              # price distribution bars, per-trim boxes
   accent: "#f3ae3d"           # Compass Yellow — option spend, median highlight
+
+# ---------------------------------------------------------------------------
+# Trim -> color, for the take-rate panels that stack by trim (chart 2). A light
+# to dark ramp from the entry trim up to Performance, keyed to the same blue the
+# price charts use. Only drawn once more than one trim has orders.
+# ---------------------------------------------------------------------------
+trims:
+  Standard:    "#a8c6e0"
+  Premium:     "#4c78a8"
+  Performance: "#2a4a6b"
+
+# ---------------------------------------------------------------------------
+# Which R1 the owner has -> color, for the R1-owner panel's stack. Greens to
+# match that panel's existing bar. The grey segment covers everyone with no model
+# named, which is almost entirely non-owners (the question is conditional), so it
+# is labelled for that case rather than as a bare "unspecified".
+# ---------------------------------------------------------------------------
+r1_models:
+  R1T:               "#54a24b"
+  R1S:               "#8fbf6f"
+  Both:              "#2f6b2f"
+  "No / unspecified": "#c2ccd6"

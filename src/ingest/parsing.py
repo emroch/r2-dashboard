@@ -364,6 +364,31 @@ def parse_delivery(raw, order_date):
     return out
 
 
+def reconcile_r1_owner(owner, model):
+    """Reconcile the R1-owner gate against its conditional model follow-up.
+
+    "Are you a current R1 owner?" is a Yes/No gate; "which model?" is only meant
+    for owners. When the gate says No but a specific model is named, trust the
+    model: naming an R1S/R1T is concrete information a non-owner has no reason to
+    supply, while the gate is one click and easy to get wrong. Both cases seen so
+    far were confirmed owners (see overrides.yaml), so this is also what the
+    evidence supports.
+
+    The other conditional follow-up — "will you keep your R1?" — is deliberately
+    NOT treated as an ownership signal: 10 non-owners have answered it, apparently
+    reading it as "will you have an R1 too?", so it carries no weight.
+
+    The coercion is reported, not silent, and a confirmed case should get an
+    overrides.yaml entry rather than relying on it. Returns
+    (effective_owner, issue|None).
+    """
+    o, m = str(owner or "").strip(), str(model or "").strip()
+    if o.lower() == "no" and m:
+        return "Yes", ("r1_owner 'No' but model %r named → Yes "
+                       "(naming a model implies ownership)" % m)
+    return o, None
+
+
 def haversine_mi(lat, lon, ref=FACTORY):
     """Great-circle miles from (lat,lon) to the factory."""
     if lat is None or (isinstance(lat, float) and np.isnan(lat)):

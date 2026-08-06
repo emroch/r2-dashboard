@@ -63,6 +63,29 @@ overrides:
   # probable typo (2027 -> 2026)
   Ti3vom:
     delivery_raw: "8/6/2026"
+  # answered "not a current R1 owner" while naming an R1S; the forum post
+  # confirms he does own one (and r1_keep="No" means he's replacing it, not that
+  # he has no R1). Corrected here rather than left to the automatic coercion.
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
+  JediKnight:
+    r1_owner: "Yes"
+  # same contradiction — "No" plus an R1S. His forum profile lists an R1S, so the
+  # gate answer is the wrong one. (Profile, not a specific post.)
+  mclark2112:
+    r1_owner: "Yes"
+  # answered the owner gate but skipped the model follow-up; the forum post shows
+  # an R1S. The only owner left without a model, so the R1 stack now has no
+  # unexplained segment under "Yes".
+  # https://www.rivianforums.com/forum/threads/r2-compact-spare-tire-are-you-ordering-it-on-your-build.59589/post-1011373
+  SeaMonkey80:
+    r1_model: "R1S"
+  # the only order answering "Launch Package = No", which can't be right today —
+  # the package is currently the only way to buy a Performance, and 232 of 233
+  # orders say Yes. Inferred rather than forum-confirmed, unlike the entries above.
+  # Without this the bundle doesn't apply and Autonomy+/Tow get billed separately,
+  # putting them $3,400 above every comparable build.
+  Jmd1948:
+    launch: "Yes"
   # delivery update
   # https://www.rivianforums.com/forum/posts/1051958/
   dmartin:
