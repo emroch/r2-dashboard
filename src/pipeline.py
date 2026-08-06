@@ -31,8 +31,11 @@ def main():
             "opted_spare", "price", "vin_seq", "vin_present", "vin_obfuscated",
             "resv_date", "order_date", "delivery_est", "delivery_min",
             "delivery_max", "delivery_type", "delivery_anchor_fallback",
-            "delivery_raw", "r1_owner", "r1_model"]
+            "delivery_raw", "r1_owner_effective", "r1_model"]
     out = df[keep].copy()
+    # Export the reconciled owner flag under the plain name — the CSV is the
+    # cleaned dataset, so it should agree with the dashboard.
+    out = out.rename(columns={"r1_owner_effective": "r1_owner"})
     out["dist_mi"] = out["dist_mi"].round(0).astype("Int64")
     out["vin_seq"] = out["vin_seq"].astype("Int64")
     out["price"] = out["price"].astype("Int64")

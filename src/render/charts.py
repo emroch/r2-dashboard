@@ -371,8 +371,11 @@ def fig_config_dashboard(df):
                          marker_line=dict(color=CHART["edge"], width=1),
                          hovertemplate="%{x}: %{y}<extra></extra>"), 2, 2)
 
-    rc = df["r1_owner"].replace("", "Blank").value_counts()
-    r1 = df.assign(r1_owner=df["r1_owner"].replace("", "Blank"))
+    # Uses the reconciled owner flag, so a row that named a model counts as an
+    # owner (see parsing.reconcile_r1_owner) instead of contradicting its own stack.
+    owner = df.get("r1_owner_effective", df["r1_owner"]).replace("", "Blank")
+    rc = owner.value_counts()
+    r1 = df.assign(r1_owner=owner)
     stacked_r1 = _take_rate_panel(fig, 2, 3, r1, "r1_owner", rc, list(rc.index),
                                   TAKE_RATE["r1_owner"], "r1_model",
                                   R1_MODEL_COLORS, "legend2", True)

@@ -388,6 +388,22 @@ def test_config_panel_stacks_only_when_split_has_two_values():
     assert sum(int(v) for t in wheels for v in t.y) == 5
 
 
+def test_reconcile_r1_owner_trusts_a_named_model():
+    # "Are you a current R1 owner?" is one click; naming R1S/R1T is concrete
+    # information a non-owner has no reason to give, so the model wins and the
+    # coercion is reported rather than silent.
+    from ingest.parsing import reconcile_r1_owner
+    owner, issue = reconcile_r1_owner("No", "R1S")
+    assert owner == "Yes"
+    assert issue and "R1S" in issue
+    # Consistent answers and plain non-owners pass through untouched.
+    assert reconcile_r1_owner("Yes", "R1T") == ("Yes", None)
+    assert reconcile_r1_owner("No", "") == ("No", None)
+    assert reconcile_r1_owner("", "") == ("", None)
+    # An owner who skipped the model question is incomplete, not contradictory.
+    assert reconcile_r1_owner("Yes", "") == ("Yes", None)
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
