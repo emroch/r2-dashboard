@@ -63,12 +63,6 @@ overrides:
   # probable typo (2027 -> 2026)
   Ti3vom:
     delivery_raw: "8/6/2026"
-  # answered "not a current R1 owner" while naming an R1S; the forum post
-  # confirms he does own one (and r1_keep="No" means he's replacing it, not that
-  # he has no R1). Corrected here rather than left to the automatic coercion.
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
-  JediKnight:
-    r1_owner: "Yes"
   # same contradiction — "No" plus an R1S. His forum profile lists an R1S, so the
   # gate answer is the wrong one. (Profile, not a specific post.)
   mclark2112:
@@ -132,8 +126,28 @@ overrides:
     delivery_raw: "8/5/2026"
   # delivery estimate
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
+  # https://www.rivianforums.com/forum/posts/1066257/
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
   jediknight:
-    delivery_raw: "8/3/26 - 8/7/26"
+    delivery_raw: "8/7/26"
+    r1_owner: "Yes"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1065585/
+  Coney129:
+    delivery_raw: "8/24/26"
+    vin_raw: "2922"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1066579/
+  cthelan:
+    delivery_raw: "8/10/26 - 8/14/26"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1066502/
+  VMI9d3:
+    delivery_raw: "TBD"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1066820/
+  Eric9610:
+    delivery_raw: "8/11/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -185,11 +199,12 @@ additions:
     tow: "Included"
   # forum-only order — not in the tracker sheet
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065145
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1067089
   windshieldfarmer:
     resv_raw: "5/28/2026"
     order_raw: "7/28/2026"
     delivery_raw: "8/14/2026"
-    vin_raw: "23XX"
+    vin_raw: "2383"
     loc_raw: "KS"
     trim: "Performance"
     launch: "Yes"
@@ -199,3 +214,22 @@ additions:
     autonomy: "Included"
     tow: "Included"
     spare: "Yes"
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047165
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1054135
+  # https://www.rivianforums.com/forum/threads/dont-have-a-vin-yet-but-apparently-my-cargo-cover-order-is-delayed.61143/post-1066408
+  RoadtripEV:
+    resv_raw:
+    order_raw: "6/24/2026"
+    delivery_raw: "8/7/2026"
+    vin_raw:
+    loc_raw: "AZ"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    spare: "Yes"
+    r1_owner: "Yes"
+    r1_model: "R1T"
