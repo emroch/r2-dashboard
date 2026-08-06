@@ -87,12 +87,14 @@ timeline:                     # reservation / order timeline (chart 6)
 heatmap_colorscale: Blues     # color x wheels combo heatmap (chart 5)
 
 # ---------------------------------------------------------------------------
-# Per-state totals bars: VIN-assigned vs. not, stacked so the pair sums to that
-# state's order count. Encodes VIN status (not region), so it deliberately sits
-# outside the `regions` palette above.
+# Per-state totals bars: a delivery pipeline that stacks to each state's order
+# count — inferred-delivered, then still awaiting delivery split by whether a VIN
+# is known. Encodes progress (not region), so it deliberately sits outside the
+# `regions` palette above. Green reads as done; the greys as still in flight.
 # ---------------------------------------------------------------------------
 state_totals:
-  vin: "#4c78a8"              # VIN assigned
+  delivered: "#54a24b"        # estimate fully in the past -> assumed delivered
+  vin: "#4c78a8"              # VIN assigned, still awaiting delivery
   no_vin: "#c2ccd6"           # ordered, no VIN yet
 
 # ---------------------------------------------------------------------------

@@ -935,24 +935,44 @@ def fig_geo(df, resv=None):
 
 
 def fig_state_totals(df):
-    """Per-state order counts, split into VIN-assigned vs. not.
+    """Per-state order counts as a delivery pipeline.
 
-    Every state that has ordered, sorted by total. The two segments stack to the
-    state's full order count, so the bar length is the state total while the
-    split shows how far along production is for that state. Complements the maps
-    above, where the long tail of one- and two-order states is hard to compare
-    by bubble area."""
+    Every state that has ordered, sorted by total. Three segments stack to the
+    state's full order count, so the bar length is the state total while the split
+    shows how far along that state is: assumed delivered, then still awaiting
+    delivery with a VIN known, then no VIN yet. Complements the maps above, where
+    the long tail of one- and two-order states is hard to compare by bubble area.
+
+    The three are a strict partition of the state's orders — "delivered" is
+    subtracted from whichever VIN bucket it came from, so the segments always sum
+    to the total. Deliveries are counted whether or not a VIN is known: someone may
+    have posted about taking delivery without ever updating (or while obfuscating)
+    their VIN, and dropping those would undercount.
+    """
     d = df.dropna(subset=["lat"])
     fig = go.Figure()
     if d.empty:
         fig.update_layout(template="plotly_white", height=420)
         return fig
     tot = d.groupby("state").size().sort_values(ascending=True)
-    vin = d[d["vin_present"]].groupby("state").size().reindex(tot.index, fill_value=0)
-    novin = tot - vin
+
+    def per_state(mask):
+        return d[mask].groupby("state").size().reindex(tot.index, fill_value=0)
+
+    delivered_mask = (d["delivered_inferred"]
+                      if "delivered_inferred" in d.columns
+                      else pd.Series(False, index=d.index))
+    delivered = per_state(delivered_mask)
+    # Pending, split by VIN. Deducting delivered from each bucket is what keeps the
+    # stack summing to the state total.
+    vin = per_state(d["vin_present"] & ~delivered_mask)
+    novin = per_state(~d["vin_present"] & ~delivered_mask)
+
     states = np.asarray(tot.index)
-    for name, vals, color in (("VIN assigned", vin, STATE_TOTALS_COLORS["vin"]),
-                              ("No VIN yet", novin, STATE_TOTALS_COLORS["no_vin"])):
+    series = (("Delivered (est.)", delivered, STATE_TOTALS_COLORS["delivered"]),
+              ("Awaiting delivery · VIN", vin, STATE_TOTALS_COLORS["vin"]),
+              ("Awaiting delivery · no VIN", novin, STATE_TOTALS_COLORS["no_vin"]))
+    for name, vals, color in series:
         fig.add_trace(go.Bar(
             x=np.asarray(vals.values), y=states, orientation="h", name=name,
             marker=dict(color=color, line=dict(color=CHART["edge"], width=0.5)),
@@ -971,7 +991,10 @@ def fig_state_totals(df):
         xaxis=dict(title="Orders", rangemode="tozero",
                    range=[0, float(tot.max()) * 1.08]),
         yaxis=dict(ticksuffix="  ", automargin=True),
-        legend=dict(title=dict(text="VIN status"), orientation="h",
+        legend=dict(title=dict(text="Status"), orientation="h",
+                    # Match the stack order, so the legend reads left-to-right in
+                    # the same pipeline order the bars do.
+                    traceorder="normal",
                     yanchor="bottom", y=1.01, xanchor="right", x=1,
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
                     borderwidth=1))
