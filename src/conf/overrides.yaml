@@ -73,6 +73,12 @@ overrides:
   # gate answer is the wrong one. (Profile, not a specific post.)
   mclark2112:
     r1_owner: "Yes"
+  # answered the owner gate but skipped the model follow-up; the forum post shows
+  # an R1S. The only owner left without a model, so the R1 stack now has no
+  # unexplained segment under "Yes".
+  # https://www.rivianforums.com/forum/threads/r2-compact-spare-tire-are-you-ordering-it-on-your-build.59589/post-1011373
+  SeaMonkey80:
+    r1_model: "R1S"
   # delivery update
   # https://www.rivianforums.com/forum/posts/1051958/
   dmartin:

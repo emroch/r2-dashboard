@@ -275,13 +275,15 @@ def fig_vin_vs_order(df):
     return fig
 
 
-# Legend label for a blank answer to a conditional follow-up question.
-_UNSPECIFIED = "Unspecified"
+# Legend label for a blank answer to a conditional follow-up question. On the R1
+# panel this segment is almost entirely non-owners — the model question only
+# applies to owners — so it names that case rather than reading as a bare gap.
+_UNSPECIFIED = "No / unspecified"
 
 
 def _split_values(df, col, palette):
     """Distinct values of a split column, in palette order then any extras. Blanks
-    collapse to the sentinel "Unspecified" so a conditional follow-up question
+    collapse to the sentinel label so a conditional follow-up question
     (which R1 do you own?) gets one labelled segment instead of an empty name."""
     seen = set(df[col].replace("", _UNSPECIFIED).unique())
     ordered = [k for k in palette if k in seen]

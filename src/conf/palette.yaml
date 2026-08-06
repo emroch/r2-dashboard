@@ -117,11 +117,12 @@ trims:
 
 # ---------------------------------------------------------------------------
 # Which R1 the owner has -> color, for the R1-owner panel's stack. Greens to
-# match that panel's existing bar. `Unspecified` covers non-owners and owners who
-# left the follow-up blank (the question is conditional).
+# match that panel's existing bar. The grey segment covers everyone with no model
+# named, which is almost entirely non-owners (the question is conditional), so it
+# is labelled for that case rather than as a bare "unspecified".
 # ---------------------------------------------------------------------------
 r1_models:
-  R1T:         "#54a24b"
-  R1S:         "#8fbf6f"
-  Both:        "#2f6b2f"
-  Unspecified: "#c2ccd6"
+  R1T:               "#54a24b"
+  R1S:               "#8fbf6f"
+  Both:              "#2f6b2f"
+  "No / unspecified": "#c2ccd6"
