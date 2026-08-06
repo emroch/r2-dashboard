@@ -991,11 +991,13 @@ def fig_state_totals(df):
         xaxis=dict(title="Orders", rangemode="tozero",
                    range=[0, float(tot.max()) * 1.08]),
         yaxis=dict(ticksuffix="  ", automargin=True),
-        legend=dict(title=dict(text="Status"), orientation="h",
-                    # Match the stack order, so the legend reads left-to-right in
-                    # the same pipeline order the bars do.
-                    traceorder="normal",
-                    yanchor="bottom", y=1.01, xanchor="right", x=1,
+        # Floated into the bottom-right of the plot rather than sitting above it:
+        # the top-right is where Plotly puts its modebar, which covered the legend.
+        # Bars are sorted ascending, so the smallest states leave that corner
+        # empty. traceorder="normal" makes the legend read top-down in the same
+        # pipeline order the bars stack (it reverses by default).
+        legend=dict(title=dict(text="Status"), traceorder="normal",
+                    x=0.98, xanchor="right", y=0.02, yanchor="bottom",
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
                     borderwidth=1))
     return fig
