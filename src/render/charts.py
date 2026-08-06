@@ -509,15 +509,22 @@ _BOX_STATS = (("median", 0.50, 0), ("min", 0.0, 1), ("max", 1.0, 2),
 
 
 def _label_box_stats(fig, values, y_label, span):
-    """Print a box's five-number summary beneath it instead of in a hover tooltip.
+    """Label a box's summary statistics around it instead of in a hover tooltip.
 
-    Plotly's default box hover stacks all five stats and repeats the trace name on
-    every line, which is noise when the series is already labelled on the axis.
-    Printing the numbers in the gap under the box makes them readable at a glance.
+    Plotly's default box hover stacks every stat and repeats the trace name on
+    each line, which is noise when the series is already labelled on the axis.
+    Printing the numbers next to the box makes them readable at a glance.
 
-    Stats that share a value are merged (Q1 == median happens whenever the cohort
-    clusters on one price), and where two distinct stats still sit closer than ~8%
-    of the axis span, the lower-priority one is dropped rather than overprinted.
+    The five-number summary goes BELOW the box; the mean goes ABOVE, directly over
+    the dashed mean line that boxmean=True draws. Splitting them by side is what
+    makes the mean printable at all: it usually sits within a few hundred dollars
+    of the median, well inside the collision threshold used below, so sharing a row
+    would just get it dropped. Its own side also ties it to the dashed line.
+
+    Below the box, stats sharing a value are merged (Q1 == median happens whenever
+    the cohort clusters on one price), and where two distinct stats still sit
+    closer than ~8% of the axis span, the lower-priority one is dropped rather than
+    overprinted.
     """
     v = pd.Series(list(values)).astype(float)
     groups = {}
@@ -535,6 +542,14 @@ def _label_box_stats(fig, values, y_label, span):
             x=val, y=y_label, yshift=-30, showarrow=False, align="center",
             text="%s<br>$%s" % (name, format(val, ",")),
             font=dict(size=9, color=CHART["edge"]))
+    # The mean, above the box and over its dashed line. Per-trim rather than the
+    # cohort-wide mean on the distribution chart, which gets diluted as cheaper
+    # trims arrive and stops describing any single trim.
+    mean_val = round(float(v.mean()))
+    fig.add_annotation(
+        x=mean_val, y=y_label, yshift=24, showarrow=False, align="center",
+        text="mean $%s" % format(mean_val, ","),
+        font=dict(size=9, color=CHART["edge"]))
 
 
 def fig_price_distribution(df):
@@ -723,9 +738,9 @@ def fig_price_by_trim(df):
     fig.update_layout(
         template="plotly_white",
         # A tall band per trim left ~60px of dead space under each row. Keep the
-        # band just deep enough for the box plus its summary labels, and thin the
-        # box (boxgap) so the labels clear its lower edge.
-        boxgap=0.62, height=104 + 72 * len(PRICE_TRIMS),
+        # band just deep enough for the box plus its labels — the summary below and
+        # the mean above — and thin the box (boxgap) so both clear its edges.
+        boxgap=0.66, height=112 + 82 * len(PRICE_TRIMS),
         title=_chart_title("Configured price by trim"),
         margin=dict(l=0, r=30, t=46, b=45),
         xaxis=dict(title_text="Configured price", tickprefix="$", tickformat=",",
@@ -909,7 +924,12 @@ def fig_geo(df, resv=None):
         vals = panels[i - 1][2]
         if len(vals):
             fig.update_xaxes(range=[0, float(vals.max()) * 1.18], row=i, col=2)
+    # dragmode is pinned to "pan" because adding the region-total bars put
+    # cartesian axes in this figure, which silently flipped the figure-wide default
+    # from "pan" (what a geo-only figure gets) to "zoom" (the cartesian default) and
+    # broke wheel-zoom on the maps until you picked pan from the modebar.
     fig.update_layout(template="plotly_white", height=380 * n, bargap=0.35,
+                      dragmode="pan",
                       margin=dict(l=0, r=140, t=30, b=0), **legends)
     return fig
 
