@@ -28,13 +28,14 @@ def main():
     # nullable-int VIN sequence).
     keep = ["user", "state", "region", "dist_mi", "buylease", "trim", "color",
             "wheels_short", "interior", "opted_autonomy", "opted_tow",
-            "opted_spare", "vin_seq", "vin_present", "vin_obfuscated",
+            "opted_spare", "price", "vin_seq", "vin_present", "vin_obfuscated",
             "resv_date", "order_date", "delivery_est", "delivery_min",
             "delivery_max", "delivery_type", "delivery_anchor_fallback",
             "delivery_raw", "r1_owner", "r1_model"]
     out = df[keep].copy()
     out["dist_mi"] = out["dist_mi"].round(0).astype("Int64")
     out["vin_seq"] = out["vin_seq"].astype("Int64")
+    out["price"] = out["price"].astype("Int64")
     for c in ("resv_date", "order_date", "delivery_est", "delivery_min",
               "delivery_max"):
         out[c] = out[c].dt.strftime("%Y-%m-%d")
@@ -66,6 +67,11 @@ def main():
     print("Premature configs dropped: %d (option not orderable on the order date)"
           % report["n_premature"])
     print("Delivery estimate types  : %s" % report["delivery_counts"])
+    _pz = report["price"]
+    print("Configured price         : mean $%s | median $%s | %d priced, %d unpriced"
+          % (format(round(_pz["mean"] or 0), ","),
+             format(round(_pz["median"] or 0), ","),
+             _pz["n_priced"], _pz["n_unpriced"]))
     print("Window anchor fallbacks  : %d (bad/early order date -> as-of date)"
           % report["anchor_fallback"])
     print("-" * 64)

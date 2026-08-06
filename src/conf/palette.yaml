@@ -94,3 +94,13 @@ heatmap_colorscale: Blues     # color x wheels combo heatmap (chart 5)
 state_totals:
   vin: "#4c78a8"              # VIN assigned
   no_vin: "#c2ccd6"           # ordered, no VIN yet
+
+# ---------------------------------------------------------------------------
+# Configured-price charts: the neutral bar fill plus a Compass Yellow accent for
+# the emphasized series (option spend) and the highlighted median. The accent is
+# the same yellow the page uses for stat cards and the disclaimer border, so the
+# charts read as part of the same design rather than introducing a new hue.
+# ---------------------------------------------------------------------------
+price:
+  bar: "#4c78a8"              # price distribution bars, per-trim boxes
+  accent: "#f3ae3d"           # Compass Yellow — option spend, median highlight
