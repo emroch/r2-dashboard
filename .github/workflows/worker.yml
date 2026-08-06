@@ -1,0 +1,86 @@
+name: Worker
+
+# Deploys the Cloudflare Worker that routes emroch.com/r2-dashboard* to the Pages
+# project. Kept separate from deploy.yml because the two have different triggers:
+# the dashboard rebuilds every 6 hours on fresh sheet data, while the Worker only
+# needs redeploying when its own code or routes change. A path filter here is all
+# the change detection needed — no diffing against the previous commit.
+#
+# The Worker has no preview environment, so this compensates at both ends:
+#   * on a PR, the bundle and wrangler.toml are validated WITHOUT uploading, so a
+#     syntax error or bad config fails review instead of production;
+#   * after a real deploy, the live route is smoke-tested, so a broken deploy is
+#     loud immediately rather than discovered later by a visitor.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/worker.yml"
+  pull_request:
+    paths:
+      - "worker/**"
+      - ".github/workflows/worker.yml"
+  workflow_dispatch:            # manual redeploy, e.g. after rotating the token
+
+concurrency:
+  group: worker
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    # PR check: prove the Worker still builds before it can reach production.
+    # --dry-run makes no API call, so this needs no token and works on forks.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Syntax-check the Worker script
+        # Cheap and dependency-free, so a syntax error is caught even if the
+        # wrangler step below can't run (npm outage, flag change in a new major).
+        run: node --check worker/worker.js
+
+      - name: Validate bundle and config (no upload)
+        working-directory: worker
+        run: npx --yes wrangler deploy --dry-run --outdir /tmp/worker-bundle
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          # NOTE: needs more scope than the Pages deploy in deploy.yml —
+          # Account · Workers Scripts · Edit, plus Zone · Workers Routes · Edit on
+          # emroch.com because wrangler.toml claims routes on that zone. A
+          # Pages-only token fails here with an authentication error.
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy
+
+      - name: Smoke-test the live route
+        # The Worker is the only thing serving this path, so if the deploy broke
+        # routing the dashboard is down. Retried because a fresh route takes a
+        # moment to propagate at the edge.
+        run: |
+          set -u
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/page.html -w '%{http_code}' \
+                     https://emroch.com/r2-dashboard/ || echo 000)
+            redirect=$(curl -sS -o /dev/null -w '%{http_code}' \
+                     https://emroch.com/r2-dashboard || echo 000)
+            if [ "$code" = "200" ] && grep -q "R2 Orders" /tmp/page.html \
+               && [ "$redirect" = "301" ]; then
+              echo "route healthy: / => $code, no-slash => $redirect"
+              exit 0
+            fi
+            echo "attempt $i: / => $code, no-slash => $redirect (want 200/301) — retrying"
+            sleep 6
+          done
+          echo "::error::the /r2-dashboard route did not come back healthy after deploy"
+          exit 1
