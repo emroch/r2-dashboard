@@ -87,10 +87,15 @@ free tier, refreshed automatically:
   history accrues.
 - A small **Cloudflare Worker** (`worker/`) routes `emroch.com/r2-dashboard*` to
   that Pages project (the HTML is self-contained, so no asset rewriting is needed).
+  `.github/workflows/worker.yml` deploys it whenever anything under `worker/`
+  lands on `main` — validating the bundle on PRs first, and smoke-testing the live
+  route afterwards, since the Worker has no preview environment.
 
 The Python build runs only in Actions — Cloudflare serves and routes but can't run
-pandas/plotly. One-time setup (API token, secrets, Pages project, Worker deploy) is
-noted in the workflow and `worker/` files.
+pandas/plotly. One-time setup (API token, secrets, Pages project) is noted in the
+workflow files. The API token needs **Workers Scripts · Edit** and **Workers
+Routes · Edit** on the `emroch.com` zone in addition to **Pages · Edit**, since the
+same token deploys both.
 
 ## Tests
 
