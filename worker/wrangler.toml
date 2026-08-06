@@ -1,5 +1,8 @@
 # Cloudflare Worker that routes emroch.com/r2-dashboard* to the r2-dashboard
-# Pages project. Deploy once:  cd worker && npx wrangler login && npx wrangler deploy
+# Pages project. Deployed automatically by .github/workflows/worker.yml whenever
+# anything under worker/ lands on main; that workflow also validates the bundle on
+# PRs and smoke-tests the live route afterwards. To deploy by hand instead:
+#   cd worker && npx wrangler login && npx wrangler deploy
 name = "r2-proxy"
 main = "worker.js"
 compatibility_date = "2026-01-01"

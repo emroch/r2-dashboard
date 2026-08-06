@@ -11,6 +11,10 @@ on:
     branches: [main]
     paths-ignore:
       - "data/raw/**"           # the fetch-history commit below must not re-trigger
+      - "worker/**"             # routing only — worker.yml deploys that, and it
+                                # doesn't change the dashboard's contents. A commit
+                                # touching worker/ AND src/ still builds, since
+                                # paths-ignore only skips when EVERY change matches.
 
 permissions:
   contents: write               # to commit refreshed data/raw caches back
