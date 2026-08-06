@@ -9,8 +9,9 @@ from plotly.subplots import make_subplots
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
                      HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
-                     PRICE_TRIMS, REGION_COLOR, STATE_TOTALS_COLORS, TAKE_RATE,
-                     TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
+                     PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
+                     STATE_TOTALS_COLORS, TAKE_RATE, TIMELINE_COLORS,
+                     TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
                      WHEEL_SYMBOL)
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
@@ -274,8 +275,64 @@ def fig_vin_vs_order(df):
     return fig
 
 
+# Legend label for a blank answer to a conditional follow-up question. On the R1
+# panel this segment is almost entirely non-owners — the model question only
+# applies to owners — so it names that case rather than reading as a bare gap.
+_UNSPECIFIED = "No / unspecified"
+
+
+def _split_values(df, col, palette):
+    """Distinct values of a split column, in palette order then any extras. Blanks
+    collapse to the sentinel label so a conditional follow-up question
+    (which R1 do you own?) gets one labelled segment instead of an empty name."""
+    seen = set(df[col].replace("", _UNSPECIFIED).unique())
+    ordered = [k for k in palette if k in seen]
+    return ordered + sorted(seen - set(ordered))
+
+
+def _take_rate_panel(fig, row, col, df, cat_col, counts, labels, fill,
+                     split_col=None, palette=None, legend_key=None,
+                     show_legend=False):
+    """One take-rate panel, stacked by `split_col` when that column actually holds
+    more than one value.
+
+    With a single value there's nothing to compare, so it renders as a plain bar
+    and adds no legend entry — today's cohort is 100% Performance, and a legend
+    reading "Trim: Performance" would be noise. The stacks appear on their own as
+    Premium and Standard ship. Returns True if it drew a stack.
+    """
+    splits = _split_values(df, split_col, palette or {}) if split_col else []
+    if len(splits) < 2:
+        fig.add_trace(go.Bar(x=labels, y=np.asarray(counts), marker_color=fill,
+                             marker_line=dict(color=CHART["edge"], width=1),
+                             showlegend=False,
+                             hovertemplate="%{x}: %{y}<extra></extra>"), row, col)
+        return False
+    sv = df[split_col].replace("", _UNSPECIFIED)
+    for s in splits:
+        vals = [int(((df[cat_col] == c) & (sv == s)).sum()) for c in counts.index]
+        fig.add_trace(go.Bar(
+            x=labels, y=np.asarray(vals), name=s, legendgroup=s,
+            showlegend=show_legend, legend=legend_key or "legend",
+            marker_color=(palette or {}).get(s, CHART_UI["muted"]),
+            marker_line=dict(color=CHART["edge"], width=1),
+            hovertemplate="%{x} · " + str(s) + ": %{y}<extra></extra>"), row, col)
+    return True
+
+
 def fig_config_dashboard(df):
-    """Config take-rate small-multiples."""
+    """Config take-rate small-multiples.
+
+    Panels whose mix should differ by trim once the lineup fills out — wheels,
+    interior, purchase vs. lease — stack by trim, and the R1-owner panel stacks by
+    which R1 the owner has. Each split is only drawn when the data holds more than
+    one value in it, so a single-trim cohort still renders plain bars instead of a
+    one-entry legend (see _take_rate_panel).
+
+    Autonomy+ and Tow have no panel here: the Launch Package bundles both, so they
+    sit at ~100% across the cohort. They'll be worth adding, split by trim, once
+    the package is discontinued and the answers fragment.
+    """
     fig = make_subplots(
         rows=2, cols=3,
         subplot_titles=("Exterior color", "Wheels", "Interior",
@@ -286,34 +343,59 @@ def fig_config_dashboard(df):
     fig.add_trace(go.Bar(x=list(cc.index), y=np.asarray(cc.values),
                          marker_color=[COLOR_DISPLAY[c] for c in cc.index],
                          marker_line=dict(color=CHART["edge"], width=1),
-                         showlegend=False), 1, 1)
+                         showlegend=False,
+                         hovertemplate="%{x}: %{y}<extra></extra>"), 1, 1)
 
+    # Trim-split panels share one legend; `shown` makes only the first contribute
+    # entries so the trim colors aren't listed three times.
+    shown = False
     wc = df["wheels_short"].value_counts()
-    fig.add_trace(go.Bar(x=list(wc.index), y=np.asarray(wc.values),
-                         marker_color=TAKE_RATE["wheels"], showlegend=False), 1, 2)
+    shown |= _take_rate_panel(fig, 1, 2, df, "wheels_short", wc, list(wc.index),
+                              TAKE_RATE["wheels"], "trim", TRIM_COLORS,
+                              "legend", not shown)
 
     ic = df["interior"].value_counts()
     ic_names = [s.replace(" Signature", "") for s in ic.index]
-    fig.add_trace(go.Bar(x=ic_names, y=np.asarray(ic.values),
-                         marker_color=[INTERIOR_COLOR.get(n, TAKE_RATE["interior_fallback"])
-                                       for n in ic_names],
-                         marker_line=dict(color=CHART["edge"], width=1),
-                         showlegend=False), 1, 3)
+    shown |= _take_rate_panel(
+        fig, 1, 3, df, "interior", ic, ic_names,
+        [INTERIOR_COLOR.get(n, TAKE_RATE["interior_fallback"]) for n in ic_names],
+        "trim", TRIM_COLORS, "legend", not shown)
 
-    bc = df["buylease"].value_counts()
-    fig.add_trace(go.Bar(x=list(bc.index), y=np.asarray(bc.values),
-                         marker_color=TAKE_RATE["buylease"], showlegend=False), 2, 1)
+    bc = df["buylease"].replace("", "Blank").value_counts()
+    bl = df.assign(buylease=df["buylease"].replace("", "Blank"))
+    shown |= _take_rate_panel(fig, 2, 1, bl, "buylease", bc, list(bc.index),
+                              TAKE_RATE["buylease"], "trim", TRIM_COLORS,
+                              "legend", not shown)
 
     sc = df["opted_spare"].map({True: "Yes", False: "No"}).value_counts()
     fig.add_trace(go.Bar(x=list(sc.index), y=np.asarray(sc.values),
-                         marker_color=TAKE_RATE["spare"], showlegend=False), 2, 2)
+                         marker_color=TAKE_RATE["spare"], showlegend=False,
+                         marker_line=dict(color=CHART["edge"], width=1),
+                         hovertemplate="%{x}: %{y}<extra></extra>"), 2, 2)
 
-    rc = df["r1_owner"].replace("", "Blank").value_counts()
-    fig.add_trace(go.Bar(x=list(rc.index), y=np.asarray(rc.values),
-                         marker_color=TAKE_RATE["r1_owner"], showlegend=False), 2, 3)
+    # Uses the reconciled owner flag, so a row that named a model counts as an
+    # owner (see parsing.reconcile_r1_owner) instead of contradicting its own stack.
+    owner = df.get("r1_owner_effective", df["r1_owner"]).replace("", "Blank")
+    rc = owner.value_counts()
+    r1 = df.assign(r1_owner=owner)
+    stacked_r1 = _take_rate_panel(fig, 2, 3, r1, "r1_owner", rc, list(rc.index),
+                                  TAKE_RATE["r1_owner"], "r1_model",
+                                  R1_MODEL_COLORS, "legend2", True)
 
-    fig.update_layout(template="plotly_white", height=680,
-                      title_text=None, bargap=0.25)
+    legends = {}
+    if shown:
+        legends["legend"] = dict(
+            title=dict(text="Trim"), x=1.01, xanchor="left", y=0.99,
+            yanchor="top", font=dict(size=11), bgcolor=CHART["legbg"],
+            bordercolor=CHART["legbd"], borderwidth=1)
+    if stacked_r1:
+        legends["legend2"] = dict(
+            title=dict(text="R1 owned"), x=1.01, xanchor="left", y=0.42,
+            yanchor="top", font=dict(size=11), bgcolor=CHART["legbg"],
+            bordercolor=CHART["legbd"], borderwidth=1)
+    fig.update_layout(template="plotly_white", height=680, title_text=None,
+                      bargap=0.25, barmode="stack",
+                      margin=dict(r=150 if legends else 40), **legends)
     return fig
 
 
@@ -518,19 +600,25 @@ def fig_price_options(df):
     if not n:
         fig.update_layout(template="plotly_white", height=300)
         return fig
-    cats = [("price_drive", "Drive system"), ("price_paint", "Paint"),
-            ("price_wheels", "Wheels"), ("price_interior", "Interior"),
-            ("price_spare", "Compact spare"),
-            ("price_autonomy_tow", "Autonomy+ / Tow")]
+    cats = [("price_drive", "Drive system", None),
+            ("price_paint", "Paint", None),
+            ("price_wheels", "Wheels", None),
+            # A zero row is kept only with a note explaining WHY it's zero,
+            # because "nobody bought the upgrade" and "everybody gets it free"
+            # look identical at $0 and mean opposite things.
+            ("price_interior", "Interior", "none paid yet"),
+            ("price_spare", "Compact spare", None),
+            ("price_autonomy_tow", "Autonomy+ / Tow", "bundled")]
+    # How many hold a bundled option without paying — the count behind that note.
+    held = 0
+    if {"opted_autonomy", "opted_tow"} <= set(d.columns):
+        held = int((d["opted_autonomy"] | d["opted_tow"]).sum())
     rows = []
-    for col, label in cats:
+    for col, label, zero_note in cats:
         v = d[col].fillna(0)
         avg, paid = float(v.mean()), v[v > 0]
-        # Keep a zero row only when it's a live choice for this cohort (an
-        # interior upgrade exists but nobody has one yet); drop the structurally
-        # inapplicable ones instead of listing empty rows.
-        if not avg and label not in ("Interior",):
-            continue
+        if not avg and zero_note is None:
+            continue            # structurally inapplicable — don't list an empty row
         if len(paid):
             pct = 100.0 * len(paid) / n
             # A handful of orders rounds to "0% chose", which reads as nobody —
@@ -540,8 +628,10 @@ def fig_price_options(df):
                     if pct < 1 else
                     "%.0f%% chose · $%s avg" % (pct,
                                                 format(round(paid.mean()), ",")))
+        elif zero_note == "bundled":
+            note = "included free for %d of %d" % (held, n)
         else:
-            note = "none paid yet"
+            note = zero_note
         rows.append((label, avg, note, len(paid)))
     rows.sort(key=lambda r: r[1])       # biggest spend on top of a horizontal bar
     opt_mean = float((d["price"] - d["price_base"].fillna(0)).mean())
