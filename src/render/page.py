@@ -88,10 +88,14 @@ SECTIONS = [
                total."""),
      fig_geo),
     ("Orders by state",
-     dedent("""Every state that has ordered, sorted by total. Each bar splits into VIN-assigned and not-yet-assigned
-               orders, which stack to the state's full count — so bar length is the state total, while the split shows
-               how far along production is there. Easier to compare than bubble area for the long tail of one- and
-               two-order states."""),
+     dedent("""Every state that has ordered, sorted by total, as a delivery pipeline: assumed delivered, then awaiting
+               delivery with a VIN known, then no VIN yet. The three stack to the state's full count, so bar length is
+               the state total. Deliveries are <em>inferred</em>, not reported — an order whose whole delivery estimate
+               has passed is assumed to have arrived, on the theory that people rarely come back to update the sheet
+               afterwards. That is rough and errs both ways: a delayed car still looks delivered, and one that arrived
+               early against a vague estimate does not. Any estimate with a known end date counts, including a relative
+               window that finished a while ago; orders with no estimate never do. Deliveries count whether or not a VIN
+               is known, since some people post about taking delivery without ever updating their VIN."""),
      fig_state_totals),
     ("Paint preference by location",
      dedent("""Does color taste vary geographically? All three panels are 100% stacked, so each row's paint mix is

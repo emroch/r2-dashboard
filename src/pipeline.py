@@ -31,7 +31,8 @@ def main():
             "opted_spare", "price", "vin_seq", "vin_present", "vin_obfuscated",
             "resv_date", "order_date", "delivery_est", "delivery_min",
             "delivery_max", "delivery_type", "delivery_anchor_fallback",
-            "delivery_raw", "r1_owner_effective", "r1_model"]
+            "delivered_inferred", "delivery_raw", "r1_owner_effective",
+            "r1_model"]
     out = df[keep].copy()
     # Export the reconciled owner flag under the plain name — the CSV is the
     # cleaned dataset, so it should agree with the dashboard.
