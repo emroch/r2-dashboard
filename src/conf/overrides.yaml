@@ -79,6 +79,13 @@ overrides:
   # https://www.rivianforums.com/forum/threads/r2-compact-spare-tire-are-you-ordering-it-on-your-build.59589/post-1011373
   SeaMonkey80:
     r1_model: "R1S"
+  # the only order answering "Launch Package = No", which can't be right today —
+  # the package is currently the only way to buy a Performance, and 232 of 233
+  # orders say Yes. Inferred rather than forum-confirmed, unlike the entries above.
+  # Without this the bundle doesn't apply and Autonomy+/Tow get billed separately,
+  # putting them $3,400 above every comparable build.
+  Jmd1948:
+    launch: "Yes"
   # delivery update
   # https://www.rivianforums.com/forum/posts/1051958/
   dmartin:
