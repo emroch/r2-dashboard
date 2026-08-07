@@ -29,6 +29,21 @@
 })();
 
 (function(){
+ // The report menu is a <details>, so it opens and closes without any JS. What
+ // <details> doesn't do is dismiss on an outside click or Escape, which is what
+ // makes it feel like a menu rather than a stuck-open panel.
+ var d=document.getElementById('reportMenu');
+ if(!d)return;
+ document.addEventListener('click',function(e){
+  if(d.open&&!d.contains(e.target))d.open=false;
+ });
+ document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&d.open){d.open=false;
+   var s=d.querySelector('summary'); if(s)s.focus();}
+ });
+})();
+
+(function(){
  // Localize the server-rendered <time data-r2time> stamps to the viewer's own
  // timezone (the datetime attr carries the absolute instant); falls back to the
  // build-timezone text if this doesn't run.
