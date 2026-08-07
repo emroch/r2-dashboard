@@ -88,10 +88,14 @@ SECTIONS = [
                total."""),
      fig_geo),
     ("Orders by state",
-     dedent("""Every state that has ordered, sorted by total. Each bar splits into VIN-assigned and not-yet-assigned
-               orders, which stack to the state's full count — so bar length is the state total, while the split shows
-               how far along production is there. Easier to compare than bubble area for the long tail of one- and
-               two-order states."""),
+     dedent("""Every state that has ordered, sorted by total, as a delivery pipeline: assumed delivered, then awaiting
+               delivery with a VIN known, then no VIN yet. The three stack to the state's full count, so bar length is
+               the state total. Deliveries are <em>inferred</em>, not reported — an order whose whole delivery estimate
+               has passed is assumed to have arrived, on the theory that people rarely come back to update the sheet
+               afterwards. That is rough and errs both ways: a delayed car still looks delivered, and one that arrived
+               early against a vague estimate does not. Any estimate with a known end date counts, including a relative
+               window that finished a while ago; orders with no estimate never do. Deliveries count whether or not a VIN
+               is known, since some people post about taking delivery without ever updating their VIN."""),
      fig_state_totals),
     ("Paint preference by location",
      dedent("""Does color taste vary geographically? All three panels are 100% stacked, so each row's paint mix is
@@ -139,6 +143,16 @@ THEME_JS = _tpl("theme.js").replace("/*__CHROME_JS__*/", _CHROME_JS)
 # Chart-navigation sidebar: hamburger toggle (narrow screens) + scroll-spy that
 # highlights the section currently in view via IntersectionObserver.
 NAV_JS = _tpl("nav.js")
+
+# Plotly toolbar, applied to every figure. Box- and lasso-select mark points for
+# a selection this dashboard never reads, so they only add width to a bar that
+# has to fit in a chart's top margin; dropping them takes it from 272px to 200px.
+# The logo goes too — it links off-site and earns none of that space. Zoom, pan
+# and reset stay, since they're the ones worth having on the denser charts.
+PLOTLY_CONFIG = {
+    "displaylogo": False,
+    "modeBarButtonsToRemove": ["select2d", "lasso2d"],
+}
 
 # Arbitrates the scroll wheel between zooming a map and scrolling the page
 # (see scrollzoom.js). Separate from nav.js so the scroll-spy and the wheel
@@ -300,7 +314,7 @@ def build_dashboard(df, report, resv):
             plots[pid] = fig.to_html(
                 full_html=False,
                 include_plotlyjs=("directory" if pid == 1 else False),
-                default_width="100%")
+                default_width="100%", config=PLOTLY_CONFIG)
             frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
         sections.append(

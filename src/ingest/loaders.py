@@ -245,6 +245,21 @@ def load_and_clean(text, meta):
     for _c in ("delivery_est", "delivery_min", "delivery_max"):
         df[_c] = pd.to_datetime(df[_c], errors="coerce")
 
+    # --- Inferred deliveries ---
+    # An estimate whose whole span has passed is treated as delivered: the
+    # customer most likely took the car and never came back to update the sheet.
+    # A ROUGH inference, and it can err both ways — a delayed car still looks
+    # delivered, and a delivery ahead of a vague estimate doesn't. A "delivered"
+    # or "delayed" forum post can be curated in via overrides.yaml, which is why
+    # this reads the parsed estimate rather than hardcoding a rule per person.
+    #
+    # Any estimate with a known upper bound counts, not just exact dates: a
+    # relative window ("4-8 weeks") that finished a month ago is no less past
+    # than a quoted date. Strictly before today, so an estimate landing today
+    # isn't called done yet, and "unknown" never qualifies (no bound to pass).
+    df["delivered_inferred"] = (df["delivery_max"].notna()
+                                & (df["delivery_max"] < AS_OF))
+
     # --- Config normalization ---
     df["wheels_short"] = np.where(df["wheels"].str.contains(WHEELS_21_CONTAINS),
                                   WHEELS_LABEL_21, WHEELS_LABEL_20)

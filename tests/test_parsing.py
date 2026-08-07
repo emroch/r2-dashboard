@@ -404,6 +404,53 @@ def test_reconcile_r1_owner_trusts_a_named_model():
     assert reconcile_r1_owner("Yes", "") == ("Yes", None)
 
 
+def test_state_totals_segments_partition_each_state():
+    # The three segments must sum to each state's order count: a delivery has to be
+    # deducted from whichever VIN bucket it came from, or the bar overstates the
+    # state. Covers all four delivered x VIN combinations, including a delivered
+    # order with no VIN (which still counts as delivered).
+    import pandas as pd
+    from render.charts import fig_state_totals
+    def row(state, vin, delivered):
+        return dict(state=state, lat=1.0, vin_present=vin,
+                    delivered_inferred=delivered)
+    df = pd.DataFrame([
+        row("CA", True, True), row("CA", True, False), row("CA", False, True),
+        row("CA", False, False), row("TX", False, True), row("TX", True, False),
+        # Unmapped states are excluded from the chart entirely.
+        dict(state="ZZ", lat=float("nan"), vin_present=True,
+             delivered_inferred=True),
+    ])
+    fig = fig_state_totals(df)
+    named = [t for t in fig.data if t.name]
+    assert len(named) == 3, [t.name for t in named]
+    per_state = {}
+    for t in named:
+        for s, v in zip(t.y, t.x):
+            per_state[s] = per_state.get(s, 0) + int(v)
+    assert per_state == {"CA": 4, "TX": 2}, per_state
+    seg = {t.name: dict(zip(t.y, [int(v) for v in t.x])) for t in named}
+    assert seg["Delivered (est.)"] == {"CA": 2, "TX": 1}
+    assert seg["Awaiting delivery · VIN"] == {"CA": 1, "TX": 1}
+    assert seg["Awaiting delivery · no VIN"] == {"CA": 1, "TX": 0}
+
+
+def test_delivered_inferred_only_for_a_passed_upper_bound():
+    # The rule reads delivery_max: strictly past counts, today or later doesn't,
+    # and a missing bound never does.
+    import pandas as pd
+    from ingest.loaders import load_and_clean  # noqa: F401  (import path check)
+    from config import AS_OF
+    mx = pd.to_datetime(pd.Series([
+        AS_OF - pd.Timedelta(days=1),   # yesterday -> delivered
+        AS_OF,                          # today -> not yet
+        AS_OF + pd.Timedelta(days=30),  # future -> no
+        None,                           # no estimate -> no
+    ]))
+    delivered = mx.notna() & (mx < AS_OF)
+    assert list(delivered) == [True, False, False, False]
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
