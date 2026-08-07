@@ -987,7 +987,11 @@ def fig_state_totals(df):
     fig.update_layout(
         template="plotly_white", barmode="stack", bargap=0.25,
         height=max(420, 34 + 18 * len(states)),
-        margin=dict(l=0, r=30, t=10, b=40),
+        # t=34 leaves room for the 22px modebar to sit in the margin instead of
+        # over the longest bar. Every other chart on the page already has 30-100px
+        # here (mostly Plotly's default), so this one was the outlier at t=10 —
+        # matching them keeps the toolbar horizontal everywhere.
+        margin=dict(l=0, r=30, t=34, b=40),
         xaxis=dict(title="Orders", rangemode="tozero",
                    range=[0, float(tot.max()) * 1.08]),
         yaxis=dict(ticksuffix="  ", automargin=True),
