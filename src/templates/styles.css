@@ -8,8 +8,12 @@ html{scroll-behavior:smooth;}
    it. Hamburger + title + theme toggle + disclaimer stay visible. */
 .topbar{position:sticky;top:0;z-index:60;background:var(--header-bg);
  color:var(--topbar-fg);padding:12px 40px;box-shadow:0 2px 8px var(--topbar-sh);}
-.topbar-row{display:flex;align-items:flex-start;gap:14px;}
-.topbar-head{flex:1;min-width:0;}
+/* The row wraps, and the title keeps a 240px floor, so once the hamburger +
+   title + actions stop fitting it is the ACTIONS that drop to a second line —
+   never the title compressing to one word per line. nav.js re-measures
+   --header-h, so the sidebar tucks under whichever height results. */
+.topbar-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;}
+.topbar-head{flex:1 1 240px;min-width:0;}
 .topbar h1{margin:0;font-size:20px;}
 /* Disclaimer lives in the title column, so it insets to align with the title. */
 .topbar p.disclaimer{margin:8px 0 0;padding:5px 10px;font-weight:600;
@@ -25,10 +29,16 @@ html{scroll-behavior:smooth;}
 .intro .warn{color:var(--warn);font-weight:600;}
 .intro .chg{color:var(--chg);font-weight:600;}
 .intro .dim{color:var(--desc);}
-.themebtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
+/* Topbar actions: the report link and theme toggle share one pill style.
+   margin-left:auto keeps them right-aligned both beside the title and on their
+   own wrapped line. */
+.topbar-actions{flex:none;margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;
+ justify-content:flex-end;}
+.pillbtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
  border:1px solid var(--btn-bd);border-radius:20px;padding:6px 14px;
- font-size:12.5px;cursor:pointer;line-height:1;white-space:nowrap;}
-.themebtn:hover{filter:brightness(1.15);}
+ font-size:12.5px;cursor:pointer;line-height:1;white-space:nowrap;
+ text-decoration:none;font-family:inherit;}
+.pillbtn:hover{filter:brightness(1.15);}
 .navbtn{flex:none;background:var(--btn-bg);color:var(--btn-fg);
  border:1px solid var(--btn-bd);border-radius:8px;padding:5px 11px;font-size:15px;
  line-height:1;cursor:pointer;}
@@ -53,6 +63,12 @@ html.nav-shown .sidebar{transform:translateX(0);}
 @media (max-width:900px){
  html.nav-shown .nav-backdrop{display:block;position:fixed;z-index:54;
   top:var(--header-h,92px);left:0;right:0;bottom:0;background:var(--backdrop);}
+}
+/* Phone widths: the 40px side gutters cost a fifth of a 390px screen, which is
+   what forces the header to stack. */
+@media (max-width:600px){
+ .topbar{padding:10px 16px;}
+ .wrap{padding:8px 14px 48px;}
 }
 section{scroll-margin-top:calc(var(--header-h,92px) + 8px);}
 .wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
