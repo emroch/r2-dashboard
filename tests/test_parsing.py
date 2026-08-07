@@ -688,6 +688,35 @@ def test_column_letters_match_spreadsheet_labels():
     assert [_col_letter(i) for i in (0, 1, 25, 26, 27)] == \
         ["A", "B", "Z", "AA", "AB"]
 
+# --- "Report issue" button ---------------------------------------------------
+
+
+def test_report_button_prefill_matches_the_issue_form():
+    # The button's query keys have to be the issue form's field ids: GitHub
+    # silently ignores one that isn't, and a dropped prefill is invisible until
+    # someone files a report with no build info in it.
+    import yaml
+    from datetime import datetime
+    from urllib.parse import parse_qs, urlparse
+    from render.page import ISSUE_FORM_URL, _report_url
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    form_file = "dashboard-report.yml"
+    with open(os.path.join(root, ".github", "ISSUE_TEMPLATE", form_file)) as fh:
+        form = yaml.safe_load(fh)
+    field_ids = set(b["id"] for b in form["body"] if "id" in b)
+
+    url = _report_url({"orders_meta": {"updated_at": datetime(2026, 8, 6, 22, 24)},
+                       "resv_meta": {"updated_at": None}})
+    assert url.startswith(ISSUE_FORM_URL + "?")
+    query = parse_qs(urlparse(url).query)
+    assert query["template"] == [form_file]
+    assert set(query) - {"template"} <= field_ids
+    # The build stamp is the whole point: it must carry the sheet's timestamp,
+    # and say so plainly when a sheet has never reported one.
+    assert "2026-08-06 22:24" in query["build"][0]
+    assert "unknown" in query["build"][0]
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

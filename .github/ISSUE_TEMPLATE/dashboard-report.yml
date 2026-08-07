@@ -1,0 +1,56 @@
+# Issue form behind the dashboard's "Report issue" button. The button links here
+# with ?template=dashboard-report.yml and prefills the `build` field, so a report
+# always says which build it came from. Field ids are part of that contract —
+# renaming one silently drops its prefill (see _report_url in render/page.py).
+name: Dashboard report
+description: Something on the dashboard looks wrong, is broken, or could be better
+labels: ["from-dashboard"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time — reports from people actually reading the
+        charts are how most of the data bugs here have been found.
+
+        **Correcting your own order?** This dashboard only *reads* the
+        community tracker sheets; it can't change them. Use the tracker's own
+        change-request form (linked from the sheet at the top of the dashboard)
+        so the fix reaches everyone using the data, not just this page.
+
+        Anything else — a number that looks off, a chart that's unreadable, a
+        layout problem, an idea — is in the right place.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of report is this?
+      options:
+        - A number or chart looks wrong
+        - A specific order's data looks wrong
+        - Something is broken, unreadable, or hard to use
+        - A suggestion, or a chart you'd like to see
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where on the page?
+      description: The section heading or chart, if it applies to one.
+      placeholder: e.g. "Orders by state", or the configured-price box plot
+  - type: textarea
+    id: details
+    attributes:
+      label: What did you see?
+      description: >
+        What you expected, and what the page showed instead. For a wrong number,
+        the username or state involved helps a lot — it points straight at the row.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build
+      description: >
+        Filled in by the Report button so the exact build can be reproduced.
+        Please leave it as is.
+      placeholder: (unknown — opened without using the dashboard's button)

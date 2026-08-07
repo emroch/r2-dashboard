@@ -117,6 +117,18 @@ python3 tests/test_parsing.py     # no pytest required
 pytest tests/
 ```
 
+## Reporting a problem
+
+The dashboard's **⚑ Report issue** button opens the
+[dashboard-report issue form](.github/ISSUE_TEMPLATE/dashboard-report.yml) with
+the build it was opened from prefilled (as-of date, each sheet's last-updated
+time, and the deployed commit), so a report is reproducible without the reader
+having to describe their build. Reports land labelled `from-dashboard`.
+
+Corrections to a *specific person's own order* belong in the source tracker sheet
+instead — this pipeline only reads those sheets, so fixing the data at the source
+is what reaches everyone using it. The issue form says so up front.
+
 ## Roadmap
 
 Planned improvements are tracked as
