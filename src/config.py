@@ -92,12 +92,12 @@ TRIM_COLORS = dict(_PALETTE["trims"])
 R1_MODEL_COLORS = dict(_PALETTE["r1_models"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
-# Both maps are field -> exact sheet header text. Orders is read POSITIONALLY —
-# the map's order and length define the fixed block sliced from "#", and the
-# header text is what the drift check verifies (see ingest/schema_check.py).
-# Reservations is looked up BY header name (its sheet layout differs), so its
-# order is immaterial. IGNORED lists the columns each sheet has that we
-# knowingly don't read, so only a NEW unmapped column gets reported.
+# Both maps are field -> exact sheet header text, and both sheets are read the
+# same way: columns are located BY NAME, so only what's mapped is read and the
+# sheets may reorder or grow columns freely (see ingest/schema_check.py). Field
+# order is cosmetic — it sets the cleaned CSV's column order. IGNORED lists the
+# columns each sheet has that we knowingly skip, so only a NEW unmapped column
+# gets reported.
 _ORDERS_COLS = dict(_SCHEMA["orders_columns"])
 ORDERS_COLUMNS = list(_ORDERS_COLS)   # field names, in sheet order
 ORDERS_HEADERS = _ORDERS_COLS         # field -> expected sheet header text
