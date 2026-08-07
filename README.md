@@ -18,6 +18,7 @@ src/
   ingest/             get + clean the data
     fetch.py          live-sheet fetch with caching + change detection
     parsing.py        pure parsing / VIN / date / geo helpers
+    schema_check.py   verifies each sheet's header row against schema.yaml
     loaders.py        load_and_clean, load_reservations
   render/             build the webpage
     colors.py         color-transform functions + derived display palettes
@@ -75,6 +76,14 @@ The data is self-reported and noisy; treat all figures as indicative. It is
 always pulled live and cached under `data/raw/`; there are no hand-maintained
 snapshots — the raw caches are committed, so `data/raw/` is a dated,
 change-detected history of the sheets (useful for trend analysis).
+
+Because both sheets are hand-maintained forms, each header row is verified
+against `src/conf/schema.yaml` on every run. A renamed, reordered, inserted, or
+removed column **stops the pipeline** — the orders sheet is read by position, so
+a shifted slice would corrupt every figure without raising anything; failing means
+the deployed dashboard stays on its last good build until `schema.yaml` is updated
+to match. A merely *new* column can't mis-map anything, so it's listed in the
+dashboard's data-quality panel instead, as a nudge that new data is available.
 
 ## Deployment
 

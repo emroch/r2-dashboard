@@ -19,19 +19,56 @@ sources:
     slug: "r2_reservations_live"
 
 # Orders sheet: a fixed block of columns starting at the "#" column (the header
-# row is the one containing "Username"). This list gives the internal field name
-# for each column, in sheet order — its length also sets the block width.
-orders_columns: [orig_num, user, resv_raw, order_raw, vin_raw, delivery_raw,
-                 buylease, loc_raw, trim, launch, color, interior, wheels,
-                 autonomy, tow, spare, r1_owner, r1_keep, r1_model,
-                 other_vehicles]
+# row is the one containing "Username"). Maps internal field name -> the exact
+# sheet header text, in sheet order: the order and length define the block, and
+# the header text is verified against the sheet on every run (schema_check.py).
+# These columns are read BY POSITION, so a rename/reorder/insert/remove in the
+# sheet would mis-map every field it shifts and silently corrupt every number —
+# the check stops the pipeline instead. If the sheet legitimately changes, edit
+# this map to match it (that is the only fix needed).
+orders_columns:
+  orig_num:       "#"
+  user:           "Username"
+  resv_raw:       "Original Reservation Date"
+  order_raw:      "R2 Order Date"
+  vin_raw:        "VIN Assigned"
+  delivery_raw:   "Estimated Delivery Date / Window"
+  buylease:       "Purchase or Lease?"
+  loc_raw:        "Location"
+  trim:           "Trim"
+  launch:         "Launch Package"
+  color:          "Color"
+  interior:       "Interior"
+  wheels:         "Wheels"
+  autonomy:       "Autonomy+ Option Added"
+  tow:            "Tow Package Added"
+  spare:          "Compact Spare Tire Added"
+  r1_owner:       "Are you a current Rivian R1 owner?"
+  r1_keep:        "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
+  r1_model:       "If you are a current R1 owner, which model?"
+  other_vehicles: "Other vehicles currently owned"
 
-# Reservations sheet: mapped by header name (its layout differs). field -> header.
+# Reservations sheet: mapped by header NAME (its layout differs), so its column
+# order is immaterial — but each header below must appear exactly once, since a
+# missing one would read as empty for every row and a repeated one is ambiguous.
 reservations_columns:
   orig_num: "#"
   user: "Username"
   resv_raw: "R2 reservation date"
   loc_raw: "Location"
+
+# Columns that exist in a sheet but are deliberately not read. Listing them keeps
+# the drift check quiet about the known extras while still reporting any NEW
+# unmapped column in the data-quality panel — which usually means the form gained
+# a question worth charting. Empty header cells (spacers, trailing commas) never
+# need listing. The orders block is complete, so it has no known extras.
+ignored_columns:
+  orders: []
+  reservations:
+    - "Are you a current Rivian R1 owner?"
+    - "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
+    - "If you are a current R1 owner, which model?"
+    - "Other vehicles currently owned"
 
 # Sanitization bounds. The upper bound for dates is always "today" (AS_OF).
 sanitize:

@@ -7,6 +7,8 @@ Runs under pytest, but also standalone without it:
 The standalone runner discovers every test_* function, executes it, and prints
 PASS/FAIL per test plus a summary (exit code 1 if anything fails).
 """
+import csv
+import io
 import os
 import sys
 from datetime import date
@@ -449,6 +451,212 @@ def test_delivered_inferred_only_for_a_passed_upper_bound():
     ]))
     delivered = mx.notna() & (mx < AS_OF)
     assert list(delivered) == [True, False, False, False]
+
+
+# --- Schema-drift detection -------------------------------------------------
+# The loaders map the orders sheet BY POSITION, so a reordered or renamed column
+# would slide the slice and corrupt every figure without raising anything. These
+# tests pin the guard that turns that into a hard stop, and pin what stays
+# tolerated: cosmetic re-wording, and columns appearing at either edge.
+
+
+def _orders_header():
+    """The orders export's header row: a blank column A, then the mapped block."""
+    from config import ORDERS_HEADERS
+    return [""] + list(ORDERS_HEADERS.values())
+
+
+def _reservations_header():
+    """The reservations export's header row: blank column A, the mapped columns,
+    a blank spacer, then the R1-owner questions we deliberately don't read."""
+    from config import RESERVATIONS_COLUMNS, RESV_IGNORED
+    return ([""] + list(RESERVATIONS_COLUMNS.values()) + [""]
+            + list(RESV_IGNORED))
+
+
+def _at(field):
+    """Header-row index of an orders field (column A is the blank one)."""
+    from config import ORDERS_HEADERS
+    return 1 + list(ORDERS_HEADERS).index(field)
+
+
+def _check_orders(header):
+    from config import ORDERS_HEADERS, ORDERS_IGNORED
+    from ingest.schema_check import check_orders_header
+    return check_orders_header(header, ORDERS_HEADERS, ORDERS_IGNORED,
+                               "test orders sheet")
+
+
+def _check_resv(header):
+    from config import RESERVATIONS_COLUMNS, RESV_IGNORED
+    from ingest.schema_check import check_reservations_header
+    return check_reservations_header(header, RESERVATIONS_COLUMNS, RESV_IGNORED,
+                                    "test reservations sheet")
+
+
+def _drift(fn, *args):
+    """Return the SchemaDrift message fn raises; fail if it raises nothing."""
+    from ingest.schema_check import SchemaDrift
+    try:
+        fn(*args)
+    except SchemaDrift as exc:
+        return str(exc)
+    raise AssertionError("expected SchemaDrift, none was raised")
+
+
+def test_schema_check_accepts_the_live_sheet_headers():
+    # Guards the config itself: schema.yaml's header text has to match the real
+    # exports, or every run would fail on a header that is actually fine.
+    start, notices = _check_orders(_orders_header())
+    assert start == 1 and notices == []
+    idx, notices = _check_resv(_reservations_header())
+    assert idx["user"] == 2 and notices == []
+
+
+def test_schema_check_tolerates_cosmetic_header_edits():
+    # Case and spacing carry no meaning, so re-wording a question that way must
+    # not stop the daily build.
+    header = _orders_header()
+    header[_at("trim")] = "  TRIM  "
+    header[_at("buylease")] = "Purchase  or  Lease?"
+    assert _check_orders(header) == (1, [])
+
+
+def test_schema_check_fails_on_reordered_orders_columns():
+    header = _orders_header()
+    i, j = _at("color"), _at("interior")
+    header[i], header[j] = header[j], header[i]
+    msg = _drift(_check_orders, header)
+    assert "color" in msg and "interior" in msg and "schema.yaml" in msg
+
+
+def test_schema_check_fails_on_renamed_orders_column():
+    header = _orders_header()
+    header[_at("color")] = "Paint"
+    msg = _drift(_check_orders, header)
+    assert "'Paint'" in msg and "column L" in msg  # sheet column, as displayed
+
+
+def test_schema_check_fails_on_column_inserted_mid_block():
+    # Everything from the insertion point on shifts by one — the worst case,
+    # since each shifted column still holds plausible-looking text.
+    header = _orders_header()
+    header.insert(_at("color"), "Roof")
+    assert "color" in _drift(_check_orders, header)
+
+
+def test_schema_check_fails_when_an_orders_column_is_removed():
+    from config import ORDERS_HEADERS
+    header = [c for c in _orders_header() if c != ORDERS_HEADERS["spare"]]
+    msg = _drift(_check_orders, header)
+    assert "spare" in msg and "nothing" in msg  # last column ends up empty
+
+
+def test_schema_check_fails_without_the_number_anchor():
+    header = [c for c in _orders_header() if c != "#"]
+    assert "anchor" in _drift(_check_orders, header)
+
+
+def test_schema_check_reports_a_new_column_without_failing():
+    # A column appearing outside the block can't mis-map anything, so it is only
+    # reported — but it must be reported, since it means new data exists.
+    start, notices = _check_orders(_orders_header() + ["Home charger?"])
+    assert start == 1 and len(notices) == 1
+    assert "Home charger?" in notices[0][2]
+
+
+def test_schema_check_re_anchors_past_a_new_left_edge_column():
+    start, notices = _check_orders(["Row status"] + _orders_header())
+    assert start == 2  # block still found; the blank column A is not reported
+    assert len(notices) == 1 and "Row status" in notices[0][2]
+
+
+def test_reservations_columns_may_be_reordered():
+    # That sheet is mapped by header name, so its order genuinely doesn't matter.
+    from config import RESERVATIONS_COLUMNS
+    header = list(reversed(_reservations_header()))
+    idx, notices = _check_resv(header)
+    assert notices == []
+    assert header[idx["loc_raw"]] == RESERVATIONS_COLUMNS["loc_raw"]
+
+
+def test_reservations_missing_column_is_fatal():
+    # Silently reads as empty for every row otherwise.
+    from config import RESERVATIONS_COLUMNS
+    header = [c for c in _reservations_header()
+              if c != RESERVATIONS_COLUMNS["loc_raw"]]
+    msg = _drift(_check_resv, header)
+    assert "loc_raw" in msg and "not found" in msg
+
+
+def test_reservations_duplicate_column_is_ambiguous():
+    from config import RESERVATIONS_COLUMNS
+    header = _reservations_header() + [RESERVATIONS_COLUMNS["loc_raw"]]
+    assert "ambiguous" in _drift(_check_resv, header)
+
+
+def test_reservations_reports_only_new_unmapped_columns():
+    # The R1-owner questions are known extras (listed in ignored_columns), so a
+    # notice here means the form actually gained something.
+    idx, notices = _check_resv(_reservations_header() + ["Which trim?"])
+    assert len(notices) == 1 and "Which trim?" in notices[0][2]
+
+
+def test_find_header_skips_the_title_rows():
+    from ingest.schema_check import find_header
+    records = [[""] * 4, ["", "", "Tracker Form  <-- link to submit"],
+               _orders_header(), ["", "1", "someone"]]
+    i, header = find_header(records, "Username", "test sheet")
+    assert i == 2 and header[2] == "Username"
+
+
+def test_find_header_fails_when_there_is_no_header_row():
+    from ingest.schema_check import find_header
+    msg = _drift(find_header, [[""] * 4, ["", "junk"]], "Username", "test sheet")
+    assert "no header row" in msg
+
+
+def _orders_csv(header):
+    """A minimal orders export: blank + title rows, the given header row, then
+    one order. The data cells stay in the schema's order — a sheet reorder moves
+    the header text, which is exactly what makes the mis-map invisible."""
+    from config import ORDERS_HEADERS
+    order = {"orig_num": "1", "user": "tester", "order_raw": "6/15/2026",
+             "loc_raw": "IL", "trim": "Performance", "launch": "Yes",
+             "color": "Midnight", "interior": "Black Crater Signature",
+             "wheels": '21" Liquid Tungsten All-Season'}
+    out = io.StringIO()
+    csv.writer(out).writerows([
+        [""] * len(header),
+        ["", "", "R2 Orders & Deliveries Tracker Form  <-- link to submit"],
+        header,
+        [""] + [order.get(f, "") for f in ORDERS_HEADERS],
+    ])
+    return out.getvalue()
+
+
+def test_load_and_clean_refuses_a_reordered_sheet():
+    # The check has to be wired into the loader, not merely importable: this is
+    # the silent-corruption case the whole thing exists for. Without it, Color
+    # values would land in the interior column and every chart would be wrong
+    # while the run reported success.
+    from ingest.loaders import load_and_clean
+    meta = {"label": "test orders sheet"}
+    df, _, _ = load_and_clean(_orders_csv(_orders_header()), meta)
+    row = df[df["user"] == "tester"].iloc[0]
+    assert row["color"] == "Midnight"
+    assert row["interior"] == "Black Crater Signature"
+
+    header = _orders_header()
+    i, j = _at("color"), _at("interior")
+    header[i], header[j] = header[j], header[i]
+    assert "schema.yaml" in _drift(load_and_clean, _orders_csv(header), meta)
+
+
+def test_column_letters_match_spreadsheet_labels():
+    from ingest.schema_check import _col_letter
+    assert [_col_letter(i) for i in (0, 1, 25, 26, 27)] == \
+        ["A", "B", "Z", "AA", "AB"]
 
 
 def _run_all():

@@ -17,6 +17,7 @@ src/
   ingest/           GET + CLEAN THE DATA
     fetch.py        live-sheet fetch with caching + change detection
     parsing.py      pure parsing / VIN / date / geo helpers
+    schema_check.py header-row verification against schema.yaml (drift = hard stop)
     loaders.py      load_and_clean, load_reservations
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
@@ -29,7 +30,7 @@ src/
   conf/             the data/config YAML (loaded by config.py at import)
     palette.yaml    data-encoding colors & markers — paints, interiors, wheels, regions, delivery-type colors, chart fills (take-rate/timeline), heatmap scale
     theme.yaml      page & chart chrome for light/dark — CSS custom properties + chart retint colors + static chart accents
-    schema.yaml     sheet sources (keys/gids/labels), column maps, sanitize bounds, option take-rate vocab
+    schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
     delivery.yaml   delivery-estimate normalization — unknown tokens/substrings, explicit overrides, month names
     overrides.yaml  manual curation applied after fetch — `overrides` (edit fields on existing rows) + `additions` (append forum-only orders)
@@ -101,3 +102,4 @@ Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4)
 - Data is always pulled live from the source sheets and cached under `data/raw/` (timestamped, change-detected) — there are **no hand-maintained snapshots**, so do not add or rely on manual CSV copies. Write cleaned/derived data to `data/processed/`; never mutate the raw caches.
 - Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `palette.yaml` (data-encoding colors/markers + chart fills), `theme.yaml` (page & chart chrome for light/dark), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.
+- Both sheets' header rows are verified against `schema.yaml` on every run (`ingest/schema_check.py`). A renamed/reordered/inserted/removed column raises `SchemaDrift` and **stops the pipeline** — the orders block is read by position, so drift would silently mis-map every field; the fix is to edit `orders_columns` / `reservations_columns` to match the sheet. A new *unmapped* column is only reported in the data-quality panel; add it to `ignored_columns` once it's knowingly unused, or map it to use it.
