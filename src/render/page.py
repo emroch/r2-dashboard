@@ -8,9 +8,11 @@ populates it by element id (theme vars, stat cards, nav links, chart sections),
 then splices Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
 """
 import json
+import os
 import pandas as pd
 from pathlib import Path
 from textwrap import dedent
+from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 from plotly.offline import get_plotlyjs
@@ -22,10 +24,19 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_price_by_trim, fig_price_distribution,
                      fig_price_options, fig_state_totals, fig_vin_by_config,
                      fig_vin_vs_order)
-from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS
+from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
+                    RESV_THREAD, THEME_CSS, AS_OF)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
+
+# The "Report issue" menu's two destinations. GitHub is the tracker of record;
+# the forum DM is the no-account path, since filing an issue needs a sign-in.
+# The forum is XenForo, whose compose URL takes the recipient and a subject
+# (this exact link confirmed working).
+ISSUE_FORM_URL = "https://github.com/emroch/r2-dashboard/issues/new"
+FORUM_DM_URL = ("https://www.rivianforums.com/forum/conversations/add?"
+                + urlencode({"to": "emroch", "title": "R2 Dashboard Feedback"}))
 
 
 def _tpl(name):
@@ -160,6 +171,33 @@ PLOTLY_CONFIG = {
 ZOOM_JS = _tpl("scrollzoom.js")
 
 
+def _report_url(report):
+    """The "Report issue" button's target: the repo's dashboard-report issue form
+    with the build it was opened from prefilled.
+
+    Reports about a static page are hard to act on without knowing which build
+    the reader saw, and nobody pastes that by hand — so the button carries it.
+    The query key is the form field's `id`; GitHub silently ignores one that
+    doesn't match, hence the note in dashboard-report.yml.
+    """
+    parts = ["dashboard built %s" % AS_OF.date(),
+             "orders sheet %s" % _stamp(report["orders_meta"]["updated_at"]),
+             "reservations sheet %s" % _stamp(report["resv_meta"]["updated_at"])]
+    # Actions sets GITHUB_SHA on every run, which pins the exact deployed build;
+    # a local render just omits it.
+    sha = os.environ.get("GITHUB_SHA", "")
+    if sha:
+        parts.append("commit %s" % sha[:8])
+    return "%s?%s" % (ISSUE_FORM_URL,
+                      urlencode({"template": "dashboard-report.yml",
+                                 "build": ", ".join(parts)}))
+
+
+def _stamp(dt):
+    """A timestamp for the report prefill — plain text, not a <time> element."""
+    return dt.strftime("%Y-%m-%d %H:%M") if dt is not None else "unknown"
+
+
 def _esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -199,16 +237,21 @@ def _fmt_time(dt):
                aware.strftime("%Y-%m-%d %H:%M %Z")))
 
 
-def _src_line(name, meta, extra):
+def _src_line(name, meta, extra, thread_url):
     """One header line: linked sheet name, count, fetched + last-updated times
-    (viewer-localized via <time>), and the offline badge."""
+    (viewer-localized via <time>), the offline badge, and a link to the forum
+    thread where an entry is submitted or corrected — the sheet is the source of
+    truth, so that thread is the only route to changing any of these numbers."""
     live = ("" if meta["live"]
             else ' <span class="warn">(offline — showing cached copy)</span>')
     return ('<p class="src"><a href="%s" target="_blank" rel="noopener">%s</a> — %s '
             '<span class="dim">·</span> fetched %s%s '
-            '<span class="dim">·</span> last updated %s</p>'
+            '<span class="dim">·</span> last updated %s '
+            '<span class="dim">·</span> <a href="%s" target="_blank" '
+            'rel="noopener">add or correct your entry</a></p>'
             % (meta["view_url"], _esc(name), _esc(extra),
-               _fmt_time(meta["fetched_at"]), live, _fmt_time(meta["updated_at"])))
+               _fmt_time(meta["fetched_at"]), live, _fmt_time(meta["updated_at"]),
+               thread_url))
 
 
 # Data-quality categories: (report["quality"] key, heading, one-line note).
@@ -414,10 +457,10 @@ def build_dashboard(df, report, resv):
     intro_html = (
         '<h2>1 · Sources &amp; summary</h2>'
         + _src_line("Orders & Deliveries sheet", om,
-                    "%d unique orders" % report["n_dedup"])
+                    "%d unique orders" % report["n_dedup"], ORDERS_THREAD)
         + _src_line("Reservations sheet", rm,
                     "%d incomplete reservations (of %d rows)"
-                    % (rr["n_incomplete"], rr["n_raw"]))
+                    % (rr["n_incomplete"], rr["n_raw"]), RESV_THREAD)
         + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
           ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
           ' owner/reservation trackers are compiled from</p>'
@@ -457,6 +500,9 @@ def build_dashboard(df, report, resv):
     soup.find(id="theme-script").string = THEME_JS
     soup.find(id="nav-script").string = NAV_JS
     soup.find(id="zoom-script").string = ZOOM_JS
+    soup.find(id="reportData")["href"] = ORDERS_THREAD
+    soup.find(id="reportGithub")["href"] = _report_url(report)
+    soup.find(id="reportForum")["href"] = FORUM_DM_URL
     soup.find(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
     soup.find(id="sec-1").append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))

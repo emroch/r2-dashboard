@@ -6,17 +6,24 @@ export_url: "https://docs.google.com/spreadsheets/d/%s/export?format=csv&gid=%s"
 view_url: "https://docs.google.com/spreadsheets/d/%s/preview?gid=%s"
 
 # The two live Google Sheets. `slug` names the local cache files in data/raw/.
+# `thread_url` is the forum thread each tracker is compiled from; it carries the
+# form for adding or updating your own entry, which is the ONLY way to correct
+# the data — this pipeline just reads the sheets. Surfaced next to each source in
+# the dashboard header and in the report menu (the GitHub issue form under
+# .github/ISSUE_TEMPLATE/ repeats them, since it can't read this file).
 sources:
   orders:
     key: "13dsTsw06i7C-pEfqGxh3e9Bl1EYxS4pIelrHrCaLZYk"
     gid: "0"
     label: "Orders & Deliveries sheet"
     slug: "r2_orders_live"
+    thread_url: "https://www.rivianforums.com/forum/threads/59905/"
   reservations:
     key: "1Z_TSfn1eR580_ZBrTMGvO60-iKnEP8ZMKKC4q2Yv9Po"
     gid: "0"
     label: "Reservations sheet"
     slug: "r2_reservations_live"
+    thread_url: "https://www.rivianforums.com/forum/threads/24890/"
 
 # How each sheet's columns map to internal fields: field -> the exact sheet
 # header text. Columns are located BY NAME (the header row is the one containing

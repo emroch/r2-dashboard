@@ -68,6 +68,9 @@ ORDERS_KEY, ORDERS_GID = _ORDERS_SRC["key"], _ORDERS_SRC["gid"]
 ORDERS_LABEL, ORDERS_SLUG = _ORDERS_SRC["label"], _ORDERS_SRC["slug"]
 RESV_KEY, RESV_GID = _RESV_SRC["key"], _RESV_SRC["gid"]
 RESV_LABEL, RESV_SLUG = _RESV_SRC["label"], _RESV_SRC["slug"]
+# Forum thread behind each tracker — where an entry is submitted or corrected.
+ORDERS_THREAD = _ORDERS_SRC["thread_url"]
+RESV_THREAD = _RESV_SRC["thread_url"]
 
 # --- Colors & marker encodings (palette.yaml) -----------------------------
 # Exterior paints: the display hex actually used. COLOR_ORDER drives ordering.
