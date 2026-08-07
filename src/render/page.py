@@ -144,6 +144,16 @@ THEME_JS = _tpl("theme.js").replace("/*__CHROME_JS__*/", _CHROME_JS)
 # highlights the section currently in view via IntersectionObserver.
 NAV_JS = _tpl("nav.js")
 
+# Plotly toolbar, applied to every figure. Box- and lasso-select mark points for
+# a selection this dashboard never reads, so they only add width to a bar that
+# has to fit in a chart's top margin; dropping them takes it from 272px to 200px.
+# The logo goes too — it links off-site and earns none of that space. Zoom, pan
+# and reset stay, since they're the ones worth having on the denser charts.
+PLOTLY_CONFIG = {
+    "displaylogo": False,
+    "modeBarButtonsToRemove": ["select2d", "lasso2d"],
+}
+
 # Arbitrates the scroll wheel between zooming a map and scrolling the page
 # (see scrollzoom.js). Separate from nav.js so the scroll-spy and the wheel
 # arbitration stay independently readable.
@@ -304,7 +314,7 @@ def build_dashboard(df, report, resv):
             plots[pid] = fig.to_html(
                 full_html=False,
                 include_plotlyjs=("directory" if pid == 1 else False),
-                default_width="100%")
+                default_width="100%", config=PLOTLY_CONFIG)
             frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
         sections.append(
