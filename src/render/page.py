@@ -215,12 +215,14 @@ def _src_line(name, meta, extra):
 _QA_CATS = [
     ("schema_notices", "Unmapped source columns",
      "Columns a source sheet has that nothing here reads. The sheets are "
-     "hand-maintained forms, so their header rows are checked against the "
-     "schema on every run: a renamed, reordered, inserted, or removed column "
-     "stops the build outright, since those columns are read by position and a "
-     "mis-map would corrupt every figure with no visible error. A new column is "
-     "harmless by comparison and is only listed here — nothing is charted from "
-     "it until the schema maps it."),
+     "hand-maintained forms, so their columns are located by name and only the "
+     "ones listed in the schema are read at all — reordering a sheet, or adding "
+     "a question to the form, changes nothing. What is checked on every run is "
+     "that each column the schema names is present exactly once: a renamed, "
+     "removed, or duplicated one stops the build outright, since it would "
+     "otherwise read as empty for every row and quietly skew every figure. A new "
+     "column can't do any harm, so it is only listed here — nothing is charted "
+     "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
     ("fuzzy_dups", "Possible duplicate usernames",

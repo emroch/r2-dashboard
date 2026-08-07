@@ -18,7 +18,7 @@ src/
   ingest/             get + clean the data
     fetch.py          live-sheet fetch with caching + change detection
     parsing.py        pure parsing / VIN / date / geo helpers
-    schema_check.py   verifies each sheet's header row against schema.yaml
+    schema_check.py   locates columns by name; verifies them against schema.yaml
     loaders.py        load_and_clean, load_reservations
   render/             build the webpage
     colors.py         color-transform functions + derived display palettes
@@ -77,13 +77,16 @@ always pulled live and cached under `data/raw/`; there are no hand-maintained
 snapshots — the raw caches are committed, so `data/raw/` is a dated,
 change-detected history of the sheets (useful for trend analysis).
 
-Because both sheets are hand-maintained forms, each header row is verified
-against `src/conf/schema.yaml` on every run. A renamed, reordered, inserted, or
-removed column **stops the pipeline** — the orders sheet is read by position, so
-a shifted slice would corrupt every figure without raising anything; failing means
-the deployed dashboard stays on its last good build until `schema.yaml` is updated
-to match. A merely *new* column can't mis-map anything, so it's listed in the
-dashboard's data-quality panel instead, as a nudge that new data is available.
+Because both sheets are hand-maintained forms, columns are located by **name**
+rather than position, and only the columns actually used are read. So the sheets
+can be reordered, or grow new questions anywhere, with no effect. What is checked
+on every run is that each column named in `src/conf/schema.yaml` is present
+exactly once: a mapped column that has been **renamed, removed, or duplicated
+stops the pipeline**, since it would otherwise read as empty (or ambiguously) for
+every row and quietly skew every figure. Failing means the deployed dashboard
+stays on its last good build until `schema.yaml` is updated to match. A merely
+*new* column can't affect anything, so it's listed in the dashboard's
+data-quality panel instead, as a nudge that new data is available.
 
 ## Deployment
 

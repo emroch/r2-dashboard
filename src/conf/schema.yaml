@@ -18,52 +18,53 @@ sources:
     label: "Reservations sheet"
     slug: "r2_reservations_live"
 
-# Orders sheet: a fixed block of columns starting at the "#" column (the header
-# row is the one containing "Username"). Maps internal field name -> the exact
-# sheet header text, in sheet order: the order and length define the block, and
-# the header text is verified against the sheet on every run (schema_check.py).
-# These columns are read BY POSITION, so a rename/reorder/insert/remove in the
-# sheet would mis-map every field it shifts and silently corrupt every number —
-# the check stops the pipeline instead. If the sheet legitimately changes, edit
-# this map to match it (that is the only fix needed).
+# How each sheet's columns map to internal fields: field -> the exact sheet
+# header text. Columns are located BY NAME (the header row is the one containing
+# "Username"), so the sheets are free to reorder their columns or grow new ones —
+# only what is listed here is read at all. Verified on every run by
+# ingest/schema_check.py: a mapped header that has gone missing or appears twice
+# stops the pipeline, since it would otherwise read as empty (or ambiguously) for
+# every row and quietly skew every figure. Field order is cosmetic — it sets the
+# column order of the cleaned CSV, and mirrors the sheet for easy comparison.
 orders_columns:
-  orig_num:       "#"
-  user:           "Username"
-  resv_raw:       "Original Reservation Date"
-  order_raw:      "R2 Order Date"
-  vin_raw:        "VIN Assigned"
-  delivery_raw:   "Estimated Delivery Date / Window"
-  buylease:       "Purchase or Lease?"
-  loc_raw:        "Location"
-  trim:           "Trim"
-  launch:         "Launch Package"
-  color:          "Color"
-  interior:       "Interior"
-  wheels:         "Wheels"
-  autonomy:       "Autonomy+ Option Added"
-  tow:            "Tow Package Added"
-  spare:          "Compact Spare Tire Added"
-  r1_owner:       "Are you a current Rivian R1 owner?"
-  r1_keep:        "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
-  r1_model:       "If you are a current R1 owner, which model?"
-  other_vehicles: "Other vehicles currently owned"
+  orig_num:     "#"
+  user:         "Username"
+  resv_raw:     "Original Reservation Date"
+  order_raw:    "R2 Order Date"
+  vin_raw:      "VIN Assigned"
+  delivery_raw: "Estimated Delivery Date / Window"
+  buylease:     "Purchase or Lease?"
+  loc_raw:      "Location"
+  trim:         "Trim"
+  launch:       "Launch Package"
+  color:        "Color"
+  interior:     "Interior"
+  wheels:       "Wheels"
+  autonomy:     "Autonomy+ Option Added"
+  tow:          "Tow Package Added"
+  spare:        "Compact Spare Tire Added"
+  r1_owner:     "Are you a current Rivian R1 owner?"
+  r1_model:     "If you are a current R1 owner, which model?"
 
-# Reservations sheet: mapped by header NAME (its layout differs), so its column
-# order is immaterial — but each header below must appear exactly once, since a
-# missing one would read as empty for every row and a repeated one is ambiguous.
+# The reservations sheet is a different form (no order/VIN/config/delivery), and
+# its R1-owner answers aren't charted, so only these four are read.
 reservations_columns:
   orig_num: "#"
   user: "Username"
   resv_raw: "R2 reservation date"
   loc_raw: "Location"
 
-# Columns that exist in a sheet but are deliberately not read. Listing them keeps
-# the drift check quiet about the known extras while still reporting any NEW
-# unmapped column in the data-quality panel — which usually means the form gained
-# a question worth charting. Empty header cells (spacers, trailing commas) never
-# need listing. The orders block is complete, so it has no known extras.
+# Columns each sheet has that we deliberately don't read. Listing them keeps the
+# data-quality panel quiet about the known extras while still reporting any NEW
+# unmapped column — which usually means the form gained a question worth
+# charting. Empty header cells (spacers, trailing commas) never need listing.
+# "will you be keeping your R1" is skipped on purpose, not by oversight: 10
+# non-owners have answered it, so it carries no ownership signal (see
+# parsing.reconcile_r1_owner).
 ignored_columns:
-  orders: []
+  orders:
+    - "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
+    - "Other vehicles currently owned"
   reservations:
     - "Are you a current Rivian R1 owner?"
     - "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
