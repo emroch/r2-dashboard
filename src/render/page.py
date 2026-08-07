@@ -29,10 +29,13 @@ from config import CHART_CHROME, COLOR_HEX, DASHBOARD, THEME_CSS, AS_OF
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
 
-# Where the "Report issue" button points. The repo is the tracker of record for
-# dashboard problems; corrections to a person's own order belong in the source
-# sheet instead, which the issue form says up front.
+# The "Report issue" menu's two destinations. GitHub is the tracker of record;
+# the forum DM is the no-account path, since filing an issue needs a sign-in.
+# The forum is XenForo, whose compose URL takes the recipient and a subject
+# (this exact link confirmed working).
 ISSUE_FORM_URL = "https://github.com/emroch/r2-dashboard/issues/new"
+FORUM_DM_URL = ("https://www.rivianforums.com/forum/conversations/add?"
+                + urlencode({"to": "emroch", "title": "R2 Dashboard Feedback"}))
 
 
 def _tpl(name):
@@ -491,7 +494,8 @@ def build_dashboard(df, report, resv):
     soup.find(id="theme-script").string = THEME_JS
     soup.find(id="nav-script").string = NAV_JS
     soup.find(id="zoom-script").string = ZOOM_JS
-    soup.find(id="reportLink")["href"] = _report_url(report)
+    soup.find(id="reportGithub")["href"] = _report_url(report)
+    soup.find(id="reportForum")["href"] = FORUM_DM_URL
     soup.find(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
     soup.find(id="sec-1").append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
