@@ -117,6 +117,25 @@ python3 tests/test_parsing.py     # no pytest required
 pytest tests/
 ```
 
+## Reporting a problem
+
+The dashboard's **⚑ Report issue** menu offers three routes, because they lead
+different places:
+
+- **Your own order data is wrong** → the forum thread the tracker is compiled
+  from, which carries the form for updating your entry. This pipeline only
+  *reads* those sheets, so fixing the data at the source is what reaches everyone
+  using it — not just this page. Each sheet's thread is set as `thread_url` in
+  `src/conf/schema.yaml` and also linked beside that sheet in the page header.
+- **Something's wrong with this page** → the
+  [dashboard-report issue form](.github/ISSUE_TEMPLATE/dashboard-report.yml),
+  prefilled with the build it was opened from (as-of date, each sheet's
+  last-updated time, and the deployed commit), so a report is reproducible
+  without the reader having to describe their build. Lands labelled
+  `from-dashboard`.
+- **Message @emroch on the forum** → for anyone without a GitHub account, since
+  filing an issue requires signing in.
+
 ## Roadmap
 
 Planned improvements are tracked as
