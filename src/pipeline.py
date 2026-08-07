@@ -23,6 +23,10 @@ def main():
     report["orders_meta"] = orders_meta
     report["resv_meta"] = resv_meta
     report["resv"] = resv_report
+    # Both sheets' schema notices share one data-quality category — the panel
+    # reads report["quality"], and a newly added column is equally newsworthy
+    # whichever sheet grew it. (Drift that would mis-map data already raised.)
+    report["quality"]["schema_notices"] += resv_report["schema_notices"]
 
     # Persist cleaned data (tidy formatting: dates as YYYY-MM-DD, int miles,
     # nullable-int VIN sequence).
@@ -114,6 +118,11 @@ def main():
         print("  ! Override issues (%d):" % len(issues))
         for i, u, d in issues:
             print("     #%-4s %-20s %s" % (i, u, d))
+    notices = report["quality"]["schema_notices"]
+    if notices:
+        print("  ! Unmapped source columns (%d):" % len(notices))
+        for _, sheet, detail in notices:
+            print("     %s — %s" % (sheet, detail))
     print("-" * 64)
     for m in (orders_meta, resv_meta):
         if m["changed"] and m["cache"]:

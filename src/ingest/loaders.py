@@ -13,13 +13,34 @@ import numpy as np
 import pandas as pd
 
 from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
-                     ORDER_DATE_MIN, ORDERS_COLUMNS, OVERRIDES,
-                     RESERVATIONS_COLUMNS, RESV_DATE_MIN, SPARE_TOKENS,
+                     ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
+                     ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
+                     RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
                      UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
                      WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date, reconcile_r1_owner)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
+from .schema_check import find_header, map_columns
+
+
+def _extract(records, hdr_idx, idx, fields):
+    """Pull the mapped columns out of a sheet's data records into a string
+    DataFrame, in `fields` order.
+
+    `idx` is the field -> column index map resolved from the header, so which
+    columns are read is decided by name and nothing depends on their position.
+    Rows that stop short of a mapped column (these exports have ragged trailing
+    commas) get an empty cell rather than raising.
+    """
+    fields = list(fields)
+    cols = [idx[f] for f in fields]
+    rows = [[(rec[j] if j < len(rec) else "") for j in cols]
+            for rec in records[hdr_idx + 1:]]
+    df = pd.DataFrame(rows, columns=fields)
+    for c in df.columns:
+        df[c] = df[c].astype(str).str.strip()
+    return df
 
 
 def _apply_overrides(df, overrides):
@@ -126,21 +147,16 @@ def _availability_mask(df):
 
 def load_and_clean(text, meta):
     # The orders sheet export carries title/notes rows above the header AND a
-    # leading blank column (so "#" sits at index 1, not 0). Parse with the csv
-    # module (robust to quoted newlines in the title cells), find the header
-    # record by locating "Username", then slice the fixed 20-column block
-    # starting at "#" — anchoring columns by content, not absolute position.
+    # leading blank column. Parse with the csv module (robust to quoted newlines
+    # in the title cells), find the header record by locating "Username", then
+    # read the mapped columns BY NAME — so the sheet can be reordered or gain
+    # questions freely, and only a column we actually need going missing is an
+    # error (see schema_check.py).
     records = list(csv.reader(io.StringIO(text)))
-    hdr_idx = next((i for i, r in enumerate(records)
-                    if any(c.strip() == "Username" for c in r)), 0)
-    header = [c.strip() for c in records[hdr_idx]]
-    start = header.index("#") if "#" in header else 0
-    ncol = len(header)
-    names = ORDERS_COLUMNS
-    rows = [((r + [""] * ncol)[start:start + len(names)]) for r in records[hdr_idx + 1:]]
-    df = pd.DataFrame(rows, columns=names)
-    for c in df.columns:
-        df[c] = df[c].astype(str).str.strip()
+    hdr_idx, header = find_header(records, ORDERS_HEADERS["user"], meta["label"])
+    idx, schema_notices = map_columns(header, ORDERS_HEADERS, ORDERS_IGNORED,
+                                      meta["label"])
+    df = _extract(records, hdr_idx, idx, ORDERS_COLUMNS)
     df = df[df["user"] != ""].reset_index(drop=True)  # drop blank spacer rows
     n_raw = len(df)
 
@@ -405,6 +421,7 @@ def load_and_clean(text, meta):
             "Manual additions": add_records,
         },
         "quality": {
+            "schema_notices": schema_notices,
             "unparseable": unparseable,
             "fuzzy_dups": fuzzy_dups,
             "vin_unrec": unrec_records,
@@ -422,28 +439,21 @@ def load_and_clean(text, meta):
 def load_reservations(text, order_users):
     """Parse the reservations-only sheet and return (resv_df, resv_report).
 
-    Different layout from the orders sheet (columns: #, Username, R2 reservation
-    date, Location, R1-owner questions — no order/VIN/config/delivery), so map
-    by header name rather than by position. Steps: drop within-sheet duplicate
-    usernames; drop holders already present in the orders sheet (they are
-    counted as orders — the remainder are "incomplete" orders); null pre-reveal
+    A different form from the orders sheet (columns: #, Username, R2 reservation
+    date, Location, R1-owner questions — no order/VIN/config/delivery), and its
+    R1 answers aren't charted, so only four columns are mapped; they're located
+    by name exactly as the orders sheet's are. Steps: drop within-sheet duplicate
+    usernames; drop holders already present in the orders sheet (they are counted
+    as orders — the remainder are "incomplete" orders); null pre-reveal
     (<2024-03-07) reservation dates; geo-enrich by state.
     """
     records = list(csv.reader(io.StringIO(text)))
-    hdr_idx = next((i for i, r in enumerate(records)
-                    if any(c.strip() == "Username" for c in r)), 0)
-    header = [c.strip() for c in records[hdr_idx]]
-    idx = {name: j for j, name in enumerate(header)}
-
-    def col(row, header):
-        j = idx.get(header)
-        return row[j].strip() if (j is not None and j < len(row)) else ""
-
-    fields = RESERVATIONS_COLUMNS  # internal field -> sheet header name
-    user_hdr = fields["user"]
-    rows = [{field: col(r, hdr) for field, hdr in fields.items()}
-            for r in records[hdr_idx + 1:] if col(r, user_hdr)]
-    resv = pd.DataFrame(rows, columns=list(fields.keys()))
+    hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
+                                 RESV_LABEL)
+    idx, schema_notices = map_columns(header, RESERVATIONS_COLUMNS,
+                                      RESV_IGNORED, RESV_LABEL)
+    resv = _extract(records, hdr_idx, idx, RESERVATIONS_COLUMNS)
+    resv = resv[resv["user"] != ""].reset_index(drop=True)
     n_raw = len(resv)
 
     # Within-sheet duplicate usernames: keep first, record the rest.
@@ -474,5 +484,6 @@ def load_reservations(text, order_users):
         "n_raw": n_raw, "n_self_dupes": n_self_dupes, "n_matched": n_matched,
         "n_bad_dates": int(bad.sum()), "n_incomplete": len(resv),
         "self_dupe_records": self_dupe_records, "matched_records": matched_records,
+        "schema_notices": schema_notices,
     }
     return resv, resv_report
