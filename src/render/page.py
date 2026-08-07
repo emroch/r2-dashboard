@@ -213,6 +213,16 @@ def _src_line(name, meta, extra):
 
 # Data-quality categories: (report["quality"] key, heading, one-line note).
 _QA_CATS = [
+    ("schema_notices", "Unmapped source columns",
+     "Columns a source sheet has that nothing here reads. The sheets are "
+     "hand-maintained forms, so their columns are located by name and only the "
+     "ones listed in the schema are read at all — reordering a sheet, or adding "
+     "a question to the form, changes nothing. What is checked on every run is "
+     "that each column the schema names is present exactly once: a renamed, "
+     "removed, or duplicated one stops the build outright, since it would "
+     "otherwise read as empty for every row and quietly skew every figure. A new "
+     "column can't do any harm, so it is only listed here — nothing is charted "
+     "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
     ("fuzzy_dups", "Possible duplicate usernames",
@@ -244,6 +254,18 @@ _QA_CATS = [
      "sheet."),
 ]
 
+# Categories whose middle column names something other than a user (the table
+# markup is shared across every category).
+_QA_MID = {"schema_notices": "sheet"}
+
+
+def _qa_id(num):
+    """A flagged row's sheet number, as "#12". Some entries have no number — a
+    whole-sheet notice, or an overrides.yaml key matching no row — and the
+    loaders mark those "—", which shouldn't come out as "#—"."""
+    text = _esc(num)
+    return text if text == "—" else "#" + text
+
 
 def _quality_section(quality, num, cap=40):
     """The data-quality / anomaly panel: things flagged for human review rather
@@ -252,13 +274,13 @@ def _quality_section(quality, num, cap=40):
     for key, name, note in _QA_CATS:
         rows = quality.get(key, [])
         if rows:
-            body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
-                           % (_esc(i), _esc(u), _esc(d)) for i, u, d in rows[:cap])
+            body = "".join("<tr><td>%s</td><td>%s</td><td>%s</td></tr>"
+                           % (_qa_id(i), _esc(u), _esc(d)) for i, u, d in rows[:cap])
             if len(rows) > cap:
                 body += ('<tr><td></td><td></td><td>&hellip; and %d more</td></tr>'
                          % (len(rows) - cap))
-            content = ('<table><tr><th>#</th><th>user</th><th>detail</th></tr>'
-                       '%s</table>' % body)
+            content = ('<table><tr><th>#</th><th>%s</th><th>detail</th></tr>'
+                       '%s</table>' % (_QA_MID.get(key, "user"), body))
         else:
             content = '<p class="qa-none">None &#10003;</p>'
         blocks.append('<div class="qa-cat"><h3>%s<span class="qa-n">%d</span></h3>'
