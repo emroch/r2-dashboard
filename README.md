@@ -107,7 +107,8 @@ pytest tests/
 
 ## Roadmap
 
-Planned improvements are tracked in [ROADMAP.md](ROADMAP.md).
+Planned improvements are tracked as
+[GitHub issues](https://github.com/emroch/r2-dashboard/issues).
 
 ## License
 
