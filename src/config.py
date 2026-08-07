@@ -92,10 +92,19 @@ TRIM_COLORS = dict(_PALETTE["trims"])
 R1_MODEL_COLORS = dict(_PALETTE["r1_models"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
-# Orders: positional field names for the block starting at "#". Reservations:
-# field -> header-name lookup (its sheet layout differs).
-ORDERS_COLUMNS = list(_SCHEMA["orders_columns"])
+# Both maps are field -> exact sheet header text. Orders is read POSITIONALLY —
+# the map's order and length define the fixed block sliced from "#", and the
+# header text is what the drift check verifies (see ingest/schema_check.py).
+# Reservations is looked up BY header name (its sheet layout differs), so its
+# order is immaterial. IGNORED lists the columns each sheet has that we
+# knowingly don't read, so only a NEW unmapped column gets reported.
+_ORDERS_COLS = dict(_SCHEMA["orders_columns"])
+ORDERS_COLUMNS = list(_ORDERS_COLS)   # field names, in sheet order
+ORDERS_HEADERS = _ORDERS_COLS         # field -> expected sheet header text
 RESERVATIONS_COLUMNS = dict(_SCHEMA["reservations_columns"])
+_IGNORED = _SCHEMA.get("ignored_columns") or {}
+ORDERS_IGNORED = list(_IGNORED.get("orders") or [])
+RESV_IGNORED = list(_IGNORED.get("reservations") or [])
 
 # --- Sanitization bounds (schema.yaml) ------------------------------------
 _SAN = _SCHEMA["sanitize"]

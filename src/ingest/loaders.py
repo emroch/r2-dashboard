@@ -13,13 +13,16 @@ import numpy as np
 import pandas as pd
 
 from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
-                     ORDER_DATE_MIN, ORDERS_COLUMNS, OVERRIDES,
-                     RESERVATIONS_COLUMNS, RESV_DATE_MIN, SPARE_TOKENS,
+                     ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
+                     ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
+                     RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
                      UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
                      WHEELS_LABEL_20, WHEELS_LABEL_21)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date, reconcile_r1_owner)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
+from .schema_check import (check_orders_header, check_reservations_header,
+                           find_header)
 
 
 def _apply_overrides(df, overrides):
@@ -130,11 +133,13 @@ def load_and_clean(text, meta):
     # module (robust to quoted newlines in the title cells), find the header
     # record by locating "Username", then slice the fixed 20-column block
     # starting at "#" — anchoring columns by content, not absolute position.
+    # Within that block the mapping IS positional, so the header text is checked
+    # against schema.yaml first: drift stops the run here rather than silently
+    # mis-mapping every field (see schema_check.py).
     records = list(csv.reader(io.StringIO(text)))
-    hdr_idx = next((i for i, r in enumerate(records)
-                    if any(c.strip() == "Username" for c in r)), 0)
-    header = [c.strip() for c in records[hdr_idx]]
-    start = header.index("#") if "#" in header else 0
+    hdr_idx, header = find_header(records, ORDERS_HEADERS["user"], meta["label"])
+    start, schema_notices = check_orders_header(header, ORDERS_HEADERS,
+                                               ORDERS_IGNORED, meta["label"])
     ncol = len(header)
     names = ORDERS_COLUMNS
     rows = [((r + [""] * ncol)[start:start + len(names)]) for r in records[hdr_idx + 1:]]
@@ -405,6 +410,7 @@ def load_and_clean(text, meta):
             "Manual additions": add_records,
         },
         "quality": {
+            "schema_notices": schema_notices,
             "unparseable": unparseable,
             "fuzzy_dups": fuzzy_dups,
             "vin_unrec": unrec_records,
@@ -424,25 +430,25 @@ def load_reservations(text, order_users):
 
     Different layout from the orders sheet (columns: #, Username, R2 reservation
     date, Location, R1-owner questions — no order/VIN/config/delivery), so map
-    by header name rather than by position. Steps: drop within-sheet duplicate
-    usernames; drop holders already present in the orders sheet (they are
-    counted as orders — the remainder are "incomplete" orders); null pre-reveal
-    (<2024-03-07) reservation dates; geo-enrich by state.
+    by header name rather than by position, after checking that every mapped
+    header is present exactly once (schema_check.py). Steps: drop within-sheet
+    duplicate usernames; drop holders already present in the orders sheet (they
+    are counted as orders — the remainder are "incomplete" orders); null
+    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state.
     """
     records = list(csv.reader(io.StringIO(text)))
-    hdr_idx = next((i for i, r in enumerate(records)
-                    if any(c.strip() == "Username" for c in r)), 0)
-    header = [c.strip() for c in records[hdr_idx]]
-    idx = {name: j for j, name in enumerate(header)}
+    hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
+                                 RESV_LABEL)
+    idx, schema_notices = check_reservations_header(
+        header, RESERVATIONS_COLUMNS, RESV_IGNORED, RESV_LABEL)
 
-    def col(row, header):
-        j = idx.get(header)
+    def col(row, field):
+        j = idx.get(field)
         return row[j].strip() if (j is not None and j < len(row)) else ""
 
     fields = RESERVATIONS_COLUMNS  # internal field -> sheet header name
-    user_hdr = fields["user"]
-    rows = [{field: col(r, hdr) for field, hdr in fields.items()}
-            for r in records[hdr_idx + 1:] if col(r, user_hdr)]
+    rows = [{field: col(r, field) for field in fields}
+            for r in records[hdr_idx + 1:] if col(r, "user")]
     resv = pd.DataFrame(rows, columns=list(fields.keys()))
     n_raw = len(resv)
 
@@ -474,5 +480,6 @@ def load_reservations(text, order_users):
         "n_raw": n_raw, "n_self_dupes": n_self_dupes, "n_matched": n_matched,
         "n_bad_dates": int(bad.sum()), "n_incomplete": len(resv),
         "self_dupe_records": self_dupe_records, "matched_records": matched_records,
+        "schema_notices": schema_notices,
     }
     return resv, resv_report
