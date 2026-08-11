@@ -529,10 +529,11 @@ def fig_wheels_by_location(df):
     """Wheel mix overall, by region, and across the order state's reference figures.
 
     Every panel is 100% stacked, so the mix is comparable regardless of how many
-    orders a row holds (the West has ~3x the Northeast). The "All orders" row on
-    top is the baseline: read a row against it to see which way that group leans.
-    Absolute counts ride along in the hover and as an "n=" suffix on every label,
-    because a share off 18 orders and a share off 89 are not the same claim.
+    orders a row holds — regional volumes differ by several times over. The "All
+    orders" row on top is the baseline: read a row against it to see which way that
+    group leans. Absolute counts ride along in the hover and as an "n=" suffix on
+    every label, because a share off a dozen orders and a share off a hundred are
+    not the same claim.
 
     The bottom three panels are ordered by VALUE, not by volume — the question is
     whether the mix shifts as you go higher, colder or more urban, which only reads
@@ -540,10 +541,11 @@ def fig_wheels_by_location(df):
 
     All three are per-state averages (geo.yaml), and the dashboard only knows an
     order's state, so each is a weak proxy with its own specific failure. Elevation
-    is terrain, not where people live: a California order is charted at ~2,900 ft
-    from San Diego or Tahoe alike, and California is a fifth of the cohort. Percent
-    urban replaced raw population density, which mis-sorted exactly the states that
-    matter — Nevada is 28/sq mi but ~94% urban, so density filed a metro Las Vegas
+    is terrain, not where people live: a California order is charted at that state's
+    ~2,900 ft mean whether it came from San Diego or Tahoe, and California is
+    consistently the largest single share of the cohort. Percent urban replaced raw
+    population density, which mis-sorted exactly the states that matter — Nevada is
+    28/sq mi but ~94% urban, so density filed a metro Las Vegas
     order as rural; what percent urban still can't do is tell a dense-city resident
     from a small-town one. Temperature flattens season and altitude together. They
     can suggest a lean; none of them is evidence of one. States with no published
