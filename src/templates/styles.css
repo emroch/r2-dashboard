@@ -112,6 +112,11 @@ section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:
  transition:background .2s ease,border-color .2s ease;}
 section h2{margin:0 0 4px;font-size:19px;color:var(--sec-title);}
 section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.45;}
+/* Source links in a section's description, treated like the header's source
+   links rather than left to the browser default (which ignores the theme). */
+section p.desc a{color:var(--link);text-decoration:none;
+ border-bottom:1px dotted currentColor;}
+section p.desc a:hover{filter:brightness(1.15);}
 /* A section may hold several independent plots (each with its own zoom/modebar);
    space them apart so stacked charts don't read as one crowded figure. */
 .plot + .plot{margin-top:22px;}
