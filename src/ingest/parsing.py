@@ -13,8 +13,9 @@ import pandas as pd
 
 from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, DELIVERY_YEAR_MAX,
                      DELIVERY_YEAR_MIN, FACTORY, MONTHS, MONTH_MODIFIERS,
-                     ORDER_ANCHOR_MIN, STATE_INFO, UNKNOWN_SUBSTRINGS,
-                     UNKNOWN_TOKENS, VIN_SEQ_MIN)
+                     ORDER_ANCHOR_MIN, STATE_INFO, STATE_TERRAIN,
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VIN_SEQ_MIN,
+                     WHEEL_SHORT)
 
 
 def clean_vin(token):
@@ -414,9 +415,45 @@ def loc_to_state(loc):
 
 
 def geo_enrich(df):
-    """Add state/region/lat/lon columns from a `loc_raw` column, in place."""
+    """Add state/region/lat/lon plus terrain/climate columns from `loc_raw`, in
+    place. Elevation and temperature are per-state reference figures (see
+    geo.yaml), NaN wherever the state isn't covered — a missing value has to stay
+    missing so the charts can show it as its own bar."""
     df["state"] = df["loc_raw"].apply(loc_to_state)
     df["region"] = df["state"].map(lambda s: STATE_INFO.get(s, ("Unknown",))[0])
     df["lat"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[1])
     df["lon"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[2])
+    df["elev_ft"] = df["state"].map(
+        lambda s: STATE_TERRAIN.get(s, (np.nan, np.nan))[0])
+    df["temp_f"] = df["state"].map(
+        lambda s: STATE_TERRAIN.get(s, (np.nan, np.nan))[1])
     return df
+
+
+# Sheet wheel values are hand-typed, so match on a normalized key: the form uses
+# curly quotes but a hand edit may not, and spacing/case drift either way.
+_WHEEL_BY_KEY = {}
+
+
+def _wheel_key(text):
+    """Normalization key for a wheel value: straight quotes, single spaces, lower."""
+    s = str(text or "").replace("”", '"').replace("“", '"').replace("’", "'")
+    return " ".join(s.split()).lower()
+
+
+for _raw, _short in WHEEL_SHORT.items():
+    _WHEEL_BY_KEY[_wheel_key(_raw)] = _short
+
+
+def wheel_label(raw):
+    """Sheet wheel value -> display label, by identity rather than by size.
+
+    Two of the four R2 wheels are 20", so a size test can't tell them apart — the
+    old "contains 21" rule silently labelled every non-21" wheel as the 20"
+    All-Terrain, which would have mislabelled Premium and Standard orders the
+    moment those trims shipped. An unrecognized value keeps its own text so it
+    shows up as its own category instead of being folded into a real wheel;
+    pricing already flags it as not offered on the order's trim.
+    """
+    text = str(raw or "").strip()
+    return _WHEEL_BY_KEY.get(_wheel_key(text), text)

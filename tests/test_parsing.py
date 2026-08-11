@@ -717,6 +717,86 @@ def test_report_button_prefill_matches_the_issue_form():
     assert "unknown" in query["build"][0]
 
 
+# --- Wheel identity and the wheel-by-location panels -------------------------
+# Two of the four R2 wheels are 20", so nothing may infer a wheel from its size.
+# The old rule ("contains 21" -> the 21", else the 20" All-Terrain) was correct
+# only while Performance was the sole shipping trim; these pin the replacement.
+
+
+def test_wheel_label_identifies_all_four_wheels():
+    from config import WHEEL_SHORT
+    from ingest.parsing import wheel_label
+    for raw, short in WHEEL_SHORT.items():
+        assert wheel_label(raw) == short, raw
+    # The distinguishing case: two different 20" wheels must not collide.
+    twenties = [s for s in WHEEL_SHORT.values() if s.startswith('20"')]
+    assert len(twenties) == len(set(twenties)) == 2
+
+
+def test_wheel_label_tolerates_quote_and_spacing_drift():
+    # The form emits a curly ”, but the sheet is hand-maintained, so a straight
+    # quote, doubled space, or different case must still land on the same wheel.
+    from config import WHEEL_SHORT
+    from ingest.parsing import wheel_label
+    raw = next(r for r in WHEEL_SHORT if "”" in r)
+    want = WHEEL_SHORT[raw]
+    assert wheel_label(raw.replace("”", '"')) == want
+    assert wheel_label("  " + raw.upper() + " ") == want
+    assert wheel_label(raw.replace(" ", "  ")) == want
+
+
+def test_wheel_label_keeps_an_unknown_value_visible():
+    # An unrecognized wheel keeps its own text rather than being folded into a
+    # real one — a wrong-but-plausible label is worse than an obvious stranger.
+    from ingest.parsing import wheel_label
+    assert wheel_label("22” Moon Boots All-Weather") == "22” Moon Boots All-Weather"
+    assert wheel_label("") == ""
+
+
+def test_numeric_bins_order_by_value_and_bucket_missing():
+    from render.charts import _NO_STATE_DATA, _numeric_bins
+    vals = pd.Series([100.0, 900.0, 2000.0, 9000.0, float("nan")])
+    labels, keys = _numeric_bins(vals, [500, 1500, 3500], "ft")
+    # Ascending by value, never by volume, with the no-data bar last.
+    assert keys == ["< 500 ft", "500–1,500 ft", "1,500–3,500 ft", "3,500+ ft",
+                    _NO_STATE_DATA]
+    assert list(labels) == keys[:4] + [_NO_STATE_DATA]
+    # An empty bin is dropped rather than drawn as a gap.
+    _, sparse = _numeric_bins(pd.Series([100.0, 9000.0]), [500, 1500, 3500], "ft")
+    assert sparse == ["< 500 ft", "3,500+ ft"]
+
+
+def test_wheels_by_location_panels_partition_the_cohort():
+    # Every panel is a 100% stack over the same orders, so each bar's segments
+    # must total 100% and each panel's n= must total the cohort. A row that
+    # double-counts or drops an order would still look like a plausible chart.
+    from collections import defaultdict
+    from config import WHEEL_ORDER
+    from render.charts import fig_wheels_by_location
+    w21, w20 = WHEEL_ORDER[-1], WHEEL_ORDER[-2]
+    df = pd.DataFrame({
+        "lat": [40.0, 41.0, 42.0, 43.0, 44.0],
+        "region": ["West", "West", "South", "Northeast", "Canada"],
+        "wheels_short": [w21, w20, w20, w21, w20],
+        "elev_ft": [6800.0, 100.0, 350.0, 1000.0, float("nan")],
+        "temp_f": [45.1, 70.7, 62.4, 45.4, float("nan")],
+    })
+    fig = fig_wheels_by_location(df)
+    pct = defaultdict(lambda: defaultdict(float))
+    n = defaultdict(lambda: defaultdict(int))
+    for tr in fig.data:
+        axis = tr.yaxis or "y"
+        for y, x, cd in zip(tr.y, tr.x, tr.customdata):
+            pct[axis][y] += x
+            n[axis][y] += int(cd)
+    assert len(pct) == 4, "expected four panels"
+    for axis in pct:
+        assert all(abs(v - 100.0) < 1e-6 for v in pct[axis].values()), axis
+        assert sum(n[axis].values()) == len(df), axis
+    # The row with no reference figures gets its own bar, not a dropped order.
+    assert any("No state data" in y for y in n["y3"])
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

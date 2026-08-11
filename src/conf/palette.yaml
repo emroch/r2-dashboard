@@ -37,11 +37,40 @@ interiors:
   Coastal Cloud: "#EAEAEE"    # light smoke, almost white
 
 # ---------------------------------------------------------------------------
-# Wheels -> Plotly marker symbol (dual-encoding with paint color).
+# Wheels. Keyed by the EXACT sheet value (note the curly ” the form uses), so a
+# wheel is identified rather than inferred from its size — the R2 has four wheels
+# and two of them are 20", so a size test can't tell them apart. Each trim offers
+# two (see pricing.yaml); only the Performance pair appears in the data until
+# Premium and Standard ship, and the charts show only the wheels present.
+#   short  — display label (legends, hovers, take-rate rows)
+#   abbr   — compact label for dense axes; size + All-Season/All-Terrain, which
+#            is unique across all four and is the distinction people argue about
+#   symbol — Plotly marker, dual-encoding with paint color on the scatter charts
+#   color  — fill for the wheel-mix bars. Listed in ascending size, which is the
+#            stack order; validated for CVD separation and contrast in both
+#            light and dark against that order.
 # ---------------------------------------------------------------------------
 wheels:
-  '21" Liquid Tungsten': circle
-  '20" Black Sand': diamond
+  '19” Machined Graphite All-Season':
+    short: '19" Machined Graphite'
+    abbr: '19" AS'
+    symbol: triangle-up
+    color: "#2f8f6b"
+  '20” Bicolor Carbon All-Season':
+    short: '20" Bicolor Carbon'
+    abbr: '20" AS'
+    symbol: square
+    color: "#8f4a9c"
+  '20” Black Sand All-Terrain':
+    short: '20" Black Sand'
+    abbr: '20" AT'
+    symbol: diamond
+    color: "#c96a10"
+  '21” Liquid Tungsten All-Season':
+    short: '21" Liquid Tungsten'
+    abbr: '21" AS'
+    symbol: circle
+    color: "#3070b3"
 
 # ---------------------------------------------------------------------------
 # Region -> color (geographic demand maps + destination chart).

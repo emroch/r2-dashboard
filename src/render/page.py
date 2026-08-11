@@ -23,7 +23,7 @@ from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
                      fig_order_timeline, fig_paint_by_location,
                      fig_price_by_trim, fig_price_distribution,
                      fig_price_options, fig_state_totals, fig_vin_by_config,
-                     fig_vin_vs_order)
+                     fig_vin_vs_order, fig_wheels_by_location)
 from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
                     RESV_THREAD, THEME_CSS, AS_OF)
 
@@ -116,6 +116,19 @@ SECTIONS = [
                orders to be meaningful; below that a single order swings the mix by 100 points, so the rest stay
                summarized in the region panel."""),
      fig_paint_by_location),
+    ("Wheel preference by location",
+     dedent("""Does wheel choice track geography? Every panel is 100% stacked, so a group's mix is comparable
+               regardless of order volume, with the overall row on top as the baseline to read the rest against;
+               bar labels carry the sample size (n=) and hover gives the counts. The bottom two panels are ordered
+               by <em>value</em> rather than volume, since the only question they ask is whether the mix shifts as
+               you go higher or colder. Both use per-state reference figures &mdash; USGS mean terrain elevation and
+               NOAA statewide average annual temperature &mdash; so they are <em>weak proxies</em>: an order is
+               charted at its state's average, not at its own address. California sits at ~2,900&nbsp;ft whether the
+               order came from San Diego or Tahoe, and California is roughly a fifth of the cohort. A lean here is
+               worth noticing and is not evidence on its own; efficiency differences between the all-season and
+               all-terrain tires have plenty of confounds these figures cannot separate. Orders from states with no
+               reference figures (Canadian provinces) get their own bar rather than being dropped."""),
+     fig_wheels_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
                farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
