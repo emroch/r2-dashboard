@@ -93,89 +93,101 @@ provinces:
   nunavut: NU
 
 # ---------------------------------------------------------------------------
-# Per-state terrain + climate, for the "wheel preference by location" panels.
-# state -> [mean_elevation_ft, mean_annual_temp_f]
+# Per-state reference figures, for the "wheel preference by location" panels.
+# state -> [mean_elevation_ft, mean_annual_temp_f, people_per_sq_mi]
 #
 # APPROXIMATE PUBLISHED FIGURES, not measurements from this dataset: USGS mean
-# state elevation (area-weighted) and NOAA 1991-2020 statewide average annual
-# temperature. Both are rounded. Correcting one is a data edit here, nothing more.
+# state elevation (area-weighted), NOAA 1991-2020 statewide average annual
+# temperature, and Census resident population per square mile of land area. All
+# rounded. Correcting one is a data edit here, nothing more.
 #
-# On the choice of statistic: elevation is the AREA-WEIGHTED MEAN, which is the
-# standard published figure and is robust to a lone tall peak — a summit covers
-# negligible area, so Washington's Mt. Rainier (14,411 ft) leaves WA at ~1,700 ft.
-# Two measures that sound better are worse: relief (high point - low point) is
-# defined purely by two extreme points, which would rank California the most
-# mountainous state in the country off Whitney and Badwater alone; and median
-# elevation, while more robust still, is not a published figure — it needs a
-# digital elevation model.
+# These are all STATE AVERAGES, and the dashboard only knows an order's state, so
+# every panel built on them is a weak proxy. Each is weak in its own way:
 #
-# The real limitation is different, and the charts say so: this is terrain
-# elevation, not where people live. Population-weighted elevation is the measure
-# that actually fits "do buyers at altitude choose all-terrains", and it differs
-# most exactly where the orders are — California's terrain mean is ~2,900 ft while
-# most Californians live near sea level. Read the elevation panel as a weak proxy.
+# elevation — the area-weighted mean is the standard figure and is robust to a
+#   lone tall peak, since a summit covers negligible area (Mt. Rainier leaves WA
+#   at ~1,700 ft). Two alternatives that sound better are worse: relief (high
+#   point - low point) is defined purely by two extremes, which would rank
+#   California the most mountainous state in the country off Whitney and Badwater
+#   alone; median elevation is more robust still but is not published — it needs a
+#   digital elevation model. The real gap is that terrain elevation is not where
+#   people live: California's terrain mean is ~2,900 ft while most Californians
+#   live near sea level, and California is about a fifth of the cohort.
+#
+# density — raw density divides by the WHOLE state, so a big state with one metro
+#   reads as rural even when almost nobody lives rurally. Nevada is 28/sq mi and
+#   about 94% urban; Arizona, Utah, Colorado and Idaho are the same shape, and
+#   together they are a meaningful slice of this cohort's West. Percent-urban
+#   population, or Census population-weighted ("perceived") density, fixes exactly
+#   this and would be the better figure if these panels ever need to carry weight.
+#   DC is a city rather than a state and sits ~11,000/sq mi; the top bin holds it.
+#
+# temperature — a statewide annual mean flattens both altitude and season, so a
+#   Flagstaff order and a Phoenix order are charted at the same 60F.
 #
 # Canadian provinces are deliberately absent: provincial averages span too much
 # ground to mean anything (BC alone runs from rainforest coast to alpine
 # interior), and inventing them would look like data. Orders there fall into an
 # explicit "no data" bar instead of being dropped or guessed at.
-terrain_climate:
-  AL: [500, 62.8]
-  AK: [1900, 26.6]
-  AZ: [4100, 60.3]
-  AR: [650, 60.4]
-  CA: [2900, 59.4]
-  CO: [6800, 45.1]
-  CT: [500, 49.0]
-  DC: [150, 57.5]
-  DE: [60, 55.3]
-  FL: [100, 70.7]
-  GA: [600, 63.5]
-  HI: [3030, 70.0]
-  IA: [1100, 47.8]
-  ID: [5000, 44.4]
-  IL: [600, 51.8]
-  IN: [700, 51.7]
-  KS: [2000, 54.3]
-  KY: [750, 55.6]
-  LA: [100, 66.4]
-  MA: [500, 47.9]
-  MD: [350, 54.2]
-  ME: [600, 41.0]
-  MI: [900, 44.4]
-  MN: [1200, 41.2]
-  MO: [800, 54.5]
-  MS: [300, 63.4]
-  MT: [3400, 42.7]
-  NC: [700, 59.0]
-  ND: [1900, 40.4]
-  NE: [2600, 48.8]
-  NH: [1000, 43.8]
-  NJ: [250, 52.7]
-  NM: [5700, 53.4]
-  NV: [5500, 49.9]
-  NY: [1000, 45.4]
-  OH: [850, 50.7]
-  OK: [1300, 59.6]
-  OR: [3300, 48.4]
-  PA: [1100, 48.8]
-  RI: [200, 50.1]
-  SC: [350, 62.4]
-  SD: [2200, 45.2]
-  TN: [900, 57.6]
-  TX: [1700, 64.8]
-  UT: [6100, 48.6]
-  VA: [950, 55.1]
-  VT: [1000, 42.9]
-  WA: [1700, 48.3]
-  WI: [1050, 43.1]
-  WV: [1500, 51.3]
-  WY: [6700, 42.0]
+state_reference:
+  AL: [500, 62.8, 100]
+  AK: [1900, 26.6, 1.3]
+  AZ: [4100, 60.3, 64]
+  AR: [650, 60.4, 58]
+  CA: [2900, 59.4, 254]
+  CO: [6800, 45.1, 56]
+  CT: [500, 49.0, 745]
+  DC: [150, 57.5, 11300]
+  DE: [60, 55.3, 510]
+  FL: [100, 70.7, 410]
+  GA: [600, 63.5, 190]
+  HI: [3030, 70.0, 226]
+  IA: [1100, 47.8, 57]
+  ID: [5000, 44.4, 23]
+  IL: [600, 51.8, 226]
+  IN: [700, 51.7, 190]
+  KS: [2000, 54.3, 36]
+  KY: [750, 55.6, 114]
+  LA: [100, 66.4, 105]
+  MA: [500, 47.9, 901]
+  MD: [350, 54.2, 636]
+  ME: [600, 41.0, 44]
+  MI: [900, 44.4, 178]
+  MN: [1200, 41.2, 71]
+  MO: [800, 54.5, 90]
+  MS: [300, 63.4, 63]
+  MT: [3400, 42.7, 7.5]
+  NC: [700, 59.0, 218]
+  ND: [1900, 40.4, 11]
+  NE: [2600, 48.8, 25]
+  NH: [1000, 43.8, 155]
+  NJ: [250, 52.7, 1263]
+  NM: [5700, 53.4, 17]
+  NV: [5500, 49.9, 28]
+  NY: [1000, 45.4, 421]
+  OH: [850, 50.7, 288]
+  OK: [1300, 59.6, 58]
+  OR: [3300, 48.4, 45]
+  PA: [1100, 48.8, 291]
+  RI: [200, 50.1, 1061]
+  SC: [350, 62.4, 165]
+  SD: [2200, 45.2, 12]
+  TN: [900, 57.6, 172]
+  TX: [1700, 64.8, 114]
+  UT: [6100, 48.6, 41]
+  VA: [950, 55.1, 220]
+  VT: [1000, 42.9, 68]
+  WA: [1700, 48.3, 117]
+  WI: [1050, 43.1, 109]
+  WV: [1500, 51.3, 74]
+  WY: [6700, 42.0, 6]
 
-# Bin edges for the elevation / temperature panels (values below the first edge
-# form the lowest bar, at-or-above the last edge the highest). Chosen to spread
-# the current cohort across four bars rather than to round numbers; widen or add
-# an edge here if a bar empties out.
-terrain_climate_bins:
+# Bin edges for the reference panels (below the first edge forms the lowest bar,
+# at-or-above the last edge the highest). Chosen to spread the current cohort
+# across four bars rather than to round numbers; widen or add an edge here if a
+# bar empties out. Density edges are spaced roughly geometrically, since state
+# density spans three orders of magnitude.
+state_reference_bins:
   elevation_ft: [500, 1500, 3500]
   temperature_f: [45, 52, 60]
+  density_per_sq_mi: [50, 150, 400]
