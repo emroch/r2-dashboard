@@ -117,23 +117,16 @@ SECTIONS = [
                summarized in the region panel."""),
      fig_paint_by_location),
     ("Wheel preference by location",
-     dedent("""Does wheel choice track geography? Every panel is 100% stacked, so a group's mix is comparable
-               regardless of order volume, with the overall row on top as the baseline to read the rest against;
-               bar labels carry the sample size (n=) and hover gives the counts. The bottom three panels are ordered
-               by <em>value</em> rather than volume, since the only question they ask is whether the mix shifts as
-               you go higher, colder, or more urban. All three use per-state published averages &mdash; USGS mean
-               terrain elevation, NOAA statewide average annual temperature, and the Census 2020 urban share of the
-               population &mdash; and an order is charted at its state's average, not at its own address, so each is
-               a <em>weak proxy</em> that fails in its own way. Elevation is terrain, not where people live:
-               California sits at ~2,900&nbsp;ft whether the order came from San Diego or Tahoe, and California is
-               roughly a fifth of the cohort. Urban share replaced raw population density, which mis-sorted the
-               states that matter most here &mdash; Nevada is 28&nbsp;people/sq&nbsp;mi but about 94% urban, so
-               density filed a metro Las&nbsp;Vegas order as rural; what urban share still cannot do is separate a
-               dense-city resident from a small-town one. Temperature flattens season and altitude together. A lean
-               here is worth noticing and is not evidence on its own: the efficiency differences argued over between
-               the all-season and all-terrain tires have plenty of confounds these figures cannot separate. Orders
-               from states with no published figures (Canadian provinces) get their own bar rather than being
-               dropped."""),
+     dedent("""Wheel choice for every order with a known state, as a 100% stacked mix per group so rows stay
+               comparable regardless of order volume; the top row is the whole cohort, a baseline to read the others
+               against, and each bar label carries its sample size (n=). The lower three panels order their bars by
+               <em>value</em> rather than by volume. Sources, all per-state averages: USGS mean state elevation
+               (area-weighted), NOAA 1991&ndash;2020 statewide average annual temperature, and the Census 2020 urban
+               share of population. Because every order sits at its state's average rather than its own location,
+               these panels can show <em>that</em> a group's mix differs &mdash; not why. Read any lean as a prompt to
+               look closer, not a finding: the all-season versus all-terrain efficiency argument carries confounds
+               &mdash; local terrain, driving mix, when each wheel was orderable &mdash; that state averages cannot
+               separate."""),
      fig_wheels_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
