@@ -120,13 +120,20 @@ SECTIONS = [
      dedent("""Wheel choice for every order with a known state, as a 100% stacked mix per group so rows stay
                comparable regardless of order volume; the top row is the whole cohort, a baseline to read the others
                against, and each bar label carries its sample size (n=). The lower three panels order their bars by
-               <em>value</em> rather than by volume. Sources, all per-state averages: USGS mean state elevation
-               (area-weighted), NOAA 1991&ndash;2020 statewide average annual temperature, and the Census 2020 urban
-               share of population. Because every order sits at its state's average rather than its own location,
-               these panels can show <em>that</em> a group's mix differs &mdash; not why. Read any lean as a prompt to
-               look closer, not a finding: the all-season versus all-terrain efficiency argument carries confounds
-               &mdash; local terrain, driving mix, when each wheel was orderable &mdash; that state averages cannot
-               separate."""),
+               <em>value</em> rather than by volume. Sources, all per-state published figures:
+               <a href="https://pubs.usgs.gov/pp/1200us/report.pdf" target="_blank" rel="noopener">USGS</a> mean
+               state elevation (area-weighted),
+               <a href="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/" target="_blank"
+               rel="noopener">NOAA</a> statewide annual mean temperature over the 1991&ndash;2020 normals, and the
+               <a href="https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html"
+               target="_blank" rel="noopener">Census 2020</a> urban share of population &mdash; except DC, which has
+               no NOAA statewide series and uses the
+               <a href="https://www.ncei.noaa.gov/access/services/data/v1?dataset=normals-monthly-1991-2020&amp;stations=USW00013743&amp;format=pdf&amp;startDate=0001-01-01&amp;endDate=9996-12-31"
+               target="_blank" rel="noopener">Reagan National station normal</a> instead. Because every order sits at
+               its state's average rather than its own location, these panels can show <em>that</em> a group's mix
+               differs &mdash; not why. Read any lean as a prompt to look closer, not a finding: the all-season
+               versus all-terrain efficiency argument carries confounds &mdash; local terrain, driving mix, when each
+               wheel was orderable &mdash; that state averages cannot separate."""),
      fig_wheels_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean

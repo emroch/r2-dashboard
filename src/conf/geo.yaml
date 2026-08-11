@@ -96,10 +96,25 @@ provinces:
 # Per-state reference figures, for the "wheel preference by location" panels.
 # state -> [mean_elevation_ft, mean_annual_temp_f, percent_urban]
 #
-# APPROXIMATE PUBLISHED FIGURES, not measurements from this dataset: USGS mean
-# state elevation (area-weighted), NOAA 1991-2020 statewide average annual
-# temperature, and the Census 2020 share of residents living in urban areas. All
-# rounded. Correcting one is a data edit here, nothing more.
+# Published figures, not measurements from this dataset. Independently verified
+# against the sources below; correcting a value is a data edit here, nothing more.
+#
+#   elevation   USGS mean state elevation, area-weighted, rounded.
+#               https://pubs.usgs.gov/pp/1200us/report.pdf
+#   temperature NOAA Climate at a Glance statewide annual (Jan-Dec) mean over the
+#               1991-2020 normals period. State the method when checking these:
+#               an earlier set of values here reproduced under no method at all
+#               and had to be replaced wholesale.
+#               https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/
+#   percent     Census 2020 urban/rural workbook, share of state population in
+#     urban     urban areas.
+#               https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html
+#
+# DC is the one exception: NOAA publishes no statewide series for it, so its
+# temperature is the Washington Reagan National station normal (USW00013743,
+# 1991-2020) rather than an areal average. DC is small enough that a single
+# station covers it about as well as an areal mean would.
+#   https://www.ncei.noaa.gov/access/services/data/v1?dataset=normals-monthly-1991-2020&stations=USW00013743&format=pdf&startDate=0001-01-01&endDate=9996-12-31
 #
 # These are STATE AVERAGES and the dashboard only knows an order's state, so every
 # panel built on them is a weak proxy. Each is weak in its own way:
@@ -112,78 +127,78 @@ provinces:
 #   alone; median elevation is more robust still but is not published — it needs a
 #   digital elevation model. The real gap is that terrain elevation is not where
 #   people live: California's terrain mean is ~2,900 ft while most Californians
-#   live near sea level, and California is about a fifth of the cohort.
+#   live near sea level.
 #
 # percent urban — this is here INSTEAD of population density, which was tried
 #   first and mis-sorts exactly the states that matter. Raw density divides by the
 #   whole state, so a big one-metro state reads rural: Nevada is 28/sq mi and about
-#   94% urban, with Utah, Idaho and Oregon the same shape, and together they are a
-#   real slice of this cohort's West. Census population-weighted ("perceived")
-#   density would be the ideal figure, but there is no maintained state-level table
-#   to take it from, and it spans 100-50,000 so a sourcing error would reshuffle
-#   the bins wholesale. Percent urban is bounded 0-100 and binned into four bars,
-#   so it stays robust to a few points of error. What it cannot do is separate a
-#   dense-city resident from a small-town one — both count as urban.
+#   94% urban, with Utah, Idaho and Oregon the same shape. Census
+#   population-weighted ("perceived") density would be the ideal figure, but there
+#   is no maintained state-level table to take it from, and it spans 100-50,000 so
+#   a sourcing error would reshuffle the bins wholesale. Percent urban is bounded
+#   0-100 and binned into four bars, so it stays robust to a few points of error.
+#   What it cannot do is separate a dense-city resident from a small-town one —
+#   both count as urban.
 #
 # temperature — a statewide annual mean flattens both altitude and season, so a
-#   Flagstaff order and a Phoenix order are charted at the same 60F.
+#   Flagstaff order and a Phoenix order are charted at the same figure.
 #
 # Canadian provinces are deliberately absent: provincial averages span too much
 # ground to mean anything (BC alone runs from rainforest coast to alpine
 # interior), and inventing them would look like data. Orders there fall into an
 # explicit "no data" bar instead of being dropped or guessed at.
 state_reference:
-  AL: [500, 62.8, 57.7]
-  AK: [1900, 26.6, 64.0]
-  AZ: [4100, 60.3, 89.8]
-  AR: [650, 60.4, 55.4]
-  CA: [2900, 59.4, 94.2]
-  CO: [6800, 45.1, 86.3]
-  CT: [500, 49.0, 87.0]
-  DC: [150, 57.5, 100.0]
-  DE: [60, 55.3, 82.3]
-  FL: [100, 70.7, 91.1]
-  GA: [600, 63.5, 74.6]
-  HI: [3030, 70.0, 86.9]
-  IA: [1100, 47.8, 63.1]
-  ID: [5000, 44.4, 70.6]
-  IL: [600, 51.8, 87.6]
-  IN: [700, 51.7, 71.9]
-  KS: [2000, 54.3, 71.2]
-  KY: [750, 55.6, 58.5]
-  LA: [100, 66.4, 72.1]
-  MA: [500, 47.9, 91.3]
-  MD: [350, 54.2, 86.5]
-  ME: [600, 41.0, 38.1]
-  MI: [900, 44.4, 74.0]
-  MN: [1200, 41.2, 72.2]
-  MO: [800, 54.5, 69.5]
-  MS: [300, 63.4, 47.7]
-  MT: [3400, 42.7, 55.0]
-  NC: [700, 59.0, 66.6]
-  ND: [1900, 40.4, 61.2]
-  NE: [2600, 48.8, 71.5]
-  NH: [1000, 43.8, 57.0]
-  NJ: [250, 52.7, 93.9]
-  NM: [5700, 53.4, 76.6]
-  NV: [5500, 49.9, 93.6]
-  NY: [1000, 45.4, 87.1]
-  OH: [850, 50.7, 76.7]
-  OK: [1300, 59.6, 65.4]
-  OR: [3300, 48.4, 80.9]
-  PA: [1100, 48.8, 76.0]
-  RI: [200, 50.1, 90.1]
-  SC: [350, 62.4, 62.5]
-  SD: [2200, 45.2, 57.7]
-  TN: [900, 57.6, 65.4]
-  TX: [1700, 64.8, 83.7]
-  UT: [6100, 48.6, 90.6]
-  VA: [950, 55.1, 76.6]
-  VT: [1000, 42.9, 35.1]
-  WA: [1700, 48.3, 84.0]
-  WI: [1050, 43.1, 68.3]
-  WV: [1500, 51.3, 44.6]
-  WY: [6700, 42.0, 64.8]
+  AL: [500, 63.6, 57.7]
+  AK: [1900, 28.0, 64.9]
+  AZ: [4100, 61.1, 89.3]
+  AR: [650, 61.0, 55.5]
+  CA: [2900, 59.0, 94.2]
+  CO: [6800, 46.2, 86.0]
+  CT: [500, 49.9, 86.3]
+  DC: [150, 59.3, 100.0]
+  DE: [60, 56.2, 82.6]
+  FL: [100, 71.4, 91.5]
+  GA: [600, 64.2, 74.1]
+  HI: [3030, 66.3, 86.1]
+  IA: [1100, 48.3, 63.2]
+  ID: [5000, 43.9, 69.2]
+  IL: [600, 52.6, 86.9]
+  IN: [700, 52.4, 71.2]
+  KS: [2000, 55.1, 72.3]
+  KY: [750, 56.3, 58.7]
+  LA: [100, 67.1, 71.5]
+  MA: [500, 48.8, 91.3]
+  MD: [350, 55.4, 85.6]
+  ME: [600, 41.8, 38.6]
+  MI: [900, 45.2, 73.5]
+  MN: [1200, 41.6, 71.9]
+  MO: [800, 55.2, 69.5]
+  MS: [300, 64.2, 46.3]
+  MT: [3400, 42.5, 53.4]
+  NC: [700, 59.5, 66.7]
+  ND: [1900, 41.0, 61.0]
+  NE: [2600, 49.4, 73.0]
+  NH: [1000, 44.1, 58.3]
+  NJ: [250, 53.6, 93.8]
+  NM: [5700, 54.5, 74.5]
+  NV: [5500, 51.0, 94.1]
+  NY: [1000, 46.0, 87.4]
+  OH: [850, 51.7, 76.3]
+  OK: [1300, 60.3, 64.6]
+  OR: [3300, 47.9, 80.5]
+  PA: [1100, 49.5, 76.5]
+  RI: [200, 50.7, 91.1]
+  SC: [350, 63.4, 67.9]
+  SD: [2200, 45.6, 57.2]
+  TN: [900, 58.4, 66.2]
+  TX: [1700, 65.8, 83.7]
+  UT: [6100, 49.2, 89.8]
+  VA: [950, 56.0, 75.6]
+  VT: [1000, 43.0, 35.1]
+  WA: [1700, 47.3, 83.4]
+  WI: [1050, 43.8, 67.1]
+  WV: [1500, 52.6, 44.6]
+  WY: [6700, 42.3, 62.0]
 
 # Bin edges for the reference panels (below the first edge forms the lowest bar,
 # at-or-above the last edge the highest). Chosen to spread the current cohort
@@ -191,5 +206,5 @@ state_reference:
 # bar empties out.
 state_reference_bins:
   elevation_ft: [500, 1500, 3500]
-  temperature_f: [45, 52, 60]
+  temperature_f: [47, 53, 60]
   urban_pct: [70, 84, 91]
