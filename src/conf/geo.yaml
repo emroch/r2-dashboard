@@ -91,3 +91,91 @@ provinces:
   yukon: YT
   northwest territories: NT
   nunavut: NU
+
+# ---------------------------------------------------------------------------
+# Per-state terrain + climate, for the "wheel preference by location" panels.
+# state -> [mean_elevation_ft, mean_annual_temp_f]
+#
+# APPROXIMATE PUBLISHED FIGURES, not measurements from this dataset: USGS mean
+# state elevation (area-weighted) and NOAA 1991-2020 statewide average annual
+# temperature. Both are rounded. Correcting one is a data edit here, nothing more.
+#
+# On the choice of statistic: elevation is the AREA-WEIGHTED MEAN, which is the
+# standard published figure and is robust to a lone tall peak — a summit covers
+# negligible area, so Washington's Mt. Rainier (14,411 ft) leaves WA at ~1,700 ft.
+# Two measures that sound better are worse: relief (high point - low point) is
+# defined purely by two extreme points, which would rank California the most
+# mountainous state in the country off Whitney and Badwater alone; and median
+# elevation, while more robust still, is not a published figure — it needs a
+# digital elevation model.
+#
+# The real limitation is different, and the charts say so: this is terrain
+# elevation, not where people live. Population-weighted elevation is the measure
+# that actually fits "do buyers at altitude choose all-terrains", and it differs
+# most exactly where the orders are — California's terrain mean is ~2,900 ft while
+# most Californians live near sea level. Read the elevation panel as a weak proxy.
+#
+# Canadian provinces are deliberately absent: provincial averages span too much
+# ground to mean anything (BC alone runs from rainforest coast to alpine
+# interior), and inventing them would look like data. Orders there fall into an
+# explicit "no data" bar instead of being dropped or guessed at.
+terrain_climate:
+  AL: [500, 62.8]
+  AK: [1900, 26.6]
+  AZ: [4100, 60.3]
+  AR: [650, 60.4]
+  CA: [2900, 59.4]
+  CO: [6800, 45.1]
+  CT: [500, 49.0]
+  DC: [150, 57.5]
+  DE: [60, 55.3]
+  FL: [100, 70.7]
+  GA: [600, 63.5]
+  HI: [3030, 70.0]
+  IA: [1100, 47.8]
+  ID: [5000, 44.4]
+  IL: [600, 51.8]
+  IN: [700, 51.7]
+  KS: [2000, 54.3]
+  KY: [750, 55.6]
+  LA: [100, 66.4]
+  MA: [500, 47.9]
+  MD: [350, 54.2]
+  ME: [600, 41.0]
+  MI: [900, 44.4]
+  MN: [1200, 41.2]
+  MO: [800, 54.5]
+  MS: [300, 63.4]
+  MT: [3400, 42.7]
+  NC: [700, 59.0]
+  ND: [1900, 40.4]
+  NE: [2600, 48.8]
+  NH: [1000, 43.8]
+  NJ: [250, 52.7]
+  NM: [5700, 53.4]
+  NV: [5500, 49.9]
+  NY: [1000, 45.4]
+  OH: [850, 50.7]
+  OK: [1300, 59.6]
+  OR: [3300, 48.4]
+  PA: [1100, 48.8]
+  RI: [200, 50.1]
+  SC: [350, 62.4]
+  SD: [2200, 45.2]
+  TN: [900, 57.6]
+  TX: [1700, 64.8]
+  UT: [6100, 48.6]
+  VA: [950, 55.1]
+  VT: [1000, 42.9]
+  WA: [1700, 48.3]
+  WI: [1050, 43.1]
+  WV: [1500, 51.3]
+  WY: [6700, 42.0]
+
+# Bin edges for the elevation / temperature panels (values below the first edge
+# form the lowest bar, at-or-above the last edge the highest). Chosen to spread
+# the current cohort across four bars rather than to round numbers; widen or add
+# an edge here if a bar empties out.
+terrain_climate_bins:
+  elevation_ft: [500, 1500, 3500]
+  temperature_f: [45, 52, 60]

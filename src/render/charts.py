@@ -7,12 +7,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
-from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
+from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
                      HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
-                     STATE_TOTALS_COLORS, TAKE_RATE, TIMELINE_COLORS,
+                     STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
-                     WHEEL_SYMBOL)
+                     WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER, WHEEL_SYMBOL)
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -483,6 +483,116 @@ def fig_paint_by_location(df, min_state_orders=5):
         height=380 + 24 * len(states),
         margin=dict(l=0, r=20, t=52, b=40),
         legend=dict(title=dict(text="Exterior paint"), traceorder="normal",
+                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
+                    borderwidth=1))
+    return fig
+
+
+_NO_STATE_DATA = "No state data"
+
+
+def _numeric_bins(values, edges, unit):
+    """Bin a numeric Series into ordered bar labels; NaN becomes _NO_STATE_DATA.
+
+    Returns (labels, ordered_keys). Keys stay in NUMERIC order, never sorted by
+    volume: the only question these panels ask is whether the mix shifts as the
+    value rises, and reordering the bars by count would destroy that reading.
+    Empty bins are dropped, so widening an edge in geo.yaml can't leave a gap.
+    """
+    def fmt(v):
+        return format(int(round(v)), ",")
+
+    names = ["< %s %s" % (fmt(edges[0]), unit)]
+    names += ["%s–%s %s" % (fmt(lo), fmt(hi), unit)
+              for lo, hi in zip(edges, edges[1:])]
+    names.append("%s+ %s" % (fmt(edges[-1]), unit))
+
+    def label(v):
+        if pd.isna(v):
+            return _NO_STATE_DATA
+        return next((n for n, e in zip(names, edges) if v < e), names[-1])
+
+    out = pd.Series([label(v) for v in values], index=values.index)
+    keys = [n for n in names if (out == n).any()]
+    if (out == _NO_STATE_DATA).any():
+        keys.append(_NO_STATE_DATA)
+    return out, keys
+
+
+def fig_wheels_by_location(df):
+    """Wheel mix overall, by region, and across per-state elevation / temperature.
+
+    Every panel is 100% stacked, so the mix is comparable regardless of how many
+    orders a row holds (the West has ~3x the Northeast). The "All orders" row on
+    top is the baseline: read a row against it to see which way that group leans.
+    Absolute counts ride along in the hover and as an "n=" suffix on every label,
+    because a share off 18 orders and a share off 89 are not the same claim.
+
+    The elevation and temperature rows are ordered by VALUE, not by volume — the
+    question is whether the mix shifts as you go higher or colder, which only
+    reads if the bars stay in numeric order. Both are per-state reference figures
+    (geo.yaml), so they carry that file's limitation: this is terrain elevation
+    and statewide average temperature, not the altitude or climate at anyone's
+    address. A California order is charted at ~2,900 ft whether it came from San
+    Diego or Tahoe, and California is a fifth of the cohort — so treat these two
+    panels as weak proxies that can suggest a lean, never as evidence of one.
+    States with no reference figures (every Canadian province) get their own bar
+    rather than being dropped or guessed at.
+    """
+    d = df.dropna(subset=["lat"]).copy()
+    if d.empty:
+        fig = make_subplots(rows=4, cols=1)
+        fig.update_layout(template="plotly_white", height=620)
+        return fig
+
+    # Wheels in the palette's ascending-size order (the order its colors were
+    # validated in), then any value the palette doesn't know, which keeps an
+    # unrecognized entry visible instead of silently folded into a real wheel.
+    known = [w for w in WHEEL_ORDER if (d["wheels_short"] == w).any()]
+    wheels = known + sorted(set(d["wheels_short"]) - set(WHEEL_ORDER))
+
+    d["_all"] = "All orders"
+    # Ascending so the biggest sits on top in the volume-ordered panels.
+    regions = list(d["region"].value_counts().sort_values(ascending=True).index)
+    d["_elev"], elev_keys = _numeric_bins(d["elev_ft"], ELEV_BINS, "ft")
+    d["_temp"], temp_keys = _numeric_bins(d["temp_f"], TEMP_BINS, "°F")
+
+    panels = [("_all", ["All orders"]), ("region", regions),
+              ("_elev", elev_keys), ("_temp", temp_keys)]
+    # Give each row roughly the height its bar count needs, so no panel looks
+    # stretched or crushed; the single-bar top row still needs room for its title.
+    weights = [1.8] + [len(keys) for _, keys in panels[1:]]
+    fig = make_subplots(
+        rows=4, cols=1, vertical_spacing=0.07,
+        row_heights=[w / sum(weights) for w in weights],
+        subplot_titles=("All orders", "By region",
+                        "By mean terrain elevation of the order's state",
+                        "By average annual temperature of the order's state"))
+
+    for row, (col, keys) in enumerate(panels, start=1):
+        tot = d[col].value_counts()
+        labels = ["%s  n=%d" % (k, tot[k]) for k in keys]
+        for w in wheels:
+            n = [int(((d[col] == k) & (d["wheels_short"] == w)).sum())
+                 for k in keys]
+            pct = [100.0 * v / tot[k] for v, k in zip(n, keys)]
+            fig.add_trace(go.Bar(
+                x=pct, y=labels, orientation="h", name=w, legendgroup=w,
+                showlegend=(row == 1), customdata=np.array(n),
+                marker=dict(color=WHEEL_COLOR.get(w, CHART_UI["muted"]),
+                            line=dict(color=CHART["edge"], width=0.5)),
+                hovertemplate=("%{y}<br>" + w
+                               + ": %{customdata} orders (%{x:.0f}%)<extra></extra>")),
+                row, 1)
+
+    bars = sum(len(keys) for _, keys in panels)
+    fig.update_xaxes(range=[0, 100], ticksuffix="%", showgrid=True)
+    fig.update_yaxes(ticksuffix="  ", automargin=True)
+    fig.update_layout(
+        template="plotly_white", barmode="stack", bargap=0.28,
+        height=300 + 30 * bars,
+        margin=dict(l=0, r=20, t=52, b=40),
+        legend=dict(title=dict(text="Wheels"), traceorder="normal",
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
                     borderwidth=1))
     return fig
@@ -1045,7 +1155,9 @@ def fig_vin_by_config(df):
     if d.empty:
         fig.update_layout(template="plotly_white", height=420)
         return fig
-    wheel_abbr = d["wheels_short"].str.split().str[0]      # 21" / 20"
+    # Compact per-wheel tag: size alone is ambiguous now that two of the four
+    # wheels are 20", so the abbreviation carries All-Season/All-Terrain too.
+    wheel_abbr = d["wheels_short"].map(lambda w: WHEEL_ABBR.get(w, w))
     d["_combo"] = d["trim"] + " · " + d["color"] + " · " + wheel_abbr
     color_rank = {c: i for i, c in enumerate(COLOR_ORDER)}
 
@@ -1066,10 +1178,13 @@ def fig_vin_by_config(df):
                     symbol=[WHEEL_SYMBOL.get(w, "circle") for w in d["wheels_short"]],
                     size=10, line=dict(color=CHART["edge"], width=0.6)),
         customdata=cd, hovertemplate=ht))
-    for label, sym in WHEEL_SYMBOL.items():                # wheel-symbol legend
+    # Symbol legend for the wheels actually present — the palette knows four, and
+    # a phantom entry for a wheel no one has ordered reads as a missing series.
+    for label in [w for w in WHEEL_ORDER if (d["wheels_short"] == w).any()]:
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode="markers", name=label,
-            marker=dict(color=CHART_UI["key_marker"], size=10, symbol=sym,
+            marker=dict(color=CHART_UI["key_marker"], size=10,
+                        symbol=WHEEL_SYMBOL.get(label, "circle"),
                         line=dict(color=CHART["edge"], width=0.6))))
     fig.update_layout(
         template="plotly_white", height=max(420, 42 * len(combos) + 180),

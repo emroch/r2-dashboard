@@ -16,10 +16,9 @@ from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
                      ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
-                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, WHEELS_21_CONTAINS,
-                     WHEELS_LABEL_20, WHEELS_LABEL_21)
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS)
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
-                      parse_simple_date, reconcile_r1_owner)
+                      parse_simple_date, reconcile_r1_owner, wheel_label)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
 from .schema_check import find_header, map_columns
 
@@ -277,8 +276,7 @@ def load_and_clean(text, meta):
                                 & (df["delivery_max"] < AS_OF))
 
     # --- Config normalization ---
-    df["wheels_short"] = np.where(df["wheels"].str.contains(WHEELS_21_CONTAINS),
-                                  WHEELS_LABEL_21, WHEELS_LABEL_20)
+    df["wheels_short"] = [wheel_label(w) for w in df["wheels"]]
     # Reconcile the bundled options against the Launch Package column, which is
     # authoritative — see reconcile_launch_options. The raw columns are kept as
     # reported; the *_effective ones are what the take-rates and price use.

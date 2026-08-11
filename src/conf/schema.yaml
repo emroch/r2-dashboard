@@ -95,7 +95,6 @@ sanitize:
 options:
   opted_in_tokens: ["yes", "included"]  # Autonomy+ / Tow: count these as opted-in
   spare_tokens: ["yes"]                 # Compact spare: only explicit "yes"
-  wheels_21_contains: "21"              # wheels text containing this = 21" trim
 
 # Option availability: the earliest date each not-yet-released trim / paint /
 # interior could actually be ordered. An order whose R2 order date precedes the

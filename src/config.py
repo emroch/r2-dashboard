@@ -77,7 +77,17 @@ RESV_THREAD = _RESV_SRC["thread_url"]
 COLOR_HEX = dict(_PALETTE["paints"])
 COLOR_ORDER = list(_PALETTE["paint_order"])
 INTERIOR_COLOR = dict(_PALETTE["interiors"])
-WHEEL_SYMBOL = dict(_PALETTE["wheels"])
+# Wheels. The palette is keyed by the exact sheet value; WHEEL_SHORT maps that to
+# the display label, and every other table is keyed BY that label, since it's the
+# label the DataFrame carries (wheels_short). WHEEL_ORDER preserves the palette's
+# ascending-size order, which is the stack order the colors were validated in.
+# Two of the four wheels are 20", so nothing here may infer identity from size.
+_WHEELS = _PALETTE["wheels"]
+WHEEL_SHORT = {raw: w["short"] for raw, w in _WHEELS.items()}
+WHEEL_ORDER = [w["short"] for w in _WHEELS.values()]
+WHEEL_ABBR = {w["short"]: w["abbr"] for w in _WHEELS.values()}
+WHEEL_SYMBOL = {w["short"]: w["symbol"] for w in _WHEELS.values()}
+WHEEL_COLOR = {w["short"]: w["color"] for w in _WHEELS.values()}
 REGION_COLOR = dict(_PALETTE["regions"])
 TYPE_COLOR = {t: d["color"] for t, d in _PALETTE["delivery_types"].items()}
 TYPE_OPACITY = {t: d["opacity"] for t, d in _PALETTE["delivery_types"].items()}
@@ -123,11 +133,6 @@ DELIVERY_YEAR_MAX = int(_SAN["delivery_year_max"])
 _OPT = _SCHEMA["options"]
 OPTED_IN_TOKENS = list(_OPT["opted_in_tokens"])
 SPARE_TOKENS = list(_OPT["spare_tokens"])
-WHEELS_21_CONTAINS = str(_OPT["wheels_21_contains"])
-# The two wheel labels come from the palette (single source of truth); classify
-# by which one contains the 21" marker so we never duplicate the label strings.
-WHEELS_LABEL_21 = next(k for k in WHEEL_SYMBOL if WHEELS_21_CONTAINS in k)
-WHEELS_LABEL_20 = next(k for k in WHEEL_SYMBOL if WHEELS_21_CONTAINS not in k)
 
 # --- Option availability (schema.yaml) ------------------------------------
 # {column: [(prefix_lower, available_from | None)]}: the earliest date each
@@ -170,6 +175,15 @@ PRICE_TRIM_ALIASES = {k: dict(v)
 FACTORY = tuple(_GEO["factory"])
 STATE_INFO = {k: tuple(v) for k, v in _GEO["states"].items()}
 CA_PROVINCES = dict(_GEO["provinces"])
+# Per-state terrain + climate for the wheel-by-location panels:
+# state -> (mean_elevation_ft, mean_annual_temp_f). Approximate published figures,
+# US states only — see geo.yaml's header for the statistic chosen and its limits.
+# A state absent here (every Canadian province) yields NaN and lands in an
+# explicit "no data" bar rather than being guessed at or dropped.
+STATE_TERRAIN = {k: tuple(v) for k, v in (_GEO.get("terrain_climate") or {}).items()}
+_TC_BINS = _GEO.get("terrain_climate_bins") or {}
+ELEV_BINS = [float(x) for x in (_TC_BINS.get("elevation_ft") or [])]
+TEMP_BINS = [float(x) for x in (_TC_BINS.get("temperature_f") or [])]
 
 # --- Delivery-estimate normalization (delivery.yaml) ----------------------
 UNKNOWN_TOKENS = set(_DELIV["unknown_tokens"])
