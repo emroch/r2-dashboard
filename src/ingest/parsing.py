@@ -416,7 +416,7 @@ def loc_to_state(loc):
 
 def geo_enrich(df):
     """Add state/region/lat/lon plus the per-state reference columns from
-    `loc_raw`, in place. Elevation, temperature and population density are
+    `loc_raw`, in place. Elevation, temperature and percent-urban are
     published state averages (see geo.yaml), NaN wherever the state isn't
     covered — a missing value has to stay missing so the charts can show it as
     its own bar instead of implying a figure nobody published."""
@@ -425,7 +425,7 @@ def geo_enrich(df):
     df["lat"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[1])
     df["lon"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[2])
     _nan3 = (np.nan, np.nan, np.nan)
-    for i, col in enumerate(("elev_ft", "temp_f", "pop_density")):
+    for i, col in enumerate(("elev_ft", "temp_f", "urban_pct")):
         df[col] = df["state"].map(lambda s, i=i: STATE_REFERENCE.get(s, _nan3)[i])
     return df
 

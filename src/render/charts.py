@@ -7,12 +7,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
-from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, DENSITY_BINS, ELEV_BINS,
-                     FACTORY, HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
+from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
-                     WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER, WHEEL_SYMBOL)
+                     URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER,
+                     WHEEL_SYMBOL)
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -494,6 +495,11 @@ _NO_STATE_DATA = "No state data"
 def _numeric_bins(values, edges, unit):
     """Bin a numeric Series into ordered bar labels; NaN becomes _NO_STATE_DATA.
 
+    `unit` is appended verbatim, so it carries its own leading space where one is
+    wanted (" ft" -> "< 500 ft", "% urban" -> "< 70% urban"). The top bar reads
+    "&ge; X" rather than "X+" so the unit can't land between the number and the sign
+    ("\u2265 91% urban", not "91+% urban").
+
     Returns (labels, ordered_keys). Keys stay in NUMERIC order, never sorted by
     volume: the only question these panels ask is whether the mix shifts as the
     value rises, and reordering the bars by count would destroy that reading.
@@ -502,10 +508,10 @@ def _numeric_bins(values, edges, unit):
     def fmt(v):
         return format(int(round(v)), ",")
 
-    names = ["< %s %s" % (fmt(edges[0]), unit)]
-    names += ["%s–%s %s" % (fmt(lo), fmt(hi), unit)
+    names = ["< %s%s" % (fmt(edges[0]), unit)]
+    names += ["%s–%s%s" % (fmt(lo), fmt(hi), unit)
               for lo, hi in zip(edges, edges[1:])]
-    names.append("%s+ %s" % (fmt(edges[-1]), unit))
+    names.append("\u2265 %s%s" % (fmt(edges[-1]), unit))
 
     def label(v):
         if pd.isna(v):
@@ -529,19 +535,20 @@ def fig_wheels_by_location(df):
     because a share off 18 orders and a share off 89 are not the same claim.
 
     The bottom three panels are ordered by VALUE, not by volume — the question is
-    whether the mix shifts as you go higher, colder or denser, which only reads if
-    the bars stay in numeric order.
+    whether the mix shifts as you go higher, colder or more urban, which only reads
+    if the bars stay in numeric order.
 
     All three are per-state averages (geo.yaml), and the dashboard only knows an
     order's state, so each is a weak proxy with its own specific failure. Elevation
     is terrain, not where people live: a California order is charted at ~2,900 ft
-    from San Diego or Tahoe alike, and California is a fifth of the cohort. Density
-    divides by the whole state, so a big one-metro state reads rural — Nevada lands
-    in the sparsest bar at 28/sq mi while roughly 94% of Nevadans are urban, and
-    Utah, Idaho and Oregon sit beside it. Temperature flattens season and altitude
-    together. They can suggest a lean; none of them is evidence of one. States with
-    no published figures (every Canadian province) get their own bar rather than
-    being dropped or guessed at.
+    from San Diego or Tahoe alike, and California is a fifth of the cohort. Percent
+    urban replaced raw population density, which mis-sorted exactly the states that
+    matter — Nevada is 28/sq mi but ~94% urban, so density filed a metro Las Vegas
+    order as rural; what percent urban still can't do is tell a dense-city resident
+    from a small-town one. Temperature flattens season and altitude together. They
+    can suggest a lean; none of them is evidence of one. States with no published
+    figures (every Canadian province) get their own bar rather than being dropped
+    or guessed at.
     """
     d = df.dropna(subset=["lat"]).copy()
     if d.empty:
@@ -558,13 +565,14 @@ def fig_wheels_by_location(df):
     d["_all"] = "All orders"
     # Ascending so the biggest sits on top in the volume-ordered panels.
     regions = list(d["region"].value_counts().sort_values(ascending=True).index)
-    d["_elev"], elev_keys = _numeric_bins(d["elev_ft"], ELEV_BINS, "ft")
-    d["_temp"], temp_keys = _numeric_bins(d["temp_f"], TEMP_BINS, "°F")
-    d["_dens"], dens_keys = _numeric_bins(d["pop_density"], DENSITY_BINS,
-                                          "per sq mi")
+    d["_elev"], elev_keys = _numeric_bins(d["elev_ft"], ELEV_BINS, " ft")
+    d["_temp"], temp_keys = _numeric_bins(d["temp_f"], TEMP_BINS, " °F")
+    d["_urban"], urban_keys = _numeric_bins(d["urban_pct"], URBAN_BINS,
+                                            "% urban")
 
     panels = [("_all", ["All orders"]), ("region", regions),
-              ("_elev", elev_keys), ("_temp", temp_keys), ("_dens", dens_keys)]
+              ("_elev", elev_keys), ("_temp", temp_keys),
+              ("_urban", urban_keys)]
     # Give each row roughly the height its bar count needs, so no panel looks
     # stretched or crushed; the single-bar top row still needs room for its title.
     weights = [1.8] + [len(keys) for _, keys in panels[1:]]
@@ -574,7 +582,7 @@ def fig_wheels_by_location(df):
         subplot_titles=("All orders", "By region",
                         "By mean terrain elevation of the order's state",
                         "By average annual temperature of the order's state",
-                        "By population density of the order's state"))
+                        "By the urban share of the order's state population"))
 
     for row, (col, keys) in enumerate(panels, start=1):
         tot = d[col].value_counts()
