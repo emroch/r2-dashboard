@@ -756,14 +756,14 @@ def test_wheel_label_keeps_an_unknown_value_visible():
 def test_numeric_bins_order_by_value_and_bucket_missing():
     from render.charts import _NO_STATE_DATA, _numeric_bins
     vals = pd.Series([100.0, 900.0, 2000.0, 9000.0, float("nan")])
-    labels, keys = _numeric_bins(vals, [500, 1500, 3500], "ft")
+    labels, keys = _numeric_bins(vals, [500, 1500, 3500], " ft")
     # Ascending by value, never by volume, with the no-data bar last.
-    assert keys == ["< 500 ft", "500–1,500 ft", "1,500–3,500 ft", "3,500+ ft",
+    assert keys == ["< 500 ft", "500–1,500 ft", "1,500–3,500 ft", "\u2265 3,500 ft",
                     _NO_STATE_DATA]
     assert list(labels) == keys[:4] + [_NO_STATE_DATA]
     # An empty bin is dropped rather than drawn as a gap.
-    _, sparse = _numeric_bins(pd.Series([100.0, 9000.0]), [500, 1500, 3500], "ft")
-    assert sparse == ["< 500 ft", "3,500+ ft"]
+    _, sparse = _numeric_bins(pd.Series([100.0, 9000.0]), [500, 1500, 3500], " ft")
+    assert sparse == ["< 500 ft", "\u2265 3,500 ft"]
 
 
 def test_wheels_by_location_panels_partition_the_cohort():
@@ -780,7 +780,7 @@ def test_wheels_by_location_panels_partition_the_cohort():
         "wheels_short": [w21, w20, w20, w21, w20],
         "elev_ft": [6800.0, 100.0, 350.0, 1000.0, float("nan")],
         "temp_f": [45.1, 70.7, 62.4, 45.4, float("nan")],
-        "pop_density": [56.0, 410.0, 165.0, 1263.0, float("nan")],
+        "urban_pct": [86.3, 91.1, 62.5, 93.9, float("nan")],
     })
     fig = fig_wheels_by_location(df)
     pct = defaultdict(lambda: defaultdict(float))

@@ -176,7 +176,7 @@ FACTORY = tuple(_GEO["factory"])
 STATE_INFO = {k: tuple(v) for k, v in _GEO["states"].items()}
 CA_PROVINCES = dict(_GEO["provinces"])
 # Per-state reference figures for the wheel-by-location panels:
-# state -> (mean_elevation_ft, mean_annual_temp_f, people_per_sq_mi). Approximate
+# state -> (mean_elevation_ft, mean_annual_temp_f, percent_urban). Approximate
 # published figures, US states only — see geo.yaml's header for each one's source
 # and the specific way it is weak. A state absent here (every Canadian province)
 # yields NaN and lands in an explicit "no data" bar, never guessed at or dropped.
@@ -185,7 +185,7 @@ STATE_REFERENCE = {k: tuple(v)
 _REF_BINS = _GEO.get("state_reference_bins") or {}
 ELEV_BINS = [float(x) for x in (_REF_BINS.get("elevation_ft") or [])]
 TEMP_BINS = [float(x) for x in (_REF_BINS.get("temperature_f") or [])]
-DENSITY_BINS = [float(x) for x in (_REF_BINS.get("density_per_sq_mi") or [])]
+URBAN_BINS = [float(x) for x in (_REF_BINS.get("urban_pct") or [])]
 
 # --- Delivery-estimate normalization (delivery.yaml) ----------------------
 UNKNOWN_TOKENS = set(_DELIV["unknown_tokens"])

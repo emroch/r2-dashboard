@@ -121,18 +121,19 @@ SECTIONS = [
                regardless of order volume, with the overall row on top as the baseline to read the rest against;
                bar labels carry the sample size (n=) and hover gives the counts. The bottom three panels are ordered
                by <em>value</em> rather than volume, since the only question they ask is whether the mix shifts as
-               you go higher, colder, or denser. All three use per-state published averages &mdash; USGS mean terrain
-               elevation, NOAA statewide average annual temperature, and Census population per square mile &mdash;
-               and an order is charted at its state's average, not at its own address, so each is a <em>weak
-               proxy</em> that fails in its own way. Elevation is terrain, not where people live: California sits at
-               ~2,900&nbsp;ft whether the order came from San Diego or Tahoe, and California is roughly a fifth of
-               the cohort. Density divides by the whole state, so a large one-metro state reads as rural &mdash;
-               Nevada falls in the sparsest bar at 28/sq&nbsp;mi though about 94% of Nevadans live in cities, with
-               Utah, Idaho and Oregon beside it; percent-urban population would sort these far better. Temperature
-               flattens season and altitude together. A lean here is worth noticing and is not evidence on its own:
-               the efficiency differences argued over between the all-season and all-terrain tires have plenty of
-               confounds these figures cannot separate. Orders from states with no published figures (Canadian
-               provinces) get their own bar rather than being dropped."""),
+               you go higher, colder, or more urban. All three use per-state published averages &mdash; USGS mean
+               terrain elevation, NOAA statewide average annual temperature, and the Census 2020 urban share of the
+               population &mdash; and an order is charted at its state's average, not at its own address, so each is
+               a <em>weak proxy</em> that fails in its own way. Elevation is terrain, not where people live:
+               California sits at ~2,900&nbsp;ft whether the order came from San Diego or Tahoe, and California is
+               roughly a fifth of the cohort. Urban share replaced raw population density, which mis-sorted the
+               states that matter most here &mdash; Nevada is 28&nbsp;people/sq&nbsp;mi but about 94% urban, so
+               density filed a metro Las&nbsp;Vegas order as rural; what urban share still cannot do is separate a
+               dense-city resident from a small-town one. Temperature flattens season and altitude together. A lean
+               here is worth noticing and is not evidence on its own: the efficiency differences argued over between
+               the all-season and all-terrain tires have plenty of confounds these figures cannot separate. Orders
+               from states with no published figures (Canadian provinces) get their own bar rather than being
+               dropped."""),
      fig_wheels_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean

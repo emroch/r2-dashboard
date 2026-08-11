@@ -94,15 +94,15 @@ provinces:
 
 # ---------------------------------------------------------------------------
 # Per-state reference figures, for the "wheel preference by location" panels.
-# state -> [mean_elevation_ft, mean_annual_temp_f, people_per_sq_mi]
+# state -> [mean_elevation_ft, mean_annual_temp_f, percent_urban]
 #
 # APPROXIMATE PUBLISHED FIGURES, not measurements from this dataset: USGS mean
 # state elevation (area-weighted), NOAA 1991-2020 statewide average annual
-# temperature, and Census resident population per square mile of land area. All
+# temperature, and the Census 2020 share of residents living in urban areas. All
 # rounded. Correcting one is a data edit here, nothing more.
 #
-# These are all STATE AVERAGES, and the dashboard only knows an order's state, so
-# every panel built on them is a weak proxy. Each is weak in its own way:
+# These are STATE AVERAGES and the dashboard only knows an order's state, so every
+# panel built on them is a weak proxy. Each is weak in its own way:
 #
 # elevation — the area-weighted mean is the standard figure and is robust to a
 #   lone tall peak, since a summit covers negligible area (Mt. Rainier leaves WA
@@ -114,13 +114,16 @@ provinces:
 #   people live: California's terrain mean is ~2,900 ft while most Californians
 #   live near sea level, and California is about a fifth of the cohort.
 #
-# density — raw density divides by the WHOLE state, so a big state with one metro
-#   reads as rural even when almost nobody lives rurally. Nevada is 28/sq mi and
-#   about 94% urban; Arizona, Utah, Colorado and Idaho are the same shape, and
-#   together they are a meaningful slice of this cohort's West. Percent-urban
-#   population, or Census population-weighted ("perceived") density, fixes exactly
-#   this and would be the better figure if these panels ever need to carry weight.
-#   DC is a city rather than a state and sits ~11,000/sq mi; the top bin holds it.
+# percent urban — this is here INSTEAD of population density, which was tried
+#   first and mis-sorts exactly the states that matter. Raw density divides by the
+#   whole state, so a big one-metro state reads rural: Nevada is 28/sq mi and about
+#   94% urban, with Utah, Idaho and Oregon the same shape, and together they are a
+#   real slice of this cohort's West. Census population-weighted ("perceived")
+#   density would be the ideal figure, but there is no maintained state-level table
+#   to take it from, and it spans 100-50,000 so a sourcing error would reshuffle
+#   the bins wholesale. Percent urban is bounded 0-100 and binned into four bars,
+#   so it stays robust to a few points of error. What it cannot do is separate a
+#   dense-city resident from a small-town one — both count as urban.
 #
 # temperature — a statewide annual mean flattens both altitude and season, so a
 #   Flagstaff order and a Phoenix order are charted at the same 60F.
@@ -130,64 +133,63 @@ provinces:
 # interior), and inventing them would look like data. Orders there fall into an
 # explicit "no data" bar instead of being dropped or guessed at.
 state_reference:
-  AL: [500, 62.8, 100]
-  AK: [1900, 26.6, 1.3]
-  AZ: [4100, 60.3, 64]
-  AR: [650, 60.4, 58]
-  CA: [2900, 59.4, 254]
-  CO: [6800, 45.1, 56]
-  CT: [500, 49.0, 745]
-  DC: [150, 57.5, 11300]
-  DE: [60, 55.3, 510]
-  FL: [100, 70.7, 410]
-  GA: [600, 63.5, 190]
-  HI: [3030, 70.0, 226]
-  IA: [1100, 47.8, 57]
-  ID: [5000, 44.4, 23]
-  IL: [600, 51.8, 226]
-  IN: [700, 51.7, 190]
-  KS: [2000, 54.3, 36]
-  KY: [750, 55.6, 114]
-  LA: [100, 66.4, 105]
-  MA: [500, 47.9, 901]
-  MD: [350, 54.2, 636]
-  ME: [600, 41.0, 44]
-  MI: [900, 44.4, 178]
-  MN: [1200, 41.2, 71]
-  MO: [800, 54.5, 90]
-  MS: [300, 63.4, 63]
-  MT: [3400, 42.7, 7.5]
-  NC: [700, 59.0, 218]
-  ND: [1900, 40.4, 11]
-  NE: [2600, 48.8, 25]
-  NH: [1000, 43.8, 155]
-  NJ: [250, 52.7, 1263]
-  NM: [5700, 53.4, 17]
-  NV: [5500, 49.9, 28]
-  NY: [1000, 45.4, 421]
-  OH: [850, 50.7, 288]
-  OK: [1300, 59.6, 58]
-  OR: [3300, 48.4, 45]
-  PA: [1100, 48.8, 291]
-  RI: [200, 50.1, 1061]
-  SC: [350, 62.4, 165]
-  SD: [2200, 45.2, 12]
-  TN: [900, 57.6, 172]
-  TX: [1700, 64.8, 114]
-  UT: [6100, 48.6, 41]
-  VA: [950, 55.1, 220]
-  VT: [1000, 42.9, 68]
-  WA: [1700, 48.3, 117]
-  WI: [1050, 43.1, 109]
-  WV: [1500, 51.3, 74]
-  WY: [6700, 42.0, 6]
+  AL: [500, 62.8, 57.7]
+  AK: [1900, 26.6, 64.0]
+  AZ: [4100, 60.3, 89.8]
+  AR: [650, 60.4, 55.4]
+  CA: [2900, 59.4, 94.2]
+  CO: [6800, 45.1, 86.3]
+  CT: [500, 49.0, 87.0]
+  DC: [150, 57.5, 100.0]
+  DE: [60, 55.3, 82.3]
+  FL: [100, 70.7, 91.1]
+  GA: [600, 63.5, 74.6]
+  HI: [3030, 70.0, 86.9]
+  IA: [1100, 47.8, 63.1]
+  ID: [5000, 44.4, 70.6]
+  IL: [600, 51.8, 87.6]
+  IN: [700, 51.7, 71.9]
+  KS: [2000, 54.3, 71.2]
+  KY: [750, 55.6, 58.5]
+  LA: [100, 66.4, 72.1]
+  MA: [500, 47.9, 91.3]
+  MD: [350, 54.2, 86.5]
+  ME: [600, 41.0, 38.1]
+  MI: [900, 44.4, 74.0]
+  MN: [1200, 41.2, 72.2]
+  MO: [800, 54.5, 69.5]
+  MS: [300, 63.4, 47.7]
+  MT: [3400, 42.7, 55.0]
+  NC: [700, 59.0, 66.6]
+  ND: [1900, 40.4, 61.2]
+  NE: [2600, 48.8, 71.5]
+  NH: [1000, 43.8, 57.0]
+  NJ: [250, 52.7, 93.9]
+  NM: [5700, 53.4, 76.6]
+  NV: [5500, 49.9, 93.6]
+  NY: [1000, 45.4, 87.1]
+  OH: [850, 50.7, 76.7]
+  OK: [1300, 59.6, 65.4]
+  OR: [3300, 48.4, 80.9]
+  PA: [1100, 48.8, 76.0]
+  RI: [200, 50.1, 90.1]
+  SC: [350, 62.4, 62.5]
+  SD: [2200, 45.2, 57.7]
+  TN: [900, 57.6, 65.4]
+  TX: [1700, 64.8, 83.7]
+  UT: [6100, 48.6, 90.6]
+  VA: [950, 55.1, 76.6]
+  VT: [1000, 42.9, 35.1]
+  WA: [1700, 48.3, 84.0]
+  WI: [1050, 43.1, 68.3]
+  WV: [1500, 51.3, 44.6]
+  WY: [6700, 42.0, 64.8]
 
 # Bin edges for the reference panels (below the first edge forms the lowest bar,
 # at-or-above the last edge the highest). Chosen to spread the current cohort
 # across four bars rather than to round numbers; widen or add an edge here if a
-# bar empties out. Density edges are spaced roughly geometrically, since state
-# density spans three orders of magnitude.
+# bar empties out.
 state_reference_bins:
   elevation_ft: [500, 1500, 3500]
   temperature_f: [45, 52, 60]
-  density_per_sq_mi: [50, 150, 400]
+  urban_pct: [70, 84, 91]
