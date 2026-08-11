@@ -13,7 +13,7 @@ import pandas as pd
 
 from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, DELIVERY_YEAR_MAX,
                      DELIVERY_YEAR_MIN, FACTORY, MONTHS, MONTH_MODIFIERS,
-                     ORDER_ANCHOR_MIN, STATE_INFO, STATE_TERRAIN,
+                     ORDER_ANCHOR_MIN, STATE_INFO, STATE_REFERENCE,
                      UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VIN_SEQ_MIN,
                      WHEEL_SHORT)
 
@@ -415,18 +415,18 @@ def loc_to_state(loc):
 
 
 def geo_enrich(df):
-    """Add state/region/lat/lon plus terrain/climate columns from `loc_raw`, in
-    place. Elevation and temperature are per-state reference figures (see
-    geo.yaml), NaN wherever the state isn't covered — a missing value has to stay
-    missing so the charts can show it as its own bar."""
+    """Add state/region/lat/lon plus the per-state reference columns from
+    `loc_raw`, in place. Elevation, temperature and population density are
+    published state averages (see geo.yaml), NaN wherever the state isn't
+    covered — a missing value has to stay missing so the charts can show it as
+    its own bar instead of implying a figure nobody published."""
     df["state"] = df["loc_raw"].apply(loc_to_state)
     df["region"] = df["state"].map(lambda s: STATE_INFO.get(s, ("Unknown",))[0])
     df["lat"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[1])
     df["lon"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[2])
-    df["elev_ft"] = df["state"].map(
-        lambda s: STATE_TERRAIN.get(s, (np.nan, np.nan))[0])
-    df["temp_f"] = df["state"].map(
-        lambda s: STATE_TERRAIN.get(s, (np.nan, np.nan))[1])
+    _nan3 = (np.nan, np.nan, np.nan)
+    for i, col in enumerate(("elev_ft", "temp_f", "pop_density")):
+        df[col] = df["state"].map(lambda s, i=i: STATE_REFERENCE.get(s, _nan3)[i])
     return df
 
 

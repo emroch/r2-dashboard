@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
-from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
+from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, DENSITY_BINS, ELEV_BINS,
+                     FACTORY, HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
@@ -520,7 +520,7 @@ def _numeric_bins(values, edges, unit):
 
 
 def fig_wheels_by_location(df):
-    """Wheel mix overall, by region, and across per-state elevation / temperature.
+    """Wheel mix overall, by region, and across the order state's reference figures.
 
     Every panel is 100% stacked, so the mix is comparable regardless of how many
     orders a row holds (the West has ~3x the Northeast). The "All orders" row on
@@ -528,21 +528,25 @@ def fig_wheels_by_location(df):
     Absolute counts ride along in the hover and as an "n=" suffix on every label,
     because a share off 18 orders and a share off 89 are not the same claim.
 
-    The elevation and temperature rows are ordered by VALUE, not by volume — the
-    question is whether the mix shifts as you go higher or colder, which only
-    reads if the bars stay in numeric order. Both are per-state reference figures
-    (geo.yaml), so they carry that file's limitation: this is terrain elevation
-    and statewide average temperature, not the altitude or climate at anyone's
-    address. A California order is charted at ~2,900 ft whether it came from San
-    Diego or Tahoe, and California is a fifth of the cohort — so treat these two
-    panels as weak proxies that can suggest a lean, never as evidence of one.
-    States with no reference figures (every Canadian province) get their own bar
-    rather than being dropped or guessed at.
+    The bottom three panels are ordered by VALUE, not by volume — the question is
+    whether the mix shifts as you go higher, colder or denser, which only reads if
+    the bars stay in numeric order.
+
+    All three are per-state averages (geo.yaml), and the dashboard only knows an
+    order's state, so each is a weak proxy with its own specific failure. Elevation
+    is terrain, not where people live: a California order is charted at ~2,900 ft
+    from San Diego or Tahoe alike, and California is a fifth of the cohort. Density
+    divides by the whole state, so a big one-metro state reads rural — Nevada lands
+    in the sparsest bar at 28/sq mi while roughly 94% of Nevadans are urban, and
+    Utah, Idaho and Oregon sit beside it. Temperature flattens season and altitude
+    together. They can suggest a lean; none of them is evidence of one. States with
+    no published figures (every Canadian province) get their own bar rather than
+    being dropped or guessed at.
     """
     d = df.dropna(subset=["lat"]).copy()
     if d.empty:
-        fig = make_subplots(rows=4, cols=1)
-        fig.update_layout(template="plotly_white", height=620)
+        fig = make_subplots(rows=5, cols=1)
+        fig.update_layout(template="plotly_white", height=720)
         return fig
 
     # Wheels in the palette's ascending-size order (the order its colors were
@@ -556,18 +560,21 @@ def fig_wheels_by_location(df):
     regions = list(d["region"].value_counts().sort_values(ascending=True).index)
     d["_elev"], elev_keys = _numeric_bins(d["elev_ft"], ELEV_BINS, "ft")
     d["_temp"], temp_keys = _numeric_bins(d["temp_f"], TEMP_BINS, "°F")
+    d["_dens"], dens_keys = _numeric_bins(d["pop_density"], DENSITY_BINS,
+                                          "per sq mi")
 
     panels = [("_all", ["All orders"]), ("region", regions),
-              ("_elev", elev_keys), ("_temp", temp_keys)]
+              ("_elev", elev_keys), ("_temp", temp_keys), ("_dens", dens_keys)]
     # Give each row roughly the height its bar count needs, so no panel looks
     # stretched or crushed; the single-bar top row still needs room for its title.
     weights = [1.8] + [len(keys) for _, keys in panels[1:]]
     fig = make_subplots(
-        rows=4, cols=1, vertical_spacing=0.07,
+        rows=len(panels), cols=1, vertical_spacing=0.055,
         row_heights=[w / sum(weights) for w in weights],
         subplot_titles=("All orders", "By region",
                         "By mean terrain elevation of the order's state",
-                        "By average annual temperature of the order's state"))
+                        "By average annual temperature of the order's state",
+                        "By population density of the order's state"))
 
     for row, (col, keys) in enumerate(panels, start=1):
         tot = d[col].value_counts()

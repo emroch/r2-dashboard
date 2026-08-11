@@ -175,15 +175,17 @@ PRICE_TRIM_ALIASES = {k: dict(v)
 FACTORY = tuple(_GEO["factory"])
 STATE_INFO = {k: tuple(v) for k, v in _GEO["states"].items()}
 CA_PROVINCES = dict(_GEO["provinces"])
-# Per-state terrain + climate for the wheel-by-location panels:
-# state -> (mean_elevation_ft, mean_annual_temp_f). Approximate published figures,
-# US states only — see geo.yaml's header for the statistic chosen and its limits.
-# A state absent here (every Canadian province) yields NaN and lands in an
-# explicit "no data" bar rather than being guessed at or dropped.
-STATE_TERRAIN = {k: tuple(v) for k, v in (_GEO.get("terrain_climate") or {}).items()}
-_TC_BINS = _GEO.get("terrain_climate_bins") or {}
-ELEV_BINS = [float(x) for x in (_TC_BINS.get("elevation_ft") or [])]
-TEMP_BINS = [float(x) for x in (_TC_BINS.get("temperature_f") or [])]
+# Per-state reference figures for the wheel-by-location panels:
+# state -> (mean_elevation_ft, mean_annual_temp_f, people_per_sq_mi). Approximate
+# published figures, US states only — see geo.yaml's header for each one's source
+# and the specific way it is weak. A state absent here (every Canadian province)
+# yields NaN and lands in an explicit "no data" bar, never guessed at or dropped.
+STATE_REFERENCE = {k: tuple(v)
+                   for k, v in (_GEO.get("state_reference") or {}).items()}
+_REF_BINS = _GEO.get("state_reference_bins") or {}
+ELEV_BINS = [float(x) for x in (_REF_BINS.get("elevation_ft") or [])]
+TEMP_BINS = [float(x) for x in (_REF_BINS.get("temperature_f") or [])]
+DENSITY_BINS = [float(x) for x in (_REF_BINS.get("density_per_sq_mi") or [])]
 
 # --- Delivery-estimate normalization (delivery.yaml) ----------------------
 UNKNOWN_TOKENS = set(_DELIV["unknown_tokens"])

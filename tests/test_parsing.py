@@ -780,6 +780,7 @@ def test_wheels_by_location_panels_partition_the_cohort():
         "wheels_short": [w21, w20, w20, w21, w20],
         "elev_ft": [6800.0, 100.0, 350.0, 1000.0, float("nan")],
         "temp_f": [45.1, 70.7, 62.4, 45.4, float("nan")],
+        "pop_density": [56.0, 410.0, 165.0, 1263.0, float("nan")],
     })
     fig = fig_wheels_by_location(df)
     pct = defaultdict(lambda: defaultdict(float))
@@ -789,7 +790,7 @@ def test_wheels_by_location_panels_partition_the_cohort():
         for y, x, cd in zip(tr.y, tr.x, tr.customdata):
             pct[axis][y] += x
             n[axis][y] += int(cd)
-    assert len(pct) == 4, "expected four panels"
+    assert len(pct) == 5, "expected five panels"
     for axis in pct:
         assert all(abs(v - 100.0) < 1e-6 for v in pct[axis].values()), axis
         assert sum(n[axis].values()) == len(df), axis
