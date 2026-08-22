@@ -65,7 +65,9 @@ overrides:
     delivery_raw: "8/6/2026"
   # same contradiction — "No" plus an R1S. His forum profile lists an R1S, so the
   # gate answer is the wrong one. (Profile, not a specific post.)
+  # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/
   mclark2112:
+    delivery_raw: "8/19/2026"
     r1_owner: "Yes"
   # answered the owner gate but skipped the model follow-up; the forum post shows
   # an R1S. The only owner left without a model, so the R1 stack now has no
@@ -169,11 +171,29 @@ overrides:
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1073061
   solidbrix:
     delivery_raw: "8/19/2026"
+  # vin update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1079143
+  DBDR:
+    vin_raw: "TBD"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1080568
+  WhiskeyDoc:
+    delivery_raw: "8/19/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1081153
+  Ryanbac:
+    delivery_raw: "9/5/2026"
+    vin_raw: "72XX"
+  # vin update
+  # https://www.rivianforums.com/forum/posts/1081450/
+  deadstar114:
+    vin_raw: "36XX"
 
 additions:
   # forum-only order — not in the tracker sheet
   # https://www.rivianforums.com/forum/threads/r2-esker-silver-road-trip-report.61400/post-1047128
   jtg11:
+    resv_raw: "3/7/2024"
     delivery_raw: "7/8/2026"
     vin_raw: "226X"
     loc_raw: "OH"
@@ -364,6 +384,18 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
+  # https://www.rivianforums.com/forum/posts/1080540/
+  clydef:
+    order_raw: "8/19/2026"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
 
 # Entries below are incomplete and thus cannot be rendered. Adding here to keep track in case more details become available
 partial data:
@@ -379,6 +411,40 @@ partial data:
     launch: "Yes"
     color:
     interior:
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    spare:
+    r1_owner: "No"
+    r1_model:
+  # https://www.rivianforums.com/forum/posts/1080998/
+  tgrick:
+    resv_raw:
+    order_raw: "8/19/2026"
+    delivery_raw:
+    vin_raw:
+    loc_raw: "FL"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Glacier White"
+    interior: "Black Crater Signature"
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    spare:
+    r1_owner: "No"
+    r1_model:
+  # https://www.rivianforums.com/forum/posts/1080955/
+  snovarev:
+    resv_raw: "3/7/2024"
+    order_raw: "8/18/2026"
+    delivery_raw:
+    vin_raw:
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Coastal Cloud Signature"
     wheels:
     autonomy: "Included"
     tow: "Included"
