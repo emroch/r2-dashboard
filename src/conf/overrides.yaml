@@ -188,6 +188,10 @@ overrides:
   # https://www.rivianforums.com/forum/posts/1081450/
   deadstar114:
     vin_raw: "36XX"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/my-r2-coastal-interior-real-live-in-the-flesh-in-midnight-r2.63084/
+  protamine:
+    delivery_raw: "8/25/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -396,6 +400,23 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1076750
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1082006
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1077789
+  602flyer:
+    order_raw: "6/17/2026"
+    delivery_raw: "8/20/2026"
+    vin_raw: "2405"
+    loc_raw: "AZ"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1T"
 
 # Entries below are incomplete and thus cannot be rendered. Adding here to keep track in case more details become available
 partial data:
