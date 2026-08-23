@@ -29,12 +29,26 @@ paint_order:
   - Midnight
 
 # ---------------------------------------------------------------------------
-# Interior take-rate bar colors (evocative of the material; name minus the
-# " Signature" suffix). Near-black / near-white so the two read dark vs light.
+# Interiors. Keyed by the EXACT sheet value, because "Black Crater" and "Black
+# Crater Signature" are DIFFERENT offerings in pricing.yaml — Standard gets the
+# plain one, Performance and Premium the Signature. Shortening a label by
+# stripping the suffix would merge the two into one row the moment Standard ships,
+# so the display label is recorded here instead of derived.
+#   short — display label; kept compact, it appears in dense axes and row keys
+#   color — evocative of the material, near-black / near-white so the cabins read
+#           dark vs light in the take-rate bars
+# Listed plainest-first, which is the order the charts show them in.
 # ---------------------------------------------------------------------------
 interiors:
-  Black Crater: "#2F2F35"     # dark charcoal, almost black
-  Coastal Cloud: "#EAEAEE"    # light smoke, almost white
+  'Black Crater':
+    short: 'Black Crater'
+    color: "#2F2F35"          # dark charcoal, almost black
+  'Black Crater Signature':
+    short: 'Black Crater Sig'
+    color: "#2F2F35"
+  'Coastal Cloud Signature':
+    short: 'Coastal Cloud Sig'
+    color: "#EAEAEE"          # light smoke, almost white
 
 # ---------------------------------------------------------------------------
 # Wheels. Keyed by the EXACT sheet value (note the curly ” the form uses), so a

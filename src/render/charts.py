@@ -8,7 +8,8 @@ from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, PRICE_COLORS,
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_ORDER,
+                     INTERIOR_SHORT, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
@@ -356,10 +357,14 @@ def fig_config_dashboard(df):
                               "legend", not shown)
 
     ic = df["interior"].value_counts()
-    ic_names = [s.replace(" Signature", "") for s in ic.index]
+    # Labels and colors both come from the palette, keyed by the exact sheet value.
+    # This used to strip " Signature" off the name to shorten it, which would fold
+    # Standard's Black Crater into Performance's Black Crater Signature — two
+    # different interiors sharing one bar — as soon as Standard shipped.
+    ic_names = [INTERIOR_SHORT.get(s, s) for s in ic.index]
     shown |= _take_rate_panel(
         fig, 1, 3, df, "interior", ic, ic_names,
-        [INTERIOR_COLOR.get(n, TAKE_RATE["interior_fallback"]) for n in ic_names],
+        [INTERIOR_COLOR.get(s, TAKE_RATE["interior_fallback"]) for s in ic.index],
         "trim", TRIM_COLORS, "legend", not shown)
 
     bc = df["buylease"].replace("", "Blank").value_counts()
@@ -400,27 +405,48 @@ def fig_config_dashboard(df):
     return fig
 
 
-def fig_color_wheel_heatmap(df):
-    """Color x wheels config-combo counts."""
-    wheels = ['20" Black Sand', '21" Liquid Tungsten']
+def _config_heatmap(df, col, values, x_title, labels=None, height=520):
+    """Paint × `col` combo counts as a heatmap.
+
+    Rows are the paints present, in the shared COLOR_ORDER; columns are `values`,
+    which the caller filters to what's actually been ordered so an unshipped
+    option never draws an empty column. `labels` renames the columns for display
+    where the sheet value is too long (interiors); it must line up with `values`.
+
+    Every cell carries its count as text: the colorscale conveys magnitude, but at
+    these volumes a 1 and a 3 are indistinguishable by shade alone.
+    """
     colors = [c for c in COLOR_ORDER if (df["color"] == c).any()]
-    z, text = [], []
-    for c in colors:
-        row, trow = [], []
-        for w in wheels:
-            n = int(((df["color"] == c) & (df["wheels_short"] == w)).sum())
-            row.append(n)
-            trow.append(str(n))
-        z.append(row)
-        text.append(trow)
+    z = [[int(((df["color"] == c) & (df[col] == v)).sum()) for v in values]
+         for c in colors]
+    text = [[str(n) for n in row] for row in z]
     fig = go.Figure(go.Heatmap(
-        z=z, x=wheels, y=colors, text=text, texttemplate="%{text}",
-        textfont=dict(size=14), colorscale=HEATMAP_COLORSCALE, showscale=True,
+        z=z, x=list(labels or values), y=colors, text=text,
+        texttemplate="%{text}", textfont=dict(size=14),
+        colorscale=HEATMAP_COLORSCALE, showscale=True,
         hovertemplate="%{y} + %{x}<br>%{z} orders<extra></extra>"))
-    fig.update_layout(template="plotly_white", height=520,
-                      xaxis_title="Wheels", yaxis_title="Exterior color",
+    fig.update_layout(template="plotly_white", height=height,
+                      title=_chart_title("Exterior paint × " + x_title.lower()),
+                      xaxis_title=x_title, yaxis_title="Exterior color",
+                      margin=dict(t=52),
                       yaxis=dict(autorange="reversed"))
     return fig
+
+
+def fig_color_wheel_heatmap(df):
+    """Paint × wheels combo counts."""
+    # From WHEEL_ORDER rather than a hardcoded pair: the palette knows four wheels
+    # and this list used to name only the two Performance ones, so the others
+    # would have gone missing from the grid once Premium and Standard shipped.
+    wheels = [w for w in WHEEL_ORDER if (df["wheels_short"] == w).any()]
+    return _config_heatmap(df, "wheels_short", wheels, "Wheels")
+
+
+def fig_color_interior_heatmap(df):
+    """Paint × interior combo counts — which cabin people pair with which paint."""
+    interiors = [i for i in INTERIOR_ORDER if (df["interior"] == i).any()]
+    return _config_heatmap(df, "interior", interiors, "Interior",
+                           labels=[INTERIOR_SHORT.get(i, i) for i in interiors])
 
 
 def fig_paint_by_location(df, min_state_orders=5):
@@ -1160,12 +1186,18 @@ def fig_certainty_by_vin(df):
 
 
 def fig_vin_by_config(df):
-    """VIN sequence per full configuration (trim · color · wheels).
+    """VIN sequence per full configuration (trim · color · wheels · interior).
 
     Each VIN-assigned order sits at its production sequence (x); rows group
     orders by configuration. Clusters along a row hint at same-config cars built
     in a batch. Today everyone is Performance (Launch Edition); Premium and
     Standard rows will appear as those trims ship.
+
+    Interior joins the row key rather than becoming a fourth visual channel —
+    marker fill is already paint and shape is already wheels, and a third encoding
+    on a 10px marker would be guesswork. With two interiors in the catalog per
+    trim this at most doubles the row count, and it grows only as fast as VINs are
+    assigned to the newer cabins.
     """
     d = df[df["vin_present"]].copy()
     fig = go.Figure()
@@ -1175,12 +1207,17 @@ def fig_vin_by_config(df):
     # Compact per-wheel tag: size alone is ambiguous now that two of the four
     # wheels are 20", so the abbreviation carries All-Season/All-Terrain too.
     wheel_abbr = d["wheels_short"].map(lambda w: WHEEL_ABBR.get(w, w))
-    d["_combo"] = d["trim"] + " · " + d["color"] + " · " + wheel_abbr
+    interior = d["interior"].map(lambda i: INTERIOR_SHORT.get(i, i))
+    d["_combo"] = (d["trim"] + " · " + d["color"] + " · " + wheel_abbr
+                   + " · " + interior)
     color_rank = {c: i for i, c in enumerate(COLOR_ORDER)}
+    interior_rank = {INTERIOR_SHORT.get(i, i): n
+                     for n, i in enumerate(INTERIOR_ORDER)}
 
     def _key(combo):
-        trim, color, wheel = combo.split(" · ")
-        return (trim, color_rank.get(color, 99), wheel)
+        trim, color, wheel, inter = combo.split(" · ")
+        return (trim, color_rank.get(color, 99), wheel,
+                interior_rank.get(inter, 99))
 
     combos = sorted(d["_combo"].unique(), key=_key)
     ypos = {c: i for i, c in enumerate(combos)}
