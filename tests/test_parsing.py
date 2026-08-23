@@ -798,6 +798,85 @@ def test_wheels_by_location_panels_partition_the_cohort():
     assert any("No state data" in y for y in n["y3"])
 
 
+# --- Interior identity and the config-combination heatmaps -------------------
+# "Black Crater" (Standard) and "Black Crater Signature" (Performance / Premium)
+# are different interiors in pricing.yaml. Labels used to be built by stripping
+# " Signature" off the sheet value, which merges them — the same failure the wheel
+# size test had. These pin the replacement.
+
+
+def _interior_frame():
+    """A frame covering every catalogued interior against two paints, so a label
+    collision between the two Black Craters would show up as a missing column.
+    Carries the hover columns the VIN scatter reads, not just the grouping keys."""
+    from config import COLOR_ORDER, INTERIOR_ORDER, WHEEL_ORDER
+    paints = [c for c in COLOR_ORDER[:2]]
+    rows = []
+    for i, interior in enumerate(INTERIOR_ORDER):
+        for j, paint in enumerate(paints):
+            rows.append({"color": paint, "interior": interior,
+                         "wheels_short": WHEEL_ORDER[-1 if j else -2],
+                         "trim": "Performance", "vin_present": True,
+                         "vin_seq": 1000 + 10 * i + j,
+                         "user": "u%d%d" % (i, j), "buylease": "Purchase",
+                         "vin_display": str(1000 + 10 * i + j),
+                         "order_display": "Jun 15, 2026",
+                         "est_display": "Aug 01, 2026",
+                         "delivery_type": "explicit", "state": "IL"})
+    return pd.DataFrame(rows)
+
+
+def test_interior_labels_keep_the_two_black_craters_apart():
+    from config import INTERIOR_ORDER, INTERIOR_SHORT
+    plain = [i for i in INTERIOR_ORDER if i == "Black Crater"]
+    sig = [i for i in INTERIOR_ORDER if i == "Black Crater Signature"]
+    assert plain and sig, "both Black Crater variants should be catalogued"
+    labels = [INTERIOR_SHORT[i] for i in INTERIOR_ORDER]
+    assert len(labels) == len(set(labels)), "interior labels collide: %s" % labels
+
+
+def test_interior_heatmap_columns_are_distinct_and_present_only():
+    # One column per interior that has an order, labelled distinctly, and every
+    # order counted exactly once.
+    from config import INTERIOR_ORDER, INTERIOR_SHORT
+    from render.charts import fig_color_interior_heatmap
+    df = _interior_frame()
+    h = fig_color_interior_heatmap(df).data[0]
+    assert list(h.x) == [INTERIOR_SHORT[i] for i in INTERIOR_ORDER]
+    assert len(set(h.x)) == len(h.x)
+    assert sum(sum(r) for r in h.z) == len(df)
+    # An interior nobody ordered gets no column at all.
+    one = df[df["interior"] == INTERIOR_ORDER[0]]
+    assert list(fig_color_interior_heatmap(one).data[0].x) == \
+        [INTERIOR_SHORT[INTERIOR_ORDER[0]]]
+
+
+def test_wheel_heatmap_covers_every_ordered_wheel():
+    # This grid used to hardcode the two Performance wheels, so the other two
+    # would have gone missing once Premium and Standard shipped.
+    from render.charts import fig_color_wheel_heatmap
+    df = _interior_frame()
+    h = fig_color_wheel_heatmap(df).data[0]
+    assert set(h.x) == set(df["wheels_short"].unique())
+    assert sum(sum(r) for r in h.z) == len(df)
+
+
+def test_vin_by_config_rows_carry_interior_and_stay_ordered():
+    from config import COLOR_ORDER, INTERIOR_ORDER, INTERIOR_SHORT
+    from render.charts import fig_vin_by_config
+    df = _interior_frame()
+    rows = list(fig_vin_by_config(df).layout.yaxis.ticktext)
+    assert len(rows) == len(df), "one row per distinct configuration"
+    for r in rows:
+        assert len(r.split(" · ")) == 4, r
+    # Rows sort by paint (COLOR_ORDER) then wheel then interior (INTERIOR_ORDER),
+    # so a reader scanning down sees a stable, meaningful sequence.
+    rank = {INTERIOR_SHORT[i]: n for n, i in enumerate(INTERIOR_ORDER)}
+    keys = [(COLOR_ORDER.index(r.split(" · ")[1]), r.split(" · ")[2],
+             rank[r.split(" · ")[3]]) for r in rows]
+    assert keys == sorted(keys)
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
