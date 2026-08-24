@@ -37,27 +37,34 @@ paint_order:
 #   short — display label; kept compact, it appears in dense axes and row keys
 #   color — evocative of the material, near-black / near-white so the cabins read
 #           dark vs light in the single-series take-rate bars
-#   mix   — a LEGIBILITY palette for the stacked interior-mix chart, where the
-#           material colors fail: Black Crater at #2F2F35 on the dark card is
-#           almost invisible, and it is the great majority of orders, so that bar
-#           would read as empty. Validated for CVD separation and contrast in the
-#           listed (stack) order against both the light and dark chart surfaces.
-#           Arbitrary hues rather than material ones — the legend names them.
+#   mix   — the stacked interior-mix chart. Sampled from Rivian's configurator
+#           renders (canvas pixel medians over lit upholstery — seat back and
+#           centre console), so a segment shows roughly the real cabin color:
+#             Black Crater Signature  seat back #48433c, console #58554f
+#             Coastal Cloud Signature seat back #b3b1ad, console #c7c6c4
+#           Neither survives both chart surfaces on its own — the charcoal is
+#           ~2:1 against the dark card and the smoke ~1.8:1 against the light one
+#           — so that chart draws a heavier segment border in CHART.edge, which
+#           the theme flips (#2b2b2b light / #aab0b8 dark) and therefore always
+#           contrasts whichever surface is showing.
+#           Standard's plain Black Crater is a shade darker to hold it apart from
+#           the Signature; that pair is only ~2:1 and no order has used it yet, so
+#           re-check the two side by side once Standard ships.
 # Listed plainest-first, which is the order the charts show them in.
 # ---------------------------------------------------------------------------
 interiors:
   'Black Crater':
     short: 'Black Crater'
     color: "#2F2F35"          # dark charcoal, almost black
-    mix: "#b3363c"
+    mix: "#34302a"
   'Black Crater Signature':
     short: 'Black Crater Sig'
     color: "#2F2F35"
-    mix: "#b8860b"
+    mix: "#57514a"
   'Coastal Cloud Signature':
     short: 'Coastal Cloud Sig'
     color: "#EAEAEE"          # light smoke, almost white
-    mix: "#4b5fa8"
+    mix: "#c2c0bb"
 
 # ---------------------------------------------------------------------------
 # Wheels. Keyed by the EXACT sheet value (note the curly ” the form uses), so a

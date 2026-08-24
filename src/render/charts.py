@@ -468,7 +468,8 @@ def _by_volume(series):
     return list(_stable_counts(series.value_counts()).index)
 
 
-def _mix_panels(fig, panels, series_col, series, colors, series_label=None):
+def _mix_panels(fig, panels, series_col, series, colors, series_label=None,
+                line_width=0.5):
     """Fill a subplot stack with 100%-stacked horizontal composition rows.
 
     `panels` is [(frame, column, ordered_keys)] — one row per entry, in order.
@@ -482,6 +483,10 @@ def _mix_panels(fig, panels, series_col, series, colors, series_label=None):
     for the legend and hover where the raw value is too long; grouping still keys
     on the raw value. Only the first row contributes legend entries, so a series
     isn't listed once per panel.
+
+    `line_width` is the segment border, drawn in CHART.edge, which the theme flips
+    so it always contrasts the surface. Raise it where a fill sits close to one of
+    the two chart backgrounds and would otherwise dissolve into it.
     """
     label = series_label or {}
     for row, (sub, col, keys) in enumerate(panels, start=1):
@@ -498,7 +503,7 @@ def _mix_panels(fig, panels, series_col, series, colors, series_label=None):
                 x=pct, y=bars, orientation="h", name=name, legendgroup=name,
                 showlegend=(row == 1), customdata=np.array(n),
                 marker=dict(color=colors.get(s, CHART_UI["muted"]),
-                            line=dict(color=CHART["edge"], width=0.5)),
+                            line=dict(color=CHART["edge"], width=line_width)),
                 hovertemplate=("%{y}<br>" + name
                                + ": %{customdata} orders (%{x:.0f}%)<extra></extra>")),
                 row, 1)
@@ -582,8 +587,11 @@ def fig_interior_by_location(df):
 
     interiors = [i for i in INTERIOR_ORDER if (d["interior"] == i).any()]
     d["_all"] = "All orders"
+    # Heavier border than the other mix charts: these fills are the real cabin
+    # colors, so each one nearly matches one of the two chart surfaces.
     _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions)],
-                "interior", interiors, INTERIOR_MIX, INTERIOR_SHORT)
+                "interior", interiors, INTERIOR_MIX, INTERIOR_SHORT,
+                line_width=1.3)
     _mix_layout(fig, "Interior", 260 + 30 * (1 + len(regions)))
     return fig
 
