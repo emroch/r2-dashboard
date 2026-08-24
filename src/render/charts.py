@@ -8,8 +8,8 @@ from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_MIX,
-                     INTERIOR_ORDER, INTERIOR_SHORT, PRICE_COLORS,
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_ORDER,
+                     INTERIOR_SHORT, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
@@ -590,7 +590,7 @@ def fig_interior_by_location(df):
     # Heavier border than the other mix charts: these fills are the real cabin
     # colors, so each one nearly matches one of the two chart surfaces.
     _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions)],
-                "interior", interiors, INTERIOR_MIX, INTERIOR_SHORT,
+                "interior", interiors, INTERIOR_COLOR, INTERIOR_SHORT,
                 line_width=1.3)
     _mix_layout(fig, "Interior", 260 + 30 * (1 + len(regions)))
     return fig
