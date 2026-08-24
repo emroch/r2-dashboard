@@ -148,9 +148,9 @@ SECTIONS = [
                100% stacked so a region's mix is comparable regardless of order volume, the overall row on top is the
                baseline, and every bar carries its sample size (n=). Region only, no per-state row &mdash; the newer
                cabins are a small share of orders, and split by state most rows would hold one or two of them, where a
-               single order swings the mix by 100 points. Segment colors here are chosen for legibility rather than to
-               match the upholstery: the real interior colors are near-black and near-white, which disappear into one
-               theme or the other when one cabin carries most of a bar."""),
+               single order swings the mix by 100 points. Segment fills are sampled from Rivian's own configurator
+               renders, so a bar shows roughly the real cabin color; since charcoal and smoke each come close to one of
+               the two page themes, the segments carry a border that follows the theme rather than the data."""),
      fig_interior_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
