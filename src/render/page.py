@@ -17,9 +17,11 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup
 from plotly.offline import get_plotlyjs
 
-from .charts import (fig_certainty_by_vin, fig_color_wheel_heatmap,
+from .charts import (fig_certainty_by_vin, fig_color_interior_heatmap,
+                     fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
+                     fig_interior_by_location,
                      fig_order_timeline, fig_paint_by_location,
                      fig_price_by_trim, fig_price_distribution,
                      fig_price_options, fig_state_totals, fig_vin_by_config,
@@ -52,9 +54,12 @@ SECTIONS = [
      dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
                so they are omitted here.)"""),
      fig_config_dashboard),
-    ("Color × wheels combinations",
-     dedent("""Most common full builds — the combos that would form the clusters in the delivery-vs-VIN chart."""),
-     fig_color_wheel_heatmap),
+    ("Configuration combinations",
+     dedent("""Which options people pair together, as counts per pairing: exterior paint against wheels, then
+               against interior. Cells carry the count as well as the shade, since at these volumes a 1 and a 3
+               look alike by color alone. Only options that have actually been ordered get a column, so the grid
+               fills out as trims and configs open up rather than showing empty rows in advance."""),
+     (fig_color_wheel_heatmap, fig_color_interior_heatmap)),
     ("Configured price",
      dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
                destination, doc fees, taxes, or incentives. The top panel gives one bar per exact price (the cohort lands
@@ -89,8 +94,11 @@ SECTIONS = [
      fig_delivery_vs_vin),
     ("VIN sequence by configuration",
      dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·
-               color · wheels); marker fill = paint, shape = wheels. Clusters along a row suggest same-config cars were
-               built in a batch."""),
+               color · wheels · interior); marker fill = paint, shape = wheels. Clusters along a row suggest
+               same-config cars were built in a batch. Interior is part of the row key rather than a third marker
+               encoding, since fill and shape are already taken and a third cue on a 10px marker would be
+               guesswork; rows appear only for configurations that have a VIN, so the newer cabins show up here as
+               their orders get assigned."""),
      fig_vin_by_config),
     ("Geographic demand",
      dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
@@ -135,6 +143,15 @@ SECTIONS = [
                versus all-terrain efficiency argument carries confounds &mdash; local terrain, driving mix, when each
                wheel was orderable &mdash; that state averages cannot separate."""),
      fig_wheels_by_location),
+    ("Interior preference by location",
+     dedent("""Interior mix overall and by region, read the same way as the paint and wheel panels above: each row is
+               100% stacked so a region's mix is comparable regardless of order volume, the overall row on top is the
+               baseline, and every bar carries its sample size (n=). Region only, no per-state row &mdash; the newer
+               cabins are a small share of orders, and split by state most rows would hold one or two of them, where a
+               single order swings the mix by 100 points. Segment fills are sampled from Rivian's own configurator
+               renders, so a bar shows roughly the real cabin color; since charcoal and smoke each come close to one of
+               the two page themes, the segments carry a border that follows the theme rather than the data."""),
+     fig_interior_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
                farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in

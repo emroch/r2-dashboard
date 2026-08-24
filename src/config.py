@@ -76,7 +76,17 @@ RESV_THREAD = _RESV_SRC["thread_url"]
 # Exterior paints: the display hex actually used. COLOR_ORDER drives ordering.
 COLOR_HEX = dict(_PALETTE["paints"])
 COLOR_ORDER = list(_PALETTE["paint_order"])
-INTERIOR_COLOR = dict(_PALETTE["interiors"])
+# Interiors, keyed by the exact sheet value for the same reason as wheels: two of
+# them share the "Black Crater" base name and differ only by the Signature
+# suffix, so nothing may derive one label from the other. INTERIOR_ORDER is the
+# palette's plainest-first order, which the charts display in.
+_INTERIORS = _PALETTE["interiors"]
+INTERIOR_ORDER = list(_INTERIORS)
+INTERIOR_SHORT = {k: v["short"] for k, v in _INTERIORS.items()}
+# One color per interior, sampled from the configurator renders, serving every
+# interior chart. Each sits close to one of the two chart surfaces, so those
+# charts draw a CHART.edge border to delineate it — see palette.yaml.
+INTERIOR_COLOR = {k: v["color"] for k, v in _INTERIORS.items()}
 # Wheels. The palette is keyed by the exact sheet value; WHEEL_SHORT maps that to
 # the display label, and every other table is keyed BY that label, since it's the
 # label the DataFrame carries (wheels_short). WHEEL_ORDER preserves the palette's
