@@ -35,36 +35,38 @@ paint_order:
 # stripping the suffix would merge the two into one row the moment Standard ships,
 # so the display label is recorded here instead of derived.
 #   short — display label; kept compact, it appears in dense axes and row keys
-#   color — evocative of the material, near-black / near-white so the cabins read
-#           dark vs light in the single-series take-rate bars
-#   mix   — the stacked interior-mix chart. Sampled from Rivian's configurator
-#           renders (canvas pixel medians over lit upholstery — seat back and
-#           centre console), so a segment shows roughly the real cabin color:
-#             Black Crater Signature  seat back #48433c, console #58554f
-#             Coastal Cloud Signature seat back #b3b1ad, console #c7c6c4
-#           Neither survives both chart surfaces on its own — the charcoal is
-#           ~2:1 against the dark card and the smoke ~1.8:1 against the light one
-#           — so that chart draws a heavier segment border in CHART.edge, which
-#           the theme flips (#2b2b2b light / #aab0b8 dark) and therefore always
-#           contrasts whichever surface is showing.
-#           Standard's plain Black Crater is a shade darker to hold it apart from
-#           the Signature; that pair is only ~2:1 and no order has used it yet, so
-#           re-check the two side by side once Standard ships.
+#   color — the cabin color, used by every interior chart (take-rate bars and the
+#           stacked mix alike). Sampled from Rivian's configurator renders with a
+#           canvas pixel median rather than picked by eye:
+#             Black Crater Signature  seat back #48433c, centre console #58554f
+#             Coastal Cloud Signature seat back #b3b1ad, centre console #c7c6c4
+#             Black Crater (plain)    headliner #918f8c / #8c8b87
+#
+# Why plain Black Crater takes its HEADLINER rather than its seats: below the
+# beltline it is the same charcoal as the Signature (seat back #524e48, console
+# #58554f — indistinguishable), and averaging its two-tone cabin lands right back
+# on the Signature's value. The light headliner and fabric dash are the only
+# things that separate them, so the swatch carries the upper cabin. If that ever
+# reads as wrong, the alternative is same-charcoal-plus-a-fabric-hatch pattern.
+#
+# None of these three survives both chart surfaces on its own — the charcoal is
+# ~2:1 against the dark card and the smoke ~1.8:1 against the light one. Every
+# interior chart therefore draws a segment border in CHART.edge, which the theme
+# flips (#2b2b2b light / #aab0b8 dark) and so always contrasts whichever surface
+# is showing. That is also why these beat the near-black/near-white pair they
+# replaced, which sat at ~1.2:1 against their weak surface.
 # Listed plainest-first, which is the order the charts show them in.
 # ---------------------------------------------------------------------------
 interiors:
   'Black Crater':
     short: 'Black Crater'
-    color: "#2F2F35"          # dark charcoal, almost black
-    mix: "#34302a"
+    color: "#8f8d89"          # light headliner — see note above
   'Black Crater Signature':
     short: 'Black Crater Sig'
-    color: "#2F2F35"
-    mix: "#57514a"
+    color: "#57514a"          # warm charcoal upholstery
   'Coastal Cloud Signature':
     short: 'Coastal Cloud Sig'
-    color: "#EAEAEE"          # light smoke, almost white
-    mix: "#c2c0bb"
+    color: "#c2c0bb"          # light smoke upholstery
 
 # ---------------------------------------------------------------------------
 # Wheels. Keyed by the EXACT sheet value (note the curly ” the form uses), so a
