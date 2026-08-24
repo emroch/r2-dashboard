@@ -84,6 +84,10 @@ _INTERIORS = _PALETTE["interiors"]
 INTERIOR_ORDER = list(_INTERIORS)
 INTERIOR_SHORT = {k: v["short"] for k, v in _INTERIORS.items()}
 INTERIOR_COLOR = {k: v["color"] for k, v in _INTERIORS.items()}
+# Separate legibility palette for the stacked interior-mix chart — the material
+# colors above are near-black/near-white and vanish into one theme or the other
+# when they carry most of a bar. See palette.yaml.
+INTERIOR_MIX = {k: v["mix"] for k, v in _INTERIORS.items()}
 # Wheels. The palette is keyed by the exact sheet value; WHEEL_SHORT maps that to
 # the display label, and every other table is keyed BY that label, since it's the
 # label the DataFrame carries (wheels_short). WHEEL_ORDER preserves the palette's

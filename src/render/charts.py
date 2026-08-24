@@ -8,8 +8,8 @@ from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_ORDER,
-                     INTERIOR_SHORT, PRICE_COLORS,
+                     HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_MIX,
+                     INTERIOR_ORDER, INTERIOR_SHORT, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
@@ -449,23 +449,90 @@ def fig_color_interior_heatmap(df):
                            labels=[INTERIOR_SHORT.get(i, i) for i in interiors])
 
 
+def _stable_counts(counts):
+    """Counts ascending, ties broken alphabetically. Ascending so the biggest bar
+    sits on top of a horizontal panel.
+
+    The tie-break is the point. sort_values() is not a stable sort and
+    value_counts/groupby promise no order among equal counts, so tied categories
+    came out in a DIFFERENT ORDER ON EVERY RUN — the deployed charts' rows
+    reshuffled between daily builds for no reason, and it made any before/after
+    diff of a figure meaningless. sort_index first, then a stable sort by value,
+    leaves ties alphabetical.
+    """
+    return counts.sort_index().sort_values(ascending=True, kind="mergesort")
+
+
+def _by_volume(series):
+    """_stable_counts as a plain list of categories, for panel bar orders."""
+    return list(_stable_counts(series.value_counts()).index)
+
+
+def _mix_panels(fig, panels, series_col, series, colors, series_label=None):
+    """Fill a subplot stack with 100%-stacked horizontal composition rows.
+
+    `panels` is [(frame, column, ordered_keys)] — one row per entry, in order.
+    Each panel carries its own frame, so a panel can restrict the cohort (the
+    state row drops thin states) without touching the others. `ordered_keys` is
+    used as given and never re-sorted here: some panels order by volume and some
+    by value, and only the caller knows which.
+
+    `series_col` is the column holding the stacked category, `series` its stack
+    order, and `colors` maps a value to its fill. `series_label` renames a value
+    for the legend and hover where the raw value is too long; grouping still keys
+    on the raw value. Only the first row contributes legend entries, so a series
+    isn't listed once per panel.
+    """
+    label = series_label or {}
+    for row, (sub, col, keys) in enumerate(panels, start=1):
+        tot = sub[col].value_counts()
+        # "NAME  n=" keeps the sample size beside every bar, so a 100% split off a
+        # handful of orders can't be mistaken for a solid trend.
+        bars = ["%s  n=%d" % (k, tot[k]) for k in keys]
+        for s in series:
+            name = label.get(s, s)
+            n = [int(((sub[col] == k) & (sub[series_col] == s)).sum())
+                 for k in keys]
+            pct = [100.0 * v / tot[k] for v, k in zip(n, keys)]
+            fig.add_trace(go.Bar(
+                x=pct, y=bars, orientation="h", name=name, legendgroup=name,
+                showlegend=(row == 1), customdata=np.array(n),
+                marker=dict(color=colors.get(s, CHART_UI["muted"]),
+                            line=dict(color=CHART["edge"], width=0.5)),
+                hovertemplate=("%{y}<br>" + name
+                               + ": %{customdata} orders (%{x:.0f}%)<extra></extra>")),
+                row, 1)
+
+
+def _mix_layout(fig, legend_title, height):
+    """Shared chrome for the 100%-stacked composition charts: a fixed 0-100 axis
+    so panels are visually comparable, and one legend for the whole stack."""
+    fig.update_xaxes(range=[0, 100], ticksuffix="%", showgrid=True)
+    fig.update_yaxes(ticksuffix="  ", automargin=True)
+    fig.update_layout(
+        template="plotly_white", barmode="stack", bargap=0.28, height=height,
+        margin=dict(l=0, r=20, t=52, b=40),
+        legend=dict(title=dict(text=legend_title), traceorder="normal",
+                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
+                    borderwidth=1))
+
+
 def fig_paint_by_location(df, min_state_orders=5):
     """Paint mix overall, by region, and by the states with enough orders.
 
     All three panels are 100% stacked, so a region/state's color preference is
-    comparable regardless of how many orders it placed (the West has ~70x
-    Canada's volume). The overall row on top is the baseline to read the rest
-    against — whether a region over- or under-indexes on a paint. Absolute counts
-    ride along in the hover and as an "n=" tick suffix. Segments use the real
-    paint colors, in the shared COLOR_ORDER.
+    comparable regardless of how many orders it placed. The overall row on top is
+    the baseline to read the rest against — whether a region over- or
+    under-indexes on a paint. Absolute counts ride along in the hover and as an
+    "n=" suffix. Segments use the real paint colors, in the shared COLOR_ORDER.
 
-    Paint x state is ~45% empty and most states have 1-3 orders, where a single
+    Paint x state is mostly empty and many states have 1-3 orders, where a single
     order swings the mix by 100 points — so the state panel is limited to states
     with at least `min_state_orders`, and the rest stay summarized by region.
     """
     d = df.dropna(subset=["lat"]).copy()
     counts = d["state"].value_counts()
-    states = counts[counts >= min_state_orders].sort_values(ascending=True).index
+    states = [s for s in _by_volume(d["state"]) if counts[s] >= min_state_orders]
     fig = make_subplots(
         rows=3, cols=1, vertical_spacing=0.09,
         # The overall row is a single bar; give the panels roughly the height
@@ -478,40 +545,46 @@ def fig_paint_by_location(df, min_state_orders=5):
         return fig
 
     colors = [c for c in COLOR_ORDER if (d["color"] == c).any()]
-    keep = set(states)
-    # Ascending so the biggest sits on top in each horizontal panel.
-    regions = d["region"].value_counts().sort_values(ascending=True).index
+    thick = d[d["state"].isin(set(states))]
+    regions = _by_volume(d["region"])
     # A constant column lets the overall row reuse the same grouping code path.
     d["_all"] = "All orders"
+    _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions),
+                      (thick, "state", states)],
+                "color", colors, COLOR_DISPLAY)
+    _mix_layout(fig, "Exterior paint", 380 + 24 * len(states))
+    return fig
 
-    panels = [("_all", ["All orders"]), ("region", regions), ("state", states)]
-    for row, (col, keys) in enumerate(panels, start=1):
-        sub = d[d["state"].isin(keep)] if col == "state" else d
-        tot = sub[col].value_counts()
-        # "NAME  n=" labels keep the sample size visible next to every bar, so a
-        # 100% split off a handful of orders can't be mistaken for a solid trend.
-        labels = ["%s  n=%d" % (k, tot[k]) for k in keys]
-        for c in colors:
-            n = [int(((sub[col] == k) & (sub["color"] == c)).sum()) for k in keys]
-            pct = [100.0 * v / tot[k] for v, k in zip(n, keys)]
-            fig.add_trace(go.Bar(
-                x=pct, y=labels, orientation="h", name=c, legendgroup=c,
-                showlegend=(row == 1), customdata=np.array(n),
-                marker=dict(color=COLOR_DISPLAY[c],
-                            line=dict(color=CHART["edge"], width=0.5)),
-                hovertemplate=("%{y}<br>" + c
-                               + ": %{customdata} orders (%{x:.0f}%)<extra></extra>")),
-                row, 1)
 
-    fig.update_xaxes(range=[0, 100], ticksuffix="%", showgrid=True)
-    fig.update_yaxes(ticksuffix="  ", automargin=True)
-    fig.update_layout(
-        template="plotly_white", barmode="stack", bargap=0.28,
-        height=380 + 24 * len(states),
-        margin=dict(l=0, r=20, t=52, b=40),
-        legend=dict(title=dict(text="Exterior paint"), traceorder="normal",
-                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
-                    borderwidth=1))
+def fig_interior_by_location(df):
+    """Interior mix overall and by region.
+
+    Reads like the paint and wheel location panels: each row is 100% stacked so a
+    region's mix is comparable regardless of volume, the overall row on top is the
+    baseline, and n= sits beside every bar.
+
+    Region only, no per-state row. The non-default cabins are a small share of
+    orders, and split by state most rows would hold one or two of them, where a
+    single order swings the mix by 100 points — the paint chart hides states under
+    five orders for that reason, and interior is thinner still. A state panel is
+    worth adding once the newer interiors carry enough volume to survive the split.
+    """
+    d = df.dropna(subset=["lat"]).copy()
+    regions = _by_volume(d["region"])
+    weights = [1.8, max(len(regions), 1)]
+    fig = make_subplots(
+        rows=2, cols=1, vertical_spacing=0.12,
+        row_heights=[w / sum(weights) for w in weights],
+        subplot_titles=("All orders", "By region"))
+    if d.empty:
+        fig.update_layout(template="plotly_white", height=360)
+        return fig
+
+    interiors = [i for i in INTERIOR_ORDER if (d["interior"] == i).any()]
+    d["_all"] = "All orders"
+    _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions)],
+                "interior", interiors, INTERIOR_MIX, INTERIOR_SHORT)
+    _mix_layout(fig, "Interior", 260 + 30 * (1 + len(regions)))
     return fig
 
 
@@ -591,8 +664,7 @@ def fig_wheels_by_location(df):
     wheels = known + sorted(set(d["wheels_short"]) - set(WHEEL_ORDER))
 
     d["_all"] = "All orders"
-    # Ascending so the biggest sits on top in the volume-ordered panels.
-    regions = list(d["region"].value_counts().sort_values(ascending=True).index)
+    regions = _by_volume(d["region"])
     d["_elev"], elev_keys = _numeric_bins(d["elev_ft"], ELEV_BINS, " ft")
     d["_temp"], temp_keys = _numeric_bins(d["temp_f"], TEMP_BINS, " °F")
     d["_urban"], urban_keys = _numeric_bins(d["urban_pct"], URBAN_BINS,
@@ -612,32 +684,10 @@ def fig_wheels_by_location(df):
                         "By average annual temperature of the order's state",
                         "By the urban share of the order's state population"))
 
-    for row, (col, keys) in enumerate(panels, start=1):
-        tot = d[col].value_counts()
-        labels = ["%s  n=%d" % (k, tot[k]) for k in keys]
-        for w in wheels:
-            n = [int(((d[col] == k) & (d["wheels_short"] == w)).sum())
-                 for k in keys]
-            pct = [100.0 * v / tot[k] for v, k in zip(n, keys)]
-            fig.add_trace(go.Bar(
-                x=pct, y=labels, orientation="h", name=w, legendgroup=w,
-                showlegend=(row == 1), customdata=np.array(n),
-                marker=dict(color=WHEEL_COLOR.get(w, CHART_UI["muted"]),
-                            line=dict(color=CHART["edge"], width=0.5)),
-                hovertemplate=("%{y}<br>" + w
-                               + ": %{customdata} orders (%{x:.0f}%)<extra></extra>")),
-                row, 1)
-
     bars = sum(len(keys) for _, keys in panels)
-    fig.update_xaxes(range=[0, 100], ticksuffix="%", showgrid=True)
-    fig.update_yaxes(ticksuffix="  ", automargin=True)
-    fig.update_layout(
-        template="plotly_white", barmode="stack", bargap=0.28,
-        height=300 + 30 * bars,
-        margin=dict(l=0, r=20, t=52, b=40),
-        legend=dict(title=dict(text="Wheels"), traceorder="normal",
-                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
-                    borderwidth=1))
+    _mix_panels(fig, [(d, col, keys) for col, keys in panels],
+                "wheels_short", wheels, WHEEL_COLOR)
+    _mix_layout(fig, "Wheels", 300 + 30 * bars)
     return fig
 
 
@@ -992,7 +1042,7 @@ def _region_counts(frame):
     of a horizontal bar chart. Unmapped rows are excluded to stay consistent
     with the map bubbles, which can only plot located states."""
     g = frame.dropna(subset=["lat"])
-    return (g.groupby("region").size().sort_values(ascending=True)
+    return (_stable_counts(g.groupby("region").size())
             if len(g) else pd.Series(dtype="int64"))
 
 
@@ -1107,7 +1157,7 @@ def fig_state_totals(df):
     if d.empty:
         fig.update_layout(template="plotly_white", height=420)
         return fig
-    tot = d.groupby("state").size().sort_values(ascending=True)
+    tot = _stable_counts(d.groupby("state").size())
 
     def per_state(mask):
         return d[mask].groupby("state").size().reindex(tot.index, fill_value=0)

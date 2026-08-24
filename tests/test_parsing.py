@@ -877,6 +877,47 @@ def test_vin_by_config_rows_carry_interior_and_stay_ordered():
     assert keys == sorted(keys)
 
 
+def test_stable_counts_breaks_ties_alphabetically():
+    # The regression that matters: sort_values is not stable and value_counts
+    # promises no order among equal counts, so tied categories used to come out
+    # differently on every run and the deployed charts' rows reshuffled between
+    # daily builds. Order must be (count, then name), repeatably.
+    from render.charts import _by_volume, _stable_counts
+    s = pd.Series(list("aaa") + ["zz", "mm", "bb"] * 2 + ["q"])
+    got = _stable_counts(s.value_counts())
+    assert list(got.index) == ["q", "bb", "mm", "zz", "a"]
+    assert list(got.values) == [1, 2, 2, 2, 3]
+    assert _by_volume(s) == list(got.index)
+    # Repeated calls agree — the property the daily build depends on.
+    assert all(_by_volume(s) == _by_volume(s.sample(frac=1.0, random_state=n))
+               for n in range(5))
+
+
+def test_interior_by_location_panels_partition_the_cohort():
+    from config import INTERIOR_SHORT
+    from render.charts import fig_interior_by_location
+    df = _interior_frame().assign(
+        lat=[40.0, 41.0, 42.0, 43.0, 44.0, 45.0],
+        region=["West", "West", "South", "South", "Northeast", "Canada"])
+    fig = fig_interior_by_location(df)
+    from collections import defaultdict
+    pct = defaultdict(lambda: defaultdict(float))
+    n = defaultdict(lambda: defaultdict(int))
+    for tr in fig.data:
+        axis = tr.yaxis or "y"
+        for y, x, cd in zip(tr.y, tr.x, tr.customdata):
+            pct[axis][y] += x
+            n[axis][y] += int(cd)
+    assert len(pct) == 2, "all-orders row plus a region row, no state panel"
+    for axis in pct:
+        assert all(abs(v - 100.0) < 1e-6 for v in pct[axis].values()), axis
+        assert sum(n[axis].values()) == len(df), axis
+    # Legend carries the short labels, one entry per interior, no duplicates.
+    names = [tr.name for tr in fig.data if tr.showlegend]
+    assert names == [INTERIOR_SHORT[i] for i in _interior_frame()["interior"].unique()]
+    assert len(names) == len(set(names))
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

@@ -21,6 +21,7 @@ from .charts import (fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
+                     fig_interior_by_location,
                      fig_order_timeline, fig_paint_by_location,
                      fig_price_by_trim, fig_price_distribution,
                      fig_price_options, fig_state_totals, fig_vin_by_config,
@@ -142,6 +143,15 @@ SECTIONS = [
                versus all-terrain efficiency argument carries confounds &mdash; local terrain, driving mix, when each
                wheel was orderable &mdash; that state averages cannot separate."""),
      fig_wheels_by_location),
+    ("Interior preference by location",
+     dedent("""Interior mix overall and by region, read the same way as the paint and wheel panels above: each row is
+               100% stacked so a region's mix is comparable regardless of order volume, the overall row on top is the
+               baseline, and every bar carries its sample size (n=). Region only, no per-state row &mdash; the newer
+               cabins are a small share of orders, and split by state most rows would hold one or two of them, where a
+               single order swings the mix by 100 points. Segment colors here are chosen for legibility rather than to
+               match the upholstery: the real interior colors are near-black and near-white, which disappear into one
+               theme or the other when one cabin carries most of a bar."""),
+     fig_interior_by_location),
     ("Destination vs. delivery date",
      dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
                farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in

@@ -36,19 +36,28 @@ paint_order:
 # so the display label is recorded here instead of derived.
 #   short — display label; kept compact, it appears in dense axes and row keys
 #   color — evocative of the material, near-black / near-white so the cabins read
-#           dark vs light in the take-rate bars
+#           dark vs light in the single-series take-rate bars
+#   mix   — a LEGIBILITY palette for the stacked interior-mix chart, where the
+#           material colors fail: Black Crater at #2F2F35 on the dark card is
+#           almost invisible, and it is the great majority of orders, so that bar
+#           would read as empty. Validated for CVD separation and contrast in the
+#           listed (stack) order against both the light and dark chart surfaces.
+#           Arbitrary hues rather than material ones — the legend names them.
 # Listed plainest-first, which is the order the charts show them in.
 # ---------------------------------------------------------------------------
 interiors:
   'Black Crater':
     short: 'Black Crater'
     color: "#2F2F35"          # dark charcoal, almost black
+    mix: "#b3363c"
   'Black Crater Signature':
     short: 'Black Crater Sig'
     color: "#2F2F35"
+    mix: "#b8860b"
   'Coastal Cloud Signature':
     short: 'Coastal Cloud Sig'
     color: "#EAEAEE"          # light smoke, almost white
+    mix: "#4b5fa8"
 
 # ---------------------------------------------------------------------------
 # Wheels. Keyed by the EXACT sheet value (note the curly ” the form uses), so a
