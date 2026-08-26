@@ -192,6 +192,32 @@ overrides:
   # https://www.rivianforums.com/forum/threads/my-r2-coastal-interior-real-live-in-the-flesh-in-midnight-r2.63084/
   protamine:
     delivery_raw: "8/25/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/r2-owners-how-long-between-build-notice-and-vin-notice.63182/post-1084889
+  # Note: username does not match entry exactly
+  DTH Texas:
+    delivery_raw: "9/5/2026"
+  # color correction
+  # https://www.rivianforums.com/forum/posts/1085294/
+  NorthshoreR2:
+    color: "Launch Green"
+  # order date update
+  # https://www.rivianforums.com/forum/posts/1085228/
+  windblowlc:
+    order_raw: "8/18/2026"
+  # delivery estimate
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085647
+  NormalLife:
+    delivery_raw: "9/14/26 - 9/18/26"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085673
+  kurtlikevonnegut:
+    delivery_raw: "8/11/2026"
+  # vin update, reservation correction
+  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085900
+  tivoboy:
+    resv_raw: "3/7/2024"
+    vin_raw: "47XX"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -417,6 +443,33 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
+  # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1084073
+  Zathras' Daughter-in-law:
+    resv_raw: "3/7/2024"
+    order_raw: "8/23/2026"
+    delivery_raw: "9/1/2026"
+    buylease: "Purchase"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1085462/
+  wampa:
+    order_raw: "8/18/2026"
+    loc_raw: "AZ"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
 
 # Entries below are incomplete and thus cannot be rendered. Adding here to keep track in case more details become available
 partial data:
@@ -472,3 +525,42 @@ partial data:
     spare:
     r1_owner: "No"
     r1_model:
+  # https://www.rivianforums.com/forum/threads/who-hasnt-been-invited-to-order-with-an-early-reservation.60562/post-1033448
+  # https://www.rivianforums.com/forum/threads/r2-owners-how-long-between-build-notice-and-vin-notice.63182/post-1085455
+  flyboi:
+    resv_raw: "3/7/2024"
+    order_raw:
+    delivery_raw:
+    vin_raw: "5757"
+    loc_raw: "MO"
+    trim: "Performance"
+    launch: "Yes"
+    color:
+    interior:
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    spare:
+    r1_owner: "Yes"
+    r1_model: "R1T"
+    r1_keep: "Yes"
+  # order: https://www.rivianforums.com/forum/threads/which-r2-colors-look-best-when-dirty.61008/post-1039007
+  # delivery: https://www.rivianforums.com/forum/threads/esker-silver-paint-sample-closeup-photos.62267/post-1067971
+  # spare: https://www.rivianforums.com/forum/threads/ridiculous-spare-tire-policy.62834/post-1083971
+  gdyear78:
+    resv_raw: "7/24/2024"
+    # guestimate
+    order_raw: "7/3/2026"
+    delivery_raw: "8/6/2026"
+    vin_raw:
+    loc_raw: "MA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Black Crater Signature"
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    spare: "Yes"
+    r1_owner: "Yes"
+    r1_model: "R1T"
