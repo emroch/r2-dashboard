@@ -918,6 +918,225 @@ def test_interior_by_location_panels_partition_the_cohort():
     assert len(names) == len(set(names))
 
 
+# --- Cancellations (overrides.yaml deletions) --------------------------------
+# These rows are otherwise valid — nothing in the data marks a cancellation — so
+# the only evidence is the recorded reason. That makes silent failure the risk:
+# a name that stops matching, or a cancelled order drifting back in via the
+# reservations sheet.
+
+
+def test_deletion_scoped_by_matcher_spares_a_replacement_order():
+    # A username is not a stable key for an ORDER. Cancel, then order again under
+    # the same name, and an unscoped deletion silently removes the NEW order —
+    # the name still matches, so nothing is reported. The matcher is what turns
+    # that silent suppression into a visible stale-entry report.
+    from ingest.loaders import _apply_deletions
+    replacement = pd.DataFrame({"orig_num": ["7"], "user": ["again"],
+                                "order_raw": ["8/20/2026"]})
+    spec = {"again": {"reason": "cancelled",
+                      "match": {"order_raw": "6/20/2026"}}}
+    mask, records, issues = _apply_deletions(replacement, spec, "order",
+                                             ("order_raw",))
+    assert not mask.any(), "the replacement order must survive"
+    assert records == []
+    assert len(issues) == 1 and "no longer matches" in issues[0][2]
+    # The same entry still deletes the order it was written for.
+    original = pd.DataFrame({"orig_num": ["7"], "user": ["again"],
+                             "order_raw": ["6/20/2026"]})
+    mask, records, issues = _apply_deletions(original, spec, "order",
+                                             ("order_raw",))
+    assert list(mask) == [True] and len(records) == 1 and issues == []
+
+
+def test_deletion_matcher_requires_all_fields_and_fails_closed():
+    # Several fields are ANDed, so a matcher narrows rather than widens. And a
+    # field the frame doesn't carry counts as a non-match, not a skipped
+    # condition — skipping would silently make the deletion broader than written.
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1", "2"], "user": ["u", "u"],
+                       "order_raw": ["6/1/2026", "6/1/2026"],
+                       "vin_raw": ["1000", "2000"]})
+    fields = ("order_raw", "vin_raw", "absent_col")
+    spec = {"u": {"reason": "x",
+                  "match": {"order_raw": "6/1/2026", "vin_raw": "2000"}}}
+    mask, records, _ = _apply_deletions(df, spec, "order", fields)
+    assert [r[0] for r in records] == ["2"], "both fields must match"
+    # A valid-but-absent column spares every row instead of being ignored.
+    spec = {"u": {"reason": "x", "match": {"absent_col": "anything"}}}
+    mask, records, issues = _apply_deletions(df, spec, "order", fields)
+    assert not mask.any() and records == []
+    assert any("no longer matches" in d for _, _, d in issues)
+
+
+def test_deletion_matcher_field_is_validated():
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1"], "user": ["u"], "order_raw": ["6/1/2026"]})
+    _, _, issues = _apply_deletions(
+        df, {"u": {"reason": "x", "match": {"nope": "1"}}}, "order", ("order_raw",))
+    assert any("unknown field 'nope'" in d for _, _, d in issues)
+
+
+def test_cancelling_a_duplicated_name_takes_every_row():
+    # Deletions run BEFORE the dedup. Run them after and the duplicates audit
+    # reports "duplicate of #1 (kept)" about a row that was then cancelled —
+    # an audit trail claiming a row survived when it didn't.
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1", "2"], "user": ["dup", "dup"],
+                       "order_raw": ["6/15/2026", "6/15/2026"]})
+    mask, records, issues = _apply_deletions(df, {"dup": "cancelled"}, "order")
+    assert list(mask) == [True, True], "a cancelled name can't half-survive"
+    assert [r[0] for r in records] == ["1", "2"] and issues == []
+
+
+def test_deletions_drop_every_matching_row_and_carry_the_reason():
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1", "2", "3"],
+                       "user": ["Alice", "BOB", "Carol"]})
+    mask, records, issues = _apply_deletions(
+        df, {"alice": "cancelled — https://example/1"}, "order")
+    assert list(mask) == [True, False, False]
+    assert records == [("1", "Alice", "order: cancelled — https://example/1")]
+    assert issues == []
+    # Case-insensitive both ways, and a duplicated name loses every row rather
+    # than half-surviving.
+    dupes = pd.DataFrame({"orig_num": ["1", "2"], "user": ["bob", "Bob"]})
+    mask, records, _ = _apply_deletions(dupes, {"BOB": "gone"}, "order")
+    assert list(mask) == [True, True] and len(records) == 2
+
+
+def test_deletion_with_no_matching_row_is_reported():
+    # Once the sheet drops the row itself the entry is dead weight; staying quiet
+    # would keep it in the file forever.
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1"], "user": ["Alice"]})
+    mask, records, issues = _apply_deletions(df, {"Nobody": "cancelled"}, "order")
+    assert not mask.any() and records == []
+    assert len(issues) == 1 and "no matching order row" in issues[0][2]
+
+
+def test_cancelled_order_does_not_resurface_as_a_reservation():
+    # The subtle one: dropping someone from the orders cohort removes them from
+    # `order_users`, which is exactly what the reservations sheet uses to exclude
+    # people who have already ordered. Without the cancelled-users list they would
+    # reappear as an outstanding reservation — a cancellation would ADD demand.
+    import io as _io
+    from config import RESERVATIONS_COLUMNS
+    from ingest.loaders import load_reservations
+    hdr = ["", "#", "Username", RESERVATIONS_COLUMNS["resv_raw"], "Location"]
+    rows = [hdr, ["", "1", "quitter", "3/7/2024", "CA"],
+            ["", "2", "holder", "3/7/2024", "TX"]]
+    out = _io.StringIO()
+    csv.writer(out).writerows([[""] * 5, ["", "", "Tracker Form"]] + rows)
+    text = out.getvalue()
+
+    # Baseline: nobody ordered, so both are outstanding reservations.
+    resv, rep = load_reservations(text, set())
+    assert set(resv["user"]) == {"quitter", "holder"}
+
+    # With the order cancelled, the holder stays and the quitter does not return.
+    resv, rep = load_reservations(text, set(), ["quitter"])
+    assert set(resv["user"]) == {"holder"}
+    assert rep["n_order_cancelled"] == 1
+    assert any("order was cancelled" in d for _, _, d in rep["deletion_records"])
+
+
+def test_reservation_deletions_are_labelled_by_their_own_sheet():
+    # The two sheets have separate maps, and the record text names which sheet a
+    # cancellation came from — one panel category serves both, so without the
+    # label an order and a reservation cancellation would be indistinguishable.
+    from config import DELETIONS_ORDERS, DELETIONS_RESV
+    from ingest.loaders import _apply_deletions
+    assert isinstance(DELETIONS_ORDERS, dict) and isinstance(DELETIONS_RESV, dict)
+    frame = pd.DataFrame({"orig_num": ["1"], "user": ["Gone"]})
+    _, as_resv, _ = _apply_deletions(frame, {"gone": "x"}, "reservation")
+    _, as_order, _ = _apply_deletions(frame, {"gone": "x"}, "order")
+    assert as_resv[0][2].startswith("reservation: ")
+    assert as_order[0][2].startswith("order: ")
+    assert as_resv[0][2] != as_order[0][2]
+
+
+# --- Repeat-submission handling (dedup) --------------------------------------
+
+
+def _dedupe_frame(rows):
+    cols = ["orig_num", "user", "trim", "color", "wheels", "interior",
+            "vin_raw", "delivery_raw", "order_raw"]
+    return pd.DataFrame([{c: r.get(c, "") for c in cols} for r in rows])
+
+
+IDENT = ("trim", "color", "wheels", "interior")
+BUILD = dict(trim="Performance", color="Midnight", wheels='21" LT',
+             interior="Black Crater Sig")
+
+
+def test_same_build_merges_and_recovers_blank_fields():
+    # The old rule kept whichever row had more cells filled and dropped the rest,
+    # so a row holding the only copy of a VIN lost it. Blanks are now filled from
+    # siblings instead.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="1", user="u", vin_raw="1500"),
+        dict(BUILD, orig_num="2", user="u", delivery_raw="8/1/2026",
+             order_raw="6/1/2026"),
+    ])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["vin_raw"] == "1500", "VIN from the sparser row must survive"
+    assert row["delivery_raw"] == "8/1/2026"
+    assert len(merged) == 1 and builds == [] and values == []
+
+
+def test_conflicting_field_takes_the_latest_submission_and_is_flagged():
+    # A later resubmission is a correction, so it wins — and the disagreement is
+    # reported rather than resolved silently.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="10", user="u", delivery_raw="N/A", vin_raw="X7156"),
+        dict(BUILD, orig_num="20", user="u", delivery_raw="Aug 28, 2026",
+             vin_raw="07156"),
+    ])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["delivery_raw"] == "Aug 28, 2026", "the real date must beat N/A"
+    assert row["vin_raw"] == "07156"
+    assert row["orig_num"] == "10", "the earliest row survives as the entry"
+    flagged = " ".join(d for _, _, d in values)
+    assert "delivery_raw" in flagged and "vin_raw" in flagged
+    assert "#20" in flagged
+
+
+def test_different_build_under_one_username_is_kept_and_flagged():
+    # A reconfigured order and a genuine second order are indistinguishable here,
+    # so neither is guessed away.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="1", user="u"),
+        dict(BUILD, orig_num="2", user="u", wheels='20" BS'),
+    ])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 2, "two builds means two orders"
+    assert merged == [] and len(builds) == 2
+    assert all("different build" in d for _, _, d in builds)
+
+
+def test_identical_rows_still_collapse():
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="u", vin_raw="9"),
+                        dict(BUILD, orig_num="2", user="u", vin_raw="9")])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1 and len(merged) == 1 and values == []
+
+
+def test_username_case_differences_are_not_a_disagreement():
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="Bob", vin_raw="9"),
+                        dict(BUILD, orig_num="2", user="bob")])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1 and values == [], "case is the grouping key, not a clash"
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
