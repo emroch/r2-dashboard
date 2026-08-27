@@ -509,7 +509,11 @@ def load_and_clean(text, meta):
             "answer_conflicts": conflicts,
             "conversions": conversions,
             "override_issues": override_issues + add_issues + del_issues,
-            "deletions": del_records,
+            # Its own list, not the one in `sanitized`: the pipeline appends the
+            # reservation cancellations here so one panel category covers both
+            # sheets, and sharing the object made that append silently inflate the
+            # orders-only count in the report and the stat card.
+            "deletions": list(del_records),
         },
         # Names whose ORDER was cancelled. The reservations sheet needs them: they
         # have left the orders cohort, and must not resurface there as outstanding
