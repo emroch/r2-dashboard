@@ -9,14 +9,26 @@
 #   additions:  append a forum-only order NOT in the sheet (a whole new row).
 #               Give as many raw fields as you have. A username already in the
 #               sheet is reported as an issue (use overrides for those instead).
+#   deletions:  drop an entry that no longer exists — someone posted that they
+#               cancelled. Split into `orders` and `reservations` because the two
+#               sheets are separate; the value is the reason, and should carry the
+#               source link. Nothing in the data marks a cancellation, so the
+#               forum post is the only evidence and belongs in the file.
+#               A username with no matching row is reported as an issue: once the
+#               sheet drops the row itself the entry here is dead weight, and
+#               staying silent would keep it forever.
+#               Deleting an ORDER also keeps that person out of the reservations
+#               cohort — leaving the orders sheet must not make them resurface as
+#               an outstanding reservation.
 #
-# Version-controlled and auditable: every applied change/addition — and every
-# problem (unknown field / no matching or already-present user) — shows in the
-# cleaning report and the data-quality panel. Idempotent; never mutates the cache.
+# Version-controlled and auditable: every applied change/addition/deletion — and
+# every problem (unknown field / no matching or already-present user) — shows in
+# the cleaning report and the data-quality panel. Idempotent; never mutates the cache.
 #
 # Valid fields: orig_num, user, resv_raw, order_raw, vin_raw, delivery_raw,
 # buylease, loc_raw, trim, launch, color, interior, wheels, autonomy, tow, spare,
-# r1_owner, r1_keep, r1_model, other_vehicles.
+# r1_owner, r1_model. (These are the columns schema.yaml maps; a field it doesn't
+# read — "will you keep your R1", "other vehicles owned" — is reported as unknown.)
 #
 # Example (commented out):
 # overrides:
@@ -29,6 +41,11 @@
 #     delivery_raw: "8/1/2026"
 #     loc_raw: "CA"
 #     color: "Launch Green"
+# deletions:
+#   orders:
+#     SomeUser: "cancelled the order — https://... (2026-08-24)"
+#   reservations:
+#     AnotherUser: "cancelled the reservation — https://..."
 
 overrides:
   # delivery delayed from 6/30 -> 7/10
@@ -218,6 +235,10 @@ overrides:
   tivoboy:
     resv_raw: "3/7/2024"
     vin_raw: "47XX"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/update-on-r2-order-invitation-timing-now-in-account.60826/post-1072975
+  derekmw:
+    delivery_raw: "8/11/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -564,3 +585,11 @@ partial data:
     spare: "Yes"
     r1_owner: "Yes"
     r1_model: "R1T"
+
+# Cancellations — entries that were valid but no longer exist. See the header.
+deletions:
+  orders:
+    # posted that the order was cancelled
+    # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1086661
+    prytog: "cancelled the order (2026-08-24)"
+  reservations: {}

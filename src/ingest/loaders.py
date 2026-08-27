@@ -12,7 +12,8 @@ import io
 import numpy as np
 import pandas as pd
 
-from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
+from config import (ADDITIONS, AS_OF, AVAILABILITY, DELETIONS_ORDERS,
+                     DELETIONS_RESV, OPTED_IN_TOKENS,
                      ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
@@ -106,6 +107,39 @@ def _apply_additions(df, additions):
 _AVAIL_NOUN = {"trim": "trim", "color": "paint", "interior": "interior"}
 
 
+def _apply_deletions(df, deletions, what):
+    """Drop entries the person has said no longer exist — a cancellation.
+
+    These rows are otherwise perfectly valid: nothing in the data marks them, so
+    the only evidence is the forum post recorded as the reason in overrides.yaml.
+    That makes them different from every other drop in this module, which are all
+    derived from the data itself, and it is why the reason travels with the record
+    into the report and the data-quality panel.
+
+    Matched case-insensitively on username, and every matching row goes (a name
+    with duplicate rows shouldn't half-survive). A username that isn't present is
+    reported rather than ignored: once the sheet drops the row itself the entry
+    here is dead weight, and silence would keep it forever.
+
+    Returns (drop_mask aligned to df.index, records, issues).
+    """
+    by_user = {}
+    for i, u in zip(df.index, df["user"]):
+        by_user.setdefault(str(u).strip().lower(), []).append(i)
+    drop, records, issues = [], [], []
+    for uname, reason in (deletions or {}).items():
+        hits = by_user.get(str(uname).strip().lower(), [])
+        if not hits:
+            issues.append(("—", str(uname),
+                           "deletion has no matching %s row" % what))
+            continue
+        for i in hits:
+            drop.append(i)
+            records.append((df.at[i, "orig_num"], df.at[i, "user"],
+                            "%s: %s" % (what, str(reason).strip())))
+    return pd.Series(df.index.isin(drop), index=df.index), records, issues
+
+
 def _availability_mask(df):
     """Flag orders whose selected trim/paint/interior wasn't orderable yet on the
     order date — the config wasn't buildable, so it isn't a real confirmed order.
@@ -181,6 +215,12 @@ def load_and_clean(text, meta):
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)
+    # Cancellations go before every data-derived check, so a cancelled order isn't
+    # also reported as a premature config or a bad date — it's simply gone.
+    del_mask, del_records, del_issues = _apply_deletions(
+        df, DELETIONS_ORDERS, "order")
+    cancelled_users = [u for _, u, _ in del_records]
+    df = df[~del_mask].reset_index(drop=True)
     # n_dedup (the final cohort size the dashboard counts) is set after the
     # not-yet-orderable-config drop below, so it excludes those rows.
 
@@ -417,6 +457,7 @@ def load_and_clean(text, meta):
             "Premature configs dropped": premature_records,
             "Manual fix-ups": override_records,
             "Manual additions": add_records,
+            "Cancellations removed": del_records,
         },
         "quality": {
             "schema_notices": schema_notices,
@@ -428,22 +469,29 @@ def load_and_clean(text, meta):
             "price_issues": price_issues,
             "answer_conflicts": conflicts,
             "conversions": conversions,
-            "override_issues": override_issues + add_issues,
+            "override_issues": override_issues + add_issues + del_issues,
+            "deletions": del_records,
         },
+        # Names whose ORDER was cancelled. The reservations sheet needs them: they
+        # have left the orders cohort, and must not resurface there as outstanding
+        # reservations just because they are no longer counted as orders.
+        "cancelled_users": cancelled_users,
     }
     return df, report, parsed
 
 
-def load_reservations(text, order_users):
+def load_reservations(text, order_users, cancelled_users=()):
     """Parse the reservations-only sheet and return (resv_df, resv_report).
 
     A different form from the orders sheet (columns: #, Username, R2 reservation
     date, Location, R1-owner questions — no order/VIN/config/delivery), and its
     R1 answers aren't charted, so only four columns are mapped; they're located
     by name exactly as the orders sheet's are. Steps: drop within-sheet duplicate
-    usernames; drop holders already present in the orders sheet (they are counted
-    as orders — the remainder are "incomplete" orders); null pre-reveal
-    (<2024-03-07) reservation dates; geo-enrich by state.
+    usernames; drop reservations cancelled via overrides.yaml; drop holders
+    already present in the orders sheet (they are counted as orders — the
+    remainder are "incomplete" orders) and anyone whose order was cancelled, since
+    they have left the dataset rather than reverted to holding a reservation; null
+    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state.
     """
     records = list(csv.reader(io.StringIO(text)))
     hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
@@ -462,13 +510,26 @@ def load_reservations(text, order_users):
     resv = resv[~dup_mask]
     n_self_dupes = int(dup_mask.sum())
 
-    # Remove reservation-holders who already appear in the orders sheet.
+    # Cancelled reservations, before the data-derived drops below.
+    del_mask, del_records, del_issues = _apply_deletions(
+        resv, DELETIONS_RESV, "reservation")
+    resv = resv[~del_mask]
+
+    # Remove reservation-holders who already appear in the orders sheet, and
+    # anyone whose ORDER was cancelled — the latter have left the dataset, so
+    # dropping out of the orders cohort must not float them back up here.
     order_keys = {u.lower() for u in order_users}
+    cancelled_keys = {str(u).strip().lower() for u in cancelled_users}
     matched = resv["_ukey"].isin(order_keys)
     matched_records = [(r["orig_num"], r["user"], "already in orders sheet")
                        for _, r in resv[matched].iterrows()]
     n_matched = int(matched.sum())
-    resv = resv[~matched].drop(columns="_ukey").reset_index(drop=True)
+    resv = resv[~matched]
+    was_cancelled = resv["_ukey"].isin(cancelled_keys)
+    n_order_cancelled = int(was_cancelled.sum())
+    del_records += [(r["orig_num"], r["user"], "reservation: order was cancelled")
+                    for _, r in resv[was_cancelled].iterrows()]
+    resv = resv[~was_cancelled].drop(columns="_ukey").reset_index(drop=True)
 
     # Reservation date must fall in [2024-03-07 reveal, today]; null others.
     resv["resv_date"] = resv["resv_raw"].apply(parse_simple_date)
@@ -483,5 +544,7 @@ def load_reservations(text, order_users):
         "n_bad_dates": int(bad.sum()), "n_incomplete": len(resv),
         "self_dupe_records": self_dupe_records, "matched_records": matched_records,
         "schema_notices": schema_notices,
+        "n_deleted": len(del_records), "n_order_cancelled": n_order_cancelled,
+        "deletion_records": del_records, "deletion_issues": del_issues,
     }
     return resv, resv_report

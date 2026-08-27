@@ -918,6 +918,80 @@ def test_interior_by_location_panels_partition_the_cohort():
     assert len(names) == len(set(names))
 
 
+# --- Cancellations (overrides.yaml deletions) --------------------------------
+# These rows are otherwise valid — nothing in the data marks a cancellation — so
+# the only evidence is the recorded reason. That makes silent failure the risk:
+# a name that stops matching, or a cancelled order drifting back in via the
+# reservations sheet.
+
+
+def test_deletions_drop_every_matching_row_and_carry_the_reason():
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1", "2", "3"],
+                       "user": ["Alice", "BOB", "Carol"]})
+    mask, records, issues = _apply_deletions(
+        df, {"alice": "cancelled — https://example/1"}, "order")
+    assert list(mask) == [True, False, False]
+    assert records == [("1", "Alice", "order: cancelled — https://example/1")]
+    assert issues == []
+    # Case-insensitive both ways, and a duplicated name loses every row rather
+    # than half-surviving.
+    dupes = pd.DataFrame({"orig_num": ["1", "2"], "user": ["bob", "Bob"]})
+    mask, records, _ = _apply_deletions(dupes, {"BOB": "gone"}, "order")
+    assert list(mask) == [True, True] and len(records) == 2
+
+
+def test_deletion_with_no_matching_row_is_reported():
+    # Once the sheet drops the row itself the entry is dead weight; staying quiet
+    # would keep it in the file forever.
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1"], "user": ["Alice"]})
+    mask, records, issues = _apply_deletions(df, {"Nobody": "cancelled"}, "order")
+    assert not mask.any() and records == []
+    assert len(issues) == 1 and "no matching order row" in issues[0][2]
+
+
+def test_cancelled_order_does_not_resurface_as_a_reservation():
+    # The subtle one: dropping someone from the orders cohort removes them from
+    # `order_users`, which is exactly what the reservations sheet uses to exclude
+    # people who have already ordered. Without the cancelled-users list they would
+    # reappear as an outstanding reservation — a cancellation would ADD demand.
+    import io as _io
+    from config import RESERVATIONS_COLUMNS
+    from ingest.loaders import load_reservations
+    hdr = ["", "#", "Username", RESERVATIONS_COLUMNS["resv_raw"], "Location"]
+    rows = [hdr, ["", "1", "quitter", "3/7/2024", "CA"],
+            ["", "2", "holder", "3/7/2024", "TX"]]
+    out = _io.StringIO()
+    csv.writer(out).writerows([[""] * 5, ["", "", "Tracker Form"]] + rows)
+    text = out.getvalue()
+
+    # Baseline: nobody ordered, so both are outstanding reservations.
+    resv, rep = load_reservations(text, set())
+    assert set(resv["user"]) == {"quitter", "holder"}
+
+    # With the order cancelled, the holder stays and the quitter does not return.
+    resv, rep = load_reservations(text, set(), ["quitter"])
+    assert set(resv["user"]) == {"holder"}
+    assert rep["n_order_cancelled"] == 1
+    assert any("order was cancelled" in d for _, _, d in rep["deletion_records"])
+
+
+def test_reservation_deletions_are_labelled_by_their_own_sheet():
+    # The two sheets have separate maps, and the record text names which sheet a
+    # cancellation came from — one panel category serves both, so without the
+    # label an order and a reservation cancellation would be indistinguishable.
+    from config import DELETIONS_ORDERS, DELETIONS_RESV
+    from ingest.loaders import _apply_deletions
+    assert isinstance(DELETIONS_ORDERS, dict) and isinstance(DELETIONS_RESV, dict)
+    frame = pd.DataFrame({"orig_num": ["1"], "user": ["Gone"]})
+    _, as_resv, _ = _apply_deletions(frame, {"gone": "x"}, "reservation")
+    _, as_order, _ = _apply_deletions(frame, {"gone": "x"}, "order")
+    assert as_resv[0][2].startswith("reservation: ")
+    assert as_order[0][2].startswith("order: ")
+    assert as_resv[0][2] != as_order[0][2]
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

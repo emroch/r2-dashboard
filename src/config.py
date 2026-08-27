@@ -53,10 +53,14 @@ _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
-# orders not in the sheet. Both are username-keyed and empty by default.
+# orders not in the sheet; DELETIONS drop entries the person has said no longer
+# exist (a cancellation), per sheet. All are username-keyed and empty by default.
 _CURATION = _load("overrides.yaml")
 OVERRIDES = _CURATION.get("overrides") or {}
 ADDITIONS = _CURATION.get("additions") or {}
+_DELETIONS = _CURATION.get("deletions") or {}
+DELETIONS_ORDERS = _DELETIONS.get("orders") or {}
+DELETIONS_RESV = _DELETIONS.get("reservations") or {}
 
 # --- Live sources (schema.yaml) -------------------------------------------
 # EXPORT_URL is the CSV endpoint; VIEW_URL is the human sheet linked in the header.
