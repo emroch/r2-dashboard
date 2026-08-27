@@ -143,6 +143,10 @@ VIN_SEQ_MIN = int(_SAN["vin_seq_min"])
 DELIVERY_YEAR_MIN = int(_SAN["delivery_year_min"])
 DELIVERY_YEAR_MAX = int(_SAN["delivery_year_max"])
 
+# Columns that identify a build, for collapsing repeat submissions (see
+# schema.yaml). Rows sharing a username AND all of these are the same order.
+DEDUPE_IDENTITY = list(_SCHEMA.get("dedupe_identity_columns") or [])
+
 # --- Option take-rate vocabulary (schema.yaml) ----------------------------
 _OPT = _SCHEMA["options"]
 OPTED_IN_TOKENS = list(_OPT["opted_in_tokens"])

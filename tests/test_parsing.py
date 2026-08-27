@@ -1055,6 +1055,88 @@ def test_reservation_deletions_are_labelled_by_their_own_sheet():
     assert as_resv[0][2] != as_order[0][2]
 
 
+# --- Repeat-submission handling (dedup) --------------------------------------
+
+
+def _dedupe_frame(rows):
+    cols = ["orig_num", "user", "trim", "color", "wheels", "interior",
+            "vin_raw", "delivery_raw", "order_raw"]
+    return pd.DataFrame([{c: r.get(c, "") for c in cols} for r in rows])
+
+
+IDENT = ("trim", "color", "wheels", "interior")
+BUILD = dict(trim="Performance", color="Midnight", wheels='21" LT',
+             interior="Black Crater Sig")
+
+
+def test_same_build_merges_and_recovers_blank_fields():
+    # The old rule kept whichever row had more cells filled and dropped the rest,
+    # so a row holding the only copy of a VIN lost it. Blanks are now filled from
+    # siblings instead.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="1", user="u", vin_raw="1500"),
+        dict(BUILD, orig_num="2", user="u", delivery_raw="8/1/2026",
+             order_raw="6/1/2026"),
+    ])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["vin_raw"] == "1500", "VIN from the sparser row must survive"
+    assert row["delivery_raw"] == "8/1/2026"
+    assert len(merged) == 1 and builds == [] and values == []
+
+
+def test_conflicting_field_takes_the_latest_submission_and_is_flagged():
+    # A later resubmission is a correction, so it wins — and the disagreement is
+    # reported rather than resolved silently.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="10", user="u", delivery_raw="N/A", vin_raw="X7156"),
+        dict(BUILD, orig_num="20", user="u", delivery_raw="Aug 28, 2026",
+             vin_raw="07156"),
+    ])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["delivery_raw"] == "Aug 28, 2026", "the real date must beat N/A"
+    assert row["vin_raw"] == "07156"
+    assert row["orig_num"] == "10", "the earliest row survives as the entry"
+    flagged = " ".join(d for _, _, d in values)
+    assert "delivery_raw" in flagged and "vin_raw" in flagged
+    assert "#20" in flagged
+
+
+def test_different_build_under_one_username_is_kept_and_flagged():
+    # A reconfigured order and a genuine second order are indistinguishable here,
+    # so neither is guessed away.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="1", user="u"),
+        dict(BUILD, orig_num="2", user="u", wheels='20" BS'),
+    ])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 2, "two builds means two orders"
+    assert merged == [] and len(builds) == 2
+    assert all("different build" in d for _, _, d in builds)
+
+
+def test_identical_rows_still_collapse():
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="u", vin_raw="9"),
+                        dict(BUILD, orig_num="2", user="u", vin_raw="9")])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1 and len(merged) == 1 and values == []
+
+
+def test_username_case_differences_are_not_a_disagreement():
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="Bob", vin_raw="9"),
+                        dict(BUILD, orig_num="2", user="bob")])
+    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1 and values == [], "case is the grouping key, not a clash"
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

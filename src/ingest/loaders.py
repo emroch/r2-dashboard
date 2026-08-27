@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from config import (ADDITIONS, AS_OF, AVAILABILITY, DELETIONS_ORDERS,
-                     DELETIONS_RESV, OPTED_IN_TOKENS,
+                     DEDUPE_IDENTITY, DELETIONS_RESV, OPTED_IN_TOKENS,
                      ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
@@ -105,6 +105,109 @@ def _apply_additions(df, additions):
 
 # Column -> human noun for the drop reason (matches the sheet's own wording).
 _AVAIL_NOUN = {"trim": "trim", "color": "paint", "interior": "interior"}
+
+
+def _dedupe_by_user(df, identity):
+    """Collapse repeat submissions from one username into one order per build.
+
+    Two rows for the same person are the SAME order when their build matches on
+    every column in `identity` (trim/colour/wheels/interior — see schema.yaml).
+    Someone can order twice, but not twice with an identical configuration. Rows
+    whose build differs are kept as SEPARATE orders and flagged, because that is
+    the one case this code cannot call: a reconfigured order and a genuine second
+    order look identical from here, and guessing either double-counts a person or
+    discards a real order.
+
+    Identity deliberately excludes the noisy self-reported fields. Resubmissions
+    disagree on those constantly — "No clue" vs "NA", 3/7 vs 3/8, X7156 vs 07156
+    are each one order entered twice — so using them would split one order into
+    several. This is also why the rule isn't "drop only strictly-subset rows":
+    almost no repeat submission is a strict subset, so that rule counted ijdsf
+    three times and town3r twice for a single car apiece.
+
+    Within a build the rows are MERGED, not picked between: the most complete row
+    is the base and each of its blanks is filled from a sibling, so a row holding
+    the only copy of a VIN no longer loses it — the old rule kept whichever row had
+    more cells filled and dropped the rest outright, silently. Where two rows hold
+    DIFFERENT non-empty values for one field, the base's value stands and the
+    disagreement is reported: self-reported data contradicting itself deserves a
+    look, not a silent resolution.
+
+    Returns (df, merged_records, build_conflicts, value_conflicts).
+    """
+    ident = [c for c in identity if c in df.columns]
+    compare = [c for c in df.columns if c != "orig_num"]
+
+    def _submission_order(i):
+        """Sheet row number, which is the closest thing to submission order —
+        new entries append. Non-numeric (a manual addition) sorts last."""
+        raw = str(df.at[i, "orig_num"]).strip()
+        return (0, int(raw)) if raw.isdigit() else (1, i)
+
+    def norm(i, c):
+        return " ".join(str(df.at[i, c]).split())
+
+    def filled(i):
+        return sum(1 for c in compare if norm(i, c) != "")
+
+    groups = {}
+    for i, u in zip(df.index, df["user"]):
+        groups.setdefault(str(u).strip().lower(), []).append(i)
+
+    drop, merged, build_conflicts, value_conflicts = set(), [], [], []
+    for idxs in groups.values():
+        if len(idxs) < 2:
+            continue
+        builds = {}
+        for i in idxs:
+            builds.setdefault(tuple(norm(i, c).lower() for c in ident), []).append(i)
+        for rows in builds.values():
+            if len(rows) < 2:
+                continue
+            # Earliest submission is the surviving row; each field then takes the
+            # value from the LATEST submission that filled it. People resubmit in
+            # order to correct themselves, so the newer answer is the better one —
+            # and the row with the most cells filled is not necessarily the row
+            # with the freshest values. Choosing "fullest row wins every field"
+            # instead threw away a real delivery date in favour of an "N/A" on a
+            # row that happened to have more cells populated.
+            order = sorted(rows, key=_submission_order)
+            base = order[0]
+            for c in compare:
+                if c == "user":
+                    continue
+                vals = [(i, norm(i, c)) for i in order if norm(i, c) != ""]
+                if not vals:
+                    continue
+                latest_i, latest_v = vals[-1]
+                if norm(base, c) != latest_v:
+                    df.at[base, c] = df.at[latest_i, c]
+                if len({v.lower() for _, v in vals}) > 1:
+                    value_conflicts.append((
+                        df.at[base, "orig_num"], df.at[base, "user"],
+                        "%s disagreed across repeat submissions: %s — kept %r "
+                        "from the latest (#%s)"
+                        % (c, " vs ".join("%r" % v for _, v in vals),
+                           latest_v, df.at[latest_i, "orig_num"])))
+            for i in order[1:]:
+                drop.add(i)
+                merged.append((df.at[i, "orig_num"], df.at[i, "user"],
+                               "same build as #%s — merged into it"
+                               % df.at[base, "orig_num"]))
+        if len(builds) > 1:
+            surviving = [i for rows in builds.values()
+                         for i in rows if i not in drop]
+            for i in surviving:
+                others = ", ".join("#%s" % df.at[j, "orig_num"]
+                                   for j in surviving if j != i)
+                build_conflicts.append((
+                    df.at[i, "orig_num"], df.at[i, "user"],
+                    "different build from %s under the same username — kept as a "
+                    "separate order (%s)"
+                    % (others, ", ".join("%s=%r" % (c, norm(i, c))
+                                         for c in ident))))
+    out = df[~df.index.isin(drop)].sort_index().reset_index(drop=True)
+    return out, merged, build_conflicts, value_conflicts
 
 
 def _apply_deletions(df, deletions, what, valid_fields=()):
@@ -238,21 +341,12 @@ def load_and_clean(text, meta):
     cancelled_users = [u for _, u, _ in del_records]
     df = df[~del_mask].reset_index(drop=True)
 
-    # --- Dedup by username, keeping the most complete record ---
-    df["_score"] = (df != "").sum(axis=1)
-    df["_ukey"] = df["user"].str.lower()
-    df = df.sort_values("_score", ascending=False, kind="mergesort")
-    dupe_keys = df["_ukey"][df["_ukey"].duplicated(keep=False)].unique()
-    dup_records = []
-    for key in dupe_keys:
-        grp = df[df["_ukey"] == key]        # sorted best-first
-        kept = grp.iloc[0]
-        for _, r in grp.iloc[1:].iterrows():
-            dup_records.append((r["orig_num"], r["user"],
-                                "duplicate of #%s (kept)" % kept["orig_num"]))
-    df = (df.drop_duplicates("_ukey", keep="first").sort_index()
-          .drop(columns=["_score", "_ukey"]).reset_index(drop=True))
-    n_sheet = len(df)  # unique orders from the sheet (before manual additions)
+    # --- Collapse repeat submissions that add nothing; keep and flag the rest ---
+    df, dup_records, dup_conflicts, merge_conflicts = _dedupe_by_user(
+        df, DEDUPE_IDENTITY)
+    dupe_keys = sorted({str(u).strip().lower()
+                        for _, u, _ in dup_records + dup_conflicts})
+    n_sheet = len(df)  # sheet rows kept (before manual additions)
 
     # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
     #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
@@ -490,6 +584,8 @@ def load_and_clean(text, meta):
         },
         "sanitized": {
             "Duplicates removed": dup_records,
+            "Repeat usernames kept": dup_conflicts,
+            "Merged with disagreements": merge_conflicts,
             "VINs de-obfuscated": deobf_records,
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
@@ -502,6 +598,8 @@ def load_and_clean(text, meta):
             "schema_notices": schema_notices,
             "unparseable": unparseable,
             "fuzzy_dups": fuzzy_dups,
+            "dup_conflicts": dup_conflicts,
+            "merge_conflicts": merge_conflicts,
             "vin_unrec": unrec_records,
             "bad_dates": date_records,
             "availability_drops": premature_records,
