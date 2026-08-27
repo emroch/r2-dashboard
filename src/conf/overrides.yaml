@@ -596,10 +596,14 @@ partial data:
 # Cancellations — entries that were valid but no longer exist. See the header.
 deletions:
   orders:
-    # posted that the order was cancelled
     # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1086661
     prytog:
-      reason: "cancelled the order (2026-08-24)"
+      reason: "cancelled by user (2026-08-27)"
       match:
-        order_raw: "8/18/2026"   # only THIS order; a re-order would be a new one
-  reservations: {}
+        order_raw: "8/18/2026"
+  reservations:
+    # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1082894
+    JungGravy:
+      reason: "cancelled by user (2026-08-23)"
+      match:
+        orig_num: "1063"
