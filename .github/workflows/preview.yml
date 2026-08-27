@@ -6,8 +6,10 @@ name: PR preview
 # host and NEVER touch the production alias the Worker serves at
 # emroch.com/r2-dashboard.
 on:
+  # No `branches:` filter on purpose. Filtering on `main` skipped every PR in a
+  # stacked chain, since a stacked PR's base is the branch below it rather than
+  # main — the one PR that most needs a preview is the one that got none.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read            # previews never commit (data/raw is a main-only concern)
