@@ -91,6 +91,18 @@ sanitize:
   delivery_year_min: 2024
   delivery_year_max: 2035
 
+# Which columns identify a BUILD, for collapsing repeat submissions. Two rows
+# under one username are treated as the same order when all of these match: a
+# person can order twice, but not twice with an identical configuration. Rows whose
+# build differs are kept as separate orders and flagged instead — a reconfigured
+# order and a genuine second order are indistinguishable from here, and guessing
+# either double-counts someone or discards a real order.
+# Deliberately excludes the noisy self-reported fields (dates, VIN, delivery text):
+# those disagree between resubmissions constantly — "No clue" vs "NA", 3/7 vs 3/8,
+# X7156 vs 07156 are all the same order twice — so treating them as identity would
+# split one order into several.
+dedupe_identity_columns: [trim, color, wheels, interior]
+
 # Option take-rate vocabulary (values compared lowercased).
 options:
   opted_in_tokens: ["yes", "included"]  # Autonomy+ / Tow: count these as opted-in

@@ -9,14 +9,33 @@
 #   additions:  append a forum-only order NOT in the sheet (a whole new row).
 #               Give as many raw fields as you have. A username already in the
 #               sheet is reported as an issue (use overrides for those instead).
+#   deletions:  drop an entry that no longer exists — someone posted that they
+#               cancelled. Split into `orders` and `reservations` because the two
+#               sheets are separate. Nothing in the data marks a cancellation, so
+#               the forum post is the only evidence and belongs in the file.
+#               The value is either a reason string, or `reason` plus a `match` of
+#               raw field -> value scoping it to ONE entry. Prefer the scoped form:
+#               a username is not a stable key for an order, so if someone cancels
+#               and later orders again under the same name, an unscoped deletion
+#               silently removes the new order too. Matching the cancelled order's
+#               date means a replacement fails the match and the stale entry is
+#               reported instead of suppressing a live order.
+#               A username with no matching row — or one whose rows no longer pass
+#               the matcher — is reported as an issue: once the sheet moves on, the
+#               entry here is dead weight, and silence would keep it forever.
+#               Deleting an ORDER also keeps that person out of the reservations
+#               cohort — leaving the orders sheet must not make them resurface as
+#               an outstanding reservation. All of a cancelled name's rows go
+#               together, so a duplicate submission can't half-survive.
 #
-# Version-controlled and auditable: every applied change/addition — and every
-# problem (unknown field / no matching or already-present user) — shows in the
-# cleaning report and the data-quality panel. Idempotent; never mutates the cache.
+# Version-controlled and auditable: every applied change/addition/deletion — and
+# every problem (unknown field / no matching or already-present user) — shows in
+# the cleaning report and the data-quality panel. Idempotent; never mutates the cache.
 #
 # Valid fields: orig_num, user, resv_raw, order_raw, vin_raw, delivery_raw,
 # buylease, loc_raw, trim, launch, color, interior, wheels, autonomy, tow, spare,
-# r1_owner, r1_keep, r1_model, other_vehicles.
+# r1_owner, r1_model. (These are the columns schema.yaml maps; a field it doesn't
+# read — "will you keep your R1", "other vehicles owned" — is reported as unknown.)
 #
 # Example (commented out):
 # overrides:
@@ -29,6 +48,11 @@
 #     delivery_raw: "8/1/2026"
 #     loc_raw: "CA"
 #     color: "Launch Green"
+# deletions:
+#   orders:
+#     SomeUser: "cancelled the order — https://... (2026-08-24)"
+#   reservations:
+#     AnotherUser: "cancelled the reservation — https://..."
 
 overrides:
   # delivery delayed from 6/30 -> 7/10
@@ -218,6 +242,10 @@ overrides:
   tivoboy:
     resv_raw: "3/7/2024"
     vin_raw: "47XX"
+  # delivery update
+  # https://www.rivianforums.com/forum/threads/update-on-r2-order-invitation-timing-now-in-account.60826/post-1072975
+  derekmw:
+    delivery_raw: "8/11/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -564,3 +592,18 @@ partial data:
     spare: "Yes"
     r1_owner: "Yes"
     r1_model: "R1T"
+
+# Cancellations — entries that were valid but no longer exist. See the header.
+deletions:
+  orders:
+    # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1086661
+    prytog:
+      reason: "cancelled by user (2026-08-27)"
+      match:
+        order_raw: "8/18/2026"
+  reservations:
+    # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1082894
+    JungGravy:
+      reason: "cancelled by user (2026-08-23)"
+      match:
+        orig_num: "1063"

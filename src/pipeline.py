@@ -19,7 +19,10 @@ def main():
 
     resv_text, resv_meta = fetch_sheet(RESV_KEY, RESV_GID, RESV_SLUG,
                                        RESV_LABEL)
-    resv, resv_report = load_reservations(resv_text, set(df["user"]))
+    # cancelled_users keeps a cancelled ORDER from reappearing as an outstanding
+    # reservation just because it left the orders cohort.
+    resv, resv_report = load_reservations(resv_text, set(df["user"]),
+                                          report["cancelled_users"])
     report["orders_meta"] = orders_meta
     report["resv_meta"] = resv_meta
     report["resv"] = resv_report
@@ -27,6 +30,10 @@ def main():
     # reads report["quality"], and a newly added column is equally newsworthy
     # whichever sheet grew it. (Drift that would mis-map data already raised.)
     report["quality"]["schema_notices"] += resv_report["schema_notices"]
+    # Both sheets' cancellations share one panel category; the record text names
+    # which sheet each came from.
+    report["quality"]["deletions"] += resv_report["deletion_records"]
+    report["quality"]["override_issues"] += resv_report["deletion_issues"]
 
     # Persist cleaned data (tidy formatting: dates as YYYY-MM-DD, int miles,
     # nullable-int VIN sequence).
@@ -74,6 +81,9 @@ def main():
           % report["bad_resv"])
     print("Premature configs dropped: %d (option not orderable on the order date)"
           % report["n_premature"])
+    print("Cancellations removed    : %d orders, %d reservations (overrides.yaml)"
+          % (len(report["sanitized"]["Cancellations removed"]),
+             resv_report["n_deleted"]))
     print("Delivery estimate types  : %s" % report["delivery_counts"])
     _pz = report["price"]
     print("Configured price         : mean $%s | median $%s | %d priced, %d unpriced"
@@ -89,6 +99,8 @@ def main():
     print("Within-sheet duplicates  : %d (removed)" % resv_report["n_self_dupes"])
     print("Matched to orders        : %d (removed — already counted as orders)"
           % resv_report["n_matched"])
+    print("Order-cancelled holders  : %d (removed — left the dataset, not reverted)"
+          % resv_report["n_order_cancelled"])
     print("Invalid dates cleared    : %d (< 2024-03-07)" % resv_report["n_bad_dates"])
     print("Incomplete reservations  : %d" % resv_report["n_incomplete"])
     print("Total demand             : %d orders + %d reservations = %d"

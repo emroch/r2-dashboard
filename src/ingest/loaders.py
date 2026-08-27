@@ -12,7 +12,8 @@ import io
 import numpy as np
 import pandas as pd
 
-from config import (ADDITIONS, AS_OF, AVAILABILITY, OPTED_IN_TOKENS,
+from config import (ADDITIONS, AS_OF, AVAILABILITY, DELETIONS_ORDERS,
+                     DEDUPE_IDENTITY, DELETIONS_RESV, OPTED_IN_TOKENS,
                      ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
@@ -106,6 +107,177 @@ def _apply_additions(df, additions):
 _AVAIL_NOUN = {"trim": "trim", "color": "paint", "interior": "interior"}
 
 
+def _dedupe_by_user(df, identity):
+    """Collapse repeat submissions from one username into one order per build.
+
+    Two rows for the same person are the SAME order when their build matches on
+    every column in `identity` (trim/colour/wheels/interior — see schema.yaml).
+    Someone can order twice, but not twice with an identical configuration. Rows
+    whose build differs are kept as SEPARATE orders and flagged, because that is
+    the one case this code cannot call: a reconfigured order and a genuine second
+    order look identical from here, and guessing either double-counts a person or
+    discards a real order.
+
+    Identity deliberately excludes the noisy self-reported fields. Resubmissions
+    disagree on those constantly — "No clue" vs "NA", 3/7 vs 3/8, X7156 vs 07156
+    are each one order entered twice — so using them would split one order into
+    several. This is also why the rule isn't "drop only strictly-subset rows":
+    almost no repeat submission is a strict subset, so that rule counted ijdsf
+    three times and town3r twice for a single car apiece.
+
+    Within a build the rows are MERGED, not picked between: the most complete row
+    is the base and each of its blanks is filled from a sibling, so a row holding
+    the only copy of a VIN no longer loses it — the old rule kept whichever row had
+    more cells filled and dropped the rest outright, silently. Where two rows hold
+    DIFFERENT non-empty values for one field, the base's value stands and the
+    disagreement is reported: self-reported data contradicting itself deserves a
+    look, not a silent resolution.
+
+    Returns (df, merged_records, build_conflicts, value_conflicts).
+    """
+    ident = [c for c in identity if c in df.columns]
+    compare = [c for c in df.columns if c != "orig_num"]
+
+    def _submission_order(i):
+        """Sheet row number, which is the closest thing to submission order —
+        new entries append. Non-numeric (a manual addition) sorts last."""
+        raw = str(df.at[i, "orig_num"]).strip()
+        return (0, int(raw)) if raw.isdigit() else (1, i)
+
+    def norm(i, c):
+        return " ".join(str(df.at[i, c]).split())
+
+    def filled(i):
+        return sum(1 for c in compare if norm(i, c) != "")
+
+    groups = {}
+    for i, u in zip(df.index, df["user"]):
+        groups.setdefault(str(u).strip().lower(), []).append(i)
+
+    drop, merged, build_conflicts, value_conflicts = set(), [], [], []
+    for idxs in groups.values():
+        if len(idxs) < 2:
+            continue
+        builds = {}
+        for i in idxs:
+            builds.setdefault(tuple(norm(i, c).lower() for c in ident), []).append(i)
+        for rows in builds.values():
+            if len(rows) < 2:
+                continue
+            # Earliest submission is the surviving row; each field then takes the
+            # value from the LATEST submission that filled it. People resubmit in
+            # order to correct themselves, so the newer answer is the better one —
+            # and the row with the most cells filled is not necessarily the row
+            # with the freshest values. Choosing "fullest row wins every field"
+            # instead threw away a real delivery date in favour of an "N/A" on a
+            # row that happened to have more cells populated.
+            order = sorted(rows, key=_submission_order)
+            base = order[0]
+            for c in compare:
+                if c == "user":
+                    continue
+                vals = [(i, norm(i, c)) for i in order if norm(i, c) != ""]
+                if not vals:
+                    continue
+                latest_i, latest_v = vals[-1]
+                if norm(base, c) != latest_v:
+                    df.at[base, c] = df.at[latest_i, c]
+                if len({v.lower() for _, v in vals}) > 1:
+                    value_conflicts.append((
+                        df.at[base, "orig_num"], df.at[base, "user"],
+                        "%s disagreed across repeat submissions: %s — kept %r "
+                        "from the latest (#%s)"
+                        % (c, " vs ".join("%r" % v for _, v in vals),
+                           latest_v, df.at[latest_i, "orig_num"])))
+            for i in order[1:]:
+                drop.add(i)
+                merged.append((df.at[i, "orig_num"], df.at[i, "user"],
+                               "same build as #%s — merged into it"
+                               % df.at[base, "orig_num"]))
+        if len(builds) > 1:
+            surviving = [i for rows in builds.values()
+                         for i in rows if i not in drop]
+            for i in surviving:
+                others = ", ".join("#%s" % df.at[j, "orig_num"]
+                                   for j in surviving if j != i)
+                build_conflicts.append((
+                    df.at[i, "orig_num"], df.at[i, "user"],
+                    "different build from %s under the same username — kept as a "
+                    "separate order (%s)"
+                    % (others, ", ".join("%s=%r" % (c, norm(i, c))
+                                         for c in ident))))
+    out = df[~df.index.isin(drop)].sort_index().reset_index(drop=True)
+    return out, merged, build_conflicts, value_conflicts
+
+
+def _apply_deletions(df, deletions, what, valid_fields=()):
+    """Drop entries the person has said no longer exist — a cancellation.
+
+    These rows are otherwise perfectly valid: nothing in the data marks them, so
+    the only evidence is the forum post recorded as the reason in overrides.yaml.
+    That makes them different from every other drop in this module, which are all
+    derived from the data itself, and it is why the reason travels with the record
+    into the report and the data-quality panel.
+
+    A value is either a plain reason string, or a mapping of `reason` plus a
+    `match` of raw field -> value which scopes the deletion to one specific entry.
+
+    The matcher matters because a username is NOT a stable key for an order. If
+    someone cancels and later orders again under the same name, a username-only
+    deletion silently removes the new order as well — the name still matches, so
+    nothing is reported. Scoping it to the cancelled order (its order date, say)
+    means a replacement fails the match and the now-stale entry gets reported
+    instead of quietly suppressing a live order.
+
+    Matched case-insensitively on username, and every row that passes the matcher
+    goes, so a name with duplicate rows can't half-survive. A username that isn't
+    present at all, or one whose rows no longer pass the matcher, is reported
+    rather than ignored: a stale entry should be cleaned up, not kept forever.
+
+    Returns (drop_mask aligned to df.index, records, issues).
+    """
+    def _same(a, b):
+        return " ".join(str(a).split()).lower() == " ".join(str(b).split()).lower()
+
+    by_user = {}
+    for i, u in zip(df.index, df["user"]):
+        by_user.setdefault(str(u).strip().lower(), []).append(i)
+    drop, records, issues = [], [], []
+    for uname, spec in (deletions or {}).items():
+        if isinstance(spec, dict):
+            reason = str(spec.get("reason", "")).strip()
+            match = dict(spec.get("match") or {})
+        else:
+            reason, match = str(spec).strip(), {}
+        for field in [f for f in match if valid_fields and f not in valid_fields]:
+            issues.append(("—", str(uname),
+                           "deletion matcher uses unknown field '%s'" % field))
+            match.pop(field)
+        hits = by_user.get(str(uname).strip().lower(), [])
+        if not hits:
+            issues.append(("—", str(uname),
+                           "deletion has no matching %s row" % what))
+            continue
+        # A matcher field the frame doesn't carry counts as a NON-match, not as a
+        # skipped condition: skipping would make the deletion broader than what
+        # was written, which is the wrong way for this to fail.
+        scoped = [i for i in hits
+                  if all(f in df.columns and _same(df.at[i, f], v)
+                         for f, v in match.items())]
+        if not scoped:
+            issues.append(("—", str(uname),
+                           "deletion no longer matches this %s (%s) — a later "
+                           "entry may have replaced the cancelled one"
+                           % (what, ", ".join("%s=%r" % kv
+                                              for kv in sorted(match.items())))))
+            continue
+        for i in scoped:
+            drop.append(i)
+            records.append((df.at[i, "orig_num"], df.at[i, "user"],
+                            "%s: %s" % (what, reason)))
+    return pd.Series(df.index.isin(drop), index=df.index), records, issues
+
+
 def _availability_mask(df):
     """Flag orders whose selected trim/paint/interior wasn't orderable yet on the
     order date — the config wasn't buildable, so it isn't a real confirmed order.
@@ -159,21 +331,22 @@ def load_and_clean(text, meta):
     df = df[df["user"] != ""].reset_index(drop=True)  # drop blank spacer rows
     n_raw = len(df)
 
-    # --- Dedup by username, keeping the most complete record ---
-    df["_score"] = (df != "").sum(axis=1)
-    df["_ukey"] = df["user"].str.lower()
-    df = df.sort_values("_score", ascending=False, kind="mergesort")
-    dupe_keys = df["_ukey"][df["_ukey"].duplicated(keep=False)].unique()
-    dup_records = []
-    for key in dupe_keys:
-        grp = df[df["_ukey"] == key]        # sorted best-first
-        kept = grp.iloc[0]
-        for _, r in grp.iloc[1:].iterrows():
-            dup_records.append((r["orig_num"], r["user"],
-                                "duplicate of #%s (kept)" % kept["orig_num"]))
-    df = (df.drop_duplicates("_ukey", keep="first").sort_index()
-          .drop(columns=["_score", "_ukey"]).reset_index(drop=True))
-    n_sheet = len(df)  # unique orders from the sheet (before manual additions)
+    # --- Cancellations, before everything else ---
+    # Ahead of the dedup so a cancelled name loses ALL of its rows together: run
+    # after, and the duplicates audit reports "duplicate of #N (kept)" about a row
+    # that was then deleted. Ahead of the data-derived checks too, so a cancelled
+    # order isn't also reported as a premature config or a bad date.
+    del_mask, del_records, del_issues = _apply_deletions(
+        df, DELETIONS_ORDERS, "order", ORDERS_COLUMNS)
+    cancelled_users = [u for _, u, _ in del_records]
+    df = df[~del_mask].reset_index(drop=True)
+
+    # --- Collapse repeat submissions that add nothing; keep and flag the rest ---
+    df, dup_records, dup_conflicts, merge_conflicts = _dedupe_by_user(
+        df, DEDUPE_IDENTITY)
+    dupe_keys = sorted({str(u).strip().lower()
+                        for _, u, _ in dup_records + dup_conflicts})
+    n_sheet = len(df)  # sheet rows kept (before manual additions)
 
     # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
     #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
@@ -411,39 +584,55 @@ def load_and_clean(text, meta):
         },
         "sanitized": {
             "Duplicates removed": dup_records,
+            "Repeat usernames kept": dup_conflicts,
+            "Merged with disagreements": merge_conflicts,
             "VINs de-obfuscated": deobf_records,
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
             "Premature configs dropped": premature_records,
             "Manual fix-ups": override_records,
             "Manual additions": add_records,
+            "Cancellations removed": del_records,
         },
         "quality": {
             "schema_notices": schema_notices,
             "unparseable": unparseable,
             "fuzzy_dups": fuzzy_dups,
+            "dup_conflicts": dup_conflicts,
+            "merge_conflicts": merge_conflicts,
             "vin_unrec": unrec_records,
             "bad_dates": date_records,
             "availability_drops": premature_records,
             "price_issues": price_issues,
             "answer_conflicts": conflicts,
             "conversions": conversions,
-            "override_issues": override_issues + add_issues,
+            "override_issues": override_issues + add_issues + del_issues,
+            # Its own list, not the one in `sanitized`: the pipeline appends the
+            # reservation cancellations here so one panel category covers both
+            # sheets, and sharing the object made that append silently inflate the
+            # orders-only count in the report and the stat card.
+            "deletions": list(del_records),
         },
+        # Names whose ORDER was cancelled. The reservations sheet needs them: they
+        # have left the orders cohort, and must not resurface there as outstanding
+        # reservations just because they are no longer counted as orders.
+        "cancelled_users": cancelled_users,
     }
     return df, report, parsed
 
 
-def load_reservations(text, order_users):
+def load_reservations(text, order_users, cancelled_users=()):
     """Parse the reservations-only sheet and return (resv_df, resv_report).
 
     A different form from the orders sheet (columns: #, Username, R2 reservation
     date, Location, R1-owner questions — no order/VIN/config/delivery), and its
     R1 answers aren't charted, so only four columns are mapped; they're located
     by name exactly as the orders sheet's are. Steps: drop within-sheet duplicate
-    usernames; drop holders already present in the orders sheet (they are counted
-    as orders — the remainder are "incomplete" orders); null pre-reveal
-    (<2024-03-07) reservation dates; geo-enrich by state.
+    usernames; drop reservations cancelled via overrides.yaml; drop holders
+    already present in the orders sheet (they are counted as orders — the
+    remainder are "incomplete" orders) and anyone whose order was cancelled, since
+    they have left the dataset rather than reverted to holding a reservation; null
+    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state.
     """
     records = list(csv.reader(io.StringIO(text)))
     hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
@@ -462,13 +651,26 @@ def load_reservations(text, order_users):
     resv = resv[~dup_mask]
     n_self_dupes = int(dup_mask.sum())
 
-    # Remove reservation-holders who already appear in the orders sheet.
+    # Cancelled reservations, before the data-derived drops below.
+    del_mask, del_records, del_issues = _apply_deletions(
+        resv, DELETIONS_RESV, "reservation", RESERVATIONS_COLUMNS)
+    resv = resv[~del_mask]
+
+    # Remove reservation-holders who already appear in the orders sheet, and
+    # anyone whose ORDER was cancelled — the latter have left the dataset, so
+    # dropping out of the orders cohort must not float them back up here.
     order_keys = {u.lower() for u in order_users}
+    cancelled_keys = {str(u).strip().lower() for u in cancelled_users}
     matched = resv["_ukey"].isin(order_keys)
     matched_records = [(r["orig_num"], r["user"], "already in orders sheet")
                        for _, r in resv[matched].iterrows()]
     n_matched = int(matched.sum())
-    resv = resv[~matched].drop(columns="_ukey").reset_index(drop=True)
+    resv = resv[~matched]
+    was_cancelled = resv["_ukey"].isin(cancelled_keys)
+    n_order_cancelled = int(was_cancelled.sum())
+    del_records += [(r["orig_num"], r["user"], "reservation: order was cancelled")
+                    for _, r in resv[was_cancelled].iterrows()]
+    resv = resv[~was_cancelled].drop(columns="_ukey").reset_index(drop=True)
 
     # Reservation date must fall in [2024-03-07 reveal, today]; null others.
     resv["resv_date"] = resv["resv_raw"].apply(parse_simple_date)
@@ -483,5 +685,7 @@ def load_reservations(text, order_users):
         "n_bad_dates": int(bad.sum()), "n_incomplete": len(resv),
         "self_dupe_records": self_dupe_records, "matched_records": matched_records,
         "schema_notices": schema_notices,
+        "n_deleted": len(del_records), "n_order_cancelled": n_order_cancelled,
+        "deletion_records": del_records, "deletion_issues": del_issues,
     }
     return resv, resv_report

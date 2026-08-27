@@ -304,6 +304,20 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("merge_conflicts", "Repeat submissions that disagreed",
+     "Fields where a person's repeat submissions of the SAME build contradicted "
+     "each other. The rows are merged into one order, taking each field from the "
+     "latest submission that filled it \u2014 people resubmit in order to correct "
+     "themselves \u2014 and every contradiction is listed here rather than resolved "
+     "silently, since self-reported data disagreeing with itself is worth a look."),
+    ("dup_conflicts", "Repeat usernames kept as separate entries",
+     "One username appearing on more than one row where the rows disagree, so "
+     "neither can be dropped without guessing. A repeat submission is only "
+     "collapsed when it adds nothing \u2014 every field it fills, another row fills "
+     "identically. Rows that conflict are either a data-entry error or the same "
+     "person placing a second, genuinely different order, and choosing between "
+     "those would either double-count someone or discard a real order, so both "
+     "are kept and listed here with the fields they differ on."),
     ("fuzzy_dups", "Possible duplicate usernames",
      "Usernames that normalize alike (case/space/punctuation) but weren't merged "
      "by the exact-duplicate dedup."),
@@ -311,6 +325,13 @@ _QA_CATS = [
      "VIN tokens too redacted to recover a sequence number."),
     ("bad_dates", "Invalid dates dropped",
      "Order/reservation dates outside the plausible window, cleared."),
+    ("deletions", "Cancellations removed",
+     "Orders and reservations dropped because the person posted that they had "
+     "cancelled. These rows are otherwise valid \u2014 nothing in the data marks a "
+     "cancellation \u2014 so each one is a manual entry in overrides.yaml carrying "
+     "the reason and its source, and each is listed here for that reason. "
+     "Cancelling an order also keeps that person out of the reservation count, "
+     "rather than letting them resurface as an outstanding reservation."),
     ("availability_drops", "Premature-config orders dropped",
      "Orders whose selected trim, paint, or interior wasn't orderable yet on the "
      "order date — removed entirely, not counted as orders."),
@@ -433,13 +454,15 @@ def build_dashboard(df, report, resv):
     pz = report["price"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
     captions = {
-        "Order duplicates": "Rows removed as duplicates in the orders sheet",
+        "Order duplicates": "Repeat rows removed because they added nothing over the row kept",
+        "Repeat usernames kept": "Rows sharing a username whose values disagree, so both were kept rather than one guessed away",
         "Reservation duplicates": "Repeat usernames in the reservations sheet (kept first)",
         "Reservations already ordered": "Reservation-holders already counted in the orders sheet",
         "VINs de-obfuscated": "Obfuscated VINs recovered (original → value)",
         "VINs recovered": "VINs that could not be recovered (dropped)",
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
         "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
+        "Cancellations": "Orders and reservations removed because the person posted that they cancelled (reason from overrides.yaml)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
         "Unpriced": "Orders whose configuration hit a price that isn't published yet (excluded from the price stats)",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
@@ -455,12 +478,16 @@ def build_dashboard(df, report, resv):
         ("Cleaned / removed", [
             ("Order duplicates", len(san["Duplicates removed"]),
              san["Duplicates removed"]),
+            ("Repeat usernames kept", len(san["Repeat usernames kept"]),
+             san["Repeat usernames kept"]),
             ("Reservation duplicates", rr["n_self_dupes"], rr["self_dupe_records"]),
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
             ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
              san["Invalid dates dropped"]),
             ("Premature configs dropped", report["n_premature"],
              san["Premature configs dropped"]),
+            ("Cancellations", len(san["Cancellations removed"]),
+             san["Cancellations removed"]),
             ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
         ]),
         ("VIN recovery", [
