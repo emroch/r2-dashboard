@@ -10,13 +10,27 @@ on:
   # stacked chain, since a stacked PR's base is the branch below it rather than
   # main — the one PR that most needs a preview is the one that got none.
   pull_request:
+  # Manual re-run, for when the automatic trigger doesn't fire or a build fails
+  # transiently. A `pull_request` run cannot be re-run if the webhook never
+  # created it in the first place (see issue #27), and pushing a junk commit to
+  # force one goes through the same webhook path that was already failing.
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number to build and preview"
+        required: true
+        type: string
 
 permissions:
   contents: read            # previews never commit (data/raw is a main-only concern)
   pull-requests: write      # to post the preview-URL comment
 
 concurrency:
-  group: preview-${{ github.event.pull_request.number }}
+  # Both triggers have to land in the same group, so a manual run supersedes an
+  # in-flight automatic one for the same PR instead of racing it. The concurrency
+  # key is evaluated before any job runs, so it can't read the resolve step's
+  # output and has to repeat the either/or here.
+  group: preview-${{ github.event.pull_request.number || github.event.inputs.pr }}
   cancel-in-progress: true  # supersede in-flight builds when the PR is updated
 
 env:
@@ -26,7 +40,85 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     steps:
+      # Resolve the PR ONCE, from whichever trigger fired, so the checkout, the
+      # deploy branch and the comment all agree. A workflow_dispatch run has no
+      # github.event.pull_request at all, so every site that read it directly
+      # reads this step's outputs instead. Runs before the checkout because it
+      # decides what to check out (and needs nothing from the tree).
+      - name: Resolve pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR_INPUT: ${{ inputs.pr }}
+          EVENT_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = workflow_dispatch ]; then
+            number="$PR_INPUT"
+            case "$number" in
+              ''|*[!0-9]*)
+                echo "::error::'pr' must be a pull request number, got '$number'"
+                exit 1 ;;
+            esac
+            if ! pr_json=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number"); then
+              echo "::error::No pull request #$number in $GITHUB_REPOSITORY"
+              exit 1
+            fi
+            head_sha=$(jq -r '.head.sha' <<<"$pr_json")
+            head_repo=$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")
+            # A dispatch is a PRIVILEGED run: the repository secrets are in scope
+            # and the token is writable, and the payload field that normally
+            # proves a PR is same-repo doesn't exist here. So re-derive it from
+            # the API and refuse a fork OUTRIGHT rather than merely skipping the
+            # deploy — that keeps fork code from executing in this context at
+            # all, which the `pull_request` trigger's read-only, secretless run
+            # is what makes safe. actions/checkout will NOT catch this for us:
+            # its own fork-checkout guard only fires for pull_request_target and
+            # workflow_run events, so this check is the only one there is.
+            if [ -z "$head_repo" ]; then
+              # head.repo is null once the source fork has been deleted.
+              echo "::error::PR #$number's head repository no longer exists; nothing to build."
+              exit 1
+            fi
+            if [ "$head_repo" != "$GITHUB_REPOSITORY" ]; then
+              echo "::error::PR #$number is from a fork ($head_repo). Fork previews only run on the pull_request trigger, which withholds the secrets."
+              exit 1
+            fi
+            # A manual run checks out the ref it was dispatched on (main), not the
+            # PR, so the head has to be requested explicitly.
+            checkout_ref="$head_sha"
+            # The human dispatching vouches for the build, so the Dependabot
+            # exclusion below doesn't apply: it exists because Dependabot-
+            # triggered runs get no secrets at all, not because the branch is
+            # distrusted. Requesting a preview for one by hand is deliberate.
+            deployable=true
+          else
+            number="$EVENT_NUMBER"
+            head_sha="$EVENT_HEAD_SHA"
+            # Empty == actions/checkout's default (its `if (!result.ref)` treats
+            # an empty input as unset), i.e. the PR's test-merge commit, which is
+            # what an automatic run has always built.
+            checkout_ref=""
+            deployable=false
+            if [ "$EVENT_HEAD_REPO" = "$GITHUB_REPOSITORY" ] \
+               && [ "$GITHUB_ACTOR" != "dependabot[bot]" ]; then
+              deployable=true
+            fi
+          fi
+          {
+            echo "number=$number"
+            echo "head_sha=$head_sha"
+            echo "checkout_ref=$checkout_ref"
+            echo "deployable=$deployable"
+          } >>"$GITHUB_OUTPUT"
+          echo "PR #$number, head ${head_sha:0:7}, deployable=$deployable"
+
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.pr.outputs.checkout_ref }}
 
       - uses: actions/setup-python@v7
         with:
@@ -59,14 +151,12 @@ jobs:
       # --branch makes this a preview; the production alias is left untouched.
       - name: Deploy preview to Cloudflare Pages
         id: preview
-        if: >-
-          github.event.pull_request.head.repo.full_name == github.repository
-          && github.actor != 'dependabot[bot]'
+        if: steps.pr.outputs.deployable == 'true'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=r2-dashboard --branch=pr-${{ github.event.pull_request.number }} --commit-dirty=true
+          command: pages deploy dist --project-name=r2-dashboard --branch=pr-${{ steps.pr.outputs.number }} --commit-dirty=true
 
       - name: Comment preview URL on the PR
         if: steps.preview.outcome == 'success'
@@ -74,40 +164,85 @@ jobs:
         env:
           ALIAS_URL: ${{ steps.preview.outputs.pages-deployment-alias-url }}
           DEPLOY_URL: ${{ steps.preview.outputs.deployment-url }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          # The PR HEAD, deliberately not github.sha: on a pull_request event that
+          # is the ephemeral test-merge commit ("Merge <head> into <base>"), which
+          # belongs to no branch and appears nowhere in the PR — so quoting it
+          # named a commit nobody could look up (issue #28).
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         with:
           script: |
             const alias = process.env.ALIAS_URL;
             const unique = process.env.DEPLOY_URL;
+            const sha = process.env.HEAD_SHA;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const { owner, repo } = context.repo;
             const marker = '<!-- r2-preview -->';
+            // Machine-readable tail of the comment: the running build list is
+            // read back from here and re-rendered, so the history survives
+            // without parsing the markdown we just wrote.
+            const dataRe = /<!-- r2-preview-data:([\s\S]*?)-->/;
+            const MAX_ROWS = 10;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const prev = comments.find((c) => c.body && c.body.includes(marker));
+
+            let builds = [];
+            let omitted = 0;
+            if (prev) {
+              const m = prev.body.match(dataRe);
+              if (m) {
+                try {
+                  const saved = JSON.parse(m[1].trim());
+                  builds = saved.builds || [];
+                  omitted = saved.omitted || 0;
+                } catch (e) {
+                  core.warning(`Could not parse the previous build list: ${e}`);
+                }
+              }
+            }
+
+            // Newest first, so the freshest build is the one you read.
+            builds.unshift({ sha, url: unique, at: new Date().toISOString() });
+            if (builds.length > MAX_ROWS) {
+              omitted += builds.length - MAX_ROWS;
+              builds = builds.slice(0, MAX_ROWS);
+            }
+
+            const when = (iso) => iso.replace('T', ' ').slice(0, 16);
+            const rows = builds.map((b) => {
+              const short = b.sha ? b.sha.slice(0, 7) : '(unknown)';
+              const link = b.sha
+                ? `[\`${short}\`](https://github.com/${owner}/${repo}/commit/${b.sha})`
+                : `\`${short}\``;
+              return `| ${link} | ${b.url} | ${when(b.at)} |`;
+            });
+
             const body = [
               marker,
               '### 🔎 Preview deploy',
               '',
-              '| | URL |',
-              '| --- | --- |',
-              `| **Preview (latest for this PR)** | ${alias || unique} |`,
-              `| This exact build | ${unique} |`,
+              `**Latest build:** ${alias || unique} — always the newest build for` +
+                ' this PR. Production (`emroch.com/r2-dashboard`) is untouched.',
               '',
-              `From \`${context.sha.slice(0, 7)}\` — production (\`emroch.com/r2-dashboard\`) is untouched.`,
+              '| Commit | This exact build | Built (UTC) |',
+              '| --- | --- | --- |',
+              ...rows,
+              ...(omitted
+                ? ['', `_${omitted} older build${omitted === 1 ? '' : 's'} not shown._`]
+                : []),
+              '',
+              `<!-- r2-preview-data:${JSON.stringify({ omitted, builds })} -->`,
             ].join('\n');
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const prev = comments.find((c) => c.body && c.body.includes(marker));
+
             if (prev) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: prev.id,
-                body,
+                owner, repo, comment_id: prev.id, body,
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
+                owner, repo, issue_number, body,
               });
             }
