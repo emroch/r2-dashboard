@@ -304,6 +304,20 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("merge_conflicts", "Repeat submissions that disagreed",
+     "Fields where a person's repeat submissions of the SAME build contradicted "
+     "each other. The rows are merged into one order, taking each field from the "
+     "latest submission that filled it \u2014 people resubmit in order to correct "
+     "themselves \u2014 and every contradiction is listed here rather than resolved "
+     "silently, since self-reported data disagreeing with itself is worth a look."),
+    ("dup_conflicts", "Repeat usernames kept as separate entries",
+     "One username appearing on more than one row where the rows disagree, so "
+     "neither can be dropped without guessing. A repeat submission is only "
+     "collapsed when it adds nothing \u2014 every field it fills, another row fills "
+     "identically. Rows that conflict are either a data-entry error or the same "
+     "person placing a second, genuinely different order, and choosing between "
+     "those would either double-count someone or discard a real order, so both "
+     "are kept and listed here with the fields they differ on."),
     ("fuzzy_dups", "Possible duplicate usernames",
      "Usernames that normalize alike (case/space/punctuation) but weren't merged "
      "by the exact-duplicate dedup."),
@@ -440,7 +454,8 @@ def build_dashboard(df, report, resv):
     pz = report["price"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
     captions = {
-        "Order duplicates": "Rows removed as duplicates in the orders sheet",
+        "Order duplicates": "Repeat rows removed because they added nothing over the row kept",
+        "Repeat usernames kept": "Rows sharing a username whose values disagree, so both were kept rather than one guessed away",
         "Reservation duplicates": "Repeat usernames in the reservations sheet (kept first)",
         "Reservations already ordered": "Reservation-holders already counted in the orders sheet",
         "VINs de-obfuscated": "Obfuscated VINs recovered (original → value)",
@@ -463,6 +478,8 @@ def build_dashboard(df, report, resv):
         ("Cleaned / removed", [
             ("Order duplicates", len(san["Duplicates removed"]),
              san["Duplicates removed"]),
+            ("Repeat usernames kept", len(san["Repeat usernames kept"]),
+             san["Repeat usernames kept"]),
             ("Reservation duplicates", rr["n_self_dupes"], rr["self_dupe_records"]),
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
             ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
