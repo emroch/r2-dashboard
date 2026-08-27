@@ -107,7 +107,7 @@ def _apply_additions(df, additions):
 _AVAIL_NOUN = {"trim": "trim", "color": "paint", "interior": "interior"}
 
 
-def _apply_deletions(df, deletions, what):
+def _apply_deletions(df, deletions, what, valid_fields=()):
     """Drop entries the person has said no longer exist — a cancellation.
 
     These rows are otherwise perfectly valid: nothing in the data marks them, so
@@ -116,27 +116,62 @@ def _apply_deletions(df, deletions, what):
     derived from the data itself, and it is why the reason travels with the record
     into the report and the data-quality panel.
 
-    Matched case-insensitively on username, and every matching row goes (a name
-    with duplicate rows shouldn't half-survive). A username that isn't present is
-    reported rather than ignored: once the sheet drops the row itself the entry
-    here is dead weight, and silence would keep it forever.
+    A value is either a plain reason string, or a mapping of `reason` plus a
+    `match` of raw field -> value which scopes the deletion to one specific entry.
+
+    The matcher matters because a username is NOT a stable key for an order. If
+    someone cancels and later orders again under the same name, a username-only
+    deletion silently removes the new order as well — the name still matches, so
+    nothing is reported. Scoping it to the cancelled order (its order date, say)
+    means a replacement fails the match and the now-stale entry gets reported
+    instead of quietly suppressing a live order.
+
+    Matched case-insensitively on username, and every row that passes the matcher
+    goes, so a name with duplicate rows can't half-survive. A username that isn't
+    present at all, or one whose rows no longer pass the matcher, is reported
+    rather than ignored: a stale entry should be cleaned up, not kept forever.
 
     Returns (drop_mask aligned to df.index, records, issues).
     """
+    def _same(a, b):
+        return " ".join(str(a).split()).lower() == " ".join(str(b).split()).lower()
+
     by_user = {}
     for i, u in zip(df.index, df["user"]):
         by_user.setdefault(str(u).strip().lower(), []).append(i)
     drop, records, issues = [], [], []
-    for uname, reason in (deletions or {}).items():
+    for uname, spec in (deletions or {}).items():
+        if isinstance(spec, dict):
+            reason = str(spec.get("reason", "")).strip()
+            match = dict(spec.get("match") or {})
+        else:
+            reason, match = str(spec).strip(), {}
+        for field in [f for f in match if valid_fields and f not in valid_fields]:
+            issues.append(("—", str(uname),
+                           "deletion matcher uses unknown field '%s'" % field))
+            match.pop(field)
         hits = by_user.get(str(uname).strip().lower(), [])
         if not hits:
             issues.append(("—", str(uname),
                            "deletion has no matching %s row" % what))
             continue
-        for i in hits:
+        # A matcher field the frame doesn't carry counts as a NON-match, not as a
+        # skipped condition: skipping would make the deletion broader than what
+        # was written, which is the wrong way for this to fail.
+        scoped = [i for i in hits
+                  if all(f in df.columns and _same(df.at[i, f], v)
+                         for f, v in match.items())]
+        if not scoped:
+            issues.append(("—", str(uname),
+                           "deletion no longer matches this %s (%s) — a later "
+                           "entry may have replaced the cancelled one"
+                           % (what, ", ".join("%s=%r" % kv
+                                              for kv in sorted(match.items())))))
+            continue
+        for i in scoped:
             drop.append(i)
             records.append((df.at[i, "orig_num"], df.at[i, "user"],
-                            "%s: %s" % (what, str(reason).strip())))
+                            "%s: %s" % (what, reason)))
     return pd.Series(df.index.isin(drop), index=df.index), records, issues
 
 
@@ -193,6 +228,16 @@ def load_and_clean(text, meta):
     df = df[df["user"] != ""].reset_index(drop=True)  # drop blank spacer rows
     n_raw = len(df)
 
+    # --- Cancellations, before everything else ---
+    # Ahead of the dedup so a cancelled name loses ALL of its rows together: run
+    # after, and the duplicates audit reports "duplicate of #N (kept)" about a row
+    # that was then deleted. Ahead of the data-derived checks too, so a cancelled
+    # order isn't also reported as a premature config or a bad date.
+    del_mask, del_records, del_issues = _apply_deletions(
+        df, DELETIONS_ORDERS, "order", ORDERS_COLUMNS)
+    cancelled_users = [u for _, u, _ in del_records]
+    df = df[~del_mask].reset_index(drop=True)
+
     # --- Dedup by username, keeping the most complete record ---
     df["_score"] = (df != "").sum(axis=1)
     df["_ukey"] = df["user"].str.lower()
@@ -215,12 +260,6 @@ def load_and_clean(text, meta):
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)
-    # Cancellations go before every data-derived check, so a cancelled order isn't
-    # also reported as a premature config or a bad date — it's simply gone.
-    del_mask, del_records, del_issues = _apply_deletions(
-        df, DELETIONS_ORDERS, "order")
-    cancelled_users = [u for _, u, _ in del_records]
-    df = df[~del_mask].reset_index(drop=True)
     # n_dedup (the final cohort size the dashboard counts) is set after the
     # not-yet-orderable-config drop below, so it excludes those rows.
 
@@ -512,7 +551,7 @@ def load_reservations(text, order_users, cancelled_users=()):
 
     # Cancelled reservations, before the data-derived drops below.
     del_mask, del_records, del_issues = _apply_deletions(
-        resv, DELETIONS_RESV, "reservation")
+        resv, DELETIONS_RESV, "reservation", RESERVATIONS_COLUMNS)
     resv = resv[~del_mask]
 
     # Remove reservation-holders who already appear in the orders sheet, and

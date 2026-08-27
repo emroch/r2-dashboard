@@ -925,6 +925,69 @@ def test_interior_by_location_panels_partition_the_cohort():
 # reservations sheet.
 
 
+def test_deletion_scoped_by_matcher_spares_a_replacement_order():
+    # A username is not a stable key for an ORDER. Cancel, then order again under
+    # the same name, and an unscoped deletion silently removes the NEW order —
+    # the name still matches, so nothing is reported. The matcher is what turns
+    # that silent suppression into a visible stale-entry report.
+    from ingest.loaders import _apply_deletions
+    replacement = pd.DataFrame({"orig_num": ["7"], "user": ["again"],
+                                "order_raw": ["8/20/2026"]})
+    spec = {"again": {"reason": "cancelled",
+                      "match": {"order_raw": "6/20/2026"}}}
+    mask, records, issues = _apply_deletions(replacement, spec, "order",
+                                             ("order_raw",))
+    assert not mask.any(), "the replacement order must survive"
+    assert records == []
+    assert len(issues) == 1 and "no longer matches" in issues[0][2]
+    # The same entry still deletes the order it was written for.
+    original = pd.DataFrame({"orig_num": ["7"], "user": ["again"],
+                             "order_raw": ["6/20/2026"]})
+    mask, records, issues = _apply_deletions(original, spec, "order",
+                                             ("order_raw",))
+    assert list(mask) == [True] and len(records) == 1 and issues == []
+
+
+def test_deletion_matcher_requires_all_fields_and_fails_closed():
+    # Several fields are ANDed, so a matcher narrows rather than widens. And a
+    # field the frame doesn't carry counts as a non-match, not a skipped
+    # condition — skipping would silently make the deletion broader than written.
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1", "2"], "user": ["u", "u"],
+                       "order_raw": ["6/1/2026", "6/1/2026"],
+                       "vin_raw": ["1000", "2000"]})
+    fields = ("order_raw", "vin_raw", "absent_col")
+    spec = {"u": {"reason": "x",
+                  "match": {"order_raw": "6/1/2026", "vin_raw": "2000"}}}
+    mask, records, _ = _apply_deletions(df, spec, "order", fields)
+    assert [r[0] for r in records] == ["2"], "both fields must match"
+    # A valid-but-absent column spares every row instead of being ignored.
+    spec = {"u": {"reason": "x", "match": {"absent_col": "anything"}}}
+    mask, records, issues = _apply_deletions(df, spec, "order", fields)
+    assert not mask.any() and records == []
+    assert any("no longer matches" in d for _, _, d in issues)
+
+
+def test_deletion_matcher_field_is_validated():
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1"], "user": ["u"], "order_raw": ["6/1/2026"]})
+    _, _, issues = _apply_deletions(
+        df, {"u": {"reason": "x", "match": {"nope": "1"}}}, "order", ("order_raw",))
+    assert any("unknown field 'nope'" in d for _, _, d in issues)
+
+
+def test_cancelling_a_duplicated_name_takes_every_row():
+    # Deletions run BEFORE the dedup. Run them after and the duplicates audit
+    # reports "duplicate of #1 (kept)" about a row that was then cancelled —
+    # an audit trail claiming a row survived when it didn't.
+    from ingest.loaders import _apply_deletions
+    df = pd.DataFrame({"orig_num": ["1", "2"], "user": ["dup", "dup"],
+                       "order_raw": ["6/15/2026", "6/15/2026"]})
+    mask, records, issues = _apply_deletions(df, {"dup": "cancelled"}, "order")
+    assert list(mask) == [True, True], "a cancelled name can't half-survive"
+    assert [r[0] for r in records] == ["1", "2"] and issues == []
+
+
 def test_deletions_drop_every_matching_row_and_carry_the_reason():
     from ingest.loaders import _apply_deletions
     df = pd.DataFrame({"orig_num": ["1", "2", "3"],
