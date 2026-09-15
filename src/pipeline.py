@@ -81,8 +81,8 @@ def main():
           % report["bad_resv"])
     print("Premature configs dropped: %d (option not orderable on the order date)"
           % report["n_premature"])
-    print("Cancellations removed    : %d orders, %d reservations (overrides.yaml)"
-          % (len(report["sanitized"]["Cancellations removed"]),
+    print("Removed by curation      : %d orders, %d reservations (overrides.yaml)"
+          % (len(report["sanitized"]["Removed by curation"]),
              resv_report["n_deleted"]))
     print("Delivery estimate types  : %s" % report["delivery_counts"])
     _pz = report["price"]
