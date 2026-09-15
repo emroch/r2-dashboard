@@ -1137,6 +1137,46 @@ def test_username_case_differences_are_not_a_disagreement():
     assert len(out) == 1 and values == [], "case is the grouping key, not a clash"
 
 
+# --- Manual fix-ups (overrides) ----------------------------------------------
+
+
+def test_override_on_one_row_applies_without_complaint():
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="7", user="solo",
+                             order_raw="8/18/2026")])
+    applied, issues = _apply_overrides(df, {"SOLO": {"order_raw": "9/15/2026"}})
+    assert df.at[0, "order_raw"] == "9/15/2026", "username match is case-insensitive"
+    assert len(applied) == 1 and issues == []
+
+
+def test_override_targets_the_latest_of_several_orders_and_flags_it():
+    # Dedup keeps differing builds under one username as separate orders, so an
+    # override's target is ambiguous. It used to land on whichever row a dict
+    # comprehension happened to keep, with nothing reported — a correction meant
+    # for one order could silently edit the other.
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="201", user="FL5guy", order_raw="7/23/2026"),
+        dict(BUILD, orig_num="296", user="FL5Guy", order_raw="8/18/2026",
+             wheels='20" BS'),
+    ])
+    applied, issues = _apply_overrides(df, {"FL5Guy": {"order_raw": "9/15/2026"}})
+    assert df.at[1, "order_raw"] == "9/15/2026", "latest submission gets the fix-up"
+    assert df.at[0, "order_raw"] == "7/23/2026", "the earlier order is left alone"
+    assert len(applied) == 1
+    flagged = " ".join(d for _, _, d in issues)
+    assert "2 separate orders" in flagged
+    assert "#201" in flagged and "#296" in flagged, "both rows must be named"
+
+
+def test_override_for_an_absent_username_is_reported():
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="present")])
+    applied, issues = _apply_overrides(df, {"ghost": {"order_raw": "9/1/2026"}})
+    assert applied == [] and len(issues) == 1
+    assert "no matching order row" in issues[0][2]
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
