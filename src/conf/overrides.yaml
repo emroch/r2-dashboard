@@ -225,10 +225,14 @@ overrides:
   # https://www.rivianforums.com/forum/posts/1085294/
   NorthshoreR2:
     color: "Launch Green"
-  # order date update
+  # order update
   # https://www.rivianforums.com/forum/posts/1085228/
+  # https://www.rivianforums.com/forum/posts/1090885/
   windblowlc:
     order_raw: "8/18/2026"
+    delivery_raw: "9/4/2026"
+    vin_raw: "91XX"
+    wheels: '20” Black Sand All-Terrain'
   # delivery estimate
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085647
   NormalLife:
@@ -250,10 +254,6 @@ overrides:
   # https://www.rivianforums.com/forum/threads/vin-for-coastal-cloud-r2-received.63201/post-1089756
   deacon:
     vin_raw: "09011"
-  # order date update
-  # https://www.rivianforums.com/forum/threads/vin-for-coastal-cloud-r2-received.63201/post-1090819
-  adamek:
-    order_raw: "8/19/2026"
   # vin update
   # https://www.rivianforums.com/forum/posts/1086109/
   momo_your_momoness:
@@ -274,6 +274,33 @@ overrides:
   # https://www.rivianforums.com/forum/posts/1090725/
   Ssmtsx:
     delivery_raw: "9/9/2026"
+  # order update
+  # https://www.rivianforums.com/forum/posts/1092339/
+  reodds:
+    order_raw: "8/18/2026"
+    vin_raw: "9522"
+    color: "Glacier White"
+  # order update
+  # https://riviantrackr.com/news/rivian-r2-factory-pickup-normal-illinois/
+  # https://www.rivianforums.com/forum/posts/1088293/
+  RivianTrackr:
+    delivery_raw: "7/24/2026"
+    vin_raw: "4149"
+  # https://www.rivianforums.com/forum/posts/1099230/
+  RivianInCharleston:
+    delivery_raw: "9/5/2026"
+    vin_raw: "2715"
+  # https://www.rivianforums.com/forum/posts/1101727
+  WreckItRivian:
+    order_raw: "9/15/2026"
+    delivery_raw: "Unknown"
+  # https://www.rivianforums.com/forum/posts/1101904
+  FL5Guy:
+    order_raw: "9/15/2026"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -458,9 +485,11 @@ additions:
     r1_owner: "Yes"
     r1_model: "Both"
   # https://www.rivianforums.com/forum/posts/1078811/
+  # https://www.rivianforums.com/forum/posts/1097577/
   Lysdexic:
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
+    delivery_raw: "9/18/2026"
     loc_raw: "NC"
     trim: "Performance"
     launch: "Yes"
@@ -471,18 +500,6 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/posts/1080540/
-  clydef:
-    order_raw: "8/19/2026"
-    loc_raw: "CA"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Catalina Cove"
-    interior: "Coastal Cloud Signature"
-    wheels: '20” Black Sand All-Terrain'
-    autonomy: "Included"
-    tow: "Included"
-    r1_owner: "No"
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1076750
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1082006
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1077789
@@ -504,26 +521,13 @@ additions:
   Zathras' Daughter-in-law:
     resv_raw: "3/7/2024"
     order_raw: "8/23/2026"
-    delivery_raw: "9/1/2026"
+    delivery_raw: "9/3/2026"
     buylease: "Purchase"
     loc_raw: "CA"
     trim: "Performance"
     launch: "Yes"
     color: "Catalina Cove"
     interior: "Black Crater Signature"
-    wheels: '20” Black Sand All-Terrain'
-    autonomy: "Included"
-    tow: "Included"
-    r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1086403/
-  ewcanes:
-    resv_raw: "3/7/2024"
-    order_raw: "8/27/2026"
-    loc_raw: "FL"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Glacier White"
-    interior: "Coastal Cloud Signature"
     wheels: '20” Black Sand All-Terrain'
     autonomy: "Included"
     tow: "Included"
@@ -586,10 +590,11 @@ additions:
     tow: "Included"
     r1_owner: "No"
   # https://www.rivianforums.com/forum/posts/1090126/
+  # https://www.rivianforums.com/forum/threads/64175/
   jhlf30:
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
-    delivery_raw: "9/14/26 - 9/18/26"
+    delivery_raw: "9/12/2026"
     vin_raw: "9402"
     loc_raw: "MD"
     trim: "Performance"
@@ -615,10 +620,11 @@ additions:
     tow: "Included"
     r1_owner: "No"
   # https://www.rivianforums.com/forum/posts/1090213/
+  # https://www.rivianforums.com/forum/posts/1093549/
   morph860:
     resv_raw: "5/28/2026"
     order_raw: "9/1/2026"
-    delivery_raw: "4-8 weeks"
+    delivery_raw: "9/8/2026"
     loc_raw: "FL"
     trim: "Performance"
     launch: "Yes"
@@ -628,16 +634,145 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1090479/
-  snovarev:
+  # https://www.rivianforums.com/forum/posts/1091269/
+  sl55:
+    order_raw: "8/19/2026"
+    loc_raw: "WI"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1S"
+  # https://www.rivianforums.com/forum/posts/1091296/
+  tgrick:
+    resv_raw: "3/14/2026"
+    order_raw: "8/19/2026"
+    loc_raw: "FL"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Glacier White"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1092056/
+  ncone:
+    order_raw: "8/4/2026"
+    delivery_raw: "9/12/2026"
+    vin_raw: "08172"
+    loc_raw: "NC"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1093618/
+  KAG:
     resv_raw: "3/7/2024"
-    order_raw: "8/18/2026"
+    order_raw: "8/11/2026"
+    delivery_raw: "9/14/2026"
     loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Launch Green"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1094956/
+  theunderlord:
+    delivery_raw: "9/3/2026"
+    vin_raw: "6371"
+    loc_raw: "WA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1096221/
+  RiviDiva:
+    resv_raw: "11/6/2025"
+    order_raw: "9/8/2026"
+    loc_raw: "TX"
     trim: "Performance"
     launch: "Yes"
     color: "Catalina Cove"
     interior: "Coastal Cloud Signature"
     wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1096232/
+  jpatton:
+    order_raw: "9/8/2026"
+    loc_raw: "UT"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Launch Green"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1101752
+  ZheWiz:
+    resv_raw: "3/7/2024"
+    order_raw: "9/15/2026"
+    loc_raw: "NY"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1101782/
+  lallenw:
+    order_raw: "9/15/2026"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1101839
+  doogl:
+    resv_raw: "3/12/2026"
+    order_raw: "9/15/2026"
+    loc_raw: "CO"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1101860
+  friscorays:
+    order_raw: "9/15/2026"
+    loc_raw: "TX"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
@@ -772,7 +907,7 @@ partial data:
     r1_owner: "Yes"
     r1_model: "R1T"
     r1_keep: "Yes"
-    # https://www.rivianforums.com/forum/posts/1090281/
+  # https://www.rivianforums.com/forum/posts/1090281/
   ender_okc:
     resv_raw: "3/7/2024"
     order_raw: "9/1/2026"
@@ -788,6 +923,38 @@ partial data:
     tow: "Included"
     spare:
     r1_owner: "No"
+  # https://www.rivianforums.com/forum/threads/r2-delivery-problems.63276/post-1092023
+  virginia_rivian:
+    resv_raw: "3/7/2024"
+    order_raw: "8/4/2026"
+    delivery_raw: "9/2/2026"
+    vin_raw:
+    loc_raw: "VA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior:
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1T"
+    r1_keep: "No"
+  #
+  MR2jr:
+    resv_raw: "9/24/2025"
+    order_raw: "9/8/2026"
+    delivery_raw:
+    vin_raw:
+    loc_raw: "NY"
+    trim: "Performance"
+    launch: "Yes"
+    color:
+    interior:
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
 
 # Cancellations — entries that were valid but no longer exist. See the header.
 deletions:
@@ -797,6 +964,17 @@ deletions:
       reason: "cancelled by user (2026-08-27)"
       match:
         order_raw: "8/18/2026"
+    # Same person, entered twice with different wheels, so dedup can't merge them
+    # (a differing build is kept as a separate order rather than guessed away).
+    # #296 is the live order — the corrected wheels and the 9/15 Borealis order
+    # date are in `overrides` above; this drops the superseded #201 submission so
+    # the two collapse to one. Removing it here rather than overriding it matters:
+    # deletions run BEFORE dedup, fix-ups after.
+    FL5Guy:
+      reason: "stale resubmission — wheels corrected in #296"
+      match:
+        wheels: '21” Liquid Tungsten All-Season'
+        order_raw: "7/23/2026"
   reservations:
     # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1082894
     JungGravy:

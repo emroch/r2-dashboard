@@ -47,15 +47,37 @@ def _apply_overrides(df, overrides):
     """Apply manual fix-ups (username -> {raw field: value}) in place, before
     cleaning, so the values flow through the normal pipeline. Case-insensitive
     username match; validates field names against the schema. Idempotent.
+
+    A username can legitimately hold MORE THAN ONE row here: dedup keeps repeat
+    submissions whose builds differ as separate orders rather than guessing (see
+    _dedupe_by_user). That makes the target ambiguous, so the fix-up lands on the
+    latest submission — people resubmit to correct themselves, the same rule the
+    merge uses — and the ambiguity is REPORTED. It used to be resolved silently:
+    a dict comprehension kept whichever row came last, so a correction meant for
+    one order could edit the other with nothing said about it anywhere.
     Returns (applied_records, issue_records) for the report/QA panel."""
     valid = set(ORDERS_COLUMNS)
-    idx_by_user = {u.lower(): i for i, u in zip(df.index, df["user"])}
+    rows_by_user = {}
+    for i, u in zip(df.index, df["user"]):
+        rows_by_user.setdefault(str(u).lower(), []).append(i)
     applied, issues = [], []
     for uname, fields in (overrides or {}).items():
-        i = idx_by_user.get(str(uname).lower())
-        if i is None:
+        rows = rows_by_user.get(str(uname).lower())
+        if not rows:
             issues.append(("—", str(uname), "no matching order row"))
             continue
+        # df is in sheet order with a fresh index, so the last row is the one
+        # submitted most recently.
+        i = rows[-1]
+        if len(rows) > 1:
+            issues.append((
+                df.at[i, "orig_num"], df.at[i, "user"],
+                "%d separate orders under this username (%s) — fix-up applied to "
+                "the latest (#%s) only; if the others are stale resubmissions, "
+                "delete them so they collapse"
+                % (len(rows),
+                   ", ".join("#%s" % df.at[j, "orig_num"] for j in rows),
+                   df.at[i, "orig_num"])))
         onum, disp = df.at[i, "orig_num"], df.at[i, "user"]
         for field, value in (fields or {}).items():
             if field not in valid:
@@ -592,7 +614,7 @@ def load_and_clean(text, meta):
             "Premature configs dropped": premature_records,
             "Manual fix-ups": override_records,
             "Manual additions": add_records,
-            "Cancellations removed": del_records,
+            "Removed by curation": del_records,
         },
         "quality": {
             "schema_notices": schema_notices,
