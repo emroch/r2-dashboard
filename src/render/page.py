@@ -325,13 +325,15 @@ _QA_CATS = [
      "VIN tokens too redacted to recover a sequence number."),
     ("bad_dates", "Invalid dates dropped",
      "Order/reservation dates outside the plausible window, cleared."),
-    ("deletions", "Cancellations removed",
-     "Orders and reservations dropped because the person posted that they had "
-     "cancelled. These rows are otherwise valid \u2014 nothing in the data marks a "
-     "cancellation \u2014 so each one is a manual entry in overrides.yaml carrying "
-     "the reason and its source, and each is listed here for that reason. "
-     "Cancelling an order also keeps that person out of the reservation count, "
-     "rather than letting them resurface as an outstanding reservation."),
+    ("deletions", "Removed by curation",
+     "Orders and reservations dropped because something outside the sheet says "
+     "they shouldn't be counted \u2014 the person posted that they cancelled, or the "
+     "row is a superseded resubmission that dedup can't merge on its own. These "
+     "rows are otherwise valid \u2014 nothing in the data marks either case \u2014 so each "
+     "one is a manual entry in overrides.yaml carrying its own reason and source, "
+     "listed here individually for that reason. Cancelling an order also keeps "
+     "that person out of the reservation count, rather than letting them resurface "
+     "as an outstanding reservation."),
     ("availability_drops", "Premature-config orders dropped",
      "Orders whose selected trim, paint, or interior wasn't orderable yet on the "
      "order date — removed entirely, not counted as orders."),
@@ -462,7 +464,7 @@ def build_dashboard(df, report, resv):
         "VINs recovered": "VINs that could not be recovered (dropped)",
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
         "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
-        "Cancellations": "Orders and reservations removed because the person posted that they cancelled (reason from overrides.yaml)",
+        "Curated removals": "Orders and reservations removed because the person posted that they cancelled, or the row is a superseded resubmission (reason from overrides.yaml)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
         "Unpriced": "Orders whose configuration hit a price that isn't published yet (excluded from the price stats)",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
@@ -486,8 +488,8 @@ def build_dashboard(df, report, resv):
              san["Invalid dates dropped"]),
             ("Premature configs dropped", report["n_premature"],
              san["Premature configs dropped"]),
-            ("Cancellations", len(san["Cancellations removed"]),
-             san["Cancellations removed"]),
+            ("Curated removals", len(san["Removed by curation"]),
+             san["Removed by curation"]),
             ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
         ]),
         ("VIN recovery", [
