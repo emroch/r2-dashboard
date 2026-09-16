@@ -776,6 +776,19 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1101965
+  throwdown:
+    order_raw: "9/15/2026"
+    loc_raw: "CO"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1T"
 
 
 # Entries below are incomplete and thus cannot be rendered. Adding here to keep track in case more details become available
