@@ -379,13 +379,14 @@ def fig_config_dashboard(df):
         [INTERIOR_COLOR.get(s, TAKE_RATE["interior_fallback"]) for s in ic.index],
         "trim", TRIM_COLORS, "legend", not shown)
 
-    bc = df["buylease"].replace("", "Blank").value_counts()
-    bl = df.assign(buylease=df["buylease"].replace("", "Blank"))
+    bl = _reported(df, "buylease")
+    bc = _ordered_counts(bl["buylease"], ("Purchase", "Lease"))
     shown |= _take_rate_panel(fig, 2, 1, bl, "buylease", bc, list(bc.index),
                               TAKE_RATE["buylease"], "trim", TRIM_COLORS,
                               "legend", not shown)
 
-    sc = df["opted_spare"].map({True: "Yes", False: "No"}).value_counts()
+    sc = _ordered_counts(df["opted_spare"].map({True: "Yes", False: "No"}),
+                         ("Yes", "No"))
     fig.add_trace(go.Bar(x=list(sc.index), y=np.asarray(sc.values),
                          marker_color=TAKE_RATE["spare"], showlegend=False,
                          marker_line=dict(color=CHART["edge"], width=1),
@@ -393,9 +394,9 @@ def fig_config_dashboard(df):
 
     # Uses the reconciled owner flag, so a row that named a model counts as an
     # owner (see parsing.reconcile_r1_owner) instead of contradicting its own stack.
-    owner = df.get("r1_owner_effective", df["r1_owner"]).replace("", "Blank")
-    rc = owner.value_counts()
-    r1 = df.assign(r1_owner=owner)
+    r1 = _reported(df.assign(r1_owner=df.get("r1_owner_effective",
+                                             df["r1_owner"])), "r1_owner")
+    rc = _ordered_counts(r1["r1_owner"], ("Yes", "No"))
     stacked_r1 = _take_rate_panel(fig, 2, 3, r1, "r1_owner", rc, list(rc.index),
                                   TAKE_RATE["r1_owner"], "r1_model",
                                   R1_MODEL_COLORS, "legend2", True)
@@ -515,6 +516,23 @@ def _paint_order(df):
     rank = {c: i for i, c in enumerate(COLOR_ORDER)}
     return sorted(counts.index,
                   key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
+
+
+def _ordered_counts(series, preferred):
+    """Counts in a fixed reading order: `preferred` first, then anything else.
+
+    Some answers have an inherent order that a popularity sort scrambles — Purchase
+    before Lease, Yes before No read as a sequence, and which one happens to be
+    larger is beside the point (it also means the bars can swap places between
+    builds as the counts move). The configuration options keep their count-based
+    order, where relative popularity IS the finding.
+
+    A value not in `preferred` is appended rather than dropped, so an answer nobody
+    anticipated stays visible instead of vanishing from its own panel.
+    """
+    counts = series.value_counts()
+    order = [v for v in preferred if v in counts.index]
+    return counts.reindex(order + [v for v in counts.index if v not in preferred])
 
 
 def _stable_counts(counts):

@@ -52,10 +52,13 @@ def _tpl(name):
 SECTIONS = [
     ("Configuration take-rates",
      dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
-               so they are omitted here.) A handful of orders are known from a forum post that gave an order date and
-               a location without stating the build; each panel covers the orders that reported the option it charts,
-               so those sit out rather than forming an "unreported" bar. They still count in the cohort total, and the
-               data-quality panel lists every one by the field it is missing."""),
+               so they are omitted here.) Every panel covers the orders that answered the question it charts, so an
+               unanswered one sits out rather than forming a blank bar — a few people skipped purchase-vs-lease, and a
+               few orders are known from a forum post that gave a date and a location without stating the build. They
+               still count in the cohort total, and the data-quality panel lists the ones held back from the price
+               stats. Options are ordered by how many chose them; the yes/no answers keep their natural reading order
+               instead, since which one leads there isn't a finding. The compact spare is the exception to the rule
+               above: for the option columns an unanswered question means not opted in, so those count as No."""),
      fig_config_dashboard),
     ("Configuration combinations",
      dedent("""Which options people pair together, as counts per pairing: exterior paint against wheels, then
