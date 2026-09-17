@@ -1265,6 +1265,90 @@ def test_override_for_an_absent_username_is_reported():
     assert "no matching order row" in issues[0][2]
 
 
+# --- Blank curation fields (issue #49) ---------------------------------------
+# A key written with no value is null in YAML, and str(None) is the word "None".
+# These entries used to land in the data as that literal string.
+
+
+def test_blank_addition_fields_become_empty_not_the_word_none():
+    from ingest.loaders import _apply_additions
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="insheet")])
+    add, records, issues = _apply_additions(df, {
+        "forumonly": {"order_raw": "9/15/2026", "loc_raw": "TX",
+                      "color": None, "wheels": None, "r1_model": None},
+    })
+    row = add.iloc[0]
+    for field in ("color", "wheels", "r1_model"):
+        assert row[field] == "", (field, repr(row[field]))
+    assert row["order_raw"] == "9/15/2026"
+    assert issues == [], "blanks are normal in an addition, not a problem"
+    # The audit line lists what was actually supplied, not the empty placeholders.
+    detail = records[0][2]
+    assert "loc_raw" in detail and "order_raw" in detail
+    assert "color" not in detail and "wheels" not in detail
+
+
+def test_blank_r1_model_does_not_flip_a_self_reported_no_to_yes():
+    # The symptom that made #49 visible on the dashboard: reconcile_r1_owner trusts
+    # a named model over the Yes/No gate, and the literal "None" looked like a named
+    # model — so "No" became "Yes" and the R1 panel grew a "Yes"/"None" segment.
+    from ingest.loaders import _apply_additions
+    from ingest.parsing import reconcile_r1_owner
+    coerced, why = reconcile_r1_owner("No", "None")
+    assert coerced == "Yes" and why is not None, (
+        "guard: a literal 'None' does read as a named model — which is exactly why "
+        "the curation layer must never produce one")
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="insheet")])
+    add, _, _ = _apply_additions(df, {
+        "partialguy": {"r1_owner": "No", "r1_model": None},
+    })
+    owner, issue = reconcile_r1_owner(add.iloc[0]["r1_owner"],
+                                      add.iloc[0]["r1_model"])
+    assert owner == "No", owner
+    assert issue is None
+
+
+def test_blank_override_field_is_ignored_rather_than_clearing_the_sheet():
+    # An override EDITS an existing row, so honouring a blank would erase what the
+    # sheet says on the strength of an empty line. It is skipped and reported.
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="9", user="u",
+                             delivery_raw="8/1/2026", vin_raw="1234")])
+    applied, issues = _apply_overrides(df, {
+        "u": {"delivery_raw": None, "vin_raw": "5678"},
+    })
+    assert df.at[0, "delivery_raw"] == "8/1/2026", "must not be cleared"
+    assert df.at[0, "vin_raw"] == "5678", "the real value still applies"
+    assert len(applied) == 1
+    assert any("left blank" in d for _, _, d in issues), issues
+
+
+def test_blank_deletion_reason_is_reported():
+    from ingest.loaders import _apply_deletions
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="gone")])
+    mask, records, issues = _apply_deletions(df, {"gone": None}, "order",
+                                             ("orig_num", "user"))
+    assert bool(mask.iloc[0]) is True, "the row is still deleted"
+    assert "None" not in records[0][2], records[0][2]
+    assert any("no reason recorded" in d for _, _, d in issues), issues
+
+
+def test_an_unreported_build_is_unpriced_not_priced_at_base():
+    # Skipping the upcharge for a blank paint/wheel/interior priced the order as if
+    # the no-cost option had been chosen, i.e. at base — a confidently wrong number
+    # feeding the price stats. Unknown belongs in the unpriced bucket.
+    from ingest.pricing import price_order
+    full, _ = price_order(trim="Performance", launch="Yes",
+                          color="Catalina Cove", wheels='21” Liquid Tungsten '
+                          'All-Season', interior="Coastal Cloud Signature")
+    assert full["price"] is not None
+    partial, issues = price_order(trim="Performance", launch="Yes",
+                                  color="", wheels="", interior="")
+    assert partial["price"] is None, partial["price"]
+    assert len(issues) == 3, issues
+    assert all("not reported" in i for i in issues), issues
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
