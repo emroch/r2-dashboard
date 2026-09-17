@@ -1265,6 +1265,177 @@ def test_override_for_an_absent_username_is_reported():
     assert "no matching order row" in issues[0][2]
 
 
+# --- Blank curation fields (issue #49) ---------------------------------------
+# A key written with no value is null in YAML, and str(None) is the word "None".
+# These entries used to land in the data as that literal string.
+
+
+def test_blank_addition_fields_become_empty_not_the_word_none():
+    from ingest.loaders import _apply_additions
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="insheet")])
+    add, records, issues = _apply_additions(df, {
+        "forumonly": {"order_raw": "9/15/2026", "loc_raw": "TX",
+                      "color": None, "wheels": None, "r1_model": None},
+    })
+    row = add.iloc[0]
+    for field in ("color", "wheels", "r1_model"):
+        assert row[field] == "", (field, repr(row[field]))
+    assert row["order_raw"] == "9/15/2026"
+    assert issues == [], "blanks are normal in an addition, not a problem"
+    # The audit line lists what was actually supplied, not the empty placeholders.
+    detail = records[0][2]
+    assert "loc_raw" in detail and "order_raw" in detail
+    assert "color" not in detail and "wheels" not in detail
+
+
+def test_blank_r1_model_does_not_flip_a_self_reported_no_to_yes():
+    # The symptom that made #49 visible on the dashboard: reconcile_r1_owner trusts
+    # a named model over the Yes/No gate, and the literal "None" looked like a named
+    # model — so "No" became "Yes" and the R1 panel grew a "Yes"/"None" segment.
+    from ingest.loaders import _apply_additions
+    from ingest.parsing import reconcile_r1_owner
+    coerced, why = reconcile_r1_owner("No", "None")
+    assert coerced == "Yes" and why is not None, (
+        "guard: a literal 'None' does read as a named model — which is exactly why "
+        "the curation layer must never produce one")
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="insheet")])
+    add, _, _ = _apply_additions(df, {
+        "partialguy": {"r1_owner": "No", "r1_model": None},
+    })
+    owner, issue = reconcile_r1_owner(add.iloc[0]["r1_owner"],
+                                      add.iloc[0]["r1_model"])
+    assert owner == "No", owner
+    assert issue is None
+
+
+def test_blank_override_field_is_ignored_rather_than_clearing_the_sheet():
+    # An override EDITS an existing row, so honouring a blank would erase what the
+    # sheet says on the strength of an empty line. It is skipped and reported.
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="9", user="u",
+                             delivery_raw="8/1/2026", vin_raw="1234")])
+    applied, issues = _apply_overrides(df, {
+        "u": {"delivery_raw": None, "vin_raw": "5678"},
+    })
+    assert df.at[0, "delivery_raw"] == "8/1/2026", "must not be cleared"
+    assert df.at[0, "vin_raw"] == "5678", "the real value still applies"
+    assert len(applied) == 1
+    assert any("left blank" in d for _, _, d in issues), issues
+
+
+def test_blank_deletion_reason_is_reported():
+    from ingest.loaders import _apply_deletions
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="gone")])
+    mask, records, issues = _apply_deletions(df, {"gone": None}, "order",
+                                             ("orig_num", "user"))
+    assert bool(mask.iloc[0]) is True, "the row is still deleted"
+    assert "None" not in records[0][2], records[0][2]
+    assert any("no reason recorded" in d for _, _, d in issues), issues
+
+
+def test_an_owner_who_named_no_model_still_counts_as_an_owner():
+    # "No model given" means two different things depending on the gate, and they
+    # used to share one "No / unspecified" segment — which inside the Yes bar read
+    # as a "No" contradicting its own bar. The owner is trusted either way, so the
+    # Yes bar's total must be every owner.
+    from render.charts import _MODEL_UNSPECIFIED, _NO_R1, fig_config_dashboard
+    cols = dict(color="Esker Silver", interior="Black Crater Signature",
+                wheels_short='21" Liquid Tungsten', trim="Performance",
+                buylease="Purchase", opted_spare=True)
+    df = pd.DataFrame(
+        [dict(cols, r1_owner="Yes", r1_model="R1T") for _ in range(4)]
+        + [dict(cols, r1_owner="Yes", r1_model="") for _ in range(3)]
+        + [dict(cols, r1_owner="No", r1_model="") for _ in range(9)])
+    seg = {t.name: list(t.y) for t in fig_config_dashboard(df).data
+           if getattr(t, "x", None) and tuple(t.x) == ("Yes", "No") and t.name}
+    assert seg["R1T"] == [4, 0]
+    assert seg[_MODEL_UNSPECIFIED] == [3, 0], "an owner with no model stays an owner"
+    assert seg[_NO_R1] == [0, 9], "a non-owner is not 'unspecified'"
+    # The two non-answers must not collapse into one segment again.
+    assert _MODEL_UNSPECIFIED != _NO_R1
+    owners = sum(v[0] for v in seg.values())
+    assert owners == 7, "the Yes bar totals every owner, model named or not"
+
+
+def test_yes_no_panels_keep_a_fixed_order_and_drop_blanks():
+    # Purchase before Lease and Yes before No read as a sequence, so which is larger
+    # shouldn't decide the order — by count they'd also swap places between builds as
+    # the numbers move. Unanswered rows sit out rather than forming a blank bar (41
+    # of 565 never answered purchase-vs-lease, which outnumbered Lease itself).
+    from render.charts import _ordered_counts, fig_config_dashboard
+    s = pd.Series(["Lease"] * 9 + ["Purchase"] * 2 + ["Weird"])
+    got = _ordered_counts(s, ("Purchase", "Lease"))
+    assert list(got.index) == ["Purchase", "Lease", "Weird"], list(got.index)
+    assert list(got.values) == [2, 9, 1], "counts follow the labels, not the order"
+    # An unanticipated answer is appended, never silently dropped.
+    assert "Weird" in got.index
+
+    cols = dict(color="Esker Silver", interior="Black Crater Signature",
+                wheels_short='21" Liquid Tungsten', trim="Performance",
+                opted_spare=True, r1_owner="Yes", r1_model="R1T")
+    df = pd.DataFrame(
+        [dict(cols, buylease="Purchase") for _ in range(3)]
+        + [dict(cols, buylease="Lease") for _ in range(5)]
+        + [dict(cols, buylease="", r1_owner="") for _ in range(2)])
+    panels = {tuple(t.x): t for t in fig_config_dashboard(df).data
+              if getattr(t, "x", None) and isinstance(t.x, tuple)}
+    assert ("Purchase", "Lease") in panels, list(panels)
+    buylease = panels[("Purchase", "Lease")]
+    assert list(buylease.y) == [3, 5], "Purchase leads despite Lease being larger"
+    assert not any("" in k or "Blank" in k for k in panels), list(panels)
+
+
+def test_an_unreported_build_is_left_out_of_the_config_charts():
+    # An order whose build was never reported carries no choice to plot, so the
+    # configuration charts cover the orders that did report the option they chart.
+    # Taking the CATEGORY out while leaving the ROWS in would be the subtle bug: the
+    # 100%-stacked panels divide by each bar's own total, so the stack would quietly
+    # stop adding up to 100.
+    from render.charts import (_paint_order, fig_color_wheel_heatmap,
+                               fig_config_dashboard, fig_paint_by_location)
+    df = _paint_rank_frame()
+    blank = df.iloc[[0]].copy()
+    blank["user"] = "unreported"
+    blank["color"] = ""
+    blank["wheels_short"] = ""
+    blank["interior"] = ""
+    df = pd.concat([df, blank], ignore_index=True)
+
+    assert "" not in _paint_order(df), "a blank is not a paint"
+    bars = fig_config_dashboard(df).data[0]
+    assert "" not in list(bars.x) and "Unknown" not in list(bars.x)
+    assert sum(int(v) for v in bars.y) == len(df) - 1, "the blank row is not counted"
+
+    h = fig_color_wheel_heatmap(df).data[0]
+    assert "" not in list(h.y) and "Unknown" not in list(h.y)
+    assert sum(sum(r) for r in h.z) == len(df) - 1
+
+    # Every 100%-stacked bar must still reach 100 after the exclusion.
+    for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
+        assert "" != t.name and t.name != "Unknown"
+    totals = {}
+    for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
+        for label, pct in zip(t.y, t.x):
+            totals[label] = totals.get(label, 0) + pct
+    assert all(abs(v - 100) < 0.51 for v in totals.values()), totals
+
+
+def test_an_unreported_build_is_unpriced_not_priced_at_base():
+    # Excluded from the charts, but NOT quietly priced: skipping the upcharge for a
+    # blank paint/wheel/interior priced the order as though the no-cost option had
+    # been chosen, i.e. at base — a confidently wrong number feeding the price stats.
+    from ingest.pricing import price_order
+    full, _ = price_order(trim="Performance", launch="Yes",
+                          color="Catalina Cove", wheels='21” Liquid Tungsten '
+                          'All-Season', interior="Coastal Cloud Signature")
+    assert full["price"] is not None
+    partial, issues = price_order(trim="Performance", launch="Yes",
+                                  color="", wheels="", interior="")
+    assert partial["price"] is None, partial["price"]
+    assert len(issues) == 3, issues
+    assert all("not reported" in i for i in issues), issues
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

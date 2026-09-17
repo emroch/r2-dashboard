@@ -52,13 +52,20 @@ def _tpl(name):
 SECTIONS = [
     ("Configuration take-rates",
      dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
-               so they are omitted here.)"""),
+               so they are omitted here.) Every panel covers the orders that answered the question it charts, so an
+               unanswered one sits out rather than forming a blank bar — a few people skipped purchase-vs-lease, and a
+               few orders are known from a forum post that gave a date and a location without stating the build. They
+               still count in the cohort total, and the data-quality panel lists the ones held back from the price
+               stats. Options are ordered by how many chose them; the yes/no answers keep their natural reading order
+               instead, since which one leads there isn't a finding. The compact spare is the exception to the rule
+               above: for the option columns an unanswered question means not opted in, so those count as No."""),
      fig_config_dashboard),
     ("Configuration combinations",
      dedent("""Which options people pair together, as counts per pairing: exterior paint against wheels, then
                against interior. Cells carry the count as well as the shade, since at these volumes a 1 and a 3
                look alike by color alone. Only options that have actually been ordered get a column, so the grid
-               fills out as trims and configs open up rather than showing empty rows in advance."""),
+               fills out as trims and configs open up rather than showing empty rows in advance. A pairing needs
+               both halves, so an order that hasn't reported one of them isn't in this grid."""),
      (fig_color_wheel_heatmap, fig_color_interior_heatmap)),
     ("Configured price",
      dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
