@@ -77,7 +77,9 @@ ORDERS_THREAD = _ORDERS_SRC["thread_url"]
 RESV_THREAD = _RESV_SRC["thread_url"]
 
 # --- Colors & marker encodings (palette.yaml) -----------------------------
-# Exterior paints: the display hex actually used. COLOR_ORDER drives ordering.
+# Exterior paints: the display hex actually used. COLOR_ORDER is the palette's
+# curated sequence, which the charts use only to break ties when ranking paints by
+# order count (see charts._paint_order) — it is not the display order.
 COLOR_HEX = dict(_PALETTE["paints"])
 COLOR_ORDER = list(_PALETTE["paint_order"])
 # Interiors, keyed by the exact sheet value for the same reason as wheels: two of
