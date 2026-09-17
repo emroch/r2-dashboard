@@ -9,6 +9,23 @@
 #   additions:  append a forum-only order NOT in the sheet (a whole new row).
 #               Give as many raw fields as you have. A username already in the
 #               sheet is reported as an issue (use overrides for those instead).
+#
+# A field written with NO VALUE is blank, and blank means UNKNOWN — the same thing
+# an unanswered question in the sheet produces, so it flows into the existing
+# unknown buckets. It does NOT mean the string "None" (it used to: YAML reads an
+# empty key as null, and str(None) is the word — issue #49). What blank does
+# depends on the section, because the two are asking different questions:
+#
+#   in additions:  expected and harmless — the entry IS the row, so a field nobody
+#                  has reported yet is simply unknown. Paint/wheels/interior chart
+#                  as an explicit "Unknown", and because every R2 has all three, an
+#                  unreported one leaves the order UNPRICED rather than priced as
+#                  though the no-cost option had been picked.
+#   in overrides:  ignored, and reported. An override edits a row that already has
+#                  data, so honouring a blank would erase what the sheet says on the
+#                  strength of an empty line. To record that something has genuinely
+#                  become unknown, write "unknown" — the parsers understand it.
+#
 #   deletions:  drop an entry that no longer exists — someone posted that they
 #               cancelled. Split into `orders` and `reservations` because the two
 #               sheets are separate. Nothing in the data marks a cancellation, so
@@ -300,6 +317,9 @@ overrides:
     color: "Borealis"
     interior: "Coastal Cloud Signature"
     wheels: '20” Black Sand All-Terrain'
+  # https://www.rivianforums.com/forum/posts/1102923
+  drydeniv:
+    vin_raw: "9537"
 
 
 additions:
@@ -789,7 +809,20 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-
+  # https://www.rivianforums.com/forum/posts/1103013
+  toytruckmike:
+    resv_raw: "3/8/2024"
+    order_raw: "9/15/2026"
+    vin_raw: "11550"
+    loc_raw: "TX"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
 
 # Entries below are incomplete and thus cannot be rendered. Adding here to keep track in case more details become available
 partial data:
@@ -988,6 +1021,10 @@ deletions:
       match:
         wheels: '21” Liquid Tungsten All-Season'
         order_raw: "7/23/2026"
+    ToWn3r:
+      reason: "stale resubmission — dates corrected in #350"
+      match:
+        orig_num: "304"
   reservations:
     # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1082894
     JungGravy:
