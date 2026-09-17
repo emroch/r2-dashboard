@@ -9,23 +9,6 @@
 #   additions:  append a forum-only order NOT in the sheet (a whole new row).
 #               Give as many raw fields as you have. A username already in the
 #               sheet is reported as an issue (use overrides for those instead).
-#
-# A field written with NO VALUE is blank, and blank means UNKNOWN — the same thing
-# an unanswered question in the sheet produces, so it flows into the existing
-# unknown buckets. It does NOT mean the string "None" (it used to: YAML reads an
-# empty key as null, and str(None) is the word — issue #49). What blank does
-# depends on the section, because the two are asking different questions:
-#
-#   in additions:  expected and harmless — the entry IS the row, so a field nobody
-#                  has reported yet is simply unknown. Paint/wheels/interior chart
-#                  as an explicit "Unknown", and because every R2 has all three, an
-#                  unreported one leaves the order UNPRICED rather than priced as
-#                  though the no-cost option had been picked.
-#   in overrides:  ignored, and reported. An override edits a row that already has
-#                  data, so honouring a blank would erase what the sheet says on the
-#                  strength of an empty line. To record that something has genuinely
-#                  become unknown, write "unknown" — the parsers understand it.
-#
 #   deletions:  drop an entry that no longer exists — someone posted that they
 #               cancelled. Split into `orders` and `reservations` because the two
 #               sheets are separate. Nothing in the data marks a cancellation, so
@@ -44,6 +27,22 @@
 #               cohort — leaving the orders sheet must not make them resurface as
 #               an outstanding reservation. All of a cancelled name's rows go
 #               together, so a duplicate submission can't half-survive.
+#
+# A field written with NO VALUE is blank, and blank means UNKNOWN — the same thing
+# an unanswered question in the sheet produces, so it flows into the existing
+# unknown buckets. It does NOT mean the string "None" (it used to: YAML reads an
+# empty key as null, and str(None) is the word — issue #49). What blank does
+# depends on the section, because the two are asking different questions:
+#
+#   in additions:  expected and harmless — the entry IS the row, so a field nobody
+#                  has reported yet is simply unknown. Paint/wheels/interior chart
+#                  as an explicit "Unknown", and because every R2 has all three, an
+#                  unreported one leaves the order UNPRICED rather than priced as
+#                  though the no-cost option had been picked.
+#   in overrides:  ignored, and reported. An override edits a row that already has
+#                  data, so honouring a blank would erase what the sheet says on the
+#                  strength of an empty line. To record that something has genuinely
+#                  become unknown, write "unknown" — the parsers understand it.
 #
 # Version-controlled and auditable: every applied change/addition/deletion — and
 # every problem (unknown field / no matching or already-present user) — shows in
@@ -823,9 +822,17 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-
-# Entries below are incomplete and thus cannot be rendered. Adding here to keep track in case more details become available
-partial data:
+  # ---------------------------------------------------------------------
+  # Partly-reported orders. A forum post often pins down an order date and a
+  # location while the build itself is still unstated; the blank fields below
+  # are those unknowns, not empty placeholders. They used to be parked in a
+  # separate `partial data:` section that nothing read, because a blank field
+  # reached the charts as the literal word "None" and a blank paint crashed the
+  # build outright (issue #49). Now a blank is an honest unknown: it charts in
+  # an explicit "Unknown" bucket, and an unreported build leaves the order
+  # unpriced instead of priced at base. So these count as orders, and each one
+  # fills in as its details get reported.
+  # ---------------------------------------------------------------------
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1032122
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1050124
   Derick38:
@@ -838,40 +845,6 @@ partial data:
     launch: "Yes"
     color:
     interior:
-    wheels:
-    autonomy: "Included"
-    tow: "Included"
-    spare:
-    r1_owner: "No"
-    r1_model:
-  # https://www.rivianforums.com/forum/posts/1080998/
-  tgrick:
-    resv_raw:
-    order_raw: "8/19/2026"
-    delivery_raw:
-    vin_raw:
-    loc_raw: "FL"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Glacier White"
-    interior: "Black Crater Signature"
-    wheels:
-    autonomy: "Included"
-    tow: "Included"
-    spare:
-    r1_owner: "No"
-    r1_model:
-  # https://www.rivianforums.com/forum/posts/1080955/
-  snovarev:
-    resv_raw: "3/7/2024"
-    order_raw: "8/18/2026"
-    delivery_raw:
-    vin_raw:
-    loc_raw: "CA"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Catalina Cove"
-    interior: "Coastal Cloud Signature"
     wheels:
     autonomy: "Included"
     tow: "Included"
@@ -896,7 +869,6 @@ partial data:
     spare:
     r1_owner: "Yes"
     r1_model: "R1T"
-    r1_keep: "Yes"
   # order: https://www.rivianforums.com/forum/threads/which-r2-colors-look-best-when-dirty.61008/post-1039007
   # delivery: https://www.rivianforums.com/forum/threads/esker-silver-paint-sample-closeup-photos.62267/post-1067971
   # spare: https://www.rivianforums.com/forum/threads/ridiculous-spare-tire-policy.62834/post-1083971
@@ -952,7 +924,6 @@ partial data:
     spare:
     r1_owner: "Yes"
     r1_model: "R1T"
-    r1_keep: "Yes"
   # https://www.rivianforums.com/forum/posts/1090281/
   ender_okc:
     resv_raw: "3/7/2024"
@@ -985,24 +956,10 @@ partial data:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-    r1_keep: "No"
-  #
-  MR2jr:
-    resv_raw: "9/24/2025"
-    order_raw: "9/8/2026"
-    delivery_raw:
-    vin_raw:
-    loc_raw: "NY"
-    trim: "Performance"
-    launch: "Yes"
-    color:
-    interior:
-    wheels:
-    autonomy: "Included"
-    tow: "Included"
-    r1_owner: "No"
 
 # Cancellations — entries that were valid but no longer exist. See the header.
+
+
 deletions:
   orders:
     # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1086661

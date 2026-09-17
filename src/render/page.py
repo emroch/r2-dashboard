@@ -52,13 +52,17 @@ def _tpl(name):
 SECTIONS = [
     ("Configuration take-rates",
      dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
-               so they are omitted here.)"""),
+               so they are omitted here.) A few orders are known from a forum post that gave an order date and a
+               location without stating the build; those sit in an explicit <em>Unknown</em> bucket rather than being
+               dropped or guessed at, and move into a real one as their details get reported."""),
      fig_config_dashboard),
     ("Configuration combinations",
      dedent("""Which options people pair together, as counts per pairing: exterior paint against wheels, then
                against interior. Cells carry the count as well as the shade, since at these volumes a 1 and a 3
                look alike by color alone. Only options that have actually been ordered get a column, so the grid
-               fills out as trims and configs open up rather than showing empty rows in advance."""),
+               fills out as trims and configs open up rather than showing empty rows in advance. An order that
+               hasn't reported one side of a pairing lands in the <em>Unknown</em> row or column, so every order in
+               the cohort is somewhere in the grid and the totals still add up."""),
      (fig_color_wheel_heatmap, fig_color_interior_heatmap)),
     ("Configured price",
      dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
