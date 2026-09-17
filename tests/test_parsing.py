@@ -862,19 +862,107 @@ def test_wheel_heatmap_covers_every_ordered_wheel():
 
 
 def test_vin_by_config_rows_carry_interior_and_stay_ordered():
-    from config import COLOR_ORDER, INTERIOR_ORDER, INTERIOR_SHORT
-    from render.charts import fig_vin_by_config
+    from config import INTERIOR_ORDER, INTERIOR_SHORT
+    from render.charts import _paint_order, fig_vin_by_config
     df = _interior_frame()
     rows = list(fig_vin_by_config(df).layout.yaxis.ticktext)
     assert len(rows) == len(df), "one row per distinct configuration"
     for r in rows:
         assert len(r.split(" · ")) == 4, r
-    # Rows sort by paint (COLOR_ORDER) then wheel then interior (INTERIOR_ORDER),
-    # so a reader scanning down sees a stable, meaningful sequence.
+    # Rows sort by paint (most-ordered first) then wheel then interior, so a reader
+    # scanning down sees a stable, meaningful sequence.
+    paints = _paint_order(df)
     rank = {INTERIOR_SHORT[i]: n for n, i in enumerate(INTERIOR_ORDER)}
-    keys = [(COLOR_ORDER.index(r.split(" · ")[1]), r.split(" · ")[2],
+    keys = [(paints.index(r.split(" · ")[1]), r.split(" · ")[2],
              rank[r.split(" · ")[3]]) for r in rows]
     assert keys == sorted(keys)
+
+
+def _paint_rank_frame():
+    """Paints at deliberately unequal counts, including a tie, so both halves of the
+    ranking rule are observable: popularity drives the order, and the palette's
+    curated sequence only breaks ties.
+
+    Counts are chosen so the popularity order CANNOT be mistaken for the palette
+    order — Forest Green sits third in the palette but leads on count here.
+    """
+    from config import COLOR_ORDER
+    plan = [(COLOR_ORDER[2], 5), (COLOR_ORDER[1], 3),
+            (COLOR_ORDER[0], 1), (COLOR_ORDER[3], 1)]   # last two tie
+    rows, n = [], 0
+    for paint, count in plan:
+        for _ in range(count):
+            n += 1
+            rows.append({
+                "color": paint, "interior": "Black Crater Signature",
+                "wheels_short": '21" Liquid Tungsten', "trim": "Performance",
+                "buylease": "Purchase", "opted_spare": True,
+                "r1_owner": "No", "r1_model": "",
+                "vin_present": True, "vin_seq": 1000 + n,
+                "order_date": pd.Timestamp("2026-06-%02d" % (10 + n % 15)),
+                "delivery_est": pd.Timestamp("2026-08-%02d" % (1 + n % 20)),
+                "delivery_min": pd.Timestamp("2026-08-%02d" % (1 + n % 20)),
+                "delivery_max": pd.Timestamp("2026-08-%02d" % (3 + n % 20)),
+                "user": "u%d" % n, "vin_display": str(1000 + n),
+                "order_display": "Jun 15, 2026", "est_display": "Aug 01, 2026",
+                "delivery_type": "explicit", "state": "IL", "region": "Midwest",
+                "lat": 40.5, "lon": -89.0,
+            })
+    return pd.DataFrame(rows)
+
+
+# The paints in _paint_rank_frame, ranked: by count (5, 3, 1, 1), then the palette
+# order for the pair that ties. Deliberately NOT the palette's own sequence.
+def _expected_paint_rank():
+    from config import COLOR_ORDER
+    return [COLOR_ORDER[2], COLOR_ORDER[1], COLOR_ORDER[0], COLOR_ORDER[3]]
+
+
+def test_paint_order_ranks_by_count_then_palette_for_ties():
+    from config import COLOR_ORDER
+    from render.charts import _paint_order
+    df = _paint_rank_frame()
+    got = _paint_order(df)
+    assert got == _expected_paint_rank(), got
+    assert got != [c for c in COLOR_ORDER if c in got], (
+        "the fixture must prove popularity beats the palette order")
+    # The tie (1 vs 1) resolves to the palette's relative order, not by chance.
+    tied = got[2:]
+    assert tied == sorted(tied, key=COLOR_ORDER.index)
+    # Repeated calls agree regardless of row order — what the daily build needs.
+    assert all(_paint_order(df.sample(frac=1.0, random_state=n)) == got
+               for n in range(5))
+
+
+def test_every_paint_chart_uses_the_same_order():
+    # Issue #58: the heatmap followed the palette's curated sequence, so Forest
+    # Green sat near the top on 25 orders while Catalina Cove's 186 landed
+    # mid-grid. Each of these read that sequence independently; they must now all
+    # follow one popularity ranking, or a reader learns an order in §2 that fails
+    # them in §3.
+    from render.charts import (_paint_order, fig_color_wheel_heatmap,
+                               fig_config_dashboard, fig_delivery_vs_vin,
+                               fig_paint_by_location, fig_vin_vs_order)
+    df = _paint_rank_frame()
+    want = _paint_order(df)
+    assert want == _expected_paint_rank()
+
+    # §2 take-rate bars, and §3 heatmap rows (top-down: the y axis is reversed).
+    assert list(fig_config_dashboard(df).data[0].x) == want
+    assert list(fig_color_wheel_heatmap(df).data[0].y) == want
+
+    # §8 / §9 scatter legends: one entry per paint × wheel, paints in rank order.
+    for fig in (fig_vin_vs_order(df), fig_delivery_vs_vin(df)):
+        seen = []
+        for t in fig.data:
+            paint = (t.name or "").split(" · ")[0]
+            if paint in want and paint not in seen:
+                seen.append(paint)
+        assert seen == want, (fig.layout.title, seen)
+
+    # §13 stack order — legend entries are the paints, first panel only.
+    stacked = [t.name for t in fig_paint_by_location(df).data if t.showlegend]
+    assert stacked == want, stacked
 
 
 def test_stable_counts_breaks_ties_alphabetically():
