@@ -77,11 +77,13 @@ def _config_hover(df):
     return cd, ht
 
 
-def _config_wheel_traces(d):
-    """Yield per-(color, wheel) subframes in legend order (COLOR_ORDER, then
-    wheel). Each becomes its own legend entry, so paint × wheel series toggle
-    and isolate independently. Yields (color, wheel, symbol, sub)."""
-    for color in COLOR_ORDER:
+def _config_wheel_traces(d, colors):
+    """Yield per-(color, wheel) subframes in legend order (`colors`, then wheel).
+    Each becomes its own legend entry, so paint × wheel series toggle and isolate
+    independently. `colors` comes from _paint_order, so the legend runs
+    most-popular-paint first like every other paint chart. Yields
+    (color, wheel, symbol, sub)."""
+    for color in colors:
         cmask = (d["color"] == color).values
         if not cmask.any():
             continue
@@ -122,7 +124,7 @@ def fig_delivery_vs_vin(df):
     xs = d["vin_seq"].astype(float)
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
     whisk = []
-    for color, wheel, sym, s in _config_wheel_traces(d):
+    for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
         grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
         # Whiskers (min-max span + caps) for window/range estimates, in the
         # series' legendgroup so they toggle/isolate with its markers.
@@ -251,7 +253,7 @@ def fig_vin_vs_order(df):
     series independently."""
     d = df[df["vin_present"] & df["order_date"].notna()]
     fig = go.Figure()
-    for color, wheel, sym, s in _config_wheel_traces(d):
+    for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
         grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
         cd, ht = _config_hover(s)
         fig.add_trace(go.Scatter(
@@ -341,7 +343,13 @@ def fig_config_dashboard(df):
                         "Purchase vs. lease", "Compact spare tire",
                         "Current R1 owner?"))
 
-    cc = df["color"].value_counts()  # descending by popularity
+    # Already descending by popularity, but via _paint_order rather than a bare
+    # value_counts(): that promises no order among EQUAL counts, so tied paints
+    # swapped places between daily builds. Sharing the helper also guarantees this
+    # panel and every other paint chart show one order rather than two that merely
+    # look alike while no two paints happen to tie.
+    paints = _paint_order(df)
+    cc = df["color"].value_counts().reindex(paints)
     fig.add_trace(go.Bar(x=list(cc.index), y=np.asarray(cc.values),
                          marker_color=[COLOR_DISPLAY[c] for c in cc.index],
                          marker_line=dict(color=CHART["edge"], width=1),
@@ -408,15 +416,16 @@ def fig_config_dashboard(df):
 def _config_heatmap(df, col, values, x_title, labels=None, height=520):
     """Paint × `col` combo counts as a heatmap.
 
-    Rows are the paints present, in the shared COLOR_ORDER; columns are `values`,
-    which the caller filters to what's actually been ordered so an unshipped
-    option never draws an empty column. `labels` renames the columns for display
-    where the sheet value is too long (interiors); it must line up with `values`.
+    Rows are the paints present, most-ordered first (_paint_order), so the grid
+    reads as a gradient from the busiest paint down; columns are `values`, which
+    the caller filters to what's actually been ordered so an unshipped option never
+    draws an empty column. `labels` renames the columns for display where the sheet
+    value is too long (interiors); it must line up with `values`.
 
     Every cell carries its count as text: the colorscale conveys magnitude, but at
     these volumes a 1 and a 3 are indistinguishable by shade alone.
     """
-    colors = [c for c in COLOR_ORDER if (df["color"] == c).any()]
+    colors = _paint_order(df)
     z = [[int(((df["color"] == c) & (df[col] == v)).sum()) for v in values]
          for c in colors]
     text = [[str(n) for n in row] for row in z]
@@ -447,6 +456,32 @@ def fig_color_interior_heatmap(df):
     interiors = [i for i in INTERIOR_ORDER if (df["interior"] == i).any()]
     return _config_heatmap(df, "interior", interiors, "Interior",
                            labels=[INTERIOR_SHORT.get(i, i) for i in interiors])
+
+
+def _paint_order(df):
+    """The paints present in `df`, most-ordered first — the page-wide paint order.
+
+    Every paint chart reads this, so the ranking a reader picks up from the
+    take-rate bars also holds in the combo heatmaps, both scatter legends and the
+    location mix. These sites used to follow the palette's curated `paint_order`,
+    which is a sensible showroom sequence but not a popularity one: it put Forest
+    Green third on 25 orders while Catalina Cove's 186 landed mid-grid, so the
+    heatmap had no legible gradient at all (issue #58).
+
+    Ties break by the palette's order, then by name — NOT by count alone.
+    value_counts() promises nothing among equal counts, so two paints on the same
+    total would swap places between daily builds for no reason, the same trap
+    _stable_counts documents. A paint missing from the palette sorts last rather
+    than raising; palette coverage is verified separately.
+
+    Derived from whatever frame it is handed, and every fig_* receives the same
+    full cohort (each subsets internally), so all the charts agree without the
+    order having to be threaded through them.
+    """
+    counts = df["color"].value_counts()
+    rank = {c: i for i, c in enumerate(COLOR_ORDER)}
+    return sorted(counts.index,
+                  key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
 
 
 def _stable_counts(counts):
@@ -529,7 +564,9 @@ def fig_paint_by_location(df, min_state_orders=5):
     comparable regardless of how many orders it placed. The overall row on top is
     the baseline to read the rest against — whether a region over- or
     under-indexes on a paint. Absolute counts ride along in the hover and as an
-    "n=" suffix. Segments use the real paint colors, in the shared COLOR_ORDER.
+    "n=" suffix. Segments use the real paint colors, most-ordered first
+    (_paint_order), matching every other paint chart — so the widest segment of the
+    baseline row leads, and a region's row is read against it left to right.
 
     Paint x state is mostly empty and many states have 1-3 orders, where a single
     order swings the mix by 100 points — so the state panel is limited to states
@@ -549,7 +586,10 @@ def fig_paint_by_location(df, min_state_orders=5):
         fig.update_layout(template="plotly_white", height=560)
         return fig
 
-    colors = [c for c in COLOR_ORDER if (d["color"] == c).any()]
+    # Cohort-wide paint order, filtered to what this geo subset actually holds: the
+    # ranking stays the page-wide one rather than being re-derived from the mapped
+    # rows, so a paint doesn't sit in a different stack position here than in §2/§3.
+    colors = [c for c in _paint_order(df) if (d["color"] == c).any()]
     thick = d[d["state"].isin(set(states))]
     regions = _by_volume(d["region"])
     # A constant column lets the overall row reuse the same grouping code path.
@@ -1268,7 +1308,9 @@ def fig_vin_by_config(df):
     interior = d["interior"].map(lambda i: INTERIOR_SHORT.get(i, i))
     d["_combo"] = (d["trim"] + " · " + d["color"] + " · " + wheel_abbr
                    + " · " + interior)
-    color_rank = {c: i for i, c in enumerate(COLOR_ORDER)}
+    # Cohort-wide paint rank, not one derived from the VIN-assigned rows alone, so
+    # the row groups follow the same paint order as the rest of the page.
+    color_rank = {c: i for i, c in enumerate(_paint_order(df))}
     interior_rank = {INTERIOR_SHORT.get(i, i): n
                      for n, i in enumerate(INTERIOR_ORDER)}
 

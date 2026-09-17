@@ -17,7 +17,12 @@ paints:
   Glacier White:  "#F2F2F2"  # near-white
   Midnight:       "#000009"  # black
 
-# Legend / axis ordering for the paints above.
+# Curated paint sequence — the showroom order, light-to-dark within family.
+# The charts do NOT display in this order: they rank paints by how many orders
+# each has, most first, so the heatmaps read as a gradient and every paint chart
+# agrees (issue #58). This list is the TIE-BREAK for that ranking — two paints on
+# equal counts keep this relative order instead of reshuffling between builds — so
+# it still matters, just not as the display order. A new paint belongs here.
 paint_order:
   - Catalina Cove
   - Launch Green
