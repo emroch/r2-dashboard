@@ -174,6 +174,12 @@ def price_order(trim="", launch="", color="", interior="", wheels="",
             unknown = True
     included = set((PRICE_PACKAGES.get(package) or {}).get("includes") or [])
 
+    # A blank paint/wheel/interior means the build has not been REPORTED — every R2
+    # has all three. Skipping the upcharge would price the order as if the no-cost
+    # option had been picked, i.e. at base, quietly dragging the price stats down; so
+    # an unreported one makes the order unpriced instead, which the panel already
+    # surfaces as its own bucket. Blank take-rate answers (spare/autonomy/tow) are
+    # NOT treated this way: there, unanswered already means not opted in.
     if str(color).strip():
         parts["price_paint"] = _PAINTS.get(_norm(color))
         if parts["price_paint"] is None:
@@ -181,6 +187,9 @@ def price_order(trim="", launch="", color="", interior="", wheels="",
             issues.append("no price for paint %r" % color)
         elif _norm(color) not in _offered_paints(t, drive, package):
             issues.append("%s paint not offered on %s" % (color, name))
+    else:
+        unknown = True
+        issues.append("paint not reported — order left unpriced")
 
     # Wheels are priced per trim, so an unlisted wheel has no price of its own;
     # fall back to another trim's upcharge so the order still gets a total.
@@ -198,6 +207,9 @@ def price_order(trim="", launch="", color="", interior="", wheels="",
                               % (wheels, name))
         if parts["price_wheels"] is None:
             unknown = True
+    else:
+        unknown = True
+        issues.append("wheels not reported — order left unpriced")
 
     if str(interior).strip():
         parts["price_interior"] = _INTERIORS.get(_norm(interior))
@@ -206,6 +218,9 @@ def price_order(trim="", launch="", color="", interior="", wheels="",
             issues.append("no price for interior %r" % interior)
         elif _norm(interior) not in {_norm(i) for i in (t.get("interiors") or [])}:
             issues.append("%s not offered on %s" % (interior, name))
+    else:
+        unknown = True
+        issues.append("interior not reported — order left unpriced")
 
     if _norm(spare) in SPARE_TOKENS:
         parts["price_spare"] = PRICE_OPTIONS.get("spare")
