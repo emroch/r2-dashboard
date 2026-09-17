@@ -1333,6 +1333,34 @@ def test_blank_deletion_reason_is_reported():
     assert any("no reason recorded" in d for _, _, d in issues), issues
 
 
+def test_yes_no_panels_keep_a_fixed_order_and_drop_blanks():
+    # Purchase before Lease and Yes before No read as a sequence, so which is larger
+    # shouldn't decide the order — by count they'd also swap places between builds as
+    # the numbers move. Unanswered rows sit out rather than forming a blank bar (41
+    # of 565 never answered purchase-vs-lease, which outnumbered Lease itself).
+    from render.charts import _ordered_counts, fig_config_dashboard
+    s = pd.Series(["Lease"] * 9 + ["Purchase"] * 2 + ["Weird"])
+    got = _ordered_counts(s, ("Purchase", "Lease"))
+    assert list(got.index) == ["Purchase", "Lease", "Weird"], list(got.index)
+    assert list(got.values) == [2, 9, 1], "counts follow the labels, not the order"
+    # An unanticipated answer is appended, never silently dropped.
+    assert "Weird" in got.index
+
+    cols = dict(color="Esker Silver", interior="Black Crater Signature",
+                wheels_short='21" Liquid Tungsten', trim="Performance",
+                opted_spare=True, r1_owner="Yes", r1_model="R1T")
+    df = pd.DataFrame(
+        [dict(cols, buylease="Purchase") for _ in range(3)]
+        + [dict(cols, buylease="Lease") for _ in range(5)]
+        + [dict(cols, buylease="", r1_owner="") for _ in range(2)])
+    panels = {tuple(t.x): t for t in fig_config_dashboard(df).data
+              if getattr(t, "x", None) and isinstance(t.x, tuple)}
+    assert ("Purchase", "Lease") in panels, list(panels)
+    buylease = panels[("Purchase", "Lease")]
+    assert list(buylease.y) == [3, 5], "Purchase leads despite Lease being larger"
+    assert not any("" in k or "Blank" in k for k in panels), list(panels)
+
+
 def test_an_unreported_build_is_left_out_of_the_config_charts():
     # An order whose build was never reported carries no choice to plot, so the
     # configuration charts cover the orders that did report the option they chart.
