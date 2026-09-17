@@ -125,7 +125,7 @@ def fig_delivery_vs_vin(df):
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
     whisk = []
     for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
-        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
+        grp = "%s · %s" % (_paint_label(color), wheel.split()[0])   # "Launch Green · 21\""
         # Whiskers (min-max span + caps) for window/range estimates, in the
         # series' legendgroup so they toggle/isolate with its markers.
         xw, yw = [], []
@@ -145,7 +145,7 @@ def fig_delivery_vs_vin(df):
         fig.add_trace(go.Scatter(
             x=np.asarray(s["vin_seq"]), y=np.asarray(s["delivery_est"]),
             mode="markers", name=grp, legendgroup=grp,
-            marker=dict(color=COLOR_DISPLAY[color], size=11,
+            marker=dict(color=_paint_fill(color), size=11,
                         symbol=sym, opacity=opac,
                         line=dict(color=CHART["edge"], width=0.8)),
             customdata=cd, hovertemplate=ht))
@@ -254,12 +254,12 @@ def fig_vin_vs_order(df):
     d = df[df["vin_present"] & df["order_date"].notna()]
     fig = go.Figure()
     for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
-        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
+        grp = "%s · %s" % (_paint_label(color), wheel.split()[0])   # "Launch Green · 21\""
         cd, ht = _config_hover(s)
         fig.add_trace(go.Scatter(
             x=np.asarray(s["order_date"]), y=np.asarray(s["vin_seq"]),
             mode="markers", name=grp, legendgroup=grp,
-            marker=dict(color=COLOR_DISPLAY[color], size=11,
+            marker=dict(color=_paint_fill(color), size=11,
                         symbol=sym, opacity=0.9,
                         line=dict(color=CHART["edge"], width=0.8)),
             customdata=cd, hovertemplate=ht))
@@ -350,8 +350,9 @@ def fig_config_dashboard(df):
     # look alike while no two paints happen to tie.
     paints = _paint_order(df)
     cc = df["color"].value_counts().reindex(paints)
-    fig.add_trace(go.Bar(x=list(cc.index), y=np.asarray(cc.values),
-                         marker_color=[COLOR_DISPLAY[c] for c in cc.index],
+    fig.add_trace(go.Bar(x=[_paint_label(c) for c in cc.index],
+                         y=np.asarray(cc.values),
+                         marker_color=[_paint_fill(c) for c in cc.index],
                          marker_line=dict(color=CHART["edge"], width=1),
                          showlegend=False,
                          hovertemplate="%{x}: %{y}<extra></extra>"), 1, 1)
@@ -430,7 +431,7 @@ def _config_heatmap(df, col, values, x_title, labels=None, height=520):
          for c in colors]
     text = [[str(n) for n in row] for row in z]
     fig = go.Figure(go.Heatmap(
-        z=z, x=list(labels or values), y=colors, text=text,
+        z=z, x=list(labels or values), y=[_paint_label(c) for c in colors], text=text,
         texttemplate="%{text}", textfont=dict(size=14),
         colorscale=HEATMAP_COLORSCALE, showscale=True,
         hovertemplate="%{y} + %{x}<br>%{z} orders<extra></extra>"))
@@ -456,6 +457,25 @@ def fig_color_interior_heatmap(df):
     interiors = [i for i in INTERIOR_ORDER if (df["interior"] == i).any()]
     return _config_heatmap(df, "interior", interiors, "Interior",
                            labels=[INTERIOR_SHORT.get(i, i) for i in interiors])
+
+
+# Display label for a paint the row doesn't record. No sheet row has a blank Color
+# today — the form requires it — but curated additions do, since a forum post often
+# pins down an order date and location while the build itself is still unreported
+# (see overrides.yaml). Before this, such a row didn't merely render untidily: the
+# palette lookup was a bare subscript, so one blank paint raised KeyError and took
+# the entire build down. An explicit bucket keeps the row countable and visible.
+_UNKNOWN_PAINT = "Unknown"
+
+
+def _paint_label(value):
+    """Paint value -> the label to print for it."""
+    return value if value else _UNKNOWN_PAINT
+
+
+def _paint_fill(value):
+    """Paint value -> its fill, muted for a paint the palette doesn't know."""
+    return COLOR_DISPLAY.get(value, CHART_UI["muted"])
 
 
 def _paint_order(df):
@@ -596,7 +616,8 @@ def fig_paint_by_location(df, min_state_orders=5):
     d["_all"] = "All orders"
     _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions),
                       (thick, "state", states)],
-                "color", colors, COLOR_DISPLAY)
+                "color", colors, COLOR_DISPLAY,
+                series_label={"": _UNKNOWN_PAINT})
     _mix_layout(fig, "Exterior paint", 380 + 24 * len(states))
     return fig
 
@@ -1306,11 +1327,11 @@ def fig_vin_by_config(df):
     # wheels are 20", so the abbreviation carries All-Season/All-Terrain too.
     wheel_abbr = d["wheels_short"].map(lambda w: WHEEL_ABBR.get(w, w))
     interior = d["interior"].map(lambda i: INTERIOR_SHORT.get(i, i))
-    d["_combo"] = (d["trim"] + " · " + d["color"] + " · " + wheel_abbr
-                   + " · " + interior)
+    d["_combo"] = (d["trim"] + " · " + d["color"].map(_paint_label) + " · "
+                   + wheel_abbr + " · " + interior)
     # Cohort-wide paint rank, not one derived from the VIN-assigned rows alone, so
     # the row groups follow the same paint order as the rest of the page.
-    color_rank = {c: i for i, c in enumerate(_paint_order(df))}
+    color_rank = {_paint_label(c): i for i, c in enumerate(_paint_order(df))}
     interior_rank = {INTERIOR_SHORT.get(i, i): n
                      for n, i in enumerate(INTERIOR_ORDER)}
 

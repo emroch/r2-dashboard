@@ -43,6 +43,27 @@ def _extract(records, hdr_idx, idx, fields):
     return df
 
 
+def _curated(value):
+    """A curation YAML value as the raw string a sheet cell would have held.
+
+    A key written with no value is null in YAML, and `str(None)` is the four-letter
+    word "None", which then flows through cleaning as if a person had typed it
+    (issue #49). That is not cosmetic:
+
+      * a null `color` reaches the palette lookup as an unknown paint and takes the
+        whole build down with a KeyError;
+      * a null `r1_model` reads as a named model, so reconcile_r1_owner treats it as
+        evidence of ownership and flips a self-reported "No" to "Yes" — the R1 panel
+        then shows a "Yes" segment labelled "None";
+      * a null date or VIN reaches the parsers as a word, not as a missing value.
+
+    Blank means UNKNOWN, and for a raw sheet field that is the empty string — the
+    same thing an unanswered question in the sheet produces, so it flows into the
+    existing unknown buckets instead of inventing a category.
+    """
+    return "" if value is None else str(value).strip()
+
+
 def _apply_overrides(df, overrides):
     """Apply manual fix-ups (username -> {raw field: value}) in place, before
     cleaning, so the values flow through the normal pipeline. Case-insensitive
@@ -83,7 +104,18 @@ def _apply_overrides(df, overrides):
             if field not in valid:
                 issues.append((onum, disp, "unknown field '%s'" % field))
                 continue
-            old, new = df.at[i, field], str(value).strip()
+            # A blank value here is almost always scaffolding — a field copied in
+            # from a template and never filled. An override EDITS a row that
+            # already has data, so honouring the blank would erase what the sheet
+            # says on the strength of an empty line. Skip it and say so. To record
+            # that something genuinely became unknown, write the sheet's own token
+            # ("unknown"), which the parsers already understand.
+            if value is None:
+                issues.append((onum, disp,
+                               "'%s' left blank — ignored, the sheet's value "
+                               "stands (write \"unknown\" to overwrite it)" % field))
+                continue
+            old, new = df.at[i, field], _curated(value)
             if old != new:
                 df.at[i, field] = new
                 applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
@@ -116,8 +148,12 @@ def _apply_additions(df, additions):
             if field not in valid:
                 issues.append(("add", str(uname), "unknown field '%s'" % field))
                 continue
-            row[field] = str(value).strip()
-            set_fields.append(field)
+            row[field] = _curated(value)
+            # Blanks are expected here and are not a problem: an addition is a whole
+            # row, so a field nobody has reported yet is simply unknown. They're left
+            # out of the audit line, which lists what the entry actually supplied.
+            if row[field] != "":
+                set_fields.append(field)
         new_rows.append(row)
         added.append(("add", str(uname),
                       "manual entry — " + ", ".join(sorted(set_fields))))
@@ -267,10 +303,17 @@ def _apply_deletions(df, deletions, what, valid_fields=()):
     drop, records, issues = [], [], []
     for uname, spec in (deletions or {}).items():
         if isinstance(spec, dict):
-            reason = str(spec.get("reason", "")).strip()
-            match = dict(spec.get("match") or {})
+            reason = _curated(spec.get("reason"))
+            match = {f: _curated(v) for f, v in (spec.get("match") or {}).items()}
         else:
-            reason, match = str(spec).strip(), {}
+            reason, match = _curated(spec), {}
+        if not reason:
+            # The reason IS the evidence — nothing in the data marks a removal — and
+            # it is published in the audit panel, so a blank one leaves a row saying
+            # only "order:".
+            issues.append(("—", str(uname),
+                           "deletion has no reason recorded (it is shown in the "
+                           "data-quality panel, so it can't be blank)"))
         for field in [f for f in match if valid_fields and f not in valid_fields]:
             issues.append(("—", str(uname),
                            "deletion matcher uses unknown field '%s'" % field))
