@@ -281,10 +281,17 @@ def fig_vin_vs_order(df):
     return fig
 
 
-# Legend label for a blank answer to a conditional follow-up question. On the R1
-# panel this segment is almost entirely non-owners — the model question only
-# applies to owners — so it names that case rather than reading as a bare gap.
+# Legend label for a blank answer to a conditional follow-up question.
 _UNSPECIFIED = "No / unspecified"
+
+# The R1 panel's two flavours of "no model given", which are NOT the same answer:
+# an owner who skipped the follow-up, and a non-owner the question never applied to.
+# One shared label read as "No / unspecified" in both, which inside the Yes bar
+# looked like a "No" segment contradicting its own bar. Splitting them keeps the Yes
+# bar's total equal to every owner — the gate is trusted whether or not a model was
+# named — so the panel is a true owner / non-owner split.
+_MODEL_UNSPECIFIED = "Unspecified"
+_NO_R1 = "No R1"
 
 
 def _split_values(df, col, palette):
@@ -396,6 +403,13 @@ def fig_config_dashboard(df):
     # owner (see parsing.reconcile_r1_owner) instead of contradicting its own stack.
     r1 = _reported(df.assign(r1_owner=df.get("r1_owner_effective",
                                              df["r1_owner"])), "r1_owner")
+    # Label a missing model by what the gate said, so the two cases stop sharing a
+    # segment (see _MODEL_UNSPECIFIED). An owner who didn't name a model still counts
+    # as an owner: reconcile_r1_owner already trusts a named model over a "No" gate,
+    # and trusting a "Yes" gate over a skipped follow-up is the same principle.
+    r1 = r1.assign(r1_model=r1["r1_model"].mask(
+        r1["r1_model"].astype(str).str.strip() == "",
+        r1["r1_owner"].map(lambda o: _MODEL_UNSPECIFIED if o == "Yes" else _NO_R1)))
     rc = _ordered_counts(r1["r1_owner"], ("Yes", "No"))
     stacked_r1 = _take_rate_panel(fig, 2, 3, r1, "r1_owner", rc, list(rc.index),
                                   TAKE_RATE["r1_owner"], "r1_model",

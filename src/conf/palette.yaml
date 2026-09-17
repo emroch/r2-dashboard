@@ -201,4 +201,10 @@ r1_models:
   R1T:               "#54a24b"
   R1S:               "#8fbf6f"
   Both:              "#2f6b2f"
-  "No / unspecified": "#c2ccd6"
+  # Two different non-answers, deliberately not one shared segment: an owner who
+  # skipped the model follow-up, and a non-owner the question never applied to.
+  # "Unspecified" sits inside the Yes bar, so it needs to read as its own thing
+  # against the model greens rather than as the non-owner grey.
+  # (Label spelled "No R1" rather than "None": a bare None key is YAML null.)
+  Unspecified: "#8899a6"
+  "No R1": "#c2ccd6"

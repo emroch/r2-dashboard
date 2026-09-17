@@ -1333,6 +1333,30 @@ def test_blank_deletion_reason_is_reported():
     assert any("no reason recorded" in d for _, _, d in issues), issues
 
 
+def test_an_owner_who_named_no_model_still_counts_as_an_owner():
+    # "No model given" means two different things depending on the gate, and they
+    # used to share one "No / unspecified" segment — which inside the Yes bar read
+    # as a "No" contradicting its own bar. The owner is trusted either way, so the
+    # Yes bar's total must be every owner.
+    from render.charts import _MODEL_UNSPECIFIED, _NO_R1, fig_config_dashboard
+    cols = dict(color="Esker Silver", interior="Black Crater Signature",
+                wheels_short='21" Liquid Tungsten', trim="Performance",
+                buylease="Purchase", opted_spare=True)
+    df = pd.DataFrame(
+        [dict(cols, r1_owner="Yes", r1_model="R1T") for _ in range(4)]
+        + [dict(cols, r1_owner="Yes", r1_model="") for _ in range(3)]
+        + [dict(cols, r1_owner="No", r1_model="") for _ in range(9)])
+    seg = {t.name: list(t.y) for t in fig_config_dashboard(df).data
+           if getattr(t, "x", None) and tuple(t.x) == ("Yes", "No") and t.name}
+    assert seg["R1T"] == [4, 0]
+    assert seg[_MODEL_UNSPECIFIED] == [3, 0], "an owner with no model stays an owner"
+    assert seg[_NO_R1] == [0, 9], "a non-owner is not 'unspecified'"
+    # The two non-answers must not collapse into one segment again.
+    assert _MODEL_UNSPECIFIED != _NO_R1
+    owners = sum(v[0] for v in seg.values())
+    assert owners == 7, "the Yes bar totals every owner, model named or not"
+
+
 def test_yes_no_panels_keep_a_fixed_order_and_drop_blanks():
     # Purchase before Lease and Yes before No read as a sequence, so which is larger
     # shouldn't decide the order — by count they'd also swap places between builds as
