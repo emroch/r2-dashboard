@@ -1333,10 +1333,45 @@ def test_blank_deletion_reason_is_reported():
     assert any("no reason recorded" in d for _, _, d in issues), issues
 
 
+def test_an_unreported_build_is_left_out_of_the_config_charts():
+    # An order whose build was never reported carries no choice to plot, so the
+    # configuration charts cover the orders that did report the option they chart.
+    # Taking the CATEGORY out while leaving the ROWS in would be the subtle bug: the
+    # 100%-stacked panels divide by each bar's own total, so the stack would quietly
+    # stop adding up to 100.
+    from render.charts import (_paint_order, fig_color_wheel_heatmap,
+                               fig_config_dashboard, fig_paint_by_location)
+    df = _paint_rank_frame()
+    blank = df.iloc[[0]].copy()
+    blank["user"] = "unreported"
+    blank["color"] = ""
+    blank["wheels_short"] = ""
+    blank["interior"] = ""
+    df = pd.concat([df, blank], ignore_index=True)
+
+    assert "" not in _paint_order(df), "a blank is not a paint"
+    bars = fig_config_dashboard(df).data[0]
+    assert "" not in list(bars.x) and "Unknown" not in list(bars.x)
+    assert sum(int(v) for v in bars.y) == len(df) - 1, "the blank row is not counted"
+
+    h = fig_color_wheel_heatmap(df).data[0]
+    assert "" not in list(h.y) and "Unknown" not in list(h.y)
+    assert sum(sum(r) for r in h.z) == len(df) - 1
+
+    # Every 100%-stacked bar must still reach 100 after the exclusion.
+    for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
+        assert "" != t.name and t.name != "Unknown"
+    totals = {}
+    for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
+        for label, pct in zip(t.y, t.x):
+            totals[label] = totals.get(label, 0) + pct
+    assert all(abs(v - 100) < 0.51 for v in totals.values()), totals
+
+
 def test_an_unreported_build_is_unpriced_not_priced_at_base():
-    # Skipping the upcharge for a blank paint/wheel/interior priced the order as if
-    # the no-cost option had been chosen, i.e. at base — a confidently wrong number
-    # feeding the price stats. Unknown belongs in the unpriced bucket.
+    # Excluded from the charts, but NOT quietly priced: skipping the upcharge for a
+    # blank paint/wheel/interior priced the order as though the no-cost option had
+    # been chosen, i.e. at base — a confidently wrong number feeding the price stats.
     from ingest.pricing import price_order
     full, _ = price_order(trim="Performance", launch="Yes",
                           color="Catalina Cove", wheels='21” Liquid Tungsten '

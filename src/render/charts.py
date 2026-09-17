@@ -119,13 +119,14 @@ def fig_delivery_vs_vin(df):
     whisker on/off button declutters. Window/range estimates get whiskers
     spanning their min-max delivery span.
     """
-    d = df[df["vin_present"] & df["delivery_est"].notna()]
+    d = _reported(df[df["vin_present"] & df["delivery_est"].notna()],
+                  "color", "wheels_short")
     fig = go.Figure()
     xs = d["vin_seq"].astype(float)
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
     whisk = []
     for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
-        grp = "%s · %s" % (_or_unknown(color), wheel.split()[0])   # "Launch Green · 21\""
+        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
         # Whiskers (min-max span + caps) for window/range estimates, in the
         # series' legendgroup so they toggle/isolate with its markers.
         xw, yw = [], []
@@ -251,10 +252,11 @@ def fig_vin_vs_order(df):
     """VIN sequence vs R2 order date, coded by config. One legend entry per
     paint × wheel (marker shape encodes the wheel), each toggling/isolating that
     series independently."""
-    d = df[df["vin_present"] & df["order_date"].notna()]
+    d = _reported(df[df["vin_present"] & df["order_date"].notna()],
+                  "color", "wheels_short")
     fig = go.Figure()
     for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
-        grp = "%s · %s" % (_or_unknown(color), wheel.split()[0])   # "Launch Green · 21\""
+        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
         cd, ht = _config_hover(s)
         fig.add_trace(go.Scatter(
             x=np.asarray(s["order_date"]), y=np.asarray(s["vin_seq"]),
@@ -350,8 +352,7 @@ def fig_config_dashboard(df):
     # look alike while no two paints happen to tie.
     paints = _paint_order(df)
     cc = df["color"].value_counts().reindex(paints)
-    fig.add_trace(go.Bar(x=[_or_unknown(c) for c in cc.index],
-                         y=np.asarray(cc.values),
+    fig.add_trace(go.Bar(x=list(cc.index), y=np.asarray(cc.values),
                          marker_color=[_paint_fill(c) for c in cc.index],
                          marker_line=dict(color=CHART["edge"], width=1),
                          showlegend=False,
@@ -360,19 +361,21 @@ def fig_config_dashboard(df):
     # Trim-split panels share one legend; `shown` makes only the first contribute
     # entries so the trim colors aren't listed three times.
     shown = False
-    wc = df["wheels_short"].value_counts()
-    shown |= _take_rate_panel(fig, 1, 2, df, "wheels_short", wc, list(wc.index),
+    dw = _reported(df, "wheels_short")
+    wc = dw["wheels_short"].value_counts()
+    shown |= _take_rate_panel(fig, 1, 2, dw, "wheels_short", wc, list(wc.index),
                               TAKE_RATE["wheels"], "trim", TRIM_COLORS,
                               "legend", not shown)
 
-    ic = df["interior"].value_counts()
+    di = _reported(df, "interior")
+    ic = di["interior"].value_counts()
     # Labels and colors both come from the palette, keyed by the exact sheet value.
     # This used to strip " Signature" off the name to shorten it, which would fold
     # Standard's Black Crater into Performance's Black Crater Signature — two
     # different interiors sharing one bar — as soon as Standard shipped.
     ic_names = [INTERIOR_SHORT.get(s, s) for s in ic.index]
     shown |= _take_rate_panel(
-        fig, 1, 3, df, "interior", ic, ic_names,
+        fig, 1, 3, di, "interior", ic, ic_names,
         [INTERIOR_COLOR.get(s, TAKE_RATE["interior_fallback"]) for s in ic.index],
         "trim", TRIM_COLORS, "legend", not shown)
 
@@ -431,7 +434,7 @@ def _config_heatmap(df, col, values, x_title, labels=None, height=520):
          for c in colors]
     text = [[str(n) for n in row] for row in z]
     fig = go.Figure(go.Heatmap(
-        z=z, x=list(labels or values), y=[_or_unknown(c) for c in colors], text=text,
+        z=z, x=list(labels or values), y=colors, text=text,
         texttemplate="%{text}", textfont=dict(size=14),
         colorscale=HEATMAP_COLORSCALE, showscale=True,
         hovertemplate="%{y} + %{x}<br>%{z} orders<extra></extra>"))
@@ -448,39 +451,39 @@ def fig_color_wheel_heatmap(df):
     # From WHEEL_ORDER rather than a hardcoded pair: the palette knows four wheels
     # and this list used to name only the two Performance ones, so the others
     # would have gone missing from the grid once Premium and Standard shipped.
-    wheels = [w for w in WHEEL_ORDER if (df["wheels_short"] == w).any()]
-    if (df["wheels_short"] == "").any():
-        wheels.append("")
-    return _config_heatmap(df, "wheels_short", wheels, "Wheels",
-                           labels=[_or_unknown(w) for w in wheels])
+    d = _reported(df, "color", "wheels_short")
+    wheels = [w for w in WHEEL_ORDER if (d["wheels_short"] == w).any()]
+    return _config_heatmap(d, "wheels_short", wheels, "Wheels")
 
 
 def fig_color_interior_heatmap(df):
     """Paint × interior combo counts — which cabin people pair with which paint."""
-    interiors = [i for i in INTERIOR_ORDER if (df["interior"] == i).any()]
-    if (df["interior"] == "").any():
-        interiors.append("")
-    return _config_heatmap(df, "interior", interiors, "Interior",
-                           labels=[INTERIOR_SHORT.get(i, _or_unknown(i))
-                                   for i in interiors])
+    d = _reported(df, "color", "interior")
+    interiors = [i for i in INTERIOR_ORDER if (d["interior"] == i).any()]
+    return _config_heatmap(d, "interior", interiors, "Interior",
+                           labels=[INTERIOR_SHORT.get(i, i) for i in interiors])
 
 
-# Display label for a paint / wheel / interior the row doesn't record. No sheet row
-# leaves those blank — the form requires them — but curated additions do, since a
-# forum post often pins down an order date and location while the build itself is
-# still unreported (see overrides.yaml). Before this, such a row didn't merely
-# render untidily: the paint palette was read with a bare subscript, so one blank
-# raised KeyError and took the entire build down.
+# A curated addition can leave paint / wheels / interior blank — a forum post often
+# pins down an order date and location while the build itself is still unreported
+# (see overrides.yaml); no sheet row does, the form requires them. Those orders are
+# left OUT of the configuration charts rather than shown as an "Unknown" category:
+# the charts are about what people chose, and a row that hasn't said carries no
+# choice to plot. They are not dropped from the dataset — they count in the cohort,
+# and the data-quality panel lists each one by the field it is missing.
 #
-# Every chart grouping by one of the three shows the bucket rather than dropping it:
-# a 100%-stacked row whose unknown share is omitted silently stops adding up to 100,
-# and a heatmap that omits it loses orders out of its own totals.
-_UNKNOWN_LABEL = "Unknown"
+# _reported is therefore applied to the FRAME, not just to the category list. Taking
+# the category out while leaving the rows in would divide by a total that includes
+# them, so every 100%-stacked row would quietly stop adding up to 100.
 
 
-def _or_unknown(value):
-    """A config value -> the label to print, naming the blank case."""
-    return value if value else _UNKNOWN_LABEL
+def _reported(df, *cols):
+    """Rows that have actually reported every one of `cols`."""
+    d = df
+    for c in cols:
+        if c in d.columns:
+            d = d[d[c].astype(str).str.strip() != ""]
+    return d
 
 
 def _paint_fill(value):
@@ -508,7 +511,7 @@ def _paint_order(df):
     full cohort (each subsets internally), so all the charts agree without the
     order having to be threaded through them.
     """
-    counts = df["color"].value_counts()
+    counts = _reported(df, "color")["color"].value_counts()
     rank = {c: i for i, c in enumerate(COLOR_ORDER)}
     return sorted(counts.index,
                   key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
@@ -602,7 +605,7 @@ def fig_paint_by_location(df, min_state_orders=5):
     order swings the mix by 100 points — so the state panel is limited to states
     with at least `min_state_orders`, and the rest stay summarized by region.
     """
-    d = df.dropna(subset=["lat"]).copy()
+    d = _reported(df.dropna(subset=["lat"]), "color").copy()
     counts = d["state"].value_counts()
     states = [s for s in _by_volume(d["state"]) if counts[s] >= min_state_orders]
     fig = make_subplots(
@@ -626,8 +629,7 @@ def fig_paint_by_location(df, min_state_orders=5):
     d["_all"] = "All orders"
     _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions),
                       (thick, "state", states)],
-                "color", colors, COLOR_DISPLAY,
-                series_label={"": _UNKNOWN_LABEL})
+                "color", colors, COLOR_DISPLAY)
     _mix_layout(fig, "Exterior paint", 380 + 24 * len(states))
     return fig
 
@@ -645,7 +647,7 @@ def fig_interior_by_location(df):
     five orders for that reason, and interior is thinner still. A state panel is
     worth adding once the newer interiors carry enough volume to survive the split.
     """
-    d = df.dropna(subset=["lat"]).copy()
+    d = _reported(df.dropna(subset=["lat"]), "interior").copy()
     regions = _by_volume(d["region"])
     weights = [1.8, max(len(regions), 1)]
     fig = make_subplots(
@@ -657,14 +659,11 @@ def fig_interior_by_location(df):
         return fig
 
     interiors = [i for i in INTERIOR_ORDER if (d["interior"] == i).any()]
-    if (d["interior"] == "").any():
-        interiors.append("")
     d["_all"] = "All orders"
     # Heavier border than the other mix charts: these fills are the real cabin
     # colors, so each one nearly matches one of the two chart surfaces.
     _mix_panels(fig, [(d, "_all", ["All orders"]), (d, "region", regions)],
-                "interior", interiors, INTERIOR_COLOR,
-                dict(INTERIOR_SHORT, **{"": _UNKNOWN_LABEL}),
+                "interior", interiors, INTERIOR_COLOR, INTERIOR_SHORT,
                 line_width=1.3)
     _mix_layout(fig, "Interior", 260 + 30 * (1 + len(regions)))
     return fig
@@ -733,7 +732,7 @@ def fig_wheels_by_location(df):
     figures (every Canadian province) get their own bar rather than being dropped
     or guessed at.
     """
-    d = df.dropna(subset=["lat"]).copy()
+    d = _reported(df.dropna(subset=["lat"]), "wheels_short").copy()
     if d.empty:
         fig = make_subplots(rows=5, cols=1)
         fig.update_layout(template="plotly_white", height=720)
@@ -768,8 +767,7 @@ def fig_wheels_by_location(df):
 
     bars = sum(len(keys) for _, keys in panels)
     _mix_panels(fig, [(d, col, keys) for col, keys in panels],
-                "wheels_short", wheels, WHEEL_COLOR,
-                series_label={"": _UNKNOWN_LABEL})
+                "wheels_short", wheels, WHEEL_COLOR)
     _mix_layout(fig, "Wheels", 300 + 30 * bars)
     return fig
 
@@ -1332,7 +1330,9 @@ def fig_vin_by_config(df):
     trim this at most doubles the row count, and it grows only as fast as VINs are
     assigned to the newer cabins.
     """
-    d = df[df["vin_present"]].copy()
+    # The row key is the whole configuration, so a row missing part of it has no
+    # group to belong to.
+    d = _reported(df[df["vin_present"]], "color", "wheels_short", "interior").copy()
     fig = go.Figure()
     if d.empty:
         fig.update_layout(template="plotly_white", height=420)
@@ -1341,11 +1341,11 @@ def fig_vin_by_config(df):
     # wheels are 20", so the abbreviation carries All-Season/All-Terrain too.
     wheel_abbr = d["wheels_short"].map(lambda w: WHEEL_ABBR.get(w, w))
     interior = d["interior"].map(lambda i: INTERIOR_SHORT.get(i, i))
-    d["_combo"] = (d["trim"] + " · " + d["color"].map(_or_unknown) + " · "
-                   + wheel_abbr + " · " + interior)
+    d["_combo"] = (d["trim"] + " · " + d["color"] + " · " + wheel_abbr
+                   + " · " + interior)
     # Cohort-wide paint rank, not one derived from the VIN-assigned rows alone, so
     # the row groups follow the same paint order as the rest of the page.
-    color_rank = {_or_unknown(c): i for i, c in enumerate(_paint_order(df))}
+    color_rank = {c: i for i, c in enumerate(_paint_order(df))}
     interior_rank = {INTERIOR_SHORT.get(i, i): n
                      for n, i in enumerate(INTERIOR_ORDER)}
 
