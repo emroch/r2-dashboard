@@ -6,6 +6,7 @@ No I/O, no plotting — just transforms over the raw fields.
 """
 import calendar
 import re
+from collections import namedtuple
 from datetime import date, datetime, timedelta
 
 import numpy as np
@@ -290,6 +291,170 @@ def _plausible(*dates):
                for d in dates)
 
 
+# --- Delivery-estimate rules -------------------------------------------------
+# parse_delivery is an ORDERED TABLE of small rules rather than one long chain of
+# branches. Each rule looks at the text and returns one of:
+#
+#   None     no match — try the next rule
+#   _VETO    the text says "no date given"; stop and report unknown
+#   _Weeks   a RELATIVE window, lo..hi weeks after the anchor
+#   _Span    an absolute min..max interval, with the type to report
+#   _Fixed   like _Span, but exempt from the plausible-year check (see below)
+#   _Point   a single date, "explicit" or "month" (a month expands to its span)
+#
+# The driver applies everything the rules share — the plausible-year guard, the
+# month-span expansion, the est midpoint, and the anchor arithmetic — so a rule
+# only has to recognise its own shape.
+#
+# A rule that MATCHES but whose dates are implausible falls through to the next
+# rule rather than ending the search: "8/1326" is rejected as a numeric date and
+# then gets its chance as a month name. Only running off the end means unknown.
+#
+# ORDER IS THE INTERFACE, and two positions are load-bearing:
+#   * the unknown vocabulary runs FIRST, because it has to veto text that contains
+#     a date it must not be read from — "Invited to Order on 8/11/2026" is an order
+#     date, and the prose rule would otherwise harvest it;
+#   * the prose rule runs LAST, so it only ever sees text that every structured
+#     rule has already declined, and can only rescue what would be unparseable.
+# test_delivery_rule_order_is_load_bearing pins both.
+
+_VETO = object()
+_Weeks = namedtuple("_Weeks", "lo hi")
+_Span = namedtuple("_Span", "min max type")
+_Fixed = namedtuple("_Fixed", "min max type")
+_Point = namedtuple("_Point", "type date")
+
+# Relative week windows. The range form is tried before the single form, so
+# "2-4 weeks" is a span rather than "4 weeks" alone.
+_WEEK_RANGE_RE = re.compile(r"(\d+)\s*(?:-|to|–|—)\s*(\d+)\s*(?:week|wk)")
+_WEEK_ONE_RE = re.compile(r"(?<!\d)(\d+)\s*(?:week|wk)")
+# Numeric date range: "7/30-7/31", "7/30 - 8/2", same-month "7/30-31", or full
+# dates with years "7/28/2026 - 8/3/2026".
+_NUM_RANGE_RE = re.compile(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\s*(?:-|–|—|to)\s*"
+                           r"(\d{1,2})(?:/(\d{1,2}))?(?:/(\d{2,4}))?")
+# A STANDALONE numeric date for the prose rule. The lookarounds matter: without
+# them this reaches inside a malformed run of digits and "rescues" it by
+# truncation — "8/1326" (a typo for 8/13/26) contains a leading "8/13", and
+# reporting that as a confident 13 August is the guess the year window refuses.
+_LOOSE_DATE_RE = re.compile(r"(?<![\d/.-])\d{1,4}[/.-]\d{1,2}(?:[/.-]\d{2,4})?"
+                            r"(?![\d/.-])")
+
+
+def _rule_unknown(raw, low):
+    """Vocabulary that means "no date given" — see delivery.yaml."""
+    if low in UNKNOWN_TOKENS or any(s in low for s in UNKNOWN_SUBSTRINGS):
+        return _VETO
+    return None
+
+
+def _rule_override(raw, low):
+    """A shape pinned by hand in delivery.yaml, matched exactly.
+
+    _Fixed, not _Span: this is an explicit human decision, so the year window
+    doesn't get to discard it. A typo'd override should surface as a wrong date to
+    be corrected, not vanish into the unparseable bucket where nobody looks.
+    """
+    if raw in DELIVERY_OVERRIDES:
+        mn, mx, typ = DELIVERY_OVERRIDES[raw]
+        return _Fixed(pd.Timestamp(mn), pd.Timestamp(mx), typ)
+    return None
+
+
+def _rule_week_range(raw, low):
+    """"2-4 weeks", "2 to 6 wk" — lo..hi weeks from the anchor."""
+    m = _WEEK_RANGE_RE.search(low)
+    return _Weeks(int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _rule_week_single(raw, low):
+    """"2 weeks", "1 wk" — a single point, not a span."""
+    m = _WEEK_ONE_RE.search(low)
+    return _Weeks(int(m.group(1)), int(m.group(1))) if m else None
+
+
+def _rule_week_of(raw, low):
+    """"Week of 8/11" — the calendar week (Mon-Sun) containing that date."""
+    wk = _parse_week_of(raw)
+    return _Span(wk[0], wk[1], "range") if wk else None
+
+
+def _rule_numeric_range(raw, low):
+    """Numeric date range. Years are optional; a missing year defaults to 2026
+    (matching the single M/D case), and a year on one side applies to both."""
+    m = _NUM_RANGE_RE.search(low)
+    if not m:
+        return None
+    m1, d1, y1, a, b, y2 = m.groups()
+    m1, d1 = int(m1), int(d1)
+    m2, d2 = (int(a), int(b)) if b else (m1, int(a))   # M/D-M/D vs M/D-D
+    yr1 = int(y1) if y1 else (int(y2) if y2 else 2026)
+    yr2 = int(y2) if y2 else yr1
+    yr1 += 2000 if yr1 < 100 else 0
+    yr2 += 2000 if yr2 < 100 else 0
+    try:
+        dmin, dmax = date(yr1, m1, d1), date(yr2, m2, d2)
+    except ValueError:
+        return None
+    return _Span(dmin, dmax, "range") if dmax >= dmin else None
+
+
+def _rule_monthname_range(raw, low):
+    """"July 16-August 16", "June 29-30", "August - September", "Nov/Dec 2026"."""
+    mr = _parse_monthname_range(raw)
+    return _Span(mr[0], mr[1], "range") if mr else None
+
+
+def _rule_month_modifier(raw, low):
+    """"end of July", "early August", "mid-September" — a bounded ~week window,
+    so more precise than a bare month and typed "range" rather than "month"."""
+    mm = _parse_month_modifier(raw)
+    return _Span(mm[0], mm[1], "range") if mm else None
+
+
+def _rule_numeric_date(raw, low):
+    """A single numeric date, after repairing concatenated typos."""
+    res = _parse_numeric(_fix_numeric_typos(raw))
+    return _Point(res[0], res[1]) if res else None
+
+
+def _rule_monthname_date(raw, low):
+    """A single named-month date ("Aug 3, 2026"), or a bare month ("August 2026")."""
+    res = _parse_monthname(raw)
+    return _Point(res[0], res[1]) if res else None
+
+
+def _rule_prose_date(raw, low):
+    """A date wrapped in a sentence ("Delivery Scheduled for 9/27/2026").
+
+    ONLY when the text holds exactly one date. Two means the sentence is doing
+    something this can't read — "7/28 pushed back 8/4/26" turns on which one won,
+    and "moved up to 8/1 from 8/15" reverses the answer — so those stay unparseable
+    for overrides.yaml to settle rather than being guessed at.
+    """
+    found = _LOOSE_DATE_RE.findall(raw)
+    if len(found) != 1:
+        return None
+    res = _parse_numeric(_fix_numeric_typos(found[0]))
+    return _Point(res[0], res[1]) if res else None
+
+
+# The table. Names are for the report and the ordering test; the sequence is the
+# behaviour. Weakest and most permissive last.
+_DELIVERY_RULES = (
+    ("unknown vocabulary", _rule_unknown),
+    ("explicit override", _rule_override),
+    ("relative week range", _rule_week_range),
+    ("relative single week", _rule_week_single),
+    ("week of <date>", _rule_week_of),
+    ("numeric range", _rule_numeric_range),
+    ("month-name range", _rule_monthname_range),
+    ("within-month modifier", _rule_month_modifier),
+    ("numeric date", _rule_numeric_date),
+    ("month-name date", _rule_monthname_date),
+    ("date in prose", _rule_prose_date),
+)
+
+
 def parse_delivery(raw, order_date):
     """Normalize a delivery estimate.
 
@@ -297,131 +462,50 @@ def parse_delivery(raw, order_date):
     week-windows are measured from `anchor` — the customer's R2 order date, or
     the as-of date when that is missing/invalid (anchor_fallback=True). Absolute
     types (explicit / range / month) leave anchor as NaT.
+
+    The shapes it understands, and the order they are tried in, are _DELIVERY_RULES
+    above; this is just the driver.
     """
     raw = (raw or "").strip()
     low = raw.lower()
     out = {"est": pd.NaT, "min": pd.NaT, "max": pd.NaT, "type": "unknown",
            "anchor": pd.NaT, "anchor_fallback": False}
-    if low in UNKNOWN_TOKENS or any(s in low for s in UNKNOWN_SUBSTRINGS):
-        return out
 
-    if raw in DELIVERY_OVERRIDES:
-        mn, mx, typ = DELIVERY_OVERRIDES[raw]
-        dmin, dmax = pd.Timestamp(mn), pd.Timestamp(mx)
-        out.update(est=dmin + (dmax - dmin) / 2, min=dmin, max=dmax, type=typ)
-        return out
-
-    # Relative week windows (anchored to order date).
-    win = re.search(r"(\d+)\s*(?:-|to|–|—)\s*(\d+)\s*(?:week|wk)", low)
-    single = re.search(r"(?<!\d)(\d+)\s*(?:week|wk)", low)
-    if win:
-        lo, hi = int(win.group(1)), int(win.group(2))
-        anchor, fb = _anchor(order_date)
-        out.update(min=anchor + pd.Timedelta(weeks=lo),
-                   max=anchor + pd.Timedelta(weeks=hi),
-                   est=anchor + pd.Timedelta(weeks=(lo + hi) / 2.0),
-                   type="window", anchor=anchor, anchor_fallback=fb)
-        return out
-    if ("week" in low or "wk" in low) and single:
-        w = int(single.group(1))
-        anchor, fb = _anchor(order_date)
-        est = anchor + pd.Timedelta(weeks=w)
-        out.update(est=est, min=est, max=est, type="window",
-                   anchor=anchor, anchor_fallback=fb)
-        return out
-
-    # "Week of <date>": the calendar week (Mon-Sun) that contains that date.
-    wk = _parse_week_of(raw)
-    if wk and _plausible(*wk):
-        dmin, dmax = pd.Timestamp(wk[0]), pd.Timestamp(wk[1])
-        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
-        return out
-
-    # Numeric date ranges: "7/30-7/31", "7/30 - 8/2", same-month "7/30-31", or
-    # full dates with years "7/28/2026 - 8/3/2026". Years are optional; a missing
-    # year defaults to 2026 (matching the single M/D case below), and a year given
-    # on only one side applies to both.
-    md = re.search(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\s*(?:-|–|—|to)\s*"
-                   r"(\d{1,2})(?:/(\d{1,2}))?(?:/(\d{2,4}))?", low)
-    if md:
-        m1, d1, y1, a, b, y2 = md.groups()
-        m1, d1 = int(m1), int(d1)
-        m2, d2 = (int(a), int(b)) if b else (m1, int(a))  # M/D-M/D vs M/D-D
-        yr1 = int(y1) if y1 else (int(y2) if y2 else 2026)
-        yr2 = int(y2) if y2 else yr1
-        yr1 += 2000 if yr1 < 100 else 0
-        yr2 += 2000 if yr2 < 100 else 0
-        try:
-            dmin, dmax = (pd.Timestamp(date(yr1, m1, d1)),
-                          pd.Timestamp(date(yr2, m2, d2)))
-        except ValueError:
-            dmin = dmax = None
-        if dmin is not None and dmax >= dmin and _plausible(dmin, dmax):
-            out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2,
-                       type="range")
+    for _name, rule in _DELIVERY_RULES:
+        res = rule(raw, low)
+        if res is None:
+            continue
+        if res is _VETO:
             return out
 
-    # Named-month ranges: "July 16-August 16", "June 29-30", "August - September",
-    # "Nov/Dec 2026" — two named-month (or same-month day) endpoints.
-    mr = _parse_monthname_range(raw)
-    if mr and _plausible(*mr):
-        dmin, dmax = pd.Timestamp(mr[0]), pd.Timestamp(mr[1])
-        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
-        return out
+        if isinstance(res, _Weeks):
+            anchor, fallback = _anchor(order_date)
+            out.update(min=anchor + pd.Timedelta(weeks=res.lo),
+                       max=anchor + pd.Timedelta(weeks=res.hi),
+                       est=anchor + pd.Timedelta(weeks=(res.lo + res.hi) / 2.0),
+                       type="window", anchor=anchor, anchor_fallback=fallback)
+            return out
 
-    # Within-month modifiers: "end of July", "early August", "mid-September" — a
-    # bounded ~week window (more precise than a bare month, hence type "range").
-    mm = _parse_month_modifier(raw)
-    if mm and _plausible(*mm):
-        dmin, dmax = pd.Timestamp(mm[0]), pd.Timestamp(mm[1])
-        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type="range")
-        return out
-
-    # Single explicit / month date.
-    for parser, arg in ((_parse_numeric, _fix_numeric_typos(raw)),
-                        (_parse_monthname, raw)):
-        res = parser(arg)
-        if res and _plausible(res[1]):
-            typ, dt = res
-            ts = pd.Timestamp(dt)
-            if typ == "month":
-                # A bare month is inherently a whole-month window — span it so
-                # the uncertainty shows on the charts (est stays mid-month).
+        if isinstance(res, _Point):
+            if not _plausible(res.date):
+                continue                      # implausible -> let the next rule try
+            ts = pd.Timestamp(res.date)
+            if res.type == "month":
+                # A bare month is inherently a whole-month window — span it so the
+                # uncertainty shows on the charts (est stays mid-month).
                 out.update(est=ts, min=ts.replace(day=1),
-                           max=ts + pd.offsets.MonthEnd(0), type=typ)
+                           max=ts + pd.offsets.MonthEnd(0), type="month")
             else:
-                out.update(est=ts, min=ts, max=ts, type=typ)
+                out.update(est=ts, min=ts, max=ts, type=res.type)
             return out
 
-    # Last resort: a date wrapped in prose ("Delivery Scheduled for 9/27/2026").
-    # Everything structured has already had its turn, so this can only rescue text
-    # that would otherwise be reported unparseable.
-    #
-    # ONLY when the text holds exactly one date. Two of them means the sentence is
-    # doing something this can't read — "7/28 pushed back 8/4/26" needs to know
-    # which one won, and "moved up to 8/1 from 8/15" reverses the answer — so those
-    # stay unparseable for overrides.yaml to settle rather than being guessed at.
-    # A date that isn't a DELIVERY date is a different trap ("Invited to Order on
-    # 8/11/2026" is an order date); those are named in delivery.yaml's
-    # unknown_substrings, which is checked above, before any of this runs.
-    # The lookarounds make the date STANDALONE: without them this reaches inside a
-    # malformed run of digits and "rescues" it by truncation — "8/1326" (a typo for
-    # 8/13/26) would match its leading "8/13" and be reported as a confident
-    # 13 August, which is exactly the guess the year-window check exists to refuse.
-    found = re.findall(r"(?<![\d/.-])\d{1,4}[/.-]\d{1,2}(?:[/.-]\d{2,4})?"
-                       r"(?![\d/.-])", raw)
-    if len(found) == 1:
-        res = _parse_numeric(_fix_numeric_typos(found[0]))
-        if res and _plausible(res[1]):
-            typ, dt = res
-            ts = pd.Timestamp(dt)
-            if typ == "month":
-                out.update(est=ts, min=ts.replace(day=1),
-                           max=ts + pd.offsets.MonthEnd(0), type=typ)
-            else:
-                out.update(est=ts, min=ts, max=ts, type=typ)
-            return out
-    return out
+        # _Span (guarded) or _Fixed (trusted, from delivery.yaml).
+        if isinstance(res, _Span) and not _plausible(res.min, res.max):
+            continue
+        dmin, dmax = pd.Timestamp(res.min), pd.Timestamp(res.max)
+        out.update(min=dmin, max=dmax, est=dmin + (dmax - dmin) / 2, type=res.type)
+        return out
+
     return out
 
 
