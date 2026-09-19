@@ -187,6 +187,89 @@ def test_parse_delivery_non_us_numeric_dropped():
     assert parse_delivery("31/8/2026", pd.NaT)["type"] == "unknown"
 
 
+def test_parse_simple_date_recovers_a_zero_padded_year():
+    # "3/7/0024" is 3/7/2024 — the R2 reveal date — typed into a 4-digit year field;
+    # 29 rows across the two sheets are written that way and used to lose their date
+    # entirely. %Y accepts year 24, then pandas cannot represent it (its floor is
+    # 1677) and the OutOfBoundsDatetime fell through to a coerced NaT.
+    from ingest.parsing import parse_simple_date
+    assert parse_simple_date("3/7/0024") == pd.Timestamp("2024-03-07")
+    assert parse_simple_date("10/7/0025") == pd.Timestamp("2025-10-07")
+    assert parse_simple_date("11/14/0024") == pd.Timestamp("2024-11-14")
+    # A transposed year is NOT guessed at: "3/7/0204" is not read as 2024. It is
+    # rejected outright, which also pins the behaviour across pandas versions — 1.x
+    # cannot represent year 204 and coerced to NaT, while 2.x accepts it and would
+    # otherwise carry a year-204 timestamp downstream.
+    assert pd.isna(parse_simple_date("3/7/0204"))
+    assert pd.isna(parse_simple_date("3/7/0999"))
+    # Ordinary formats are untouched, including the 2-digit year path.
+    for s, want in (("3/7/2024", "2024-03-07"), ("3/7/24", "2024-03-07"),
+                    ("03-07-2024", "2024-03-07"), ("2026-08-15", "2026-08-15")):
+        assert parse_simple_date(s) == pd.Timestamp(want), s
+    assert pd.isna(parse_simple_date("")) and pd.isna(parse_simple_date("garbage"))
+
+
+def test_parse_delivery_iso_and_dotted_dates():
+    # ISO was dropped outright: the numeric parser read every 3-part date as M/D/Y,
+    # so "2026-08-15" became date(15, 2026, 8) — a ValueError swallowed into
+    # "unparseable", losing a perfectly good date (reported for dustlesswalnut).
+    # A 4-digit LEADING part can only be a year, so this needs no guesswork.
+    for s in ("2026-08-15", "2026/08/15", "2026.08.15"):
+        out = parse_delivery(s, pd.NaT)
+        assert out["type"] == "explicit", s
+        assert out["est"] == pd.Timestamp("2026-08-15"), s
+    # Dots join a date as readily as slashes.
+    assert parse_delivery("9.12.2026", pd.NaT)["est"] == pd.Timestamp("2026-09-12")
+    # A 4-digit year in the LAST position keeps its m/d/y reading.
+    assert parse_delivery("08/15/2026", pd.NaT)["est"] == pd.Timestamp("2026-08-15")
+    # Day-first is still NOT accepted — ISO support must not open that door, since
+    # "15-08-2026" has no valid US reading and guessing would be a coin flip.
+    assert parse_delivery("15-08-2026", pd.NaT)["type"] == "unknown"
+
+
+def test_parse_delivery_date_wrapped_in_prose():
+    # People write a sentence: "Delivery Scheduled for 9/27/2026", "9/12 Delivered".
+    for s, want in (("Delivery Scheduled for 9/27/2026", "2026-09-27"),
+                    ("9/12 Delivered", "2026-09-12"),
+                    ("Delivery 9/5", "2026-09-05"),
+                    ("Delivered 9.12.2026", "2026-09-12")):
+        out = parse_delivery(s, pd.NaT)
+        assert out["type"] == "explicit", s
+        assert out["est"] == pd.Timestamp(want), s
+
+    # TWO dates means the sentence is doing something this can't read: which one
+    # won depends on the wording ("pushed back" vs "moved up from"), so it stays
+    # unparseable for overrides.yaml to settle rather than being guessed.
+    assert parse_delivery("7/28 pushed back 8/4/26", pd.NaT)["type"] == "unknown"
+
+    # A date that is not a DELIVERY date must not be harvested. "Invited to Order
+    # on 8/11/2026" is an order date; delivery.yaml vetoes it by substring, and that
+    # check runs before any parsing.
+    assert parse_delivery("Invited to Order on 8/11/2026",
+                          pd.NaT)["type"] == "unknown"
+
+    # The prose fallback must not reach INSIDE a malformed run of digits and
+    # "rescue" it by truncation: "8/1326" holds a leading "8/13", and reporting
+    # that as a confident 13 August is the guess the year window exists to refuse.
+    assert parse_delivery("8/1326", pd.NaT)["type"] == "unknown"
+
+
+def test_a_no_date_phrase_does_not_veto_a_real_estimate():
+    # The "I don't know" phrasings are EXACT tokens, not substrings, and this is
+    # why: people combine "no VIN yet" with a genuine estimate. As a substring,
+    # "not assigned" matched "Not assigned yet/2-4 weeks" and returned unknown
+    # before the window parser ran, discarding the only information in the field.
+    out = parse_delivery("Not assigned yet/2-4 weeks", pd.Timestamp("2026-07-01"))
+    assert out["type"] == "window", out
+    assert out["min"] == pd.Timestamp("2026-07-15")
+    assert out["max"] == pd.Timestamp("2026-07-29")
+    # On its own it is still a "no date" answer, reported as such rather than as
+    # text we failed to read.
+    for s in ("Not assigned", "Not sure yet", "None yet", "?", "Soon", "Unsure",
+              "Don’t know", "No date yet", "No estimate"):
+        assert parse_delivery(s, pd.NaT)["type"] == "unknown", s
+
+
 def test_parse_delivery_implausible_year_is_unknown():
     # A typo can parse cleanly but land centuries away: "8/1326" (meant 8/13/26)
     # reads as month 8 of year 1326. pandas 1.x raises OutOfBoundsDatetime on that

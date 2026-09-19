@@ -316,10 +316,21 @@ overrides:
     color: "Borealis"
     interior: "Coastal Cloud Signature"
     wheels: '20” Black Sand All-Terrain'
-  # https://www.rivianforums.com/forum/posts/1102923
+  # https://www.rivianforums.com/forum/posts/1104654/
   drydeniv:
     vin_raw: "9537"
-
+    delivery_raw: "9/30/2026"
+  # https://www.rivianforums.com/forum/posts/1104511/
+  alanr2:
+    delivery_raw: "9/19/2026"
+  # https://www.rivianforums.com/forum/threads/hudson-nh-service-center-in-the-works.39368/post-1104184
+  lars24:
+    delivery_raw: "9/17/2026"
+  # correcting unparseable sheet data
+  SpeedDemon5:
+    delivery_raw: "8/4/2026"
+  FINArchitecture:
+    delivery_raw: "9/12/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -448,10 +459,11 @@ additions:
     spare: "No"
     r1_owner: "No"
   # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1076571
+  # https://www.rivianforums.com/forum/threads/%F0%9F%93%B8-daily-random-r2-photos-thread-post-your-pics.61808/post-1097367
   RomanMF:
     resv_raw: "3/7/2024"
     order_raw: "8/11/2026"
-    delivery_raw: "7/31/26-9/14/26"
+    delivery_raw: "9/9/26"
     vin_raw: "5853"
     loc_raw: "CA"
     trim: "Performance"
