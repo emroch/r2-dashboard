@@ -209,6 +209,55 @@ def test_parse_simple_date_recovers_a_zero_padded_year():
     assert pd.isna(parse_simple_date("")) and pd.isna(parse_simple_date("garbage"))
 
 
+def test_delivery_rule_order_is_load_bearing():
+    # parse_delivery is an ordered rule table, and two positions carry behaviour
+    # rather than style — this pins them so a future reordering fails here instead
+    # of quietly changing what the dashboard publishes.
+    from ingest.parsing import _DELIVERY_RULES, _rule_prose_date, _rule_unknown
+    names = [n for n, _ in _DELIVERY_RULES]
+
+    # FIRST: the unknown vocabulary has to veto text that CONTAINS a date it must
+    # not be read from. "Invited to Order on 8/11/2026" is an order date, and the
+    # prose rule harvests it happily when given the chance.
+    assert _DELIVERY_RULES[0][1] is _rule_unknown, names
+    assert _rule_prose_date("Invited to Order on 8/11/2026",
+                            "invited to order on 8/11/2026") is not None, (
+        "the prose rule DOES match this — which is why the veto must precede it")
+    assert parse_delivery("Invited to Order on 8/11/2026",
+                          pd.NaT)["type"] == "unknown"
+
+    # LAST: the prose rule is the most permissive, so every structured rule must
+    # get its turn first. Given "7/30-7/31" it would return a single date; the
+    # range rule ahead of it returns the span that is actually correct.
+    assert _DELIVERY_RULES[-1][1] is _rule_prose_date, names
+    span = parse_delivery("7/30-7/31", pd.NaT)
+    assert span["type"] == "range"
+    assert (span["min"], span["max"]) == (pd.Timestamp("2026-07-30"),
+                                          pd.Timestamp("2026-07-31"))
+
+    # The week rules must precede the numeric ones, or "2-4 weeks" reads as a date.
+    assert names.index("relative week range") < names.index("numeric range")
+    assert parse_delivery("2-4 weeks", pd.Timestamp("2026-07-01"))["type"] == "window"
+
+    # Every rule is reachable and returns None rather than raising on text it does
+    # not recognise — the driver relies on that to fall through.
+    for name, rule in _DELIVERY_RULES:
+        assert rule("something else entirely", "something else entirely") is None, name
+
+
+def test_a_matching_rule_with_implausible_dates_falls_through():
+    # A rule that matches but yields an out-of-window date must let the NEXT rule
+    # try, not end the search. "8/1326" is rejected as a numeric date and then gets
+    # its chance as a month name; both decline, so it ends up unknown.
+    from ingest.parsing import _rule_numeric_date
+    assert _rule_numeric_date("8/1326", "8/1326") is not None, (
+        "the numeric rule matches — the year window is what rejects it")
+    assert parse_delivery("8/1326", pd.NaT)["type"] == "unknown"
+    # And a shape only the later rule understands still resolves, proving the
+    # fall-through is real rather than incidental.
+    assert parse_delivery("Aug 3, 2026", pd.NaT)["est"] == pd.Timestamp("2026-08-03")
+
+
 def test_parse_delivery_iso_and_dotted_dates():
     # ISO was dropped outright: the numeric parser read every 3-part date as M/D/Y,
     # so "2026-08-15" became date(15, 2026, 8) — a ValueError swallowed into
