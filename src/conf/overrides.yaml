@@ -329,8 +329,6 @@ overrides:
   # correcting unparseable sheet data
   SpeedDemon5:
     delivery_raw: "8/4/2026"
-  FINArchitecture:
-    delivery_raw: "9/12/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -820,20 +818,6 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/posts/1103013
-  toytruckmike:
-    resv_raw: "3/8/2024"
-    order_raw: "9/15/2026"
-    vin_raw: "11550"
-    loc_raw: "TX"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Esker Silver"
-    interior: "Coastal Cloud Signature"
-    wheels: '21” Liquid Tungsten All-Season'
-    autonomy: "Included"
-    tow: "Included"
-    r1_owner: "No"
   # ---------------------------------------------------------------------
   # Partly-reported orders. A forum post often pins down an order date and a
   # location while the build itself is still unstated; the blank fields below
