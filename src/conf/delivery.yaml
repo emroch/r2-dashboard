@@ -17,10 +17,45 @@ unknown_tokens:
   - "waiting for coastal cloud release"
   - "not yet"
   - "n/a yet"
+  # The "I don't know" family. These already ended up unknown by failing to parse,
+  # but as UNPARSEABLE — the bucket for text we couldn't read, not for a person
+  # telling us they have no date. Naming them keeps the data-quality panel's
+  # unparseable list down to genuine surprises.
+  #
+  # EXACT tokens, deliberately not substrings: people combine "no VIN yet" with a
+  # real estimate. "Not assigned yet/2-4 weeks" is a usable 2-4 week window, and a
+  # "not assigned" substring vetoed it before the window parser ever ran, throwing
+  # away the one piece of information in the field. An exact token can't do that.
+  # Add new spellings here as they appear; each is one line and one line only.
+  - "?"
+  - "don't know"
+  - "don’t know"        # the curly apostrophe the forum's editor inserts
+  - "don’t know yet"
+  - "dont know"
+  - "no clue"
+  - "no date yet"
+  - "no estimate"
+  - "none given"
+  - "none set"
+  - "none yet"
+  - "not assigned"
+  - "not provided yet"
+  - "not set"
+  - "not sure"
+  - "not sure yet"
+  - "not updated"
+  - "soon"
+  - "unknown yet"
+  - "unsure"
 
-# Substrings that, if present (lowercased), also mean "no usable date".
+# Substrings that, if present (lowercased), also mean "no usable date". Checked
+# BEFORE any parsing, which is what makes them able to veto a date: "Invited to Order
+# on 8/11/2026" contains a real date that is an ORDER date, and parse_delivery's
+# prose fallback would otherwise report it as a delivery estimate. Anything else that
+# puts a not-a-delivery date in this column belongs here too.
 unknown_substrings:
   - "demo this saturday"
+  - "invited to order"
 
 # Genuinely ambiguous strings the generic parsers can't resolve — exact match only.
 # (Named-month ranges like "July 16-August 16" and within-month phrases like

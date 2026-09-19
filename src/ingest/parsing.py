@@ -53,7 +53,26 @@ def parse_simple_date(s):
         return pd.NaT
     for fmt in ("%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y"):
         try:
-            return pd.Timestamp(datetime.strptime(s, fmt))
+            dt = datetime.strptime(s, fmt)
+            # A 4-digit year below 100 is a 2-digit year typed into a 4-digit
+            # field: "3/7/0024" is 3/7/2024, the R2 reveal date, and 29 rows across
+            # the two sheets are written that way. They used to be dropped whole —
+            # %Y accepts year 24, then pandas cannot even represent it (its minimum
+            # is 1677), and the OutOfBoundsDatetime (a ValueError subclass) fell
+            # through to a coerced NaT. Reservations lost their date entirely.
+            #
+            # Only a year under 100 is adjusted. "3/7/0204" is transposed rather
+            # than truncated, so 2024 would be a guess; a 3-digit year is rejected
+            # outright instead. That also makes the result version-independent:
+            # pandas 1.x cannot represent year 204 and raised (coercing to NaT),
+            # while 2.x accepts it happily and would carry a year-204 timestamp
+            # downstream — the same 1.x/2.x split the delivery year window exists
+            # to close.
+            if dt.year < 100:
+                dt = dt.replace(year=dt.year + 2000)
+            elif dt.year < 1000:
+                return pd.NaT
+            return pd.Timestamp(dt)
         except ValueError:
             continue
     return pd.to_datetime(s, errors="coerce")
@@ -84,11 +103,22 @@ def _parse_numeric(s):
         if mn:
             return ("explicit", date(int(m.group(3)), mn, int(m.group(1))))
         return None
-    parts = [p for p in re.split(r"[/-]", s) if p != ""]
+    # Dots join a date as readily as slashes or dashes ("9.12.2026").
+    parts = [p for p in re.split(r"[/.-]", s) if p != ""]
     if not parts or not all(p.isdigit() for p in parts):
         return None
     try:
         if len(parts) == 3:
+            # ISO first: a 4-digit LEADING part can only be a year, since no month
+            # has four digits — so "2026-08-15" is unambiguous and needs no guess.
+            # Read as M/D/Y it became date(15, 2026, 8), a ValueError swallowed into
+            # "unparseable", so a perfectly good date was dropped from the charts.
+            # Only the leading position is special-cased: "15-08-2026" stays a
+            # non-US reading this deliberately does not accept (see the module's
+            # m/d/y rule), and it has no valid US interpretation either.
+            if len(parts[0]) == 4:
+                yy, mm, dd = (int(p) for p in parts)
+                return ("explicit", date(yy, mm, dd))
             mm, dd, yy = (int(p) for p in parts)
             if yy < 100:
                 yy += 2000
@@ -362,6 +392,36 @@ def parse_delivery(raw, order_date):
             else:
                 out.update(est=ts, min=ts, max=ts, type=typ)
             return out
+
+    # Last resort: a date wrapped in prose ("Delivery Scheduled for 9/27/2026").
+    # Everything structured has already had its turn, so this can only rescue text
+    # that would otherwise be reported unparseable.
+    #
+    # ONLY when the text holds exactly one date. Two of them means the sentence is
+    # doing something this can't read — "7/28 pushed back 8/4/26" needs to know
+    # which one won, and "moved up to 8/1 from 8/15" reverses the answer — so those
+    # stay unparseable for overrides.yaml to settle rather than being guessed at.
+    # A date that isn't a DELIVERY date is a different trap ("Invited to Order on
+    # 8/11/2026" is an order date); those are named in delivery.yaml's
+    # unknown_substrings, which is checked above, before any of this runs.
+    # The lookarounds make the date STANDALONE: without them this reaches inside a
+    # malformed run of digits and "rescues" it by truncation — "8/1326" (a typo for
+    # 8/13/26) would match its leading "8/13" and be reported as a confident
+    # 13 August, which is exactly the guess the year-window check exists to refuse.
+    found = re.findall(r"(?<![\d/.-])\d{1,4}[/.-]\d{1,2}(?:[/.-]\d{2,4})?"
+                       r"(?![\d/.-])", raw)
+    if len(found) == 1:
+        res = _parse_numeric(_fix_numeric_typos(found[0]))
+        if res and _plausible(res[1]):
+            typ, dt = res
+            ts = pd.Timestamp(dt)
+            if typ == "month":
+                out.update(est=ts, min=ts.replace(day=1),
+                           max=ts + pd.offsets.MonthEnd(0), type=typ)
+            else:
+                out.update(est=ts, min=ts, max=ts, type=typ)
+            return out
+    return out
     return out
 
 
