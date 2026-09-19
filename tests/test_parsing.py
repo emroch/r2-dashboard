@@ -209,6 +209,158 @@ def test_parse_simple_date_recovers_a_zero_padded_year():
     assert pd.isna(parse_simple_date("")) and pd.isna(parse_simple_date("garbage"))
 
 
+# --- One test per delivery rule ----------------------------------------------
+# The driver is covered end-to-end above; these pin each rule in isolation, so a
+# failure says which shape broke instead of just "some date is wrong". Each checks
+# a positive case AND that the rule declines text belonging to another rule —
+# over-claiming is how a rule breaks the ones after it in the table.
+
+
+def test_rule_unknown_vocabulary():
+    from ingest.parsing import _VETO, _rule_unknown
+    assert _rule_unknown("TBD", "tbd") is _VETO                  # exact token
+    assert _rule_unknown("Not sure", "not sure") is _VETO
+    assert _rule_unknown("x", "demo this saturday x") is _VETO   # substring
+    assert _rule_unknown("8/15/2026", "8/15/2026") is None
+
+
+def test_rule_explicit_override():
+    # The one shape pinned by hand in delivery.yaml: two dash-dates joined by a
+    # slash, which the range rule misreads as an M/D separator.
+    from ingest.parsing import _Fixed, _rule_override
+    raw = "7-13-26/8-10-26"
+    res = _rule_override(raw, raw.lower())
+    assert isinstance(res, _Fixed), res
+    assert (res.min, res.max, res.type) == (pd.Timestamp("2026-07-13"),
+                                            pd.Timestamp("2026-08-10"), "range")
+    # _Fixed, not _Span: an override is an explicit human decision, so the driver
+    # does NOT put it through the plausible-year window. Verified through the
+    # driver, since that exemption lives there.
+    out = parse_delivery(raw, pd.NaT)
+    assert out["type"] == "range"
+    assert (out["min"], out["max"]) == (pd.Timestamp("2026-07-13"),
+                                        pd.Timestamp("2026-08-10"))
+    assert _rule_override("7/13/26", "7/13/26") is None, "matched exactly, not fuzzily"
+
+
+def test_rule_relative_week_range():
+    from ingest.parsing import _Weeks, _rule_week_range
+    for text, lo, hi in (("2-4 weeks", 2, 4), ("2 to 6 wk", 2, 6),
+                         ("4 - 8 Weeks", 4, 8), ("2–6 weeks", 2, 6)):
+        assert _rule_week_range(text, text.lower()) == _Weeks(lo, hi), text
+    assert _rule_week_range("2 weeks", "2 weeks") is None, "one number is not a range"
+    assert _rule_week_range("7/30-7/31", "7/30-7/31") is None
+
+
+def test_rule_relative_single_week():
+    from ingest.parsing import _Weeks, _rule_week_single
+    assert _rule_week_single("2 weeks", "2 weeks") == _Weeks(2, 2)
+    assert _rule_week_single("1 wk", "1 wk") == _Weeks(1, 1)
+    # lo == hi, so the driver produces a POINT rather than a span.
+    out = parse_delivery("2 weeks", pd.Timestamp("2026-06-20"))
+    assert out["type"] == "window"
+    assert out["min"] == out["max"] == out["est"] == pd.Timestamp("2026-07-04")
+    assert out["anchor"] == pd.Timestamp("2026-06-20")
+    assert _rule_week_single("August 2026", "august 2026") is None
+
+
+def test_rule_week_of():
+    from ingest.parsing import _Span, _rule_week_of
+    res = _rule_week_of("week of 8/11", "week of 8/11")
+    assert isinstance(res, _Span) and res.type == "range"
+    assert (res.min, res.max) == (date(2026, 8, 10), date(2026, 8, 16))
+    assert _rule_week_of("8/11", "8/11") is None, "needs the 'week of' phrasing"
+
+
+def test_rule_numeric_range():
+    from ingest.parsing import _Span, _rule_numeric_range
+    cases = [("7/30-7/31", date(2026, 7, 30), date(2026, 7, 31)),
+             ("7/30 - 8/2", date(2026, 7, 30), date(2026, 8, 2)),
+             ("7/30-31", date(2026, 7, 30), date(2026, 7, 31)),   # M/D-D
+             ("7/28/2026 - 8/3/2026", date(2026, 7, 28), date(2026, 8, 3)),
+             ("7/28 - 8/3/2026", date(2026, 7, 28), date(2026, 8, 3))]  # year one side
+    for text, lo, hi in cases:
+        res = _rule_numeric_range(text, text.lower())
+        assert isinstance(res, _Span), text
+        assert (res.min, res.max, res.type) == (lo, hi, "range"), text
+    # Reversed and impossible endpoints are declined rather than "fixed".
+    assert _rule_numeric_range("8/3-7/28", "8/3-7/28") is None
+    assert _rule_numeric_range("7/32-7/33", "7/32-7/33") is None
+    assert _rule_numeric_range("8/15/2026", "8/15/2026") is None
+
+
+def test_rule_monthname_range():
+    from ingest.parsing import _Span, _rule_monthname_range
+    res = _rule_monthname_range("July 16-August 16", "july 16-august 16")
+    assert isinstance(res, _Span) and res.type == "range"
+    assert (res.min, res.max) == (date(2026, 7, 16), date(2026, 8, 16))
+    # A whole-month span fills to the month end; Dec->Jan rolls the year.
+    whole = _rule_monthname_range("August - September", "august - september")
+    assert (whole.min, whole.max) == (date(2026, 8, 1), date(2026, 9, 30))
+    roll = _rule_monthname_range("Dec-Jan", "dec-jan")
+    assert roll.max.year == 2027, roll
+    assert _rule_monthname_range("August 2026", "august 2026") is None, (
+        "a single month is not a range")
+
+
+def test_rule_within_month_modifier():
+    from ingest.parsing import _Span, _rule_month_modifier
+    res = _rule_month_modifier("end of July", "end of july")
+    assert isinstance(res, _Span) and res.type == "range"
+    assert (res.min, res.max) == (date(2026, 7, 25), date(2026, 7, 31))
+    mid = _rule_month_modifier("mid-September", "mid-september")
+    assert (mid.min, mid.max) == (date(2026, 9, 12), date(2026, 9, 18))
+    assert _rule_month_modifier("August 2026", "august 2026") is None
+
+
+def test_rule_numeric_date():
+    from ingest.parsing import _Point, _rule_numeric_date
+    assert _rule_numeric_date("8/15/2026", "") == _Point("explicit", date(2026, 8, 15))
+    assert _rule_numeric_date("2026-08-15", "") == _Point("explicit", date(2026, 8, 15))
+    # Concatenated typos are repaired before parsing.
+    assert _rule_numeric_date("6302026", "") == _Point("explicit", date(2026, 6, 30))
+    # A bare month/year is a "month" point, which the driver expands to a span.
+    assert _rule_numeric_date("08/2026", "") == _Point("month", date(2026, 8, 15))
+    assert _rule_numeric_date("Not sure", "") is None
+
+
+def test_rule_monthname_date():
+    from ingest.parsing import _Point, _rule_monthname_date
+    assert _rule_monthname_date("Aug 3, 2026", "") == _Point("explicit",
+                                                             date(2026, 8, 3))
+    assert _rule_monthname_date("3 Aug 2026", "") == _Point("explicit",
+                                                            date(2026, 8, 3))
+    assert _rule_monthname_date("August 2026", "") == _Point("month",
+                                                             date(2026, 8, 15))
+    assert _rule_monthname_date("8/15/2026", "") is None, "no month name present"
+
+
+def test_rule_prose_date():
+    from ingest.parsing import _Point, _rule_prose_date
+    assert _rule_prose_date("Delivery Scheduled for 9/27/2026", "") == _Point(
+        "explicit", date(2026, 9, 27))
+    assert _rule_prose_date("9/12 Delivered", "") == _Point("explicit",
+                                                            date(2026, 9, 12))
+    # Two dates: declined, because which one won depends on the wording.
+    assert _rule_prose_date("7/28 pushed back 8/4/26", "") is None
+    # Must not reach inside a malformed digit run and truncate it.
+    assert _rule_prose_date("8/1326", "") is None
+    assert _rule_prose_date("no dates here", "") is None
+
+
+def test_every_delivery_rule_has_its_own_test():
+    # Guard against the table growing a rule that only the driver ever exercises.
+    # Measuring coverage showed two rules ("explicit override", "relative single
+    # week") that never matched anywhere in the suite before these tests existed —
+    # including the override path, whose year-window exemption is deliberate.
+    import inspect
+    from ingest import parsing
+    src = inspect.getsource(inspect.getmodule(test_rule_prose_date))
+    missing = [name for name, rule in parsing._DELIVERY_RULES
+               if rule.__name__ + "(" not in src]
+    assert not missing, "rules with no direct test: %s" % missing
+
+
 def test_delivery_rule_order_is_load_bearing():
     # parse_delivery is an ordered rule table, and two positions carry behaviour
     # rather than style — this pins them so a future reordering fails here instead
