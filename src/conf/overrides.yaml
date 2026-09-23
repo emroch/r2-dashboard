@@ -329,6 +329,15 @@ overrides:
   # correcting unparseable sheet data
   SpeedDemon5:
     delivery_raw: "8/4/2026"
+  # partial vin
+  # https://www.rivianforums.com/forum/posts/1105681/
+  KenyMcCormick:
+    vin_raw: "116XX"
+  # invalid vin and delivery date
+  # https://www.rivianforums.com/forum/posts/1107561/
+  AlisR2:
+    vin_raw: "unknown"
+    delivery_raw: "unknown"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -818,6 +827,58 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
+  # https://www.rivianforums.com/forum/posts/1106648/
+  halby:
+    resv_raw: "7/5/2026"
+    order_raw: "9/15/2026"
+    loc_raw: "VA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1107133/
+  BarbPollak:
+    resv_raw: "7/29/2026"
+    order_raw: "9/22/2026"
+    loc_raw: "WA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1107334/
+  caffeinated:
+    resv_raw: "8/11/2024"
+    order_raw: "9/22/2026"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Borealis"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1107427/
+  dscoti:
+    resv_raw: "6/21/2026"
+    order_raw: "9/22/2026"
+    loc_raw: "NV"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Forest Green"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
   # ---------------------------------------------------------------------
   # Partly-reported orders. A forum post often pins down an order date and a
   # location while the build itself is still unstated; the blank fields below
