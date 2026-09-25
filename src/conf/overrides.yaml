@@ -338,6 +338,33 @@ overrides:
   AlisR2:
     vin_raw: "unknown"
     delivery_raw: "unknown"
+  # partial vin
+  # https://www.rivianforums.com/forum/posts/1107729/
+  carnewsrundown:
+    vin_raw: "109XX"
+  # partial vin
+  # https://www.rivianforums.com/forum/posts/1107735/
+  farnvader:
+    vin_raw: "116XX"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1107737/
+  R1T Preds Fan:
+    delivery_raw: "9/29/2026"
+  # delivery update
+  # https://www.rivianforums.com/forum/posts/1108123/
+  R2shan:
+    delivery_raw: "9/22/2026"
+  # partial vin
+  # https://www.rivianforums.com/forum/posts/1108302/
+  evlee:
+    vin_raw: "115XX"
+  # partial vin
+  # https://www.rivianforums.com/forum/posts/1108378/
+  snovarev:
+    vin_raw: "1220X"
+  # delivery update
+  GoArmy:
+    delivery_raw: "9/5/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -495,20 +522,6 @@ additions:
     tow: "Included"
     spare: "No"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1078685/
-  iamnid:
-    resv_raw: "3/7/2024"
-    order_raw: "8/18/2026"
-    loc_raw: "CA"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Catalina Cove"
-    interior: "Coastal Cloud Signature"
-    wheels: '20” Black Sand All-Terrain'
-    autonomy: "Included"
-    tow: "Included"
-    r1_owner: "Yes"
-    r1_model: "R1S"
   # https://www.rivianforums.com/forum/threads/forest-green-coastal-cloud-for-r2-available-1-40pm-edt-8-18-26.62878/post-1078833
   renderpaz:
     order_raw: "8/18/2026"
@@ -686,9 +699,11 @@ additions:
     r1_owner: "Yes"
     r1_model: "R1S"
   # https://www.rivianforums.com/forum/posts/1091296/
+  # https://www.rivianforums.com/forum/posts/1109036/
   tgrick:
     resv_raw: "3/14/2026"
     order_raw: "8/19/2026"
+    vin_raw: "112XX"
     loc_raw: "FL"
     trim: "Performance"
     launch: "Yes"
@@ -879,6 +894,53 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
+  # https://www.rivianforums.com/forum/posts/1108623/
+  surfinkal:
+    resv_raw: "3/7/2024"
+    order_raw: "8/18/2026"
+    vin_raw: "121XX"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Coastal Cloud Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1T"
+  # https://www.rivianforums.com/forum/threads/launch-green-coastal-cloud-r2-delivered.64650/
+  tgo10000:
+    order_raw: "8/18/2026"
+    delivery_raw: "9/23/2026"
+    loc_raw: "MO"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Launch Green"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "Both"
+  # https://www.rivianforums.com/forum/posts/1109264/
+  KenCar:
+    resv_raw: "3/7/2024"
+    order_raw: "8/18/2026"
+    delivery_raw: "Mid October"
+    vin_raw: "125XX"
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1S"
+
+
   # ---------------------------------------------------------------------
   # Partly-reported orders. A forum post often pins down an order date and a
   # location while the build itself is still unstated; the blank fields below
@@ -1013,10 +1075,23 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
+  # https://www.rivianforums.com/forum/threads/posts/1107771
+  thrillseeker1234:
+    resv_raw: "7/18/2026"
+    order_raw: "9/16/2026"
+    delivery_raw: "4-8 weeks"
+    vin_raw:
+    loc_raw: "CA"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Forest Green"
+    interior: "Black Crater Signature"
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
 
 # Cancellations — entries that were valid but no longer exist. See the header.
-
-
 deletions:
   orders:
     # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1086661
