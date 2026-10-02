@@ -1250,8 +1250,35 @@ def fig_geo(df, resv=None):
     return fig
 
 
+# The delivery pipeline's three stages, in stacking order. One definition shared by
+# the §12 chart and the summary-page stat cards, so the two can't disagree.
+DELIVERY_STAGES = ("Delivered (est.)", "Awaiting delivery · VIN",
+                   "Awaiting delivery · no VIN")
+
+
+def delivery_progress(df):
+    """Split orders into the three delivery-pipeline stages, as boolean masks.
+
+    A strict partition: every order lands in exactly one stage, so counts always
+    sum to len(df). "Delivered" is subtracted from whichever VIN bucket it came
+    from, and deliveries are counted whether or not a VIN is known — someone may
+    post about taking delivery without ever updating (or while obfuscating) their
+    VIN, and dropping those would undercount. Delivery is INFERRED from a passed
+    estimate, not reported; see the §12 description for what that does and doesn't
+    support.
+
+    Returns {stage name: mask} in DELIVERY_STAGES order.
+    """
+    delivered = (df["delivered_inferred"].astype(bool)
+                 if "delivered_inferred" in df.columns
+                 else pd.Series(False, index=df.index))
+    vin = df["vin_present"].astype(bool)
+    return dict(zip(DELIVERY_STAGES,
+                    (delivered, vin & ~delivered, ~vin & ~delivered)))
+
+
 def fig_state_totals(df):
-    """Per-state order counts as a delivery pipeline.
+    """Per-state order counts as a delivery pipeline, under an all-orders total.
 
     Every state that has ordered, sorted by total. Three segments stack to the
     state's full order count, so the bar length is the state total while the split
@@ -1259,58 +1286,67 @@ def fig_state_totals(df):
     delivery with a VIN known, then no VIN yet. Complements the maps above, where
     the long tail of one- and two-order states is hard to compare by bubble area.
 
-    The three are a strict partition of the state's orders — "delivered" is
-    subtracted from whichever VIN bucket it came from, so the segments always sum
-    to the total. Deliveries are counted whether or not a VIN is known: someone may
-    have posted about taking delivery without ever updating (or while obfuscating)
-    their VIN, and dropping those would undercount.
+    The top row is the same split summed over every state, on its OWN axis: at the
+    shared scale it would be several times the width of the largest state and
+    squash every other bar into the left edge. It carries each stage's count and
+    share as text, since that row exists to be read rather than compared.
     """
     d = df.dropna(subset=["lat"])
-    fig = go.Figure()
     if d.empty:
+        fig = go.Figure()
         fig.update_layout(template="plotly_white", height=420)
         return fig
     tot = _stable_counts(d.groupby("state").size())
+    stages = delivery_progress(d)
+    colors = dict(zip(DELIVERY_STAGES, (STATE_TOTALS_COLORS["delivered"],
+                                        STATE_TOTALS_COLORS["vin"],
+                                        STATE_TOTALS_COLORS["no_vin"])))
 
-    def per_state(mask):
-        return d[mask].groupby("state").size().reindex(tot.index, fill_value=0)
+    per_state_px = 18
+    states_px = max(386, per_state_px * len(tot))
+    total_px, gap_px = 52, 22
+    plot_px = total_px + gap_px + states_px
+    # A visible gap, so the total reads as a summary rather than as the first state.
+    fig = make_subplots(rows=2, cols=1, vertical_spacing=gap_px / plot_px,
+                        row_heights=[total_px / plot_px, states_px / plot_px])
 
-    delivered_mask = (d["delivered_inferred"]
-                      if "delivered_inferred" in d.columns
-                      else pd.Series(False, index=d.index))
-    delivered = per_state(delivered_mask)
-    # Pending, split by VIN. Deducting delivered from each bucket is what keeps the
-    # stack summing to the state total.
-    vin = per_state(d["vin_present"] & ~delivered_mask)
-    novin = per_state(~d["vin_present"] & ~delivered_mask)
+    n = len(d)
+    for name in DELIVERY_STAGES:
+        count = int(stages[name].sum())
+        fig.add_trace(go.Bar(
+            x=[count], y=["All states"], orientation="h", name=name,
+            legendgroup=name, showlegend=False,
+            marker=dict(color=colors[name], line=dict(color=CHART["edge"], width=0.5)),
+            text=["%d · %.0f%%" % (count, 100.0 * count / n)] if count else [""],
+            textposition="inside", insidetextanchor="middle",
+            textfont=dict(size=11),
+            hovertemplate="All states — %s: %%{x} (%.0f%%)<extra></extra>"
+                          % (name, 100.0 * count / n)), 1, 1)
 
     states = np.asarray(tot.index)
-    series = (("Delivered (est.)", delivered, STATE_TOTALS_COLORS["delivered"]),
-              ("Awaiting delivery · VIN", vin, STATE_TOTALS_COLORS["vin"]),
-              ("Awaiting delivery · no VIN", novin, STATE_TOTALS_COLORS["no_vin"]))
-    for name, vals, color in series:
+    for name in DELIVERY_STAGES:
+        vals = (d[stages[name]].groupby("state").size()
+                .reindex(tot.index, fill_value=0))
         fig.add_trace(go.Bar(
             x=np.asarray(vals.values), y=states, orientation="h", name=name,
-            marker=dict(color=color, line=dict(color=CHART["edge"], width=0.5)),
-            hovertemplate="%%{y} — %s: %%{x}<extra></extra>" % name))
+            legendgroup=name,
+            marker=dict(color=colors[name], line=dict(color=CHART["edge"], width=0.5)),
+            hovertemplate="%%{y} — %s: %%{x}<extra></extra>" % name), 2, 1)
     # Total at the end of each stacked bar (an invisible bar carrying the label).
     fig.add_trace(go.Bar(
         x=np.zeros(len(states)), y=states, orientation="h", showlegend=False,
         marker=dict(color="rgba(0,0,0,0)"), hoverinfo="skip",
         text=np.asarray(tot.values), textposition="outside", cliponaxis=False,
-        textfont=dict(size=10)))
-    # ~18px per state keeps the labels legible as the tail grows.
+        textfont=dict(size=10)), 2, 1)
+
     fig.update_layout(
         template="plotly_white", barmode="stack", bargap=0.25,
-        height=max(420, 34 + 18 * len(states)),
+        height=34 + plot_px + 40,
         # t=34 leaves room for the 22px modebar to sit in the margin instead of
         # over the longest bar. Every other chart on the page already has 30-100px
         # here (mostly Plotly's default), so this one was the outlier at t=10 —
         # matching them keeps the toolbar horizontal everywhere.
         margin=dict(l=0, r=30, t=34, b=40),
-        xaxis=dict(title="Orders", rangemode="tozero",
-                   range=[0, float(tot.max()) * 1.08]),
-        yaxis=dict(ticksuffix="  ", automargin=True),
         # Floated into the bottom-right of the plot rather than sitting above it:
         # the top-right is where Plotly puts its modebar, which covered the legend.
         # Bars are sorted ascending, so the smallest states leave that corner
@@ -1320,6 +1356,13 @@ def fig_state_totals(df):
                     x=0.98, xanchor="right", y=0.02, yanchor="bottom",
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
                     borderwidth=1))
+    # The total row's own axis: full width = every order, no ticks needed since
+    # each segment states its count.
+    fig.update_xaxes(range=[0, n], showticklabels=False, showgrid=False,
+                     zeroline=False, row=1, col=1)
+    fig.update_xaxes(title="Orders", rangemode="tozero",
+                     range=[0, float(tot.max()) * 1.08], row=2, col=1)
+    fig.update_yaxes(ticksuffix="  ", automargin=True)
     return fig
 
 

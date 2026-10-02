@@ -708,7 +708,8 @@ def test_state_totals_segments_partition_each_state():
              delivered_inferred=True),
     ])
     fig = fig_state_totals(df)
-    named = [t for t in fig.data if t.name]
+    # Per-state segments; the "All states" summary row is checked separately below.
+    named = [t for t in fig.data if t.name and list(t.y) != ["All states"]]
     assert len(named) == 3, [t.name for t in named]
     per_state = {}
     for t in named:
@@ -719,6 +720,40 @@ def test_state_totals_segments_partition_each_state():
     assert seg["Delivered (est.)"] == {"CA": 2, "TX": 1}
     assert seg["Awaiting delivery · VIN"] == {"CA": 1, "TX": 1}
     assert seg["Awaiting delivery · no VIN"] == {"CA": 1, "TX": 0}
+
+
+def test_state_totals_summary_row_matches_the_shared_split():
+    # #53: the all-states row and the summary-page cards come from ONE helper, so
+    # they can't drift. The row covers orders with a known state (an unmapped order
+    # is excluded from the chart), while the cards cover every order — so the two
+    # agree exactly when every order is located, and differ by the unmapped ones.
+    import pandas as pd
+    from render.charts import DELIVERY_STAGES, delivery_progress, fig_state_totals
+    def row(state, vin, delivered, lat=1.0):
+        return dict(state=state, lat=lat, vin_present=vin, delivered_inferred=delivered)
+    df = pd.DataFrame([
+        row("CA", True, True), row("CA", True, False), row("CA", False, True),
+        row("CA", False, False), row("TX", False, True), row("TX", True, False),
+        row("ZZ", True, True, lat=float("nan")),
+    ])
+    stages = delivery_progress(df)
+    # A strict partition: every order lands in exactly one stage.
+    assert list(stages) == list(DELIVERY_STAGES)
+    hits = sum(m.astype(int) for m in stages.values())
+    assert (hits == 1).all(), hits.tolist()
+    assert {k: int(m.sum()) for k, m in stages.items()} == {
+        "Delivered (est.)": 4, "Awaiting delivery · VIN": 2,
+        "Awaiting delivery · no VIN": 1}
+
+    top = {t.name: int(t.x[0]) for t in fig_state_totals(df).data
+           if t.name and list(t.y) == ["All states"]}
+    located = delivery_progress(df.dropna(subset=["lat"]))
+    assert top == {k: int(m.sum()) for k, m in located.items()}, top
+    assert sum(top.values()) == 6, "the unmapped ZZ order is not in the chart"
+    # Each segment states its count and share, since the row has no tick labels.
+    texts = [t.text[0] for t in fig_state_totals(df).data
+             if t.name and list(t.y) == ["All states"]]
+    assert texts == ["3 · 50%", "2 · 33%", "1 · 17%"], texts
 
 
 def test_delivered_inferred_only_for_a_passed_upper_bound():

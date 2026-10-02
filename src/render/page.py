@@ -17,7 +17,8 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup
 from plotly.offline import get_plotlyjs
 
-from .charts import (fig_certainty_by_vin, fig_color_interior_heatmap,
+from .charts import (delivery_progress,
+                     fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
                      fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
@@ -121,7 +122,9 @@ SECTIONS = [
                afterwards. That is rough and errs both ways: a delayed car still looks delivered, and one that arrived
                early against a vague estimate does not. Any estimate with a known end date counts, including a relative
                window that finished a while ago; orders with no estimate never do. Deliveries count whether or not a VIN
-               is known, since some people post about taking delivery without ever updating their VIN."""),
+               is known, since some people post about taking delivery without ever updating their VIN. The top row sums
+               every state on its own scale — at the shared one it would flatten every other bar. It is the same split as
+               the summary's delivery-progress cards, counted over the orders with a known state."""),
      fig_state_totals),
     ("Paint preference by location",
      dedent("""Does color taste vary geographically? All three panels are 100% stacked, so each row's paint mix is
@@ -509,6 +512,15 @@ def build_dashboard(df, report, resv):
             ("Range / window", rangewin, None),
             ("No date given", no_date, None),
             ("Unparseable", len(unparseable), unparseable),
+        ]),
+        # The same three-way split §12 draws per state, from the same helper, so the
+        # card and that chart's all-states row can't disagree. A strict partition of
+        # every order. "Delivered" is inferred from a passed estimate, not reported —
+        # the group title says so, since these cards carry no caption of their own.
+        ("Delivery progress (inferred, of %d orders)" % len(df), [
+            (label, int(mask.sum()), None)
+            for label, mask in zip(("Delivered", "Awaiting · VIN", "Awaiting · no VIN"),
+                                   delivery_progress(df).values())
         ]),
         # Configured vehicle price (no destination/doc/taxes). "Unpriced" keeps the
         # mean/median honest by showing what they were NOT computed over.
