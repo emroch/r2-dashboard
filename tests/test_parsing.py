@@ -874,13 +874,21 @@ def test_vin_scatter_keeps_whisker_indices_and_drops_contradictions():
     win["delivery_max"] = win["delivery_est"] + pd.Timedelta(days=7)
     fig = fig_delivery_vs_vin(pd.concat([df, bad, win], ignore_index=True))
     names = [t.name for t in fig.data]
-    assert names[-3].startswith("Build front") and names[-1].startswith("Projected front")
+    assert names[-3] == "Observed" and names[-1].startswith("Projected · ≈ ")
+    # The overlay sits in its own legend, separate from the paint · wheels series.
+    overlay = [t for t in fig.data if t.legend == "legend2"]
+    assert [t.name for t in overlay] == names[-3:], [t.name for t in overlay]
+    assert fig.layout.legend2.title.text == "Build front"
+    # The projection's hover quotes VINs (its own axis), rounded to the hundred.
+    proj = fig.data[-1]
+    assert "days" not in proj.hovertemplate and "likely VIN" in proj.hovertemplate
+    assert all(v % 100 == 0 for v in np.asarray(proj.customdata, dtype=float).ravel())
     assert fig.layout.updatemenus, "the fixture must produce whiskers to test against"
     whisk = set(fig.layout.updatemenus[0].buttons[0].args[1])
     assert whisk and all(fig.data[i].mode == "lines" and not fig.data[i].fill
                          for i in whisk), "toggle targets exactly the whisker traces"
-    assert not any((fig.data[i].name or "").startswith(("Build", "Projected", "±"))
-                   for i in whisk), "the whisker toggle must not reach the overlay"
+    assert not any(fig.data[i].legend == "legend2" for i in whisk), (
+        "the whisker toggle must not reach the overlay")
     # Date on x, VIN on y (transposed to match §9).
     assert fig.layout.xaxis.type == "date" and fig.layout.yaxis.type == "linear"
     vins = np.concatenate([np.asarray(t.y, dtype=float) for t in fig.data

@@ -127,11 +127,15 @@ def _add_build_front(fig, df):
     front = proj["front"] if proj else None
     if front is None or front.empty:
         return None
-    grp = "Build front"
+    # Its own legend, so the overlay reads as a separate layer from the paint ·
+    # wheels series rather than three more entries at the bottom of that list.
+    # legendrank fixes the reading order (observed, projected, range) independently
+    # of the trace order, which has to keep the band's polygon under the dashed line.
+    grp, leg = "Build front", "legend2"
     mid = front.index + pd.Timedelta(days=3)
     fig.add_trace(go.Scatter(
         x=np.asarray(mid), y=np.asarray(front.values), mode="lines+markers",
-        name="Build front (90th-pct VIN delivered each week)", legendgroup=grp,
+        name="Observed", legendgroup=grp, legend=leg, legendrank=1,
         line=dict(color=CADENCE_COLORS["front"], width=3),
         marker=dict(color=CADENCE_COLORS["front"], size=7,
                     line=dict(color=CHART["edge"], width=0.8)),
@@ -143,18 +147,22 @@ def _add_build_front(fig, df):
         x=pmid + pmid[::-1], y=np.concatenate([proj["lo"], proj["hi"][::-1]]),
         mode="lines", fill="toself",
         fillcolor=CADENCE_COLORS["band"], line=dict(width=0),
-        name="Back-tested projection error (mostly ahead)", legendgroup=grp,
+        name="Likely range", legendgroup=grp, legend=leg, legendrank=3,
         hoverinfo="skip"))
-    ahead = [0.0] + list(proj["ahead_days"])
-    behind = [0.0] + list(proj["behind_days"])
+    # The range in VINs, the band's own axis, rounded to the nearest hundred: the
+    # back-test can't support more precision than that, and digits beyond it would
+    # read as if it could. (It used to quote the miss in days, a second unit for the
+    # same band that only made sense after converting through the rate.)
+    rounded = lambda v: np.round(np.asarray(v) / 100.0) * 100.0
     fig.add_trace(go.Scatter(
         x=pmid, y=np.asarray(proj["center"]), mode="lines",
-        name="Projected front (≈ %.0f VINs/day)" % proj["rate"], legendgroup=grp,
+        name="Projected · ≈ %.0f VINs/day" % proj["rate"], legendgroup=grp,
+        legend=leg, legendrank=2,
         line=dict(color=CADENCE_COLORS["projection"], width=2.5, dash="dash"),
-        customdata=np.column_stack([proj["lo"], proj["hi"], behind, ahead]),
-        hovertemplate=("Week of %{x|%b %d}: projected front ≈ VIN %{y:,.0f}"
-                       "<br>range %{customdata[0]:,.0f}–%{customdata[1]:,.0f} "
-                       "(−%{customdata[2]:.0f} / +%{customdata[3]:.0f} days)"
+        customdata=np.column_stack([rounded(proj["center"]), rounded(proj["lo"]),
+                                    rounded(proj["hi"])]),
+        hovertemplate=("Week of %{x|%b %d}: front ≈ VIN %{customdata[0]:,.0f}"
+                       "<br>likely VIN %{customdata[1]:,.0f}–%{customdata[2]:,.0f}"
                        "<extra></extra>")))
     return proj
 
@@ -261,8 +269,13 @@ def fig_delivery_vs_vin(df):
     fig.update_layout(
         template="plotly_white", xaxis=xax, yaxis=yax,
         legend=dict(title_text="Paint · wheels", groupclick="togglegroup",
-                    tracegroupgap=0),
+                    tracegroupgap=0, x=1.02, xanchor="left", y=1, yanchor="top"),
         height=640, hovermode="closest", updatemenus=menu)
+    if proj:
+        # Bottom of the same column, so the two read as one key in two sections.
+        fig.update_layout(legend2=dict(
+            title_text="Build front", x=1.02, xanchor="left", y=0, yanchor="bottom",
+            bgcolor=CHART["legbg"], bordercolor=CHART["legbd"], borderwidth=1))
     if menu:
         fig.update_layout(margin=dict(t=54))
     _add_today_vline(fig)  # vertical — delivery date is the x-axis here
