@@ -116,6 +116,8 @@ HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
 STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
 # Configured-price charts: neutral bar + Compass Yellow accent.
 PRICE_COLORS = dict(_PALETTE["price"])
+# Order-to-delivery time: order markers, weekly median, coverage bars.
+LATENCY_COLORS = dict(_PALETTE["latency"])
 # Stacked take-rate panels: trim ramp, and which R1 an owner has.
 TRIM_COLORS = dict(_PALETTE["trims"])
 R1_MODEL_COLORS = dict(_PALETTE["r1_models"])
@@ -144,6 +146,8 @@ VIN_SEQ_MIN = int(_SAN["vin_seq_min"])
 # Plausible year window for a parsed delivery estimate (typo guard).
 DELIVERY_YEAR_MIN = int(_SAN["delivery_year_min"])
 DELIVERY_YEAR_MAX = int(_SAN["delivery_year_max"])
+# Order -> delivery sanity window in days (see parsing.implausible_latency).
+DELIVERY_LATENCY_MAX = int(_SAN.get("delivery_latency_max_days", 365))
 
 # Columns that identify a build, for collapsing repeat submissions (see
 # schema.yaml). Rows sharing a username AND all of these are the same order.
