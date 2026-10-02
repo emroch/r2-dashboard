@@ -119,10 +119,14 @@ SECTIONS = [
                newest cars arriving rather than the held-back ones still trickling in. The dashed line projects the
                front a few weeks ahead at the current rate, and the shaded band is how far off that same projection
                has actually been, measured by re-running it from earlier weeks on every build. It is an aggregate
-               only: where the front is heading, not when any particular order will arrive. <strong>The band is wide
-               right now on purpose</strong> — cadence more than doubled in mid-August, so projections made before
-               that fell well behind — and it narrows on its own as weeks at the steadier rate accumulate. Below,
-               the rate itself over time."""),
+               only: where the front is heading, not when any particular order will arrive.
+               <br><br><strong>The band leans upward on purpose.</strong> Production is still ramping, and so far it
+               has ramped in steps — cadence more than doubled in two weeks in mid-August — so past projections have
+               almost always fallen <em>behind</em> what actually happened, rarely ahead. Each side of the band is the
+               typical miss in that direction, so the upper side is the room for another step up. The line itself
+               stays at the current rate deliberately: models that extrapolate the ramp were tested and did worse,
+               carrying August's jump into September's plateau. The band narrows on its own as weeks at a steady rate
+               accumulate. Below, the rate itself over time."""),
      (fig_delivery_vs_vin, fig_vin_cadence)),
     ("VIN sequence by configuration",
      dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·

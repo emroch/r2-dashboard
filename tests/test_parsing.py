@@ -811,13 +811,29 @@ def test_projection_recovers_the_rate_and_measures_its_own_error():
     p = projection(_cadence_input(rate=150.0, weeks=13))
     assert p is not None
     assert abs(p["rate"] - 150.0) < 15, p["rate"]
-    # On a steady synthetic ramp the back-test should find the projection accurate,
-    # and the band must widen (never narrow) with the horizon.
-    assert p["err_days"][0] < 3, p["err_days"]
-    assert all(b >= a for a, b in zip(p["err_days"], p["err_days"][1:]))
-    # Zero width at the last observed week, symmetric afterwards.
+    # On a steady synthetic ramp the back-test should find the projection accurate
+    # in both directions, and neither side may narrow with the horizon.
+    assert p["ahead_days"][0] < 3 and p["behind_days"][0] < 3, (p["ahead_days"], p["behind_days"])
+    for side in (p["ahead_days"], p["behind_days"]):
+        assert all(b >= a for a, b in zip(side, side[1:])), side
+    # Zero width at the last observed week; each side then comes from its own misses.
     assert p["lo"][0] == p["hi"][0] == p["center"][0]
-    assert np.allclose(p["center"] - p["lo"], p["hi"] - p["center"])
+    assert np.allclose(p["hi"][1:] - p["center"][1:], np.array(p["ahead_days"]) * p["rate"])
+    assert np.allclose(p["center"][1:] - p["lo"][1:], np.array(p["behind_days"]) * p["rate"])
+
+
+def test_band_leans_ahead_when_the_rate_steps_up():
+    # The live situation: production ramps in STEPS, so projections fall behind and
+    # the band's upper side must be the wider one. A symmetric band would put as much
+    # room below the line as above, where the back-test found no misses.
+    from render.cadence import projection
+    slow = _cadence_input(rate=60.0, weeks=8)
+    fast = _cadence_input(rate=150.0, weeks=6, start="2026-08-24")
+    fast["vin_seq"] += slow["vin_seq"].max() - 1000
+    p = projection(pd.concat([slow, fast], ignore_index=True))
+    assert p is not None
+    assert p["ahead_days"][-1] > 2 * p["behind_days"][-1], (p["ahead_days"], p["behind_days"])
+    assert (p["hi"][-1] - p["center"][-1]) > (p["center"][-1] - p["lo"][-1])
 
 
 def test_projection_is_withheld_without_history_to_measure_it():
@@ -865,9 +881,11 @@ def test_vin_scatter_keeps_whisker_indices_and_drops_contradictions():
                          for i in whisk), "toggle targets exactly the whisker traces"
     assert not any((fig.data[i].name or "").startswith(("Build", "Projected", "±"))
                    for i in whisk), "the whisker toggle must not reach the overlay"
-    xs = np.concatenate([np.asarray(t.x, dtype=float) for t in fig.data
-                         if t.mode == "markers"])
-    assert 5555.0 not in xs, "a contradictory estimate is not plotted"
+    # Date on x, VIN on y (transposed to match §9).
+    assert fig.layout.xaxis.type == "date" and fig.layout.yaxis.type == "linear"
+    vins = np.concatenate([np.asarray(t.y, dtype=float) for t in fig.data
+                           if t.mode == "markers"])
+    assert 5555.0 not in vins, "a contradictory estimate is not plotted"
 
 
 def test_state_totals_segments_partition_each_state():

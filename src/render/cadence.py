@@ -15,10 +15,24 @@ Three ideas carry the design:
     ~1,300 in June to ~8,300 in September), so one line through everything averages
     the launch pace into today's. The rate is a Theil-Sen slope over the last few
     weeks of front, which a typo'd VIN can't drag.
-  * A SELF-CALIBRATING band. The projection's error band is not a chosen number: the
-    same fit is re-run as of earlier weeks on every build, its projections compared
-    with what was then delivered, and the band is that measured error. With too
-    little history to measure, there is no projection at all.
+  * A SELF-CALIBRATING, ASYMMETRIC band. The band is not a chosen number: the same
+    fit is re-run as of earlier weeks on every build, its projections compared with
+    what was then delivered, and each side of the band is the projection's typical
+    (mean) miss in that direction. Production is still ramping,
+    and the ramp has come in steps (cadence more than doubled in two weeks in mid-
+    August) rather than smoothly, so the misses are lopsided — the real front has
+    run AHEAD far more than behind. A symmetric band would understate the upside and
+    overstate the downside.
+
+    The line itself stays a constant recent rate on purpose. Models that extrapolate
+    the ramp (a curved front, or a trend in the rate) were back-tested on this data
+    and did worse: they learn the August jump and carry it into the September
+    plateau, overshooting by thousands of VINs. Nothing in the data says WHEN the
+    next step comes, but the back-test does say how big past ones were — so the
+    ramp is represented in the band, where it is measured, not in the line, where
+    it would be guessed.
+
+With too little history to measure, there is no projection at all.
 
 The projection is published in aggregate only — where the front is heading — never
 as a per-order delivery date.
@@ -160,7 +174,9 @@ def projection(df, horizon_weeks=CADENCE_HORIZON_WEEKS):
       rate         current VINs/day; fit_points: front weeks it rests on
       weeks        projected week starts, the last observed week first (zero width)
       center, lo, hi   projected front VIN and band, per projected week
-      err_days     back-tested mean absolute error for each horizon, non-decreasing
+      ahead_days   per horizon: mean miss when the real front ran AHEAD of the
+                   projection (the band's upper side), non-decreasing
+      behind_days  per horizon: mean miss when it fell BEHIND (the lower side)
       bias_days    mean signed back-test error (+ = reality ran ahead)
       n_backtest   how many projected-vs-actual comparisons the band rests on
     """
@@ -173,20 +189,29 @@ def projection(df, horizon_weeks=CADENCE_HORIZON_WEEKS):
     bt = backtest(d, horizon_weeks=horizon_weeks)
     if bt.empty:
         return None
-    mae = bt.assign(a=bt["err_days"].abs()).groupby("horizon")["a"].mean()
+    by_h = bt.groupby("horizon")["err_days"]
     # Only horizons the back-test actually measured, and never narrower further
     # out than nearer in — fewer samples at long horizons can't mean more certainty.
-    horizons = [h for h in range(1, horizon_weeks + 1) if h in mae.index]
+    horizons = [h for h in range(1, horizon_weeks + 1) if h in by_h.groups]
     if not horizons:
         return None
-    err = np.maximum.accumulate([mae[h] for h in horizons])
+    # Mean miss on each side, rather than the worst: with one step change in the
+    # history so far, the worst-case envelope reads as "expect another tripling", and
+    # with 6-8 comparisons per horizon a percentile is too coarse to mean much. A side
+    # with no misses at all has zero width — the projection hasn't erred that way.
+    def side(h, sign):
+        e = sign * by_h.get_group(h)
+        return float(e[e > 0].mean()) if (e > 0).any() else 0.0
+    ahead = np.maximum.accumulate([side(h, +1) for h in horizons])
+    behind = np.maximum.accumulate([side(h, -1) for h in horizons])
 
     last = front.index.max()
     weeks = [last] + [last + pd.Timedelta(weeks=h) for h in horizons]
     days = _mid_day(weeks)
     center = slope * days + icept
-    half = np.concatenate([[0.0], err]) * slope
+    up = np.concatenate([[0.0], ahead]) * slope
+    down = np.concatenate([[0.0], behind]) * slope
     return dict(front=front, rate=slope, fit_points=n_fit, weeks=weeks,
-                center=center, lo=center - half, hi=center + half,
-                err_days=list(err), bias_days=float(bt["err_days"].mean()),
-                n_backtest=len(bt))
+                center=center, lo=center - down, hi=center + up,
+                ahead_days=list(ahead), behind_days=list(behind),
+                bias_days=float(bt["err_days"].mean()), n_backtest=len(bt))
