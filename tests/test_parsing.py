@@ -690,6 +690,77 @@ def test_reconcile_r1_owner_trusts_a_named_model():
     assert reconcile_r1_owner("Yes", "") == ("Yes", None)
 
 
+# --- Order-to-delivery time (#19) ------------------------------------------
+
+
+def test_implausible_latency_flags_only_contradictions():
+    from ingest.parsing import implausible_latency
+    T = pd.Timestamp
+    order = T("2026-08-18")
+    # The real case: a bare "8-12" meant weeks, read as 12 August.
+    assert "before the order" in implausible_latency(order, T("2026-08-12"), T("2026-08-12"))
+    # A typo'd year: more than DELIVERY_LATENCY_MAX days out.
+    assert "days after" in implausible_latency(T("2026-09-25"), T("2027-09-27"), T("2027-09-27"))
+    # Ordinary waits are fine, including same-day and a range that STARTS before the
+    # order but ends after it — only an estimate wholly before the order is impossible.
+    assert implausible_latency(order, T("2026-09-20"), T("2026-09-20")) is None
+    assert implausible_latency(order, order, order) is None
+    assert implausible_latency(order, T("2026-08-01"), T("2026-09-30")) is None
+    # Nothing to compare when either side is missing.
+    assert implausible_latency(pd.NaT, T("2026-09-20"), T("2026-09-20")) is None
+    assert implausible_latency(order, pd.NaT, pd.NaT) is None
+
+
+def _latency_frame_input():
+    T = pd.Timestamp
+    rows = []
+    def add(user, order, est, typ="explicit"):
+        rows.append(dict(user=user, order_date=T(order) if order else pd.NaT,
+                         delivery_est=T(est) if est else pd.NaT,
+                         delivery_min=T(est) if est else pd.NaT,
+                         delivery_max=T(est) if est else pd.NaT, delivery_type=typ))
+    # Week of Mon 2026-08-03: three firm dates -> a median is drawn.
+    add("a", "2026-08-03", "2026-09-02")     # 30 days
+    add("b", "2026-08-04", "2026-09-13")     # 40 days
+    add("c", "2026-08-05", "2026-08-25")     # 20 days
+    add("d", "2026-08-06", None, "unknown")  # same week, no firm date -> coverage 3/4
+    # Week of Mon 2026-08-10: two firm dates -> too few for a median.
+    add("e", "2026-08-10", "2026-08-20")
+    add("f", "2026-08-11", "2026-08-31")
+    # Excluded: a window (not firm), an impossible estimate, a missing order date.
+    add("g", "2026-08-12", "2026-09-30", "window")
+    add("h", "2026-08-18", "2026-08-12")     # delivery before order
+    add("i", None, "2026-09-01")
+    return pd.DataFrame(rows)
+
+
+def test_latency_frame_keeps_only_measurable_firm_dates():
+    from render.charts import latency_frame
+    d = latency_frame(_latency_frame_input())
+    assert sorted(d["user"]) == ["a", "b", "c", "e", "f"], sorted(d["user"])
+    assert dict(zip(d["user"], d["days"]))["a"] == 30
+    # Monday-start weeks.
+    weeks = {u: str(w.date()) for u, w in zip(d["user"], d["order_week"])}
+    assert weeks["a"] == weeks["c"] == "2026-08-03" and weeks["e"] == "2026-08-10"
+
+
+def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
+    from render.charts import fig_delivery_latency
+    fig = fig_delivery_latency(_latency_frame_input())
+    med = [t for t in fig.data if (t.name or "").startswith("Weekly median")]
+    assert len(med) == 1
+    # Only the week with 3 firm dates gets a point, at its median (30 days).
+    assert list(med[0].y) == [30.0], list(med[0].y)
+    cov = [t for t in fig.data if t.type == "bar"][0]
+    # Coverage = shown / ALL orders placed that week, so the unknown-estimate,
+    # windowed and impossible orders count against it rather than vanishing.
+    # Week of 8/3: a,b,c of a,b,c,d = 75%. Week of 8/10: e,f of e,f,g = 67% (the
+    # window doesn't count as shown). Week of 8/17: h's impossible estimate leaves
+    # it 0 of 1 — excluded from the scatter, but still counted as an order placed.
+    assert [round(v) for v in cov.y] == [75, 67, 0], list(cov.y)
+    assert [int(n) for n in cov.customdata[:, 2]] == [4, 3, 1]
+
+
 def test_state_totals_segments_partition_each_state():
     # The three segments must sum to each state's order count: a delivery has to be
     # deducted from whichever VIN bucket it came from, or the bar overstates the
