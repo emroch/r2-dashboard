@@ -90,6 +90,12 @@ sanitize:
   # data-quality panel rather than plotted.
   delivery_year_min: 2024
   delivery_year_max: 2035
+  # Order-to-delivery sanity window, in days. An estimate that ENDS before the
+  # order was placed is impossible, and one that STARTS more than this long after
+  # it is almost certainly a typo'd year (9/27/2027 for an order placed 9/25/2026).
+  # Either way the estimate is listed in the data-quality panel, and left out of
+  # the delivery-time chart rather than plotted as a real wait.
+  delivery_latency_max_days: 365
 
 # Which columns identify a BUILD, for collapsing repeat submissions. Two rows
 # under one username are treated as the same order when all of these match: a

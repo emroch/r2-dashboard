@@ -172,6 +172,17 @@ state_totals:
   no_vin: "#c2ccd6"           # the take-rate "No / unspecified" grey
 
 # ---------------------------------------------------------------------------
+# Order-to-delivery time (latency chart). The same three hues the page already
+# uses: the shared chart blue for individual orders, Compass Yellow for the
+# emphasized summary (the weekly median), and the neutral grey for the coverage
+# bars underneath, which are context rather than a finding.
+# ---------------------------------------------------------------------------
+latency:
+  order: "#4c78a8"            # one marker per order with a firm delivery date
+  median: "#f3ae3d"           # Compass Yellow — weekly median line
+  coverage: "#9aa9b8"         # share of each week's orders shown above
+
+# ---------------------------------------------------------------------------
 # Configured-price charts: the neutral bar fill plus a Compass Yellow accent for
 # the emphasized series (option spend) and the highlighted median. The accent is
 # the same yellow the page uses for stat cards and the disclaimer border, so the

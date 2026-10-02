@@ -9,12 +9,13 @@ from plotly.subplots import make_subplots
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
                      HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_ORDER,
-                     INTERIOR_SHORT, PRICE_COLORS,
+                     INTERIOR_SHORT, LATENCY_COLORS, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
                      URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER,
                      WHEEL_SYMBOL)
+from ingest.parsing import implausible_latency
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -1320,6 +1321,120 @@ def fig_state_totals(df):
                     x=0.98, xanchor="right", y=0.02, yanchor="bottom",
                     bgcolor=CHART["legbg"], bordercolor=CHART["legbd"],
                     borderwidth=1))
+    return fig
+
+
+# A weekly median is only drawn for weeks with at least this many firm dates; below
+# it, one fast or slow delivery would swing the line by weeks.
+_LATENCY_MIN_WEEK_N = 3
+
+
+def latency_frame(df):
+    """Orders whose wait from order to delivery can be measured, with `days`.
+
+    Firm ("explicit") delivery dates only: a range or window is a guess at when the
+    car will come, so its midpoint would plot a precision the data doesn't have.
+    Orders whose estimate contradicts the order date are excluded by the SAME check
+    that lists them in the data-quality panel (parsing.implausible_latency), so a
+    point can't be dropped here without appearing there.
+    """
+    d = df[(df["delivery_type"] == "explicit") & df["order_date"].notna()
+           & df["delivery_est"].notna()].copy()
+    ok = [implausible_latency(o, mn, mx) is None for o, mn, mx in
+          zip(d["order_date"], d["delivery_min"], d["delivery_max"])]
+    d = d[ok]
+    d["days"] = (d["delivery_est"] - d["order_date"]).dt.days
+    # Monday-start week the order was placed in, for the median and coverage.
+    d["order_week"] = d["order_date"].dt.to_period("W-SUN").dt.start_time
+    return d
+
+
+def fig_delivery_latency(df):
+    """Days from order to firm delivery date, by order date, with the weekly median
+    and how much of each week's cohort is visible at all.
+
+    Y is the WAIT in days rather than the delivery date: days stay on one scale, so
+    a trend reads as a slope, where a delivery-date axis climbs up and to the right
+    regardless and hides it. Filled markers are dates that have passed (presumed
+    delivered); open ones are scheduled in the future.
+
+    The bottom panel is the point of the chart as much as the top one. A firm date
+    only appears once a delivery is close, so the most recent order weeks are
+    represented mainly by their FAST deliveries — their slow orders haven't been
+    scheduled yet. The weekly median therefore drifts down toward the present partly
+    as an artifact. Showing the share of each week's orders that appear above makes
+    that visible instead of leaving it to be mistaken for a trend.
+    """
+    d = latency_frame(df)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                        row_heights=[0.74, 0.26])
+    if d.empty:
+        fig.update_layout(template="plotly_white", height=560)
+        return fig
+
+    passed = d["delivery_est"] <= AS_OF
+    # An open symbol is drawn as an outline in marker.color at the marker's opacity,
+    # so the translucency that keeps the filled points from clumping made the open
+    # ones (and their legend icon) all but vanish on the dark card. They get a full-
+    # opacity, heavier outline instead; they are few, so overlap isn't a concern.
+    styles = (("Delivery date passed", passed,
+               dict(symbol="circle", opacity=0.65,
+                    line=dict(color=CHART["edge"], width=0.6))),
+              ("Scheduled (future date)", ~passed,
+               dict(symbol="circle-open", opacity=1.0, line=dict(width=1.8))))
+    for label, mask, style in styles:
+        sub = d[mask]
+        if sub.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=np.asarray(sub["order_date"]), y=np.asarray(sub["days"]), mode="markers",
+            name=label, legendgroup=label,
+            marker=dict(color=LATENCY_COLORS["order"], size=8, **style),
+            customdata=np.column_stack([sub["user"], sub["delivery_est"].dt.strftime("%b %d, %Y")]),
+            hovertemplate=("%{customdata[0]}<br>ordered %{x|%b %d, %Y}"
+                           "<br>delivery %{customdata[1]}<br>%{y} days<extra></extra>")),
+            1, 1)
+
+    weeks = d.groupby("order_week")["days"].agg(["median", "count"])
+    weeks = weeks[weeks["count"] >= _LATENCY_MIN_WEEK_N]
+    if not weeks.empty:
+        # Plotted at mid-week so the line sits among the points it summarizes.
+        mid = weeks.index + pd.Timedelta(days=3)
+        fig.add_trace(go.Scatter(
+            x=np.asarray(mid), y=np.asarray(weeks["median"]), mode="lines+markers",
+            name="Weekly median (%d+ orders)" % _LATENCY_MIN_WEEK_N,
+            line=dict(color=LATENCY_COLORS["median"], width=2.5),
+            marker=dict(color=LATENCY_COLORS["median"], size=7,
+                        line=dict(color=CHART["edge"], width=0.6)),
+            customdata=np.column_stack([weeks.index.strftime("%b %d"), weeks["count"]]),
+            hovertemplate=("Week of %{customdata[0]}: median %{y:.0f} days"
+                           "<br>%{customdata[1]} orders<extra></extra>")), 1, 1)
+
+    # Coverage: of all orders placed each week, how many appear in the top panel.
+    placed = df[df["order_date"].notna()].copy()
+    placed["order_week"] = placed["order_date"].dt.to_period("W-SUN").dt.start_time
+    denom = placed.groupby("order_week").size()
+    numer = d.groupby("order_week").size().reindex(denom.index, fill_value=0)
+    share = 100.0 * numer / denom
+    fig.add_trace(go.Bar(
+        x=np.asarray(denom.index + pd.Timedelta(days=3)), y=np.asarray(share),
+        name="Orders with a firm date", showlegend=False,
+        marker=dict(color=LATENCY_COLORS["coverage"],
+                    line=dict(color=CHART["edge"], width=0.5)),
+        customdata=np.column_stack([denom.index.strftime("%b %d"), numer, denom]),
+        hovertemplate=("Week of %{customdata[0]}: %{customdata[1]} of %{customdata[2]} "
+                       "orders have a firm date (%{y:.0f}%)<extra></extra>")), 2, 1)
+
+    fig.update_yaxes(title_text="Days from order to delivery", rangemode="tozero",
+                     row=1, col=1)
+    fig.update_yaxes(title_text="With a firm date", range=[0, 100], ticksuffix="%",
+                     row=2, col=1)
+    fig.update_xaxes(title_text="R2 order date", type="date", row=2, col=1)
+    fig.update_layout(
+        template="plotly_white", height=620, hovermode="closest", bargap=0.15,
+        margin=dict(t=40),
+        legend=dict(orientation="h", x=0, y=1.06, xanchor="left", yanchor="bottom",
+                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"], borderwidth=1))
     return fig
 
 
