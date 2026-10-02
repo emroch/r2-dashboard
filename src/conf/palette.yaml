@@ -183,6 +183,17 @@ latency:
   coverage: "#9aa9b8"         # share of each week's orders shown above
 
 # ---------------------------------------------------------------------------
+# Build front + projection overlaid on the delivery-vs-VIN scatter (§10), and the
+# cadence-over-time companion. The scatter's markers are paint colors, so the
+# overlay needs a hue that isn't a paint and reads on both surfaces: Compass
+# Yellow, the page's accent for "the summary, not a data point".
+# ---------------------------------------------------------------------------
+cadence:
+  front: "#f3ae3d"                     # observed weekly build front (solid)
+  projection: "#f3ae3d"                # projected front (dashed)
+  band: "rgba(243, 174, 61, 0.18)"     # back-tested error band around it
+
+# ---------------------------------------------------------------------------
 # Configured-price charts: the neutral bar fill plus a Compass Yellow accent for
 # the emphasized series (option spend) and the highlighted median. The accent is
 # the same yellow the page uses for stat cards and the disclaimer border, so the

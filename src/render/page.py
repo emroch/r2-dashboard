@@ -27,6 +27,7 @@ from .charts import (delivery_progress,
                      fig_order_timeline, fig_paint_by_location,
                      fig_price_by_trim, fig_price_distribution,
                      fig_price_options, fig_state_totals, fig_vin_by_config,
+                     fig_vin_cadence,
                      fig_vin_vs_order, fig_wheels_by_location)
 from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
                     RESV_THREAD, THEME_CSS, AS_OF)
@@ -111,8 +112,22 @@ SECTIONS = [
     ("Delivery date vs. VIN sequence",
      dedent("""Each point is an order with both a VIN and a delivery estimate. Color = paint, marker shape = wheels;
                whiskers span the quoted delivery window. Clusters of one color across a VIN range hint at same-config
-               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one."""),
-     fig_delivery_vs_vin),
+               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one.
+               <br><br>The yellow line is the <em>build front</em>: the 90th-percentile VIN delivered each finished
+               week, from firm delivery dates only. Delivery stands in for build date — the lag between them moves
+               where a VIN appears but not the slope, which is the build rate — and the high percentile tracks the
+               newest cars arriving rather than the held-back ones still trickling in. The dashed line projects the
+               front a few weeks ahead at the current rate, and the shaded band is how far off that same projection
+               has actually been, measured by re-running it from earlier weeks on every build. It is an aggregate
+               only: where the front is heading, not when any particular order will arrive.
+               <br><br><strong>The band leans upward on purpose.</strong> Production is still ramping, and so far it
+               has ramped in steps — cadence more than doubled in two weeks in mid-August — so past projections have
+               almost always fallen <em>behind</em> what actually happened, rarely ahead. Each side of the band is the
+               typical miss in that direction, so the upper side is the room for another step up. The line itself
+               stays at the current rate deliberately: models that extrapolate the ramp were tested and did worse,
+               carrying August's jump into September's plateau. The band narrows on its own as weeks at a steady rate
+               accumulate. Below, the rate itself over time."""),
+     (fig_delivery_vs_vin, fig_vin_cadence)),
     ("VIN sequence by configuration",
      dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·
                color · wheels · interior); marker fill = paint, shape = wheels. Clusters along a row suggest
