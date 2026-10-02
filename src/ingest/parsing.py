@@ -12,7 +12,8 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from config import (AS_OF, CA_PROVINCES, DELIVERY_OVERRIDES, DELIVERY_YEAR_MAX,
+from config import (AS_OF, CA_PROVINCES, DELIVERY_LATENCY_MAX,
+                     DELIVERY_OVERRIDES, DELIVERY_YEAR_MAX,
                      DELIVERY_YEAR_MIN, FACTORY, MONTHS, MONTH_MODIFIERS,
                      ORDER_ANCHOR_MIN, STATE_INFO, STATE_REFERENCE,
                      UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VIN_SEQ_MIN,
@@ -507,6 +508,35 @@ def parse_delivery(raw, order_date):
         return out
 
     return out
+
+
+def implausible_latency(order_date, delivery_min, delivery_max):
+    """Why an order's delivery estimate can't be right given its order date, or None.
+
+    Two impossible-or-near-impossible shapes, both of which parse cleanly on their
+    own and only show up against the order date:
+
+      * the WHOLE estimate falls before the order — a car can't arrive before it is
+        ordered. Seen in practice from a bare "8-12" (meant "8-12 weeks", read as
+        12 August on an order placed 18 August), and from a date that belongs to a
+        different order;
+      * the estimate STARTS more than DELIVERY_LATENCY_MAX days after the order —
+        nearly always a typo'd year.
+
+    Comparing the window's END to the order date (not its midpoint) means a range
+    that merely starts before the order but extends past it is not flagged. Returns
+    None when either side is missing, since there is nothing to compare.
+    """
+    if pd.isna(order_date) or pd.isna(delivery_min) or pd.isna(delivery_max):
+        return None
+    if delivery_max < order_date:
+        return ("delivery estimate (%s) is before the order date (%s)"
+                % (delivery_max.date(), order_date.date()))
+    days = (delivery_min - order_date).days
+    if days > DELIVERY_LATENCY_MAX:
+        return ("delivery estimate (%s) is %d days after the order date (%s) — "
+                "a typo'd year?" % (delivery_min.date(), days, order_date.date()))
+    return None
 
 
 def reconcile_r1_owner(owner, model):

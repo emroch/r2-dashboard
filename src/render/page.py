@@ -20,7 +20,8 @@ from plotly.offline import get_plotlyjs
 from .charts import (fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
                      fig_config_dashboard, fig_delivery_timeline,
-                     fig_delivery_vs_vin, fig_dest_vs_delivery, fig_geo,
+                     fig_delivery_latency, fig_delivery_vs_vin,
+                     fig_dest_vs_delivery, fig_geo,
                      fig_interior_by_location,
                      fig_order_timeline, fig_paint_by_location,
                      fig_price_by_trim, fig_price_distribution,
@@ -86,6 +87,18 @@ SECTIONS = [
     ("Estimated delivery timeline",
      dedent("""When the cohort expects delivery, stacked by how firm the estimate is."""),
      fig_delivery_timeline),
+    ("Order-to-delivery time",
+     dedent("""How long people wait between placing an order and delivery, for orders with a firm delivery date
+               — a range or window is a guess, so its midpoint would claim precision it doesn't have. Each point is
+               one order, at its order date; filled points are dates that have passed (presumed delivered) and open
+               points are scheduled in the future. The line is the weekly median, drawn only for weeks with at least
+               three firm dates. <strong>Read the recent end with care.</strong> A firm date usually only appears
+               once delivery is close, so the latest order weeks are represented mainly by their <em>fast</em>
+               deliveries — their slower orders haven't been scheduled yet. The bottom panel shows how much of each
+               week's orders the points above actually cover; where it is low, the median is biased short and will
+               likely rise as the rest report. Estimates that contradict the order date are left out and listed in
+               the data-quality panel."""),
+     fig_delivery_latency),
     ("Estimate certainty vs. VIN status",
      dedent("""Share of orders with known delivery dates."""),
      fig_certainty_by_vin),
@@ -311,6 +324,13 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("latency_anomalies", "Delivery estimates that contradict the order date",
+     "Estimates that parse on their own but can't be right against the order: the "
+     "whole estimate falls before the order was placed, or it starts more than a "
+     "year after it (usually a typo'd year). Which of the two dates is wrong can't "
+     "be told from the data, so nothing is corrected — they are left out of the "
+     "delivery-time chart and listed here for review. A bare \"8-12\" is a common "
+     "cause: it was meant as weeks but reads as a date."),
     ("merge_conflicts", "Repeat submissions that disagreed",
      "Fields where a person's repeat submissions of the SAME build contradicted "
      "each other. The rows are merged into one order, taking each field from the "

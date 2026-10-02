@@ -18,7 +18,8 @@ from config import (ADDITIONS, AS_OF, AVAILABILITY, DELETIONS_ORDERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
                      UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS)
-from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
+from .parsing import (clean_vin, geo_enrich, haversine_mi, implausible_latency,
+                      parse_delivery,
                       parse_simple_date, reconcile_r1_owner, wheel_label)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
 from .schema_check import find_header, map_columns
@@ -579,6 +580,15 @@ def load_and_clean(text, meta):
                 and low not in UNKNOWN_TOKENS
                 and not any(s in low for s in UNKNOWN_SUBSTRINGS)):
             unparseable.append((r["orig_num"], r["user"], r["delivery_raw"]))
+    # Delivery estimates that parse fine alone but contradict the order date. Not
+    # corrected — which of the two dates is wrong can't be told from here — but
+    # listed, and left out of the delivery-time chart, which uses the same check.
+    latency_anomalies = []
+    for _, r in df.iterrows():
+        why = implausible_latency(r["order_date"], r["delivery_min"], r["delivery_max"])
+        if why:
+            latency_anomalies.append((r["orig_num"], r["user"],
+                                      "%r — %s" % (r["delivery_raw"], why)))
     # Usernames that normalize alike (case/space/punctuation) but weren't merged
     # by the exact-lowercase dedup — possibly the same person entered twice.
     by_norm = {}
@@ -662,6 +672,7 @@ def load_and_clean(text, meta):
         "quality": {
             "schema_notices": schema_notices,
             "unparseable": unparseable,
+            "latency_anomalies": latency_anomalies,
             "fuzzy_dups": fuzzy_dups,
             "dup_conflicts": dup_conflicts,
             "merge_conflicts": merge_conflicts,
