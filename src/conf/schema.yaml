@@ -132,7 +132,12 @@ dedupe_identity_columns: [trim, color, wheels, interior]
 #                   when cadence roughly quadrupled.
 # The projection band is NOT configured here: it is the error measured by
 # re-running the same back-test on every build, so it widens or narrows with the
-# data instead of being a number someone picked.
+# data instead of being a number someone picked. It is ASYMMETRIC: each side is the
+# mean miss in that direction. Production is still ramping in steps, so misses have
+# been almost entirely ahead (the real front outran the line), and a symmetric band
+# would put uncertainty where the data says there isn't any. The line itself stays a
+# constant recent rate; models that extrapolate the ramp were back-tested and did
+# worse, carrying the August jump into the September plateau (see render/cadence.py).
 cadence:
   front_quantile: 0.9
   window_weeks: 6

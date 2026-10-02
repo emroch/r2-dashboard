@@ -117,10 +117,10 @@ def _whisker_toggle_menu(whisker_idx, x=0.0):
 def _add_build_front(fig, df):
     """Overlay the observed build front and, when it can be measured, its projection.
 
-    The front is plotted at each delivery week's midpoint, with VIN on x like the
-    points it summarizes. The projection is a dashed continuation with a band equal
-    to its back-tested error; it is drawn only when cadence.projection could measure
-    that error. Aggregate only — it says where the front is heading, never when a
+    The front is plotted at each delivery week's midpoint (date on x, VIN on y, like
+    the points it summarizes). The projection is a dashed continuation with an
+    asymmetric band from its back-tested misses; it is drawn only when
+    cadence.projection could measure them. Aggregate only — it says where the front is heading, never when a
     particular order will arrive. Returns the projection dict, or None.
     """
     proj = cadence_projection(df)
@@ -130,28 +130,32 @@ def _add_build_front(fig, df):
     grp = "Build front"
     mid = front.index + pd.Timedelta(days=3)
     fig.add_trace(go.Scatter(
-        x=np.asarray(front.values), y=np.asarray(mid), mode="lines+markers",
+        x=np.asarray(mid), y=np.asarray(front.values), mode="lines+markers",
         name="Build front (90th-pct VIN delivered each week)", legendgroup=grp,
         line=dict(color=CADENCE_COLORS["front"], width=3),
         marker=dict(color=CADENCE_COLORS["front"], size=7,
                     line=dict(color=CHART["edge"], width=0.8)),
-        hovertemplate="Week of %{y|%b %d}: build front ≈ VIN %{x:,.0f}<extra></extra>"))
+        hovertemplate="Week of %{x|%b %d}: build front ≈ VIN %{y:,.0f}<extra></extra>"))
     pmid = [w + pd.Timedelta(days=3) for w in proj["weeks"]]
-    # The band as one closed polygon: lower edge up, upper edge back down.
+    # The band as one closed polygon: lower edge forward in time, upper edge back.
+    # Asymmetric — each side is the typical back-tested miss in that direction.
     fig.add_trace(go.Scatter(
-        x=np.concatenate([proj["lo"], proj["hi"][::-1]]),
-        y=pmid + pmid[::-1], mode="lines", fill="toself",
+        x=pmid + pmid[::-1], y=np.concatenate([proj["lo"], proj["hi"][::-1]]),
+        mode="lines", fill="toself",
         fillcolor=CADENCE_COLORS["band"], line=dict(width=0),
-        name="± back-tested projection error", legendgroup=grp, hoverinfo="skip"))
-    err = [0.0] + list(proj["err_days"])
+        name="Back-tested projection error (mostly ahead)", legendgroup=grp,
+        hoverinfo="skip"))
+    ahead = [0.0] + list(proj["ahead_days"])
+    behind = [0.0] + list(proj["behind_days"])
     fig.add_trace(go.Scatter(
-        x=np.asarray(proj["center"]), y=pmid, mode="lines",
+        x=pmid, y=np.asarray(proj["center"]), mode="lines",
         name="Projected front (≈ %.0f VINs/day)" % proj["rate"], legendgroup=grp,
         line=dict(color=CADENCE_COLORS["projection"], width=2.5, dash="dash"),
-        customdata=np.column_stack([proj["lo"], proj["hi"], err]),
-        hovertemplate=("Week of %{y|%b %d}: projected front ≈ VIN %{x:,.0f}"
+        customdata=np.column_stack([proj["lo"], proj["hi"], behind, ahead]),
+        hovertemplate=("Week of %{x|%b %d}: projected front ≈ VIN %{y:,.0f}"
                        "<br>range %{customdata[0]:,.0f}–%{customdata[1]:,.0f} "
-                       "(±%{customdata[2]:.0f} days)<extra></extra>")))
+                       "(−%{customdata[2]:.0f} / +%{customdata[3]:.0f} days)"
+                       "<extra></extra>")))
     return proj
 
 
@@ -210,12 +214,14 @@ def fig_delivery_vs_vin(df):
         grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
         # Whiskers (min-max span + caps) for window/range estimates, in the
         # series' legendgroup so they toggle/isolate with its markers.
+        # Date on x, VIN on y: the quoted window is a horizontal span at the order's
+        # VIN, capped by short vertical ticks.
         xw, yw = [], []
-        for x, mn, mx in zip(s["vin_seq"], s["delivery_min"], s["delivery_max"]):
+        for v, mn, mx in zip(s["vin_seq"], s["delivery_min"], s["delivery_max"]):
             if pd.notna(mn) and pd.notna(mx) and mx > mn:
                 a, b = mn.strftime("%Y-%m-%d"), mx.strftime("%Y-%m-%d")
-                xw += [x, x, None, x - cap, x + cap, None, x - cap, x + cap, None]
-                yw += [a, b, None, b, b, None, a, a, None]
+                xw += [a, b, None, b, b, None, a, a, None]
+                yw += [v, v, None, v - cap, v + cap, None, v - cap, v + cap, None]
         if xw:
             whisk.append(len(fig.data))
             fig.add_trace(go.Scatter(
@@ -225,7 +231,7 @@ def fig_delivery_vs_vin(df):
         cd, ht = _config_hover(s)
         opac = [TYPE_OPACITY.get(t, 0.4) for t in s["delivery_type"]]
         fig.add_trace(go.Scatter(
-            x=np.asarray(s["vin_seq"]), y=np.asarray(s["delivery_est"]),
+            x=np.asarray(s["delivery_est"]), y=np.asarray(s["vin_seq"]),
             mode="markers", name=grp, legendgroup=grp,
             marker=dict(color=_paint_fill(color), size=11,
                         symbol=sym, opacity=opac,
@@ -236,17 +242,18 @@ def fig_delivery_vs_vin(df):
     # toggle above addresses traces by index, so nothing may be inserted before them.
     proj = _add_build_front(fig, df)
     # Fixed ranges + pinned axis types so toggling series or zooming never
-    # rescales the view; span the today line too.
-    xax = dict(title_text="VIN sequence number  (production order →)", type="linear")
-    yax = dict(title_text="Estimated delivery date  (whiskers = quoted window)",
+    # rescales the view; span the today line and the projection band too. Date on
+    # the bottom, matching §9, so the two read the same way.
+    xax = dict(title_text="Estimated delivery date  (whiskers = quoted window)",
                type="date")
-    x_extra = pd.Series(np.concatenate([proj["lo"], proj["hi"]])) if proj else None
-    xr = _num_range(d["vin_seq"] if x_extra is None
-                    else pd.concat([d["vin_seq"].astype(float), x_extra]),
+    yax = dict(title_text="VIN sequence number  (production order →)", type="linear")
+    x_extra = [pd.Series(proj["weeks"]) + pd.Timedelta(days=6)] if proj else []
+    xr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]]
+                     + x_extra, include=AS_OF)
+    y_extra = pd.Series(np.concatenate([proj["lo"], proj["hi"]])) if proj else None
+    yr = _num_range(d["vin_seq"] if y_extra is None
+                    else pd.concat([d["vin_seq"].astype(float), y_extra]),
                     min_pad=cap * 1.5)
-    y_extra = [pd.Series(proj["weeks"]) + pd.Timedelta(days=6)] if proj else []
-    yr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]]
-                     + y_extra, include=AS_OF)
     if xr:
         xax["range"] = xr
     if yr:
@@ -258,7 +265,7 @@ def fig_delivery_vs_vin(df):
         height=640, hovermode="closest", updatemenus=menu)
     if menu:
         fig.update_layout(margin=dict(t=54))
-    _add_today_hline(fig)  # horizontal — delivery date is the y-axis here
+    _add_today_vline(fig)  # vertical — delivery date is the x-axis here
     return fig
 
 
