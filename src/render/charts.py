@@ -9,13 +9,16 @@ from plotly.subplots import make_subplots
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
                      HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_ORDER,
-                     INTERIOR_SHORT, LATENCY_COLORS, PRICE_COLORS,
+                     CADENCE_COLORS, CADENCE_WINDOW_WEEKS, INTERIOR_SHORT,
+                     LATENCY_COLORS, PRICE_COLORS,
                      PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
                      STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
                      URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER,
                      WHEEL_SYMBOL)
 from ingest.parsing import implausible_latency
+
+from .cadence import projection as cadence_projection, rate_history
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -111,6 +114,77 @@ def _whisker_toggle_menu(whisker_idx, x=0.0):
                               args=[{"visible": False}, idx])])]
 
 
+def _add_build_front(fig, df):
+    """Overlay the observed build front and, when it can be measured, its projection.
+
+    The front is plotted at each delivery week's midpoint, with VIN on x like the
+    points it summarizes. The projection is a dashed continuation with a band equal
+    to its back-tested error; it is drawn only when cadence.projection could measure
+    that error. Aggregate only — it says where the front is heading, never when a
+    particular order will arrive. Returns the projection dict, or None.
+    """
+    proj = cadence_projection(df)
+    front = proj["front"] if proj else None
+    if front is None or front.empty:
+        return None
+    grp = "Build front"
+    mid = front.index + pd.Timedelta(days=3)
+    fig.add_trace(go.Scatter(
+        x=np.asarray(front.values), y=np.asarray(mid), mode="lines+markers",
+        name="Build front (90th-pct VIN delivered each week)", legendgroup=grp,
+        line=dict(color=CADENCE_COLORS["front"], width=3),
+        marker=dict(color=CADENCE_COLORS["front"], size=7,
+                    line=dict(color=CHART["edge"], width=0.8)),
+        hovertemplate="Week of %{y|%b %d}: build front ≈ VIN %{x:,.0f}<extra></extra>"))
+    pmid = [w + pd.Timedelta(days=3) for w in proj["weeks"]]
+    # The band as one closed polygon: lower edge up, upper edge back down.
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([proj["lo"], proj["hi"][::-1]]),
+        y=pmid + pmid[::-1], mode="lines", fill="toself",
+        fillcolor=CADENCE_COLORS["band"], line=dict(width=0),
+        name="± back-tested projection error", legendgroup=grp, hoverinfo="skip"))
+    err = [0.0] + list(proj["err_days"])
+    fig.add_trace(go.Scatter(
+        x=np.asarray(proj["center"]), y=pmid, mode="lines",
+        name="Projected front (≈ %.0f VINs/day)" % proj["rate"], legendgroup=grp,
+        line=dict(color=CADENCE_COLORS["projection"], width=2.5, dash="dash"),
+        customdata=np.column_stack([proj["lo"], proj["hi"], err]),
+        hovertemplate=("Week of %{y|%b %d}: projected front ≈ VIN %{x:,.0f}"
+                       "<br>range %{customdata[0]:,.0f}–%{customdata[1]:,.0f} "
+                       "(±%{customdata[2]:.0f} days)<extra></extra>")))
+    return proj
+
+
+def fig_vin_cadence(df):
+    """Build cadence over time: the rolling robust rate behind the projected front.
+
+    Each point is the VINs/day rate as it would have been fitted at the end of that
+    week, over the preceding window of front weeks. Shows that cadence is ramping,
+    which is why a single rate through all of history understates the current one.
+    """
+    hist = rate_history(df)
+    fig = go.Figure()
+    if hist.empty:
+        fig.update_layout(template="plotly_white", height=300)
+        return fig
+    mid = hist.index + pd.Timedelta(days=3)
+    fig.add_trace(go.Scatter(
+        x=np.asarray(mid), y=np.asarray(hist.values), mode="lines+markers",
+        name="VINs per day", showlegend=False,
+        line=dict(color=CADENCE_COLORS["front"], width=2.5),
+        marker=dict(color=CADENCE_COLORS["front"], size=7,
+                    line=dict(color=CHART["edge"], width=0.8)),
+        hovertemplate=("Week of %{x|%b %d}: ≈ %{y:.0f} VINs/day"
+                       "<extra></extra>")))
+    fig.update_layout(
+        template="plotly_white", height=300, margin=dict(t=40),
+        title=_chart_title("Build cadence (rate over the previous %d weeks of front)"
+                           % CADENCE_WINDOW_WEEKS),
+        xaxis=dict(title_text="Delivery week", type="date"),
+        yaxis=dict(title_text="VINs per day", rangemode="tozero"))
+    return fig
+
+
 def fig_delivery_vs_vin(df):
     """Estimated delivery date vs VIN sequence, coded by config.
 
@@ -122,6 +196,12 @@ def fig_delivery_vs_vin(df):
     """
     d = _reported(df[df["vin_present"] & df["delivery_est"].notna()],
                   "color", "wheels_short")
+    # Leave out estimates that contradict their own order date, by the same check
+    # that lists them in the data-quality panel and keeps them out of §7. One typo'd
+    # year (a 2027 date on a 2026 order) otherwise stretches the date axis across a
+    # year and squashes every real point into its bottom quarter.
+    d = d[[implausible_latency(o, mn, mx) is None for o, mn, mx in
+           zip(d["order_date"], d["delivery_min"], d["delivery_max"])]]
     fig = go.Figure()
     xs = d["vin_seq"].astype(float)
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
@@ -152,14 +232,21 @@ def fig_delivery_vs_vin(df):
                         line=dict(color=CHART["edge"], width=0.8)),
             customdata=cd, hovertemplate=ht))
     menu = _whisker_toggle_menu(whisk, x=0.0)
+    # Build front + projection. Appended AFTER every series on purpose: the whisker
+    # toggle above addresses traces by index, so nothing may be inserted before them.
+    proj = _add_build_front(fig, df)
     # Fixed ranges + pinned axis types so toggling series or zooming never
     # rescales the view; span the today line too.
     xax = dict(title_text="VIN sequence number  (production order →)", type="linear")
     yax = dict(title_text="Estimated delivery date  (whiskers = quoted window)",
                type="date")
-    xr = _num_range(d["vin_seq"], min_pad=cap * 1.5)
-    yr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]],
-                     include=AS_OF)
+    x_extra = pd.Series(np.concatenate([proj["lo"], proj["hi"]])) if proj else None
+    xr = _num_range(d["vin_seq"] if x_extra is None
+                    else pd.concat([d["vin_seq"].astype(float), x_extra]),
+                    min_pad=cap * 1.5)
+    y_extra = [pd.Series(proj["weeks"]) + pd.Timedelta(days=6)] if proj else []
+    yr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]]
+                     + y_extra, include=AS_OF)
     if xr:
         xax["range"] = xr
     if yr:

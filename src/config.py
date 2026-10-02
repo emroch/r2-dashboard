@@ -118,6 +118,8 @@ STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
 PRICE_COLORS = dict(_PALETTE["price"])
 # Order-to-delivery time: order markers, weekly median, coverage bars.
 LATENCY_COLORS = dict(_PALETTE["latency"])
+# Build front / projection overlay and the cadence companion chart.
+CADENCE_COLORS = dict(_PALETTE["cadence"])
 # Stacked take-rate panels: trim ramp, and which R1 an owner has.
 TRIM_COLORS = dict(_PALETTE["trims"])
 R1_MODEL_COLORS = dict(_PALETTE["r1_models"])
@@ -152,6 +154,14 @@ DELIVERY_LATENCY_MAX = int(_SAN.get("delivery_latency_max_days", 365))
 # Columns that identify a build, for collapsing repeat submissions (see
 # schema.yaml). Rows sharing a username AND all of these are the same order.
 DEDUPE_IDENTITY = list(_SCHEMA.get("dedupe_identity_columns") or [])
+
+# --- Build cadence / projected build front (schema.yaml) ------------------
+_CAD = _SCHEMA.get("cadence") or {}
+CADENCE_FRONT_Q = float(_CAD.get("front_quantile", 0.9))
+CADENCE_WINDOW_WEEKS = int(_CAD.get("window_weeks", 6))
+CADENCE_MIN_WEEK_N = int(_CAD.get("min_week_n", 4))
+CADENCE_HORIZON_WEEKS = int(_CAD.get("horizon_weeks", 4))
+CADENCE_BACKTEST_CUTS = int(_CAD.get("backtest_cuts", 8))
 
 # --- Option take-rate vocabulary (schema.yaml) ----------------------------
 _OPT = _SCHEMA["options"]

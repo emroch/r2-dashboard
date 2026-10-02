@@ -13,6 +13,7 @@ import os
 import sys
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 # Self-path: put the repo's src/ dir on sys.path so the source modules import
@@ -759,6 +760,114 @@ def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
     # it 0 of 1 — excluded from the scatter, but still counted as an order placed.
     assert [round(v) for v in cov.y] == [75, 67, 0], list(cov.y)
     assert [int(n) for n in cov.customdata[:, 2]] == [4, 3, 1]
+
+
+# --- Build cadence (#33) ----------------------------------------------------
+
+
+def _cadence_input(rate=150.0, weeks=12, per_week=8, start="2026-06-29",
+                   as_of="2026-10-02", jitter=0.0, seed=0):
+    """Synthetic firm-dated deliveries whose build front rises at `rate` VINs/day."""
+    rng = np.random.default_rng(seed)
+    T = pd.Timestamp
+    rows = []
+    for w in range(weeks):
+        week = T(start) + pd.Timedelta(weeks=w)
+        for k in range(per_week):
+            day = week + pd.Timedelta(days=int(k % 7))
+            # A spread of VINs below the front, like held-back cars, plus the front.
+            vin = 1000 + rate * (day - T(start)).days - rng.uniform(0, 2000) * (k % 3)
+            vin += rng.normal(0, jitter)
+            rows.append(dict(vin_present=True, vin_seq=float(vin), delivery_type="explicit",
+                             delivery_est=day, delivery_min=day, delivery_max=day,
+                             order_date=day - pd.Timedelta(days=30)))
+    return pd.DataFrame(rows)
+
+
+def test_theil_sen_is_exact_on_a_line_and_ignores_an_outlier():
+    from render.cadence import theil_sen
+    x = np.arange(10.0)
+    assert theil_sen(x, 3 * x + 7) == (3.0, 7.0)
+    y = 3 * x + 7
+    y[4] = 99999.0                          # a typo'd VIN must not drag the rate
+    slope, _ = theil_sen(x, y)
+    assert abs(slope - 3.0) < 0.5, slope
+    assert theil_sen([1.0], [2.0]) is None
+
+
+def test_build_front_uses_only_finished_weeks_with_enough_dates():
+    from render.cadence import build_front, cadence_frame
+    d = cadence_frame(_cadence_input(weeks=16))
+    front = build_front(d, as_of=pd.Timestamp("2026-10-02"))
+    # Weeks starting 9/28 and later haven't finished by 10/2 — a scheduled week holds
+    # only the few people with a date, so its high percentile would sit low.
+    assert front.index.max() == pd.Timestamp("2026-09-21"), front.index.max()
+    thin = build_front(d, min_n=50, as_of=pd.Timestamp("2026-10-02"))
+    assert thin.empty, "weeks below min_n contribute no front point"
+
+
+def test_projection_recovers_the_rate_and_measures_its_own_error():
+    from render.cadence import projection
+    p = projection(_cadence_input(rate=150.0, weeks=13))
+    assert p is not None
+    assert abs(p["rate"] - 150.0) < 15, p["rate"]
+    # On a steady synthetic ramp the back-test should find the projection accurate,
+    # and the band must widen (never narrow) with the horizon.
+    assert p["err_days"][0] < 3, p["err_days"]
+    assert all(b >= a for a, b in zip(p["err_days"], p["err_days"][1:]))
+    # Zero width at the last observed week, symmetric afterwards.
+    assert p["lo"][0] == p["hi"][0] == p["center"][0]
+    assert np.allclose(p["center"] - p["lo"], p["hi"] - p["center"])
+
+
+def test_projection_is_withheld_without_history_to_measure_it():
+    from render.cadence import projection
+    assert projection(_cadence_input(weeks=3)) is None, (
+        "an unmeasured band would be a guess presented as a forecast")
+
+
+def test_backtest_sign_shows_when_reality_ran_ahead():
+    # Cadence doubles halfway through: projections made before the jump fall behind,
+    # which the back-test reports as POSITIVE error (reality ran ahead).
+    from render.cadence import backtest, cadence_frame
+    slow, fast = _cadence_input(rate=60.0, weeks=8), _cadence_input(
+        rate=150.0, weeks=8, start="2026-08-24")
+    fast["vin_seq"] += slow["vin_seq"].max() - 1000
+    bt = backtest(cadence_frame(pd.concat([slow, fast], ignore_index=True)), cuts=8)
+    assert not bt.empty and bt["err_days"].mean() > 0, bt["err_days"].mean()
+
+
+def test_vin_scatter_keeps_whisker_indices_and_drops_contradictions():
+    # The overlay is appended AFTER the series, because the whisker toggle addresses
+    # traces by index. A contradictory estimate is excluded, as in §7.
+    from render.charts import fig_delivery_vs_vin
+    df = _cadence_input(weeks=13)
+    df["color"], df["wheels_short"] = "Esker Silver", '21" Liquid Tungsten'
+    df["interior"], df["trim"], df["user"] = "Black Crater Signature", "Performance", "u"
+    for c, v in (("vin_display", ""), ("order_display", ""), ("est_display", ""),
+                 ("buylease", "Purchase"), ("state", "IL")):
+        df[c] = v
+    bad = df.iloc[[0]].copy()
+    bad["vin_seq"] = 5555.0
+    bad["delivery_est"] = bad["delivery_min"] = bad["delivery_max"] = pd.Timestamp("2027-12-01")
+    # A windowed estimate, so whiskers (and the toggle that targets them) exist —
+    # without one the index check below would pass vacuously.
+    win = df.iloc[[5]].copy()
+    win["delivery_type"] = "window"
+    win["delivery_min"] = win["delivery_est"] - pd.Timedelta(days=7)
+    win["delivery_max"] = win["delivery_est"] + pd.Timedelta(days=7)
+    fig = fig_delivery_vs_vin(pd.concat([df, bad, win], ignore_index=True))
+    names = [t.name for t in fig.data]
+    assert names[-3].startswith("Build front") and names[-1].startswith("Projected front")
+    assert fig.layout.updatemenus, "the fixture must produce whiskers to test against"
+    whisk = set(fig.layout.updatemenus[0].buttons[0].args[1])
+    assert whisk and all(fig.data[i].mode == "lines" and not fig.data[i].fill
+                         for i in whisk), "toggle targets exactly the whisker traces"
+    assert not any((fig.data[i].name or "").startswith(("Build", "Projected", "±"))
+                   for i in whisk), "the whisker toggle must not reach the overlay"
+    xs = np.concatenate([np.asarray(t.x, dtype=float) for t in fig.data
+                         if t.mode == "markers"])
+    assert 5555.0 not in xs, "a contradictory estimate is not plotted"
 
 
 def test_state_totals_segments_partition_each_state():

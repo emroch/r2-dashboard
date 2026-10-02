@@ -109,6 +109,37 @@ sanitize:
 # split one order into several.
 dedupe_identity_columns: [trim, color, wheels, interior]
 
+# Build cadence (VIN issuance rate) and the projected build front (§10). Delivery
+# date stands in for build date: the build-to-delivery lag shifts WHEN a VIN shows
+# up, but barely changes the slope, which is the rate. Only orders with a VIN and a
+# FIRM delivery date are used.
+#
+# Chosen by back-testing on this data (Oct 2026): fit on deliveries before a cut
+# date, project the front, compare with what was then delivered.
+#   front_quantile  the build FRONT is this percentile of the VINs delivered each
+#                   week. Low VINs keep arriving late (held-back cars, slow
+#                   shipping), so the median tracks lag, not production.
+#   window_weeks    the rate is a robust (Theil-Sen) slope over this many recent
+#                   weeks of front, so it follows the ramp instead of averaging
+#                   June's launch pace into it.
+#   min_week_n      a week needs this many firm dates to contribute a front point.
+#   horizon_weeks   how far ahead to project. Back-tested error grew from ~9 days
+#                   one week out to ~15 days at four, and cadence is still ramping,
+#                   so this stays short.
+#   backtest_cuts   how many of the most recent weeks to back-test from. The band
+#                   should describe the regime being projected FROM; measured over
+#                   the whole history it would be dominated by the launch ramp,
+#                   when cadence roughly quadrupled.
+# The projection band is NOT configured here: it is the error measured by
+# re-running the same back-test on every build, so it widens or narrows with the
+# data instead of being a number someone picked.
+cadence:
+  front_quantile: 0.9
+  window_weeks: 6
+  min_week_n: 4
+  horizon_weeks: 4
+  backtest_cuts: 8
+
 # Option take-rate vocabulary (values compared lowercased).
 options:
   opted_in_tokens: ["yes", "included"]  # Autonomy+ / Tow: count these as opted-in
