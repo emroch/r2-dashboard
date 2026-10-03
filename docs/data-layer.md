@@ -1,7 +1,7 @@
 # Data layer design
 
-Status: **proposed**. This is part of the dashboard revamp (#65), and it comes before
-the presentation work (#66). It is a design, not a commitment to an implementation;
+Status: **proposed**. This is part of the dashboard revamp (#65), tracked in #80, and it
+comes before the presentation work (#66). It is a design, not a commitment to an implementation;
 each stage below becomes its own issue and PR.
 
 ## Why
@@ -201,24 +201,46 @@ presentation decision, made in that stage.
 
 ## Stages
 
-Each stage is one issue and one PR, in this order. Each must leave the dashboard's
-output unchanged apart from new QA findings.
+Each stage is one issue and one PR, in this order, tracked under **#80**. Each must
+leave the dashboard's output unchanged apart from new QA findings.
 
-1. **Snapshot replay, order identity, event log.** Internal only.
-   - *Acceptance:* the dashboard HTML and CSV are identical to `main`'s, apart from
-     plotly's random div ids.
+1. **#81 Snapshot replay, order identity, event log.** Internal only.
+   - *Acceptance:* the dashboard HTML and CSV are identical to `dev/data-layer`'s,
+     apart from plotly's random div ids.
    - *Acceptance:* replay reproduces the survey (674 keys, 267 change events).
    - *Acceptance:* a replay benchmark is recorded.
-2. **Curation v2.** `source` / `as_of` / `reason`, the migration script, `username#n`
-   targeting, and stale and redundant detection.
-3. **Timeline sanity checks** (the list above) in the data-quality panel.
-4. **Published data contract.** Dimension metadata, plus the aggregate time series as
-   JSON. This unblocks #66.
-5. **Consumers.** Sequenced after the presentation stage:
+2. **#82 Curation v2.** `source` / `as_of` / `reason`, the migration script,
+   `username#n` targeting, and stale and redundant detection. Blocked by #81.
+3. **#83 Timeline sanity checks** (the list above) in the data-quality panel. Blocked
+   by #81 and #82.
+4. **#84 Published data contract.** Dimension metadata, plus the aggregate time series
+   as JSON. Blocked by #81; blocks #66 and #51.
+5. **#85 Consumers.** Sequenced after the presentation stage (blocked by #84 and #66):
    - **#32** trends, from the aggregate series.
    - **#34** accuracy: compare the earliest quoted window with the final firm date.
      It runs internally and publishes only distributions.
    - **Reservation → order conversion.**
 
-After this stage, presentation (#66, with #29 and #30) and then the UI nits (#41,
-#46) get their own planning stage.
+## Execution
+
+All data-layer work happens on a long-lived branch, so `main` (which deploys to the
+live site) never carries a partial data layer.
+
+- **Integration branch:** `dev/data-layer`, cut from `main`.
+- **Stage PRs:** each stage is developed on its own branch, `data-layer/<stage>`
+  (`replay`, `curation`, `timeline-qa`, `contract`), and merged by PR into
+  `dev/data-layer`. Previews and the static checks run on those PRs as usual.
+- **Keeping up with `main`:** `main` keeps moving (cache refreshes every few hours,
+  and curation through `./curate`). Merge `main` into `dev/data-layer` periodically,
+  and before each stage PR. Merge rather than rebase, because the branch is shared.
+- **Curation migration timing (#82):** `overrides.yaml` keeps changing on `main`, so
+  the migration script runs on the latest file just before the final merge, or is
+  re-run then. Don't hand-convert the file early, or it will conflict.
+- **Into `main`:** once stages 1–4 are done, `dev/data-layer` merges into `main` in
+  one PR. Its check is the same as each stage's: the output is unchanged apart from
+  QA. That PR also publishes the data contract.
+- **After the merge:** stage 5 is sequenced after the presentation work. It is
+  planned with that stage and is not part of the `dev/data-layer` merge.
+
+After this, presentation (#66, with #29 and #30) and then the UI nits (#41, #46) get
+their own planning stage.
