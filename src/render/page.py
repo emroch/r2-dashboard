@@ -9,7 +9,6 @@ then splices Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
 """
 import json
 import os
-import pandas as pd
 from pathlib import Path
 from textwrap import dedent
 from urllib.parse import urlencode

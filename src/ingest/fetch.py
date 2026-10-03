@@ -61,7 +61,8 @@ def fetch_sheet(key, gid, slug, label):
         sys.stderr.write("! live fetch failed for %s (%s); using cache\n"
                          % (slug, exc))
         if not caches:
-            raise SystemExit("no live data and no cache available for %s" % slug)
+            raise SystemExit("no live data and no cache available for %s"
+                             % slug) from exc
         ts, path = caches[0]
         with open(path) as fh:
             text = fh.read()
