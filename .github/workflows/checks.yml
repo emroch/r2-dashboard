@@ -27,7 +27,7 @@ jobs:
       # Only the linter, at the version pinned in requirements-dev.txt, so CI and
       # ./ci_env can't disagree. It needs none of the runtime dependencies.
       - name: Install ruff
-        run: pip install "$(grep '^ruff==' requirements-dev.txt)"
+        run: pip install "$(grep -o '^ruff==[^ ]*' requirements-dev.txt)"
 
       # Settings live in pyproject.toml. The github format turns findings into
       # inline annotations on the PR diff.
