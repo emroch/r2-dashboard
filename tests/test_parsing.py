@@ -265,6 +265,19 @@ def test_rule_relative_single_week():
     assert _rule_week_single("August 2026", "august 2026") is None
 
 
+def test_rule_relative_days():
+    from ingest.parsing import _Days, _rule_days
+    assert _rule_days("7-10 days", "7-10 days") == _Days(7, 10)
+    assert _rule_days("5 days", "5 days") == _Days(5, 5)
+    assert _rule_days("2 weeks", "2 weeks") is None
+    assert _rule_days("today", "today") is None
+    # It exists to beat the numeric-date rule, which read "7-10 days" as 10 July.
+    out = parse_delivery("7-10 days", pd.Timestamp("2026-09-01"))
+    assert out["type"] == "window", out
+    assert (out["min"], out["max"]) == (pd.Timestamp("2026-09-08"),
+                                        pd.Timestamp("2026-09-11"))
+
+
 def test_rule_week_of():
     from ingest.parsing import _Span, _rule_week_of
     res = _rule_week_of("week of 8/11", "week of 8/11")
@@ -300,6 +313,10 @@ def test_rule_monthname_range():
     assert (whole.min, whole.max) == (date(2026, 8, 1), date(2026, 9, 30))
     roll = _rule_monthname_range("Dec-Jan", "dec-jan")
     assert roll.max.year == 2027, roll
+    # Two bare month names are a span too; a month and a day are not.
+    bare = _rule_monthname_range("August September", "august september")
+    assert (bare.min, bare.max) == (date(2026, 8, 1), date(2026, 9, 30))
+    assert _rule_monthname_range("Aug 3", "aug 3") is None
     assert _rule_monthname_range("August 2026", "august 2026") is None, (
         "a single month is not a range")
 
@@ -730,7 +747,9 @@ def _latency_frame_input():
     add("f", "2026-08-11", "2026-08-31")
     # Excluded: a window (not firm), an impossible estimate, a missing order date.
     add("g", "2026-08-12", "2026-09-30", "window")
-    add("h", "2026-08-18", "2026-08-12")     # delivery before order
+    # Delivery before order: cleaning sets such an estimate aside (outliers.py),
+    # so it arrives here as unknown — counted as an order, never plotted.
+    add("h", "2026-08-18", None, "unknown")
     add("i", None, "2026-09-01")
     return pd.DataFrame(rows)
 
@@ -757,7 +776,7 @@ def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
     # windowed and impossible orders count against it rather than vanishing.
     # Week of 8/3: a,b,c of a,b,c,d = 75%. Week of 8/10: e,f of e,f,g = 67% (the
     # window doesn't count as shown). Week of 8/17: h's impossible estimate leaves
-    # it 0 of 1 — excluded from the scatter, but still counted as an order placed.
+    # it 0 of 1 — not in the scatter, but still counted as an order placed.
     assert [round(v) for v in cov.y] == [75, 67, 0], list(cov.y)
     assert [int(n) for n in cov.customdata[:, 2]] == [4, 3, 1]
 
@@ -853,9 +872,9 @@ def test_backtest_sign_shows_when_reality_ran_ahead():
     assert not bt.empty and bt["err_days"].mean() > 0, bt["err_days"].mean()
 
 
-def test_vin_scatter_keeps_whisker_indices_and_drops_contradictions():
+def test_vin_scatter_keeps_whisker_indices():
     # The overlay is appended AFTER the series, because the whisker toggle addresses
-    # traces by index. A contradictory estimate is excluded, as in §7.
+    # traces by index.
     from render.charts import fig_delivery_vs_vin
     df = _cadence_input(weeks=13)
     df["color"], df["wheels_short"] = "Esker Silver", '21" Liquid Tungsten'
@@ -863,16 +882,13 @@ def test_vin_scatter_keeps_whisker_indices_and_drops_contradictions():
     for c, v in (("vin_display", ""), ("order_display", ""), ("est_display", ""),
                  ("buylease", "Purchase"), ("state", "IL")):
         df[c] = v
-    bad = df.iloc[[0]].copy()
-    bad["vin_seq"] = 5555.0
-    bad["delivery_est"] = bad["delivery_min"] = bad["delivery_max"] = pd.Timestamp("2027-12-01")
     # A windowed estimate, so whiskers (and the toggle that targets them) exist —
     # without one the index check below would pass vacuously.
     win = df.iloc[[5]].copy()
     win["delivery_type"] = "window"
     win["delivery_min"] = win["delivery_est"] - pd.Timedelta(days=7)
     win["delivery_max"] = win["delivery_est"] + pd.Timedelta(days=7)
-    fig = fig_delivery_vs_vin(pd.concat([df, bad, win], ignore_index=True))
+    fig = fig_delivery_vs_vin(pd.concat([df, win], ignore_index=True))
     names = [t.name for t in fig.data]
     assert names[-3] == "Observed" and names[-1].startswith("Projected · ≈ ")
     # The overlay sits in its own legend, separate from the paint · wheels series.
@@ -891,9 +907,6 @@ def test_vin_scatter_keeps_whisker_indices_and_drops_contradictions():
         "the whisker toggle must not reach the overlay")
     # Date on x, VIN on y (transposed to match §9).
     assert fig.layout.xaxis.type == "date" and fig.layout.yaxis.type == "linear"
-    vins = np.concatenate([np.asarray(t.y, dtype=float) for t in fig.data
-                           if t.mode == "markers"])
-    assert 5555.0 not in vins, "a contradictory estimate is not plotted"
 
 
 def test_state_totals_segments_partition_each_state():
@@ -1977,6 +1990,123 @@ def _run_all():
     print("-" * 40)
     print("%d passed, %d failed (of %d)" % (passed, failed, len(tests)))
     return failed
+
+
+# --- Likely entry errors (#68) -----------------------------------------------
+
+
+def test_trend_z_scores_against_a_local_trend():
+    from ingest.outliers import trend_z
+    x = np.arange(100.0)
+    y = 100 * x + np.random.default_rng(1).normal(0, 50, 100)   # a climbing trend
+    y[50] = 100 * 50 - 2000                                     # far below its cohort
+    z, med = trend_z(x, y, cohort=21)
+    assert z[50] < -10, z[50]
+    # Everything else is near its cohort, however far up the trend it sits: the
+    # check follows the climb rather than comparing with one global median.
+    assert np.nanmax(np.abs(np.delete(z, 50))) < 4, np.nanmax(np.abs(np.delete(z, 50)))
+    assert abs(med[90] - 9000) < 300
+    # Fewer points than one cohort: nothing to compare against.
+    z, med = trend_z(x[:10], y[:10], cohort=21)
+    assert np.isnan(z).all() and np.isnan(med).all()
+
+
+def _suspects_input():
+    """Orders on a trend: VIN climbs 100/day with order date, delivery ~30 days
+    after order. The VIN scatter (sd 800) is about the real data's, so the held-back
+    case below scores like the real ones do. Tests append the odd rows."""
+    T = pd.Timestamp
+    rng = np.random.default_rng(7)
+    rows = []
+    for k in range(80):
+        order = T("2026-07-01") + pd.Timedelta(days=k)
+        est = order + pd.Timedelta(days=30 + (k % 5))
+        rows.append(dict(user="u%d" % k, vin_present=True,
+                         vin_seq=float(round(1000 + 100 * k + rng.normal(0, 800))),
+                         order_date=order, delivery_type="explicit",
+                         delivery_est=est, delivery_min=est, delivery_max=est))
+    return pd.DataFrame(rows)
+
+
+def _with(df, **row):
+    T = pd.Timestamp
+    base = dict(vin_present=True, delivery_type="explicit")
+    base.update(row)
+    for c in ("order_date", "delivery_est"):
+        base[c] = T(base[c]) if base.get(c) else pd.NaT
+    base["delivery_min"] = base["delivery_max"] = base["delivery_est"]
+    return pd.concat([df, pd.DataFrame([base])], ignore_index=True)
+
+
+def test_find_suspects_flags_only_the_implausible_direction():
+    from ingest.outliers import find_suspects
+    df = _suspects_input()
+    # A misread date: VIN 6,000 (cars delivered around 9/20), but a firm date of
+    # 8/1, before cars with nearby VINs were built.
+    df = _with(df, user="early", vin_seq=6000.0, order_date="2026-07-28",
+               delivery_est="2026-08-01")
+    # A held-back car: low VIN, late order, late delivery. Innocent, not flagged.
+    df = _with(df, user="heldback", vin_seq=3000.0, order_date="2026-09-10",
+               delivery_est="2026-10-10")
+    # A VIN with an extra digit.
+    df = _with(df, user="digit", vin_seq=55000.0, order_date="2026-08-10",
+               delivery_est="2026-09-12")
+    # An estimate before its own order date: no cohort needed.
+    df = _with(df, user="before", vin_seq=None, vin_present=False,
+               order_date="2026-08-18", delivery_est="2026-08-01")
+    vin, delivery = find_suspects(df)
+    who = lambda d: sorted(df.loc[list(d), "user"])
+    assert who(vin) == ["digit"], who(vin)
+    assert who(delivery) == ["before", "early"], who(delivery)
+    early = df.index[df["user"] == "early"][0]
+    assert "nearby VINs" in delivery[early]
+    # The extra-digit VIN is judged first and left out of the delivery check, so
+    # its (fine) delivery date isn't flagged for sitting next to the wrong VINs.
+    assert df.index[df["user"] == "digit"][0] not in delivery
+
+
+def test_find_suspects_honours_verified_values():
+    from ingest.outliers import find_suspects
+    df = _with(_suspects_input(), user="Early", vin_seq=6000.0,
+               order_date="2026-07-28", delivery_est="2026-08-01")
+    vin, delivery = find_suspects(df, {"early": ["delivery_raw"]})
+    assert not delivery and not vin
+    # Verifying the VIN doesn't vouch for the date.
+    _, delivery = find_suspects(df, {"early": ["vin_raw"]})
+    assert len(delivery) == 1
+
+
+def test_find_suspects_needs_a_cohort():
+    from ingest.outliers import find_suspects
+    df = _with(_suspects_input().head(10), user="early", vin_seq=5000.0,
+               order_date="2026-07-05", delivery_est="2026-07-06")
+    assert find_suspects(df) == ({}, {}), "too few orders to judge against"
+
+
+def test_a_set_aside_estimate_is_unknown_everywhere():
+    # End to end: a contradicted estimate must not count as delivered (the misread
+    # "8-12" did), must be listed once as set aside, and must not ALSO be reported
+    # as unparseable just because it now reads as unknown.
+    from config import ORDERS_HEADERS
+    from ingest.loaders import load_and_clean
+    header = _orders_header()
+    text = _orders_csv(header)
+    lines = text.splitlines()
+    row = next(csv.reader([lines[-1]]))
+    row[header.index(ORDERS_HEADERS["delivery_raw"])] = "6/1/2026"   # before 6/15
+    out = io.StringIO()
+    csv.writer(out).writerow(row)
+    text = "\n".join(lines[:-1]) + "\n" + out.getvalue()
+    df, report, _ = load_and_clean(text, {"label": "test orders sheet"})
+    r = df[df["user"] == "tester"].iloc[0]
+    assert r["delivery_type"] == "unknown" and pd.isna(r["delivery_est"])
+    assert not r["delivered_inferred"]
+    listed = [m for _, u, m in report["quality"]["entry_errors"] if u == "tester"]
+    assert len(listed) == 1 and "before the order date" in listed[0], listed
+    assert listed == [m for _, u, m in
+                      report["sanitized"]["Likely entry errors set aside"] if u == "tester"]
+    assert not [u for _, u, _ in report["quality"]["unparseable"] if u == "tester"]
+    assert report["n_set_aside_delivery"] >= 1
 
 
 if __name__ == "__main__":

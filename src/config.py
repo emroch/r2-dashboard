@@ -54,13 +54,17 @@ _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
 # orders not in the sheet; DELETIONS drop entries the person has said no longer
-# exist (a cancellation), per sheet. All are username-keyed and empty by default.
+# exist (a cancellation), per sheet; VERIFIED names values confirmed correct that
+# the entry-error checks would otherwise set aside (ingest/outliers.py). All are
+# username-keyed and empty by default.
 _CURATION = _load("overrides.yaml")
 OVERRIDES = _CURATION.get("overrides") or {}
 ADDITIONS = _CURATION.get("additions") or {}
 _DELETIONS = _CURATION.get("deletions") or {}
 DELETIONS_ORDERS = _DELETIONS.get("orders") or {}
 DELETIONS_RESV = _DELETIONS.get("reservations") or {}
+VERIFIED = {str(u).lower(): list(v or [])
+            for u, v in (_CURATION.get("verified") or {}).items()}
 
 # --- Live sources (schema.yaml) -------------------------------------------
 # EXPORT_URL is the CSV endpoint; VIEW_URL is the human sheet linked in the header.
@@ -150,6 +154,11 @@ DELIVERY_YEAR_MIN = int(_SAN["delivery_year_min"])
 DELIVERY_YEAR_MAX = int(_SAN["delivery_year_max"])
 # Order -> delivery sanity window in days (see parsing.implausible_latency).
 DELIVERY_LATENCY_MAX = int(_SAN.get("delivery_latency_max_days", 365))
+# Likely-entry-error checks against each value's cohort (see ingest/outliers.py).
+_OUT = _SAN.get("entry_errors") or {}
+OUTLIER_COHORT = int(_OUT.get("cohort", 41))
+OUTLIER_VIN_Z = float(_OUT.get("vin_z", 8))
+OUTLIER_EARLY_DELIVERY_Z = float(_OUT.get("early_delivery_z", 4))
 
 # Columns that identify a build, for collapsing repeat submissions (see
 # schema.yaml). Rows sharing a username AND all of these are the same order.

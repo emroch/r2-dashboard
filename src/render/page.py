@@ -342,13 +342,18 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
-    ("latency_anomalies", "Delivery estimates that contradict the order date",
-     "Estimates that parse on their own but can't be right against the order: the "
-     "whole estimate falls before the order was placed, or it starts more than a "
-     "year after it (usually a typo'd year). Which of the two dates is wrong can't "
-     "be told from the data, so nothing is corrected — they are left out of the "
-     "delivery-time chart and listed here for review. A bare \"8-12\" is a common "
-     "cause: it was meant as weeks but reads as a date."),
+    ("entry_errors", "Likely entry errors set aside",
+     "Values that parse fine on their own but can't be right against the rest of "
+     "the data. Each one is set aside as unknown, so it isn't charted or counted. "
+     "Nothing is corrected, because the data can't say what the right value is. "
+     "Three checks: a delivery estimate that ends before the order was placed, or "
+     "starts more than a year after it (usually a typo'd year); a firm delivery "
+     "date well before cars with nearby VINs, since a car can't arrive before it "
+     "is built (a bare \"8-12\" meant as weeks reads as 12 August); and a VIN "
+     "far outside the range of orders placed around the same date (a missing or "
+     "extra digit). A late delivery or a low VIN is never flagged on its own, "
+     "because a held-back car explains both. A value confirmed correct can be "
+     "kept with overrides.yaml's verified list."),
     ("merge_conflicts", "Repeat submissions that disagreed",
      "Fields where a person's repeat submissions of the SAME build contradicted "
      "each other. The rows are merged into one order, taking each field from the "
@@ -495,8 +500,10 @@ def build_dashboard(df, report, resv):
     firm = dc.get("explicit", 0)
     rangewin = dc.get("window", 0) + dc.get("range", 0) + dc.get("month", 0)
     unparseable = report["quality"]["unparseable"]
-    # unknown = "no date given" (missing/placeholder) + unparseable; split them.
-    no_date = dc.get("unknown", 0) - len(unparseable)
+    # unknown = "no date given" (missing/placeholder) + unparseable + estimates set
+    # aside as likely entry errors; split them.
+    set_aside = report["n_set_aside_delivery"]
+    no_date = dc.get("unknown", 0) - len(unparseable) - set_aside
     san = report["sanitized"]
     pz = report["price"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
@@ -508,6 +515,8 @@ def build_dashboard(df, report, resv):
         "VINs de-obfuscated": "Obfuscated VINs recovered (original → value)",
         "VINs recovered": "VINs that could not be recovered (dropped)",
         "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
+        "Likely entry errors set aside": "VINs and delivery estimates that contradict the order date or the orders around them, made unknown rather than charted (see the data-quality panel)",
+        "Set aside as errors": "Delivery estimates that parsed but contradict the order date or cars with nearby VINs, so they count as unknown",
         "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
         "Curated removals": "Orders and reservations removed because the person posted that they cancelled, or the row is a superseded resubmission (reason from overrides.yaml)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
@@ -533,6 +542,8 @@ def build_dashboard(df, report, resv):
              san["Invalid dates dropped"]),
             ("Premature configs dropped", report["n_premature"],
              san["Premature configs dropped"]),
+            ("Likely entry errors set aside", len(san["Likely entry errors set aside"]),
+             san["Likely entry errors set aside"]),
             ("Curated removals", len(san["Removed by curation"]),
              san["Removed by curation"]),
             ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
@@ -541,12 +552,16 @@ def build_dashboard(df, report, resv):
             ("VINs recovered", report["vin_present"], san["VINs recovered"]),
             ("VINs de-obfuscated", report["vin_obfuscated"], san["VINs de-obfuscated"]),
         ]),
-        # Partitions all orders: firm + range/window + no date + unparseable = total.
+        # Partitions all orders: firm + range/window + no date + unparseable + set
+        # aside = total.
         ("Delivery estimate (of %d orders)" % report["n_dedup"], [
             ("Firm date", firm, None),
             ("Range / window", rangewin, None),
             ("No date given", no_date, None),
             ("Unparseable", len(unparseable), unparseable),
+            ("Set aside as errors", set_aside,
+             [r for r in san["Likely entry errors set aside"]
+              if r[2].startswith("delivery ")]),
         ]),
         # The same three-way split §12 draws per state, from the same helper, so the
         # card and that chart's all-states row can't disagree. A strict partition of
