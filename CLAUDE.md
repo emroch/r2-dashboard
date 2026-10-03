@@ -22,6 +22,7 @@ src/
     schema_check.py column location by name + verification against schema.yaml
     outliers.py     likely entry errors (values that contradict the order date or their cohort) — set aside, not corrected
     loaders.py      load_and_clean, load_reservations
+    history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
     charts.py       the ten fig_* chart builders + helpers
