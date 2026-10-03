@@ -7,3 +7,6 @@
 
 pytest==9.1.1
 ruff==0.16.10      # lint only, not format — see pyproject.toml
+mypy==2.4.0        # type check; stubs below. Config in pyproject.toml
+pandas-stubs==2.3.3.260113   # matches pandas 2.3.x in requirements.txt
+types-PyYAML==6.0.12.20260906

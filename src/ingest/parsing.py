@@ -4,13 +4,24 @@ VIN recovery, date normalization (simple dates + noisy free-text delivery
 estimates), great-circle distance to the factory, and location->state mapping.
 No I/O, no plotting — just transforms over the raw fields.
 """
+# Lets the hints use `X | None` while the code still runs on the system 3.9.
+from __future__ import annotations
+
 import calendar
 import re
 from collections import namedtuple
 from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING, Any, Union
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from pandas._libs.tslibs.nattype import NaTType
+
+    # A parsed date, or NaT for "none". Annotation-only, so never evaluated at run
+    # time (pandas 1.x keeps NaTType elsewhere).
+    Stamp = Union[pd.Timestamp, NaTType]
 
 from config import (AS_OF, CA_PROVINCES, DELIVERY_LATENCY_MAX,
                      DELIVERY_OVERRIDES, DELIVERY_YEAR_MAX,
@@ -20,7 +31,7 @@ from config import (AS_OF, CA_PROVINCES, DELIVERY_LATENCY_MAX,
                      WHEEL_SHORT)
 
 
-def clean_vin(token):
+def clean_vin(token: str | None) -> tuple[int | None, bool, bool]:
     """Return (seq:int|None, present:bool, obfuscated:bool).
 
     VIN Assigned holds the last 3-4 digits of the VIN (production sequence
@@ -48,7 +59,7 @@ def clean_vin(token):
     return (val, True, had_x)
 
 
-def parse_simple_date(s):
+def parse_simple_date(s: str | None) -> Stamp:
     """Parse M/D/YYYY-style reservation & order dates. Return Timestamp|NaT."""
     s = (s or "").strip()
     if s == "":
@@ -80,7 +91,7 @@ def parse_simple_date(s):
     return pd.to_datetime(s, errors="coerce")
 
 
-def _fix_numeric_typos(s):
+def _fix_numeric_typos(s: str) -> str:
     """Repair concatenated numeric dates: 6302026, 7/72026, 07/282026."""
     s = s.strip()
     if re.fullmatch(r"\d{7}", s):        # M DD YYYY  -> 6302026 => 6/30/2026
@@ -96,7 +107,7 @@ def _fix_numeric_typos(s):
     return s
 
 
-def _parse_numeric(s):
+def _parse_numeric(s: str) -> tuple[str, date] | None:
     """Numeric / ddMMMyyyy date. Return ('explicit'|'month', date) or None."""
     s = s.strip()
     m = re.fullmatch(r"(\d{1,2})([A-Za-z]{3,})(\d{4})", s)   # 23JUN2026
@@ -135,7 +146,7 @@ def _parse_numeric(s):
     return None
 
 
-def _parse_monthname(s):
+def _parse_monthname(s: str) -> tuple[str, date] | None:
     """Named-month date -> ('explicit'|'month', date).
 
     Handles the day on either side of the month ("August 3", "3 Aug", "3rd
@@ -159,6 +170,7 @@ def _parse_monthname(s):
     # Day: prefer a 1-2 digit number immediately BEFORE the month ("3 Aug",
     # "31 Jul 26"); else the first such number AFTER it ("Aug 3", "Aug 08").
     db = re.search(r"(\d{1,2})(?:st|nd|rd|th)?[\s\-]*$", before)
+    day: int | None
     if db:
         day = int(db.group(1))
         # With a leading day, a trailing 2-digit number is the year, not the day.
@@ -191,7 +203,7 @@ _MONTHRANGE_RE = re.compile(
     r"(?:" + _MONTHS_ALT + r"\.?\s*)?(?:(\d{1,2})(?:st|nd|rd|th)?)?")
 
 
-def _parse_monthname_range(s):
+def _parse_monthname_range(s: str) -> tuple[date, date] | None:
     """Named-month range -> (start, end) dates, or None.
 
     Covers two named-month endpoints ("July 16-August 16", "June 30-July 28"), a
@@ -230,7 +242,7 @@ _MODIFIER_RE = (re.compile(
     r"[\s\-]*" + _MONTHS_ALT) if MONTH_MODIFIERS else None)
 
 
-def _parse_month_modifier(s):
+def _parse_month_modifier(s: str) -> tuple[date, date] | None:
     """Within-month modifier -> (start, end) dates, or None. Maps a fuzzy phrase
     ("end of July", "early August", "mid-September") to a ~week window inside the
     month it is attached to, via MONTH_MODIFIERS (keyword -> [start_day, end_day],
@@ -257,7 +269,7 @@ def _parse_month_modifier(s):
         return None
 
 
-def _parse_week_of(s):
+def _parse_week_of(s: str) -> tuple[date, date] | None:
     """"Week of <date>" -> the calendar week (Mon-Sun) containing that date, as
     (start, end) dates, or None. The date part reuses the numeric / month-name
     single-date parsers, so "Week of 8/10" and "Week of August 3rd" both resolve;
@@ -274,14 +286,14 @@ def _parse_week_of(s):
     return (monday, monday + timedelta(days=6))
 
 
-def _anchor(order_date):
+def _anchor(order_date: Stamp) -> tuple[pd.Timestamp, bool]:
     """Anchor for relative windows: the order date, else the as-of date."""
     if pd.isna(order_date) or order_date < ORDER_ANCHOR_MIN:
         return AS_OF, True
     return order_date, False
 
 
-def _plausible(*dates):
+def _plausible(*dates: date | None) -> bool:
     """True if every date falls in the plausible delivery-year window.
 
     A typo can parse cleanly but land centuries away — "8/1326" (meant 8/13/26)
@@ -323,12 +335,18 @@ def _plausible(*dates):
 #     rule has already declined, and can only rescue what would be unparseable.
 # test_delivery_rule_order_is_load_bearing pins both.
 
-_VETO = object()
+class _Veto:
+    """The type of _VETO, so a rule's result can be told apart by isinstance."""
+
+
+_VETO = _Veto()
 _Weeks = namedtuple("_Weeks", "lo hi")
 _Days = namedtuple("_Days", "lo hi")
 _Span = namedtuple("_Span", "min max type")
 _Fixed = namedtuple("_Fixed", "min max type")
 _Point = namedtuple("_Point", "type date")
+# What a rule returns: one of the shapes above, _VETO, or None for no match.
+_RuleResult = Union[_Weeks, _Days, _Span, _Fixed, _Point, _Veto, None]
 
 # Relative week windows. The range form is tried before the single form, so
 # "2-4 weeks" is a span rather than "4 weeks" alone.
@@ -348,14 +366,14 @@ _LOOSE_DATE_RE = re.compile(r"(?<![\d/.-])\d{1,4}[/.-]\d{1,2}(?:[/.-]\d{2,4})?"
                             r"(?![\d/.-])")
 
 
-def _rule_unknown(raw, low):
+def _rule_unknown(raw: str, low: str) -> _RuleResult:
     """Vocabulary that means "no date given" — see delivery.yaml."""
     if low in UNKNOWN_TOKENS or any(s in low for s in UNKNOWN_SUBSTRINGS):
         return _VETO
     return None
 
 
-def _rule_override(raw, low):
+def _rule_override(raw: str, low: str) -> _RuleResult:
     """A shape pinned by hand in delivery.yaml, matched exactly.
 
     _Fixed, not _Span: this is an explicit human decision, so the year window
@@ -368,19 +386,19 @@ def _rule_override(raw, low):
     return None
 
 
-def _rule_week_range(raw, low):
+def _rule_week_range(raw: str, low: str) -> _RuleResult:
     """"2-4 weeks", "2 to 6 wk" — lo..hi weeks from the anchor."""
     m = _WEEK_RANGE_RE.search(low)
     return _Weeks(int(m.group(1)), int(m.group(2))) if m else None
 
 
-def _rule_week_single(raw, low):
+def _rule_week_single(raw: str, low: str) -> _RuleResult:
     """"2 weeks", "1 wk" — a single point, not a span."""
     m = _WEEK_ONE_RE.search(low)
     return _Weeks(int(m.group(1)), int(m.group(1))) if m else None
 
 
-def _rule_days(raw, low):
+def _rule_days(raw: str, low: str) -> _RuleResult:
     """"7-10 days", "5 days" — lo..hi days from the anchor.
 
     Ahead of every absolute-date rule, which is what it exists to beat: before it,
@@ -393,13 +411,13 @@ def _rule_days(raw, low):
     return _Days(lo, int(m.group(2)) if m.group(2) else lo)
 
 
-def _rule_week_of(raw, low):
+def _rule_week_of(raw: str, low: str) -> _RuleResult:
     """"Week of 8/11" — the calendar week (Mon-Sun) containing that date."""
     wk = _parse_week_of(raw)
     return _Span(wk[0], wk[1], "range") if wk else None
 
 
-def _rule_numeric_range(raw, low):
+def _rule_numeric_range(raw: str, low: str) -> _RuleResult:
     """Numeric date range. Years are optional; a missing year defaults to 2026
     (matching the single M/D case), and a year on one side applies to both."""
     m = _NUM_RANGE_RE.search(low)
@@ -419,32 +437,32 @@ def _rule_numeric_range(raw, low):
     return _Span(dmin, dmax, "range") if dmax >= dmin else None
 
 
-def _rule_monthname_range(raw, low):
+def _rule_monthname_range(raw: str, low: str) -> _RuleResult:
     """"July 16-August 16", "June 29-30", "August - September", "Nov/Dec 2026"."""
     mr = _parse_monthname_range(raw)
     return _Span(mr[0], mr[1], "range") if mr else None
 
 
-def _rule_month_modifier(raw, low):
+def _rule_month_modifier(raw: str, low: str) -> _RuleResult:
     """"end of July", "early August", "mid-September" — a bounded ~week window,
     so more precise than a bare month and typed "range" rather than "month"."""
     mm = _parse_month_modifier(raw)
     return _Span(mm[0], mm[1], "range") if mm else None
 
 
-def _rule_numeric_date(raw, low):
+def _rule_numeric_date(raw: str, low: str) -> _RuleResult:
     """A single numeric date, after repairing concatenated typos."""
     res = _parse_numeric(_fix_numeric_typos(raw))
     return _Point(res[0], res[1]) if res else None
 
 
-def _rule_monthname_date(raw, low):
+def _rule_monthname_date(raw: str, low: str) -> _RuleResult:
     """A single named-month date ("Aug 3, 2026"), or a bare month ("August 2026")."""
     res = _parse_monthname(raw)
     return _Point(res[0], res[1]) if res else None
 
 
-def _rule_prose_date(raw, low):
+def _rule_prose_date(raw: str, low: str) -> _RuleResult:
     """A date wrapped in a sentence ("Delivery Scheduled for 9/27/2026").
 
     ONLY when the text holds exactly one date. Two means the sentence is doing
@@ -477,7 +495,7 @@ _DELIVERY_RULES = (
 )
 
 
-def parse_delivery(raw, order_date):
+def parse_delivery(raw: str | None, order_date: Stamp) -> dict[str, Any]:
     """Normalize a delivery estimate.
 
     Returns dict(est, min, max, type, anchor, anchor_fallback). Relative
@@ -497,7 +515,7 @@ def parse_delivery(raw, order_date):
         res = rule(raw, low)
         if res is None:
             continue
-        if res is _VETO:
+        if isinstance(res, _Veto):
             return out
 
         if isinstance(res, (_Weeks, _Days)):
@@ -532,7 +550,8 @@ def parse_delivery(raw, order_date):
     return out
 
 
-def implausible_latency(order_date, delivery_min, delivery_max):
+def implausible_latency(order_date: Stamp, delivery_min: Stamp,
+                        delivery_max: Stamp) -> str | None:
     """Why an order's delivery estimate can't be right given its order date, or None.
 
     Two impossible-or-near-impossible shapes, both of which parse cleanly on their
@@ -561,7 +580,8 @@ def implausible_latency(order_date, delivery_min, delivery_max):
     return None
 
 
-def reconcile_r1_owner(owner, model):
+def reconcile_r1_owner(owner: str | None,
+                       model: str | None) -> tuple[str, str | None]:
     """Reconcile the R1-owner gate against its conditional model follow-up.
 
     "Are you a current R1 owner?" is a Yes/No gate; "which model?" is only meant
@@ -586,18 +606,19 @@ def reconcile_r1_owner(owner, model):
     return o, None
 
 
-def haversine_mi(lat, lon, ref=FACTORY):
+def haversine_mi(lat: float | None, lon: float,
+                 ref: tuple[float, float] = FACTORY) -> float:
     """Great-circle miles from (lat,lon) to the factory."""
     if lat is None or (isinstance(lat, float) and np.isnan(lat)):
         return np.nan
     r = 3958.8
-    la1, lo1, la2, lo2 = map(np.radians, [ref[0], ref[1], lat, lon])
+    la1, lo1, la2, lo2 = np.radians([ref[0], ref[1], lat, lon])
     d = (np.sin((la2 - la1) / 2) ** 2
          + np.cos(la1) * np.cos(la2) * np.sin((lo2 - lo1) / 2) ** 2)
     return 2 * r * np.arcsin(np.sqrt(d))
 
 
-def loc_to_state(loc):
+def loc_to_state(loc: str | None) -> str:
     """Normalize a free-text Location to a 2-letter state/province key. Handles
     the sheet conventions 'Canada - <province>' (mapped to that province) and
     'DC - District of Columbia' -> DC; otherwise takes the leading 2 letters."""
@@ -610,7 +631,7 @@ def loc_to_state(loc):
     return loc.upper()[:2]
 
 
-def geo_enrich(df):
+def geo_enrich(df: pd.DataFrame) -> pd.DataFrame:
     """Add state/region/lat/lon plus the per-state reference columns from
     `loc_raw`, in place. Elevation, temperature and percent-urban are
     published state averages (see geo.yaml), NaN wherever the state isn't
@@ -622,7 +643,7 @@ def geo_enrich(df):
     df["lon"] = df["state"].map(lambda s: STATE_INFO.get(s, (None, np.nan, np.nan))[2])
     _nan3 = (np.nan, np.nan, np.nan)
     for i, col in enumerate(("elev_ft", "temp_f", "urban_pct")):
-        df[col] = df["state"].map(lambda s, i=i: STATE_REFERENCE.get(s, _nan3)[i])
+        df[col] = [STATE_REFERENCE.get(s, _nan3)[i] for s in df["state"]]
     return df
 
 
@@ -631,7 +652,7 @@ def geo_enrich(df):
 _WHEEL_BY_KEY = {}
 
 
-def _wheel_key(text):
+def _wheel_key(text: str | None) -> str:
     """Normalization key for a wheel value: straight quotes, single spaces, lower."""
     s = str(text or "").replace("”", '"').replace("“", '"').replace("’", "'")
     return " ".join(s.split()).lower()
@@ -641,7 +662,7 @@ for _raw, _short in WHEEL_SHORT.items():
     _WHEEL_BY_KEY[_wheel_key(_raw)] = _short
 
 
-def wheel_label(raw):
+def wheel_label(raw: str | None) -> str:
     """Sheet wheel value -> display label, by identity rather than by size.
 
     Two of the four R2 wheels are 20", so a size test can't tell them apart — the

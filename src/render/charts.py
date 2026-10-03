@@ -947,13 +947,13 @@ def _label_box_stats(fig, values, y_label, span):
     overprinted.
     """
     v = pd.Series(list(values)).astype(float)
-    groups = {}
+    groups: dict[int, list[tuple[int, str]]] = {}
     for name, q, pri in _BOX_STATS:
         val = round(float(v.quantile(q)))
         groups.setdefault(val, []).append((pri, name))
     merged = [(min(p for p, _ in g), val, " · ".join(n for _, n in sorted(g)))
               for val, g in groups.items()]
-    kept = []
+    kept: list[tuple[int, str]] = []
     for _pri, val, name in sorted(merged):                # most important first
         if all(abs(val - k[0]) >= span * 0.08 for k in kept):
             kept.append((val, name))
@@ -1054,6 +1054,7 @@ def fig_price_options(df):
         avg, paid = float(v.mean()), v[v > 0]
         if not avg and zero_note is None:
             continue            # structurally inapplicable — don't list an empty row
+        note: str | None
         if len(paid):
             pct = 100.0 * len(paid) / n
             # A handful of orders rounds to "0% chose", which reads as nobody —
@@ -1280,22 +1281,22 @@ def fig_geo(df, resv=None):
         cols = ["user", "state", "lat", "lon", "region"]
         panels.append(("Total demand (orders + incomplete reservations)",
                        pd.concat([df[cols], resv[cols]], ignore_index=True)))
-    panels = [(t, _geo_counts(f), _region_counts(f)) for t, f in panels]
+    maps = [(t, _geo_counts(f), _region_counts(f)) for t, f in panels]
 
-    n = len(panels)
+    n = len(maps)
     vs = 0.05
     # Two columns per row: the map, then that panel's region totals. Subplot
     # titles are placed only on the maps (the bars are self-labeling).
     fig = make_subplots(
         rows=n, cols=2, column_widths=[0.74, 0.26], horizontal_spacing=0.08,
         specs=[[{"type": "scattergeo"}, {"type": "xy"}] for _ in range(n)],
-        subplot_titles=[s for t, _, _ in panels for s in (t, "")],
+        subplot_titles=[s for t, _, _ in maps for s in (t, "")],
         vertical_spacing=vs)
 
-    order_max = max([g["n"].max() for t, g, _ in panels[:2] if len(g)] or [1])
+    order_max = max([g["n"].max() for t, g, _ in maps[:2] if len(g)] or [1])
     rowh = (1 - vs * (n - 1)) / n
     legends = {}
-    for i, (title, g, reg) in enumerate(panels, start=1):
+    for i, (title, g, reg) in enumerate(maps, start=1):
         legend_key = "legend" if i == 1 else "legend%d" % i
         y_top = 1 - (i - 1) * (rowh + vs)
         legends[legend_key] = dict(
@@ -1342,7 +1343,7 @@ def fig_geo(df, resv=None):
                      rangemode="tozero", automargin=True)
     fig.update_yaxes(ticksuffix="  ", automargin=True)
     for i in range(1, n + 1):
-        vals = panels[i - 1][2]
+        vals = maps[i - 1][2]
         if len(vals):
             fig.update_xaxes(range=[0, float(vals.max()) * 1.18], row=i, col=2)
     # dragmode is pinned to "pan" because adding the region-total bars put
