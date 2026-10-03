@@ -68,7 +68,8 @@ year 1326 raises `OutOfBoundsDatetime` on pandas 1.x but coerces to `NaT` on 2.x
 gitignored) from the pinned requirements via `uv` and runs against it:
 
 ```sh
-./ci_env check          # tests + full pipeline under the CI stack (what CI does)
+./ci_env check          # lint + tests + full pipeline under the CI stack (what CI does)
+./ci_env lint           # ruff check only (pyproject.toml; lint, not format)
 ./ci_env test --both    # run the suite under BOTH stacks — catches version-dependent behavior
 ./ci_env build          # just the pipeline
 ./ci_env python …       # any command under the CI stack

@@ -28,6 +28,6 @@ def _whisker_color(h, light=0.56, sat=0.14):
 # COLOR_DISPLAY is the palette used for markers/legend (the palette.yaml hex
 # values are already tuned for on-screen legibility); WHISKER_HEX / REGION_WHISKER
 # tint the delivery-window whiskers per paint and per region (subtle tinted grey).
-COLOR_DISPLAY = {n: h for n, h in COLOR_HEX.items()}
+COLOR_DISPLAY = dict(COLOR_HEX)
 WHISKER_HEX = {n: _whisker_color(h) for n, h in COLOR_HEX.items()}
 REGION_WHISKER = {n: _whisker_color(h) for n, h in REGION_COLOR.items()}
