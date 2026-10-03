@@ -2052,7 +2052,7 @@ def test_find_suspects_flags_only_the_implausible_direction():
     df = _with(df, user="digit", vin_seq=55000.0, order_date="2026-08-10",
                delivery_est="2026-09-12")
     # An estimate before its own order date: no cohort needed.
-    df = _with(df, user="before", vin_seq=None, vin_present=False,
+    df = _with(df, user="before", vin_seq=np.nan, vin_present=False,
                order_date="2026-08-18", delivery_est="2026-08-01")
     vin, delivery = find_suspects(df)
     who = lambda d: sorted(df.loc[list(d), "user"])

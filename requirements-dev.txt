@@ -1,0 +1,8 @@
+# Development tools, kept apart from the runtime pins in requirements.txt (which
+# is all the deploy installs). Pinned for the same reason: a tool upgrade that
+# changes its verdicts should arrive as a reviewed diff, not on a random run.
+#
+#   uv pip install -r requirements-dev.txt     (./ci_env does this for you)
+-r requirements.txt
+
+pytest==9.1.1

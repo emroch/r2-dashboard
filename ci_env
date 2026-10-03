@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Local environment that mirrors CI (.github/workflows/deploy.yml):
-# Python 3.12 + the pinned requirements.txt, in a venv at .venv-ci/.
+# Python 3.12 + the pinned requirements.txt, in a venv at .venv-ci/. The dev
+# tools in requirements-dev.txt are installed alongside.
 #
 # Why: the system python here is 3.9 with pandas 1.x, which diverges from CI's
 # 3.12 + pandas 2.x in ways that hide real bugs. A delivery typo parsing to year
@@ -59,15 +60,15 @@ pick_python() {
     echo "$PY_VERSION"   # let uv fail with its own message
 }
 
-# Recreate the venv when missing or when requirements.txt changed, so the local
-# stack can't silently drift from the pins CI installs.
-want="$(shasum requirements.txt | cut -d' ' -f1)"
+# Recreate the venv when missing or when either requirements file changed, so
+# the local stack can't silently drift from the pins CI installs.
+want="$(cat requirements.txt requirements-dev.txt | shasum | cut -d' ' -f1)"
 if [ ! -x "$PY" ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$want" ]; then
     use_py="$(pick_python)"
     echo "==> creating $VENV (python $use_py, pinned requirements)" >&2
     rm -rf "$VENV"
     uv venv --python "$use_py" "$VENV" >&2
-    uv pip install --python "$PY" -q -r requirements.txt >&2
+    uv pip install --python "$PY" -q -r requirements-dev.txt >&2
     echo "$want" > "$STAMP"
 fi
 

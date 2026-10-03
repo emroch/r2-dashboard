@@ -10,7 +10,8 @@ Structure:
 
 ```
 r2_dashboard        run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
-requirements.txt    pandas, numpy, plotly, PyYAML, beautifulsoup4
+requirements.txt    pandas, numpy, plotly, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
+requirements-dev.txt  -r requirements.txt + dev tools (pytest, …); ./ci_env installs it
 src/
   config.py         paths, run timestamps (NOW/AS_OF) + loaders for the conf/ YAML files below
   pipeline.py       main() orchestration + report printing (fetch -> clean -> render)
@@ -56,7 +57,7 @@ Outputs:
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. If a live fetch fails, the newest cache is used.
 
-Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/`.
+Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
 
 ### Matching CI locally (`./ci_env`)
 
