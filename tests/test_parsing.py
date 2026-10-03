@@ -2120,5 +2120,115 @@ def test_a_set_aside_estimate_is_unknown_everywhere():
     assert report["n_set_aside_delivery"] >= 1
 
 
+# --- Snapshot replay (#81) -----------------------------------------------------
+
+_HF = ["orig_num", "user", "order_raw", "color", "delivery_raw"]
+
+
+def _snap(day, *rows):
+    """A synthetic orders snapshot: (timestamp, fields, rows), "#" numbered in order."""
+    from datetime import datetime
+    return (datetime(2026, 9, day), _HF,
+            [[str(n)] + list(r) for n, r in enumerate(rows, start=1)])
+
+
+def test_replay_keys_follow_the_order_not_the_row_number():
+    from ingest.history import replay
+    a = ("Alice", "8/1/2026", "Midnight", "")
+    b = ("Bob", "8/2/2026", "Borealis", "")
+    b2 = ("bob", "8/20/2026", "Launch Green", "")       # Bob's second order
+    h = replay([_snap(1, a, b), _snap(2, a, b, b2),
+                _snap(3, b, b2)], "orders")                  # Alice's row deleted
+    keys = dict(zip(h.orders["key"], h.orders["user"]))
+    assert sorted(keys) == ["alice", "bob", "bob#2"], keys
+    # Deleting Alice renumbered Bob's rows, but keys are by order, not by "#".
+    o = h.orders.set_index("key")
+    assert o.at["bob", "orig_num"] == "1" and o.at["bob#2", "orig_num"] == "2"
+    assert str(o.at["alice", "gone_after"].date()) == "2026-09-03"
+    assert o["gone_after"].isna().sum() == 2
+
+
+def test_replay_matches_a_users_rows_by_content_after_a_deletion():
+    # A user with two rows loses the first: the survivor keeps ITS key rather
+    # than sliding into the deleted one's, which is what "#" did.
+    from ingest.history import replay
+    first = ("u", "8/1/2026", "Midnight", "")
+    second = ("u", "9/1/2026", "Borealis", "")
+    h = replay([_snap(1, first, second), _snap(2, second)], "orders")
+    o = h.orders.set_index("key")
+    assert pd.notna(o.at["u", "gone_after"]) and pd.isna(o.at["u#2", "gone_after"])
+
+
+def test_replay_starts_a_new_order_when_nothing_agrees():
+    # Same username, one row swapped for an unrelated one in the same snapshot:
+    # below the agreement floor, so it is a new order, not an edit of the old.
+    from ingest.history import replay
+    h = replay([_snap(1, ("u", "8/1/2026", "Midnight", "4-8 weeks")),
+                _snap(2, ("u", "9/15/2026", "Borealis", "Nov"))], "orders")
+    assert sorted(h.orders["key"]) == ["u", "u#2"]
+
+
+def test_replay_folds_case_variants_and_records_time_bounds():
+    from ingest.history import field_changes, replay, summary
+    h = replay([_snap(1, ("Kim", "8/1/2026", "Midnight", "4-8 weeks")),
+                _snap(2, ("Kim", "8/1/2026", "Midnight", "4-8 weeks")),
+                _snap(3, ("kim", "8/1/2026", "Midnight", "9/30/2026"))], "orders")
+    assert list(h.orders["key"]) == ["kim"], "case is not a new person"
+    runs = h.events[(h.events["field"] == "delivery_raw")]
+    got = [(v, f.day, last.day, None if pd.isna(a) else a.day)
+           for v, f, last, a in zip(runs["value"], runs["first_seen"],
+                                    runs["last_seen"], runs["after"])]
+    # The first value held on or before 9/1 (left-censored); the change happened
+    # after the 9/2 snapshot and by the 9/3 one — that interval is all we know.
+    assert got == [("4-8 weeks", 1, 2, None), ("9/30/2026", 3, 3, 2)], got
+    ch = field_changes(h)
+    assert list(ch["field"]) == ["delivery_raw"]
+    sm = summary(h)
+    assert (sm["orders"], sm["changed_orders"], sm["change_events"],
+            sm["field_changes"]) == (1, 1, 1, 1)
+
+
+def test_replay_counts_one_event_when_several_fields_change_together():
+    from ingest.history import replay, summary
+    h = replay([_snap(1, ("u", "8/1/2026", "Midnight", "")),
+                _snap(2, ("u", "8/1/2026", "Borealis", "9/30/2026"))], "orders")
+    sm = summary(h)
+    assert (sm["change_events"], sm["field_changes"]) == (1, 2), sm
+
+
+def test_a_new_order_is_bounded_by_the_snapshot_before_it():
+    from ingest.history import replay
+    h = replay([_snap(1, ("a", "8/1/2026", "Midnight", "")),
+                _snap(5, ("a", "8/1/2026", "Midnight", ""),
+                      ("b", "9/3/2026", "Borealis", ""))], "orders")
+    o = h.orders.set_index("key")
+    assert pd.isna(o.at["a", "after"]) and o.at["b", "after"].day == 1
+    assert o.at["b", "first_seen"].day == 5
+
+
+def test_snapshot_history_reads_caches_like_the_loader(tmp_dir=None):
+    # End to end over real files: the replay reads a cache exactly as
+    # load_and_clean does (same header location and by-name mapping).
+    import tempfile
+
+    from config import ORDERS_HEADERS, ORDERS_SLUG
+    from ingest.history import orders_history, snapshot_files
+    from ingest.loaders import read_sheet
+    text = _orders_csv(_orders_header())
+    fields, rows = read_sheet(text, ORDERS_HEADERS, [], "test")
+    assert fields == list(ORDERS_HEADERS)
+    assert [r[fields.index("user")] for r in rows] == ["tester"]
+    with tempfile.TemporaryDirectory() as d:
+        for ts in ("20260901-120000", "20260902-120000"):
+            with open(os.path.join(d, "%s_%s.csv" % (ORDERS_SLUG, ts)), "w") as fh:
+                fh.write(text)
+        with open(os.path.join(d, "unrelated.csv"), "w") as fh:
+            fh.write("x")
+        assert len(snapshot_files(ORDERS_SLUG, d)) == 2
+        h = orders_history(d)
+    assert list(h.orders["key"]) == ["tester"] and len(h.snapshots) == 2
+    assert h.events["last_seen"].dt.day.eq(2).all(), "unchanged values extend their run"
+
+
 if __name__ == "__main__":
     sys.exit(1 if _run_all() else 0)
