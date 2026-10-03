@@ -142,7 +142,7 @@ def _apply_additions(df, additions):
             issues.append(("—", str(uname), "duplicate addition entry (skipped)"))
             continue
         seen.add(key)
-        row = {c: "" for c in ORDERS_COLUMNS}
+        row = dict.fromkeys(ORDERS_COLUMNS, "")
         row["user"], row["orig_num"] = str(uname), "add"
         set_fields = []
         for field, value in (fields or {}).items():
@@ -493,11 +493,13 @@ def load_and_clean(text, meta):
     for i in df.index[keep_bad_order]:
         why = "future" if order_future.at[i] else "too early"
         date_records.append((df.at[i, "orig_num"], df.at[i, "user"],
-                             "order date %s → dropped (%s)" % (df.at[i, "order_raw"], why)))
+                             "order date %s → dropped (%s)"
+                             % (df.at[i, "order_raw"], why)))
     for i in df.index[keep_bad_resv]:
         why = "future" if resv_future.at[i] else "too early"
         date_records.append((df.at[i, "orig_num"], df.at[i, "user"],
-                             "reservation %s → dropped (%s)" % (df.at[i, "resv_raw"], why)))
+                             "reservation %s → dropped (%s)"
+                             % (df.at[i, "resv_raw"], why)))
 
     df = df[~drop_mask].reset_index(drop=True)
     n_dedup = len(df)  # final cohort: dedup + additions − not-yet-orderable drops
@@ -530,7 +532,8 @@ def load_and_clean(text, meta):
         df.at[i, "vin_seq"], df.at[i, "vin_present"] = np.nan, False
     for i, why in suspect_delivery.items():
         set_aside.append((df.at[i, "orig_num"], df.at[i, "user"],
-                          "delivery %r set aside — %s" % (df.at[i, "delivery_raw"], why)))
+                          "delivery %r set aside — %s"
+                          % (df.at[i, "delivery_raw"], why)))
         df.loc[i, ["delivery_est", "delivery_min", "delivery_max"]] = pd.NaT
         df.at[i, "delivery_type"] = "unknown"
         df.at[i, "delivery_anchor_fallback"] = False
@@ -556,8 +559,8 @@ def load_and_clean(text, meta):
     # Reconcile the bundled options against the Launch Package column, which is
     # authoritative — see reconcile_launch_options. The raw columns are kept as
     # reported; the *_effective ones are what the take-rates and price use.
-    recon = [reconcile_launch_options(l, autonomy=a, tow=t)
-             for l, a, t in zip(df["launch"], df["autonomy"], df["tow"])]
+    recon = [reconcile_launch_options(ln, autonomy=a, tow=t)
+             for ln, a, t in zip(df["launch"], df["autonomy"], df["tow"])]
     df["autonomy_effective"] = [r[0]["autonomy"] for r in recon]
     df["tow_effective"] = [r[0]["tow"] for r in recon]
     # Contradictory answers, reconciled rather than dropped: the bundled options
@@ -582,9 +585,9 @@ def load_and_clean(text, meta):
     # per-category breakdown kept for the "where the money goes" panel. Options
     # the sheet claims but the trim doesn't offer are flagged for review, not
     # corrected — the order keeps a best-effort price and stays in the stats.
-    priced = [price_order(trim=t, launch=l, color=c, interior=i, wheels=w,
+    priced = [price_order(trim=t, launch=ln, color=c, interior=i, wheels=w,
                           autonomy=a, tow=tw, spare=s)
-              for t, l, c, i, w, a, tw, s
+              for t, ln, c, i, w, a, tw, s
               in zip(df["trim"], df["launch"], df["color"], df["interior"],
                      df["wheels"], df["autonomy_effective"],
                      df["tow_effective"], df["spare"])]

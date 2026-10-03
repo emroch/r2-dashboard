@@ -141,7 +141,7 @@ def price_order(trim="", launch="", color="", interior="", wheels="",
     "price_trim"/"price_drive_system" for grouping; `issues` is a list of
     human-readable configuration problems for the data-quality panel.
     """
-    parts = {k: 0 for k in PRICE_PARTS}
+    parts = dict.fromkeys(PRICE_PARTS, 0)
     parts.update(price=None, price_trim=None, price_drive_system=None)
     issues, unknown = [], False
 
