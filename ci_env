@@ -11,8 +11,8 @@
 #
 #   ./ci_env test      run the unit tests under the CI stack (default)
 #   ./ci_env build     run the full pipeline (fetch -> clean -> render)
-#   ./ci_env check     lint + tests + build, i.e. what CI does on a PR
-#   ./ci_env lint      ruff check (settings in pyproject.toml)
+#   ./ci_env check     lint + types + tests + build, i.e. what CI does on a PR
+#   ./ci_env lint      ruff check + mypy (settings in pyproject.toml)
 #   ./ci_env shell     print the activate line for an interactive session
 #   ./ci_env python …  run any python command under the CI stack
 #   ./ci_env sync      (re)create the venv from requirements.txt and exit
@@ -101,10 +101,12 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         ;;
     lint)
         "$VENV/bin/ruff" check .
+        "$VENV/bin/mypy"
         ;;
     check)
         banner "CI stack" "$PY"
         "$VENV/bin/ruff" check .
+        "$VENV/bin/mypy"
         "$PY" tests/test_parsing.py
         "$PY" src/pipeline.py
         ;;

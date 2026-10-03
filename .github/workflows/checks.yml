@@ -1,9 +1,9 @@
 name: Static checks
 
-# Lint every pull request. Its own workflow rather than a step in preview.yml, so
+# Lint and type-check every pull request. Its own workflow rather than a step in preview.yml, so
 # a lint finding fails a check on the PR without holding back the preview build
-# and deploy — the preview is how the change gets reviewed, and a style nit
-# shouldn't hide it. Needs no secrets, so it runs the same for forks.
+# and deploy — the preview is how the change gets reviewed, and a style nit or a
+# type complaint shouldn't hide it. Needs no secrets, so it runs the same for forks.
 on:
   pull_request:
 
@@ -33,3 +33,23 @@ jobs:
       # inline annotations on the PR diff.
       - name: ruff check
         run: ruff check --output-format=github .
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      # The full dev set: mypy needs the runtime libraries installed (pandas,
+      # numpy, bs4) as well as their stubs, to check calls into them.
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Settings (files, strictness, the plotly exemption) live in pyproject.toml.
+      - name: mypy
+        run: mypy

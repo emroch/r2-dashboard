@@ -79,7 +79,7 @@ def _apply_overrides(df, overrides):
     one order could edit the other with nothing said about it anywhere.
     Returns (applied_records, issue_records) for the report/QA panel."""
     valid = set(ORDERS_COLUMNS)
-    rows_by_user = {}
+    rows_by_user: dict[str, list[int]] = {}
     for i, u in zip(df.index, df["user"]):
         rows_by_user.setdefault(str(u).lower(), []).append(i)
     applied, issues = [], []
@@ -225,7 +225,7 @@ def _dedupe_by_user(df, identity):
     def filled(i):
         return sum(1 for c in compare if norm(i, c) != "")
 
-    groups = {}
+    groups: dict[str, list[int]] = {}
     for i, u in zip(df.index, df["user"]):
         groups.setdefault(str(u).strip().lower(), []).append(i)
 
@@ -233,7 +233,7 @@ def _dedupe_by_user(df, identity):
     for idxs in groups.values():
         if len(idxs) < 2:
             continue
-        builds = {}
+        builds: dict[tuple[str, ...], list[int]] = {}
         for i in idxs:
             builds.setdefault(tuple(norm(i, c).lower() for c in ident), []).append(i)
         for rows in builds.values():
@@ -314,7 +314,7 @@ def _apply_deletions(df, deletions, what, valid_fields=()):
     def _same(a, b):
         return " ".join(str(a).split()).lower() == " ".join(str(b).split()).lower()
 
-    by_user = {}
+    by_user: dict[str, list[int]] = {}
     for i, u in zip(df.index, df["user"]):
         by_user.setdefault(str(u).strip().lower(), []).append(i)
     drop, records, issues = [], [], []
@@ -623,7 +623,7 @@ def load_and_clean(text, meta):
             unparseable.append((r["orig_num"], r["user"], r["delivery_raw"]))
     # Usernames that normalize alike (case/space/punctuation) but weren't merged
     # by the exact-lowercase dedup — possibly the same person entered twice.
-    by_norm = {}
+    by_norm: dict[str, list[tuple[str, str]]] = {}
     for _, r in df.iterrows():
         key = "".join(ch for ch in r["user"].lower() if ch.isalnum())
         by_norm.setdefault(key, []).append((r["orig_num"], r["user"]))

@@ -11,7 +11,7 @@ Structure:
 ```
 r2_dashboard        run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
 requirements.txt    pandas, numpy, plotly, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
-requirements-dev.txt  -r requirements.txt + dev tools (pytest, …); ./ci_env installs it
+requirements-dev.txt  -r requirements.txt + dev tools (pytest, ruff, mypy + stubs); ./ci_env installs it
 src/
   config.py         paths, run timestamps (NOW/AS_OF) + loaders for the conf/ YAML files below
   pipeline.py       main() orchestration + report printing (fetch -> clean -> render)
@@ -68,8 +68,8 @@ year 1326 raises `OutOfBoundsDatetime` on pandas 1.x but coerces to `NaT` on 2.x
 gitignored) from the pinned requirements via `uv` and runs against it:
 
 ```sh
-./ci_env check          # lint + tests + full pipeline under the CI stack (what CI does)
-./ci_env lint           # ruff check only (pyproject.toml; lint, not format)
+./ci_env check          # lint + types + tests + full pipeline under the CI stack (what CI does)
+./ci_env lint           # ruff check + mypy (pyproject.toml; lint, not format)
 ./ci_env test --both    # run the suite under BOTH stacks — catches version-dependent behavior
 ./ci_env build          # just the pipeline
 ./ci_env python …       # any command under the CI stack
@@ -106,3 +106,4 @@ Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4)
 - Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `palette.yaml` (data-encoding colors/markers + chart fills), `theme.yaml` (page & chart chrome for light/dark), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.
 - Both sheets' columns are located **by name** (`ingest/schema_check.py`), and only the columns listed in `schema.yaml` are read at all — so reordering a sheet or adding a question to the form changes nothing here. Every run verifies each mapped column is present exactly once; a renamed/removed/duplicated one raises `SchemaDrift` and **stops the pipeline**, because it would otherwise read as empty (or ambiguously) for every row. The fix is to edit `orders_columns` / `reservations_columns` to match the sheet. A new *unmapped* column is only reported in the data-quality panel; add it to `ignored_columns` once it's knowingly unused, or map it to use it.
+- Lint is `ruff check` (no `ruff format`, no import sorting — the hand-aligned continuation style is deliberate) and types are `mypy` with `check_untyped_defs`, both via `./ci_env lint` and the `Static checks` PR workflow. The code must still run on the system 3.9, so a module using `X | None` hints needs `from __future__ import annotations`, and names used only in hints (e.g. pandas' `NaTType`) are imported under `TYPE_CHECKING`.
