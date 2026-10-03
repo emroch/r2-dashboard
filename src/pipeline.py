@@ -10,17 +10,32 @@ from config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
                      ORDERS_SLUG, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG)
 from render.page import build_dashboard
 from ingest.fetch import fetch_sheet
-from ingest.history import orders_history, reservations_history, summary
+from ingest.history import (current_keys, current_runs, orders_history,
+                            reservations_history, summary)
 from ingest.loaders import load_and_clean, load_reservations
 
 
 def main():
     orders_text, orders_meta = fetch_sheet(ORDERS_KEY, ORDERS_GID, ORDERS_SLUG,
                                            ORDERS_LABEL)
-    df, report, parsed = load_and_clean(orders_text, orders_meta)
-
     resv_text, resv_meta = fetch_sheet(RESV_KEY, RESV_GID, RESV_SLUG,
                                        RESV_LABEL)
+
+    # Snapshot replay (ingest/history.py), after both fetches so the newest cache
+    # is the text being cleaned. It gives the cleaning its order keys (for
+    # user#n curation) and when each current value took hold (for the
+    # stale-override check), and is summarized below with its cost.
+    histories, timed = {}, []
+    for name, build in (("orders", orders_history),
+                        ("reservations", reservations_history)):
+        t0 = time.perf_counter()
+        histories[name] = build()
+        timed.append((name, summary(histories[name]), time.perf_counter() - t0))
+    oh = histories["orders"]
+    df, report, parsed = load_and_clean(orders_text, orders_meta,
+                                        keys=current_keys(oh),
+                                        changed=current_runs(oh))
+
     # cancelled_users keeps a cancelled ORDER from reappearing as an outstanding
     # reservation just because it left the orders cohort.
     resv, resv_report = load_reservations(resv_text, set(df["user"]),
@@ -60,15 +75,6 @@ def main():
 
     build_dashboard(df, report, resv)
 
-    # Snapshot replay (data layer stage 1, ingest/history.py). Internal only for
-    # now: nothing on the page reads it, so it is only summarized below, with its
-    # cost, which decides whether it will ever need a build cache.
-    histories = []
-    for name, build in (("orders", orders_history),
-                        ("reservations", reservations_history)):
-        t0 = time.perf_counter()
-        hist = build()
-        histories.append((name, summary(hist), time.perf_counter() - t0))
 
     def _fmt(meta):
         f = meta["fetched_at"].strftime("%Y-%m-%d %H:%M")
@@ -120,7 +126,7 @@ def main():
              report["n_dedup"] + resv_report["n_incomplete"]))
     print("-" * 64)
     print("Snapshot history (internal):")
-    for name, sm, secs in histories:
+    for name, sm, secs in timed:
         print("  %-13s %d snapshots, %d keys (%d gone), %d changed in %d events "
               "(%d field changes) — %.1fs"
               % (name, sm["snapshots"], sm["orders"], sm["gone"],

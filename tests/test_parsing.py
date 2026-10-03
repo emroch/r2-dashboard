@@ -2213,7 +2213,7 @@ def test_snapshot_history_reads_caches_like_the_loader(tmp_dir=None):
 
     from config import ORDERS_HEADERS, ORDERS_SLUG
     from ingest.history import orders_history, snapshot_files
-    from ingest.loaders import read_sheet
+    from ingest.schema_check import read_sheet
     text = _orders_csv(_orders_header())
     fields, rows = read_sheet(text, ORDERS_HEADERS, [], "test")
     assert fields == list(ORDERS_HEADERS)
@@ -2228,6 +2228,188 @@ def test_snapshot_history_reads_caches_like_the_loader(tmp_dir=None):
         h = orders_history(d)
     assert list(h.orders["key"]) == ["tester"] and len(h.snapshots) == 2
     assert h.events["last_seen"].dt.day.eq(2).all(), "unchanged values extend their run"
+
+
+# --- Curation v2: provenance, effective dates, order keys (#82) ----------------
+
+
+def test_curation_meta_is_split_from_what_an_entry_edits():
+    from ingest.curation import in_effect, split
+    e = split("u", {"source": ["https://a", "https://b"], "as_of": "2026-09-01",
+                    "reason": "posted", "delivery_raw": "9/30/2026"})
+    assert e.body == {"delivery_raw": "9/30/2026"}
+    assert e.source == ["https://a", "https://b"] and str(e.as_of) == "2026-09-01"
+    # A YAML date and a plain string read the same.
+    assert split("u", {"as_of": date(2026, 9, 1)}).as_of == e.as_of
+    # Non-mapping entries (a plain deletion reason, a verified list) carry none.
+    assert split("u", "cancelled").body == "cancelled"
+    assert in_effect(e, None), "no `when` means now: everything applies"
+    assert not in_effect(e, pd.Timestamp("2026-08-31"))
+    assert in_effect(e, pd.Timestamp("2026-09-01 08:00"))
+
+
+def test_curation_v2_requires_provenance_and_v1_does_not():
+    from ingest.curation import CurationError, check
+    today = date(2026, 10, 3)
+    bare = {"overrides": {"u": {"vin_raw": "1"}}}
+    check(1, bare, today)                         # the old format: nothing required
+    try:
+        check(2, bare, today)
+        raise AssertionError("v2 must refuse an entry without provenance")
+    except CurationError as exc:
+        assert "no source" in str(exc) and "no as_of" in str(exc)
+    ok = {"overrides": {"u": {"source": "https://x", "as_of": "2026-09-01",
+                              "vin_raw": "1"},
+                        "v": {"source": "inferred — typo'd year", "as_of": "2026-09-01",
+                              "vin_raw": "2"}}}
+    check(2, ok, today)
+    for bad, why in (({"source": "a forum post", "as_of": "2026-09-01"}, "neither"),
+                     ({"source": "https://x", "as_of": "2026-12-01"}, "future")):
+        try:
+            check(2, {"additions": {"w": bad}}, today)
+            raise AssertionError(why)
+        except CurationError as exc:
+            assert why in str(exc), exc
+
+
+def test_override_by_order_key_targets_one_of_several_orders():
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([
+        dict(BUILD, orig_num="201", user="FL5guy", order_raw="7/23/2026"),
+        dict(BUILD, orig_num="296", user="FL5Guy", order_raw="8/18/2026",
+             wheels='20" BS'),
+    ])
+    df["key"] = ["fl5guy", "fl5guy#2"]
+    applied, issues = _apply_overrides(df, {"fl5guy#2": {"order_raw": "9/15/2026"}})
+    assert df.at[1, "order_raw"] == "9/15/2026" and len(applied) == 1
+    assert issues == [], "a key is exact, so there is no ambiguity to report"
+    # The plain username still works, and its warning now names the keys.
+    _, issues = _apply_overrides(df, {"FL5Guy": {"order_raw": "9/16/2026"}})
+    assert "fl5guy, fl5guy#2" in issues[0][2], issues
+    _, issues = _apply_overrides(df, {"fl5guy#3": {"order_raw": "9/1/2026"}})
+    assert "no order with key fl5guy#3" in issues[0][2]
+
+
+def test_override_flags_redundant_and_outdated_entries():
+    from datetime import datetime
+
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="a", vin_raw="1500",
+                             delivery_raw="9/30/2026")])
+    df["key"] = ["a"]
+    # The sheet now says what the override says: nothing to apply, and it can go.
+    applied, issues = _apply_overrides(df, {"a": {"vin_raw": "1500"}})
+    assert applied == [] and "can be removed" in issues[0][2]
+    # The sheet changed AFTER the override was written: it may be out of date.
+    changed = {("a", "delivery_raw"): ("9/30/2026", datetime(2026, 9, 20),
+                                       datetime(2026, 9, 19))}
+    entry = {"a": {"as_of": "2026-09-10", "delivery_raw": "9/25/2026"}}
+    applied, issues = _apply_overrides(df, entry, changed=changed)
+    assert len(applied) == 1 and "after this override" in issues[0][2], issues
+    assert "between 2026-09-19 and 2026-09-20" in issues[0][2]
+    # A change on the override's own day is not flagged: it may be what the
+    # override was responding to.
+    df.at[0, "delivery_raw"] = "9/30/2026"
+    same_day = {"a": {"as_of": "2026-09-19", "delivery_raw": "9/25/2026"}}
+    _, issues = _apply_overrides(df, same_day, changed=changed)
+    assert issues == [], issues
+
+
+def test_curation_applies_only_from_its_as_of():
+    from ingest.loaders import _apply_additions, _apply_deletions, _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="a", vin_raw="")])
+    df["key"] = ["a"]
+    before, after = pd.Timestamp("2026-09-01"), pd.Timestamp("2026-09-30")
+    entry = {"a": {"as_of": "2026-09-15", "vin_raw": "1500"}}
+    applied, _ = _apply_overrides(df, entry, when=before)
+    assert applied == [] and df.at[0, "vin_raw"] == ""
+    applied, _ = _apply_overrides(df, entry, when=after)
+    assert df.at[0, "vin_raw"] == "1500"
+    add = {"newbie": {"as_of": "2026-09-15", "loc_raw": "CA"}}
+    assert _apply_additions(df, add, when=before)[0] is None
+    add_df, _, _ = _apply_additions(df, add, when=after)
+    assert list(add_df["key"]) == ["newbie"]
+    gone = {"a": {"as_of": "2026-09-15", "reason": "cancelled"}}
+    assert not _apply_deletions(df, gone, "order", when=before)[0].any()
+    assert _apply_deletions(df, gone, "order", when=after)[0].all()
+
+
+def test_dedupe_ignores_order_keys():
+    # Two submissions of one build are one order; their row keys differ by
+    # construction and are not a disagreement.
+    from ingest.loaders import _dedupe_by_user
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="u", vin_raw="9"),
+                        dict(BUILD, orig_num="2", user="u", vin_raw="9")])
+    df["key"] = ["u", "u#2"]
+    out, _merged, _builds, values = _dedupe_by_user(df, IDENT)
+    assert len(out) == 1 and values == [], values
+
+
+def test_load_and_clean_keys_rows_without_a_history():
+    # Without keys from the history, one snapshot is replayed on its own.
+    row = _one_order(_orders_csv(_orders_header()))
+    assert row["key"] == "tester"
+
+
+def _migrate(text):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "migrate_curation", os.path.join(os.path.dirname(_SRC), "tools",
+                                         "migrate_curation.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    dates = {n: date(2026, 9, n % 28 + 1) for n in range(1, 200)}
+    return mod, mod.migrate(text, dates)
+
+
+_MIGRATE_SAMPLE = """# header comment
+overrides:
+  # delivery update
+  # https://example.com/post-1
+  alice:
+    delivery_raw: "9/30/2026"
+  # probable typo, no link
+  bob:
+    vin_raw: "1500"
+additions:
+  # order: https://example.com/post-2
+  # https://example.com/post-3
+  carol:
+    loc_raw: "CA"
+deletions:
+  orders:
+    # https://example.com/post-4
+    dave:
+      reason: "cancelled"
+      match:
+        order_raw: "8/1/2026"
+verified:
+  erin: [vin_raw]
+"""
+
+
+def test_migration_lifts_urls_and_keeps_everything_else():
+    import yaml
+    mod, (new, migrated, unresolved) = _migrate(_MIGRATE_SAMPLE)
+    data = yaml.safe_load(new)
+    assert data["overrides"]["alice"]["source"] == "https://example.com/post-1"
+    assert data["additions"]["carol"]["source"] == ["https://example.com/post-2",
+                                                    "https://example.com/post-3"]
+    assert data["deletions"]["orders"]["dave"]["source"] == "https://example.com/post-4"
+    assert data["verified"]["erin"]["fields"] == ["vin_raw"]
+    assert all("as_of" in e for sec in ("overrides", "additions")
+               for e in data[sec].values())
+    assert "source" not in data["overrides"]["bob"]
+    assert unresolved == [("overrides", "bob"), ("verified", "erin")], unresolved
+    assert len(migrated) == 3
+    # The URL comments are lifted, every other comment and label survives.
+    assert "# delivery update" in new and "# probable typo, no link" in new
+    assert "# https://example.com/post-1" not in new
+    assert "post-2  # order" in new
+    # Semantics unchanged, and a second run adds nothing.
+    assert mod._strip_meta(data) == mod._strip_meta(yaml.safe_load(_MIGRATE_SAMPLE))
+    again, _, _ = mod.migrate(new, {})
+    assert again == new
 
 
 if __name__ == "__main__":

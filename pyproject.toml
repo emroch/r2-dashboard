@@ -45,7 +45,7 @@ python_version = "3.12"
 mypy_path = "src"
 # The pipeline only. The suite pokes at internals with throwaway fixtures, and
 # narrowing every Optional there would add asserts that test nothing.
-files = ["src"]
+files = ["src", "tools"]
 explicit_package_bases = true
 # Unannotated functions are still checked, so the pass has value before every
 # signature carries hints.
