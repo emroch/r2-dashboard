@@ -2,9 +2,9 @@
 
 Delivery date stands in for build date. The build-to-delivery lag changes WHEN a
 VIN shows up but barely changes the slope, and the slope is the rate. Inputs are
-orders with a VIN and a FIRM delivery date that passes the order-date contradiction
-check (parsing.implausible_latency): a range or window would put a guessed midpoint
-on the time axis.
+orders with a VIN and a FIRM delivery date (a range or window would put a guessed
+midpoint on the time axis). Entry errors are already set aside by cleaning
+(ingest/outliers.py).
 
 Three ideas carry the design:
 
@@ -42,7 +42,7 @@ import pandas as pd
 
 from config import (AS_OF, CADENCE_BACKTEST_CUTS, CADENCE_FRONT_Q,
                     CADENCE_HORIZON_WEEKS, CADENCE_MIN_WEEK_N, CADENCE_WINDOW_WEEKS)
-from ingest.parsing import implausible_latency
+from ingest.outliers import theil_sen   # shared with the entry-error checks
 
 # Origin for the day-number axis the fits run on. Any Monday works; only
 # differences matter.
@@ -50,15 +50,12 @@ _EPOCH = pd.Timestamp("2026-01-05")
 
 
 def cadence_frame(df):
-    """Orders usable for cadence: a VIN, a firm delivery date, no contradiction.
+    """Orders usable for cadence: a VIN and a firm delivery date.
 
     Adds `vin` (float) and `week` (Monday the delivery week starts on).
     """
     d = df[df["vin_present"].astype(bool) & (df["delivery_type"] == "explicit")
            & df["delivery_est"].notna()].copy()
-    ok = [implausible_latency(o, mn, mx) is None for o, mn, mx in
-          zip(d["order_date"], d["delivery_min"], d["delivery_max"])]
-    d = d[ok]
     d["vin"] = d["vin_seq"].astype(float)
     d["week"] = d["delivery_est"].dt.to_period("W-SUN").dt.start_time
     return d
@@ -67,22 +64,6 @@ def cadence_frame(df):
 def _mid_day(weeks):
     """Mid-week day number (Thursday) for an index/array of week starts."""
     return ((pd.DatetimeIndex(weeks) - _EPOCH).days + 3).astype(float)
-
-
-def theil_sen(x, y):
-    """Median of pairwise slopes, and the matching intercept; None below 2 points.
-
-    Exact over all pairs — front series are a few dozen points at most.
-    """
-    x, y = np.asarray(x, float), np.asarray(y, float)
-    if len(x) < 2:
-        return None
-    i, j = np.triu_indices(len(x), 1)
-    keep = x[i] != x[j]
-    if not keep.any():
-        return None
-    slope = float(np.median((y[j][keep] - y[i][keep]) / (x[j][keep] - x[i][keep])))
-    return slope, float(np.median(y - slope * x))
 
 
 def build_front(d, q=CADENCE_FRONT_Q, min_n=CADENCE_MIN_WEEK_N, as_of=AS_OF):

@@ -182,9 +182,12 @@ def _parse_monthname(s):
 _MONTHS_ALT = r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
 # Two named-month (or same-month day) endpoints joined by a range separator.
 # Groups: (month1, day1, month2, day2); day1/day2 and month2 are optional.
+# Bare whitespace also separates, but only when a second month name follows
+# ("August September"); otherwise "Aug 3" would read as the range Aug 1-3.
 _MONTHRANGE_RE = re.compile(
     _MONTHS_ALT + r"\.?\s*(?:(\d{1,2})(?:st|nd|rd|th)?)?\s*"
-    r"(?:-|–|—|/|to|thru|through|&|and)\s*"
+    r"(?:(?:-|–|—|/|to|thru|through|&|and)\s*"
+    r"|(?<=\s)(?=(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)))"
     r"(?:" + _MONTHS_ALT + r"\.?\s*)?(?:(\d{1,2})(?:st|nd|rd|th)?)?")
 
 
@@ -299,6 +302,7 @@ def _plausible(*dates):
 #   None     no match — try the next rule
 #   _VETO    the text says "no date given"; stop and report unknown
 #   _Weeks   a RELATIVE window, lo..hi weeks after the anchor
+#   _Days    the same, in days
 #   _Span    an absolute min..max interval, with the type to report
 #   _Fixed   like _Span, but exempt from the plausible-year check (see below)
 #   _Point   a single date, "explicit" or "month" (a month expands to its span)
@@ -321,6 +325,7 @@ def _plausible(*dates):
 
 _VETO = object()
 _Weeks = namedtuple("_Weeks", "lo hi")
+_Days = namedtuple("_Days", "lo hi")
 _Span = namedtuple("_Span", "min max type")
 _Fixed = namedtuple("_Fixed", "min max type")
 _Point = namedtuple("_Point", "type date")
@@ -329,6 +334,8 @@ _Point = namedtuple("_Point", "type date")
 # "2-4 weeks" is a span rather than "4 weeks" alone.
 _WEEK_RANGE_RE = re.compile(r"(\d+)\s*(?:-|to|–|—)\s*(\d+)\s*(?:week|wk)")
 _WEEK_ONE_RE = re.compile(r"(?<!\d)(\d+)\s*(?:week|wk)")
+# Relative day windows, range or single: "7-10 days", "5 days".
+_DAYS_RE = re.compile(r"(?<![\d/])(\d+)(?:\s*(?:-|to|–|—)\s*(\d+))?\s*days?\b")
 # Numeric date range: "7/30-7/31", "7/30 - 8/2", same-month "7/30-31", or full
 # dates with years "7/28/2026 - 8/3/2026".
 _NUM_RANGE_RE = re.compile(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\s*(?:-|–|—|to)\s*"
@@ -371,6 +378,19 @@ def _rule_week_single(raw, low):
     """"2 weeks", "1 wk" — a single point, not a span."""
     m = _WEEK_ONE_RE.search(low)
     return _Weeks(int(m.group(1)), int(m.group(1))) if m else None
+
+
+def _rule_days(raw, low):
+    """"7-10 days", "5 days" — lo..hi days from the anchor.
+
+    Ahead of every absolute-date rule, which is what it exists to beat: before it,
+    "7-10 days" fell through to the numeric date and read as 10 July.
+    """
+    m = _DAYS_RE.search(low)
+    if not m:
+        return None
+    lo = int(m.group(1))
+    return _Days(lo, int(m.group(2)) if m.group(2) else lo)
 
 
 def _rule_week_of(raw, low):
@@ -446,6 +466,7 @@ _DELIVERY_RULES = (
     ("explicit override", _rule_override),
     ("relative week range", _rule_week_range),
     ("relative single week", _rule_week_single),
+    ("relative days", _rule_days),
     ("week of <date>", _rule_week_of),
     ("numeric range", _rule_numeric_range),
     ("month-name range", _rule_monthname_range),
@@ -479,11 +500,12 @@ def parse_delivery(raw, order_date):
         if res is _VETO:
             return out
 
-        if isinstance(res, _Weeks):
+        if isinstance(res, (_Weeks, _Days)):
             anchor, fallback = _anchor(order_date)
-            out.update(min=anchor + pd.Timedelta(weeks=res.lo),
-                       max=anchor + pd.Timedelta(weeks=res.hi),
-                       est=anchor + pd.Timedelta(weeks=(res.lo + res.hi) / 2.0),
+            unit = "weeks" if isinstance(res, _Weeks) else "days"
+            out.update(min=anchor + pd.Timedelta(**{unit: res.lo}),
+                       max=anchor + pd.Timedelta(**{unit: res.hi}),
+                       est=anchor + pd.Timedelta(**{unit: (res.lo + res.hi) / 2.0}),
                        type="window", anchor=anchor, anchor_fallback=fallback)
             return out
 
