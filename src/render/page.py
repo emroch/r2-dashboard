@@ -13,7 +13,7 @@ from pathlib import Path
 from textwrap import dedent
 from urllib.parse import urlencode
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from plotly.offline import get_plotlyjs
 
 from .charts import (delivery_progress,
@@ -626,20 +626,29 @@ def build_dashboard(df, report, resv):
     # the Plotly fragments into their placeholders. Script/style content is set
     # via .string, which bs4 emits raw (no entity-escaping of < > &).
     soup = BeautifulSoup(_tpl("page.html"), "html.parser")
-    soup.find(id="theme-vars").string = _THEME_VARS_CSS
-    soup.find(id="page-style").string = _tpl("styles.css")
-    soup.find(id="chrome-vars").string = chrome_css
-    soup.find(id="head-init").string = HEAD_JS
-    soup.find(id="theme-script").string = THEME_JS
-    soup.find(id="nav-script").string = NAV_JS
-    soup.find(id="zoom-script").string = ZOOM_JS
-    soup.find(id="reportData")["href"] = ORDERS_THREAD
-    soup.find(id="reportGithub")["href"] = _report_url(report)
-    soup.find(id="reportForum")["href"] = FORUM_DM_URL
-    soup.find(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
-    soup.find(id="sec-1").append(BeautifulSoup(
+
+    def slot(*args, **kwargs):
+        # A slot missing from page.html is a template bug: say which one, rather
+        # than failing on None a line later.
+        tag = soup.find(*args, **kwargs)
+        if not isinstance(tag, Tag):
+            raise LookupError("page.html has no slot %r %r" % (args, kwargs))
+        return tag
+
+    slot(id="theme-vars").string = _THEME_VARS_CSS
+    slot(id="page-style").string = _tpl("styles.css")
+    slot(id="chrome-vars").string = chrome_css
+    slot(id="head-init").string = HEAD_JS
+    slot(id="theme-script").string = THEME_JS
+    slot(id="nav-script").string = NAV_JS
+    slot(id="zoom-script").string = ZOOM_JS
+    slot(id="reportData")["href"] = ORDERS_THREAD
+    slot(id="reportGithub")["href"] = _report_url(report)
+    slot(id="reportForum")["href"] = FORUM_DM_URL
+    slot(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
+    slot(id="sec-1").append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
-    soup.find("div", class_="wrap").append(
+    slot("div", class_="wrap").append(
         BeautifulSoup("".join(sections), "html.parser"))
 
     html = str(soup)

@@ -75,7 +75,7 @@ def map_columns(header, expected, ignored, label):
             "of them\nwould read the wrong column. Mapped headers: %r"
             % (label, list(expected.values())))
 
-    found = {}
+    found: dict[str, list[int]] = {}
     for j, cell in enumerate(header):
         if cell:
             found.setdefault(_key(cell), []).append(j)

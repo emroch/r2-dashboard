@@ -36,3 +36,23 @@ ignore = [
 "src/render/page.py" = ["E501"]
 # The suite puts src/ on sys.path before importing from it.
 "tests/*" = ["E402"]
+
+[tool.mypy]
+# Type-checks the pipeline under CI's interpreter. mypy itself no longer accepts
+# a 3.9 target, so hints that must also run on the system 3.9 python need
+# `from __future__ import annotations` for any `X | None` syntax.
+python_version = "3.12"
+mypy_path = "src"
+# The pipeline only. The suite pokes at internals with throwaway fixtures, and
+# narrowing every Optional there would add asserts that test nothing.
+files = ["src"]
+explicit_package_bases = true
+# Unannotated functions are still checked, so the pass has value before every
+# signature carries hints.
+check_untyped_defs = true
+warn_unused_ignores = true
+
+# plotly ships no type information.
+[[tool.mypy.overrides]]
+module = ["plotly", "plotly.*"]
+ignore_missing_imports = true

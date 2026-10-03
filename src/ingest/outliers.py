@@ -44,6 +44,11 @@ can't say what the right value is, and the person can fix the sheet or overrides
 can. `verified` in overrides.yaml marks a value that looks wrong but has been
 confirmed, so a genuine outlier isn't removed every build.
 """
+# Lets the hints use `X | None` while the code still runs on the system 3.9.
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -55,7 +60,7 @@ from .parsing import implausible_latency
 _EPOCH = pd.Timestamp("2026-01-01")
 
 
-def theil_sen(x, y):
+def theil_sen(x: Any, y: Any) -> tuple[float, float] | None:
     """Median of pairwise slopes, and the matching intercept; None below 2 points
     or when every x is the same.
 
@@ -72,7 +77,8 @@ def theil_sen(x, y):
     return slope, float(np.median(y - slope * x))
 
 
-def trend_z(x, y, cohort=OUTLIER_COHORT):
+def trend_z(x: Any, y: Any,
+            cohort: int = OUTLIER_COHORT) -> tuple[np.ndarray, np.ndarray]:
     """Robust z-score of each y against the local trend of its cohort along x.
 
     The cohort is the `cohort` points nearest in x-order, centred where possible
@@ -112,15 +118,16 @@ def trend_z(x, y, cohort=OUTLIER_COHORT):
     return z, expect
 
 
-def _days(ts):
+def _days(ts: Any) -> np.ndarray:
     return (pd.DatetimeIndex(ts) - _EPOCH).days.values.astype(float)
 
 
-def _date(day):
+def _date(day: float) -> str:
     return (_EPOCH + pd.Timedelta(days=float(day))).strftime("%b %d")
 
 
-def find_suspects(df, verified=None):
+def find_suspects(df: pd.DataFrame, verified: dict[str, list[str]] | None = None,
+                  ) -> tuple[dict[Any, str], dict[Any, str]]:
     """Which VINs and delivery estimates look like entry errors, and why.
 
     Reads the parsed columns (vin_seq, vin_present, order_date, delivery_min/max/
@@ -129,26 +136,26 @@ def find_suspects(df, verified=None):
     confirmed correct, which skips every check on that field.
     """
     verified = verified or {}
-    ok = {f: np.array([f not in verified.get(str(u).lower(), ())
-                       for u in df["user"]], bool)
-          for f in ("vin_raw", "delivery_raw")}
-    vin, delivery = {}, {}
+    checked = {f: {i for i, u in zip(df.index, df["user"])
+                   if f not in verified.get(str(u).lower(), ())}
+               for f in ("vin_raw", "delivery_raw")}
+    vin: dict[Any, str] = {}
+    delivery: dict[Any, str] = {}
 
     # VIN against orders placed around the same date.
     d = df[df["vin_present"].astype(bool) & df["order_date"].notna()]
     z, med = trend_z(_days(d["order_date"]), d["vin_seq"].astype(float))
-    for i, zi, mi in zip(d.index, z, med):
-        if abs(zi) > OUTLIER_VIN_Z and ok["vin_raw"][df.index.get_loc(i)]:
+    for i, v, o, zi, mi in zip(d.index, d["vin_seq"], d["order_date"], z, med):
+        if abs(zi) > OUTLIER_VIN_Z and i in checked["vin_raw"]:
             vin[i] = ("VIN %d is far from orders placed around %s (typical ≈ %d) "
                       "— a missing or extra digit?"
-                      % (df.at[i, "vin_seq"],
-                         df.at[i, "order_date"].strftime("%b %d"), round(mi, -2)))
+                      % (v, o.strftime("%b %d"), round(mi, -2)))
 
     # The estimate against the order's own date.
     for i, o, mn, mx in zip(df.index, df["order_date"], df["delivery_min"],
                             df["delivery_max"]):
         why = implausible_latency(o, mn, mx)
-        if why and ok["delivery_raw"][df.index.get_loc(i)]:
+        if why and i in checked["delivery_raw"]:
             delivery[i] = why
 
     # A firm delivery date against cars with neighbouring VINs. Only rows whose VIN
@@ -158,9 +165,8 @@ def find_suspects(df, verified=None):
            & df["delivery_est"].notna()]
     d = d[[i not in vin and i not in delivery for i in d.index]]
     z, med = trend_z(d["vin_seq"].astype(float), _days(d["delivery_est"]))
-    for i, zi, mi in zip(d.index, z, med):
-        if zi < -OUTLIER_EARLY_DELIVERY_Z and ok["delivery_raw"][df.index.get_loc(i)]:
+    for i, est, zi, mi in zip(d.index, d["delivery_est"], z, med):
+        if zi < -OUTLIER_EARLY_DELIVERY_Z and i in checked["delivery_raw"]:
             delivery[i] = ("delivery %s is well before cars with nearby VINs "
-                           "(typical ≈ %s)"
-                           % (df.at[i, "delivery_est"].strftime("%b %d"), _date(mi)))
+                           "(typical ≈ %s)" % (est.strftime("%b %d"), _date(mi)))
     return vin, delivery

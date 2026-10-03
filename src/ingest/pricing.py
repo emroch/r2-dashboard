@@ -16,6 +16,8 @@ Two things the caller gets back besides the total:
 A price of None anywhere it's needed makes the whole total None ("unknown
 price"), which the dashboard reports as its own bucket.
 """
+from typing import Any
+
 from config import (PRICE_DRIVE_SYSTEMS, PRICE_INTERIORS, PRICE_OPTIONS,
                      PRICE_PACKAGES, PRICE_PAINTS, PRICE_TRIM_ALIASES,
                      PRICE_TRIMS, OPTED_IN_TOKENS, SPARE_TOKENS)
@@ -45,7 +47,7 @@ _ALIASES = _table(PRICE_TRIM_ALIASES)
 # Fallback wheel prices for a wheel quoted on a trim that doesn't offer it: the
 # upcharge from the first trim that does. Only used for flagged bad combos, so
 # the order can still be priced instead of silently leaving the statistics.
-_WHEEL_FALLBACK = {}
+_WHEEL_FALLBACK: dict[str, int] = {}
 for _t in PRICE_TRIMS.values():
     for _w, _v in (_t.get("wheels") or {}).items():
         _WHEEL_FALLBACK.setdefault(_norm(_w), _v)
@@ -141,7 +143,8 @@ def price_order(trim="", launch="", color="", interior="", wheels="",
     "price_trim"/"price_drive_system" for grouping; `issues` is a list of
     human-readable configuration problems for the data-quality panel.
     """
-    parts = dict.fromkeys(PRICE_PARTS, 0)
+    # Any: the breakdown holds ints, and None for a price not published yet.
+    parts: dict[str, Any] = dict.fromkeys(PRICE_PARTS, 0)
     parts.update(price=None, price_trim=None, price_drive_system=None)
     issues, unknown = [], False
 
