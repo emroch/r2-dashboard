@@ -49,6 +49,17 @@
 #               list of the raw fields confirmed: vin_raw, delivery_raw. A held-
 #               back car with a very low VIN, say, once the owner has confirmed it.
 #
+# PROVENANCE (curation_version 2, ingest/curation.py). Every entry in every section
+# also carries:
+#   source:  the forum URL (or a list of them), or "inferred — <why>" for a
+#            judgment made from the data itself
+#   as_of:   "YYYY-MM-DD", the date the information was posted. The correction
+#            applies from then on; the history before it shows what the sheet said.
+#   reason:  optional short note
+# Once the file says `curation_version: 2`, a missing source or as_of stops the
+# build. tools/migrate_curation.py converts the older comment-only format. Use
+# `username#2` (#3, ...) as the key to target one of a user's several orders.
+#
 # Version-controlled and auditable: every applied change/addition/deletion — and
 # every problem (unknown field / no matching or already-present user) — shows in
 # the cleaning report and the data-quality panel. Idempotent; never mutates the cache.

@@ -63,8 +63,15 @@ ADDITIONS = _CURATION.get("additions") or {}
 _DELETIONS = _CURATION.get("deletions") or {}
 DELETIONS_ORDERS = _DELETIONS.get("orders") or {}
 DELETIONS_RESV = _DELETIONS.get("reservations") or {}
-VERIFIED = {str(u).lower(): list(v or [])
-            for u, v in (_CURATION.get("verified") or {}).items()}
+# A verified entry is a list of fields, or (curation v2) a mapping with `fields`
+# plus its source/as_of. Either way the checks only need the fields.
+VERIFIED_RAW = _CURATION.get("verified") or {}
+VERIFIED = {str(u).lower(): list((v.get("fields") if isinstance(v, dict) else v)
+                                 or [])
+            for u, v in VERIFIED_RAW.items()}
+# 1 = the format before provenance fields; 2 = every entry carries source/as_of
+# (set by tools/migrate_curation.py; see ingest/curation.py).
+CURATION_VERSION = int(_CURATION.get("curation_version", 1))
 
 # --- Live sources (schema.yaml) -------------------------------------------
 # EXPORT_URL is the CSV endpoint; VIEW_URL is the human sheet linked in the header.
