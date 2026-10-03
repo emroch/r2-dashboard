@@ -17,9 +17,9 @@ from config import (ADDITIONS, AS_OF, AVAILABILITY, DELETIONS_ORDERS,
                      ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
-                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS)
-from .parsing import (clean_vin, geo_enrich, haversine_mi, implausible_latency,
-                      parse_delivery,
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VERIFIED)
+from .outliers import find_suspects
+from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date, reconcile_r1_owner, wheel_label)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
 from .schema_check import find_header, map_columns
@@ -160,6 +160,22 @@ def _apply_additions(df, additions):
                       "manual entry — " + ", ".join(sorted(set_fields))))
     add_df = pd.DataFrame(new_rows, columns=ORDERS_COLUMNS) if new_rows else None
     return add_df, added, issues
+
+
+def _check_verified(df, verified):
+    """Problems with overrides.yaml `verified` entries, for the QA panel: a name
+    with no order, or a field the entry-error checks don't look at."""
+    users = {str(u).lower(): (o, u) for o, u in zip(df["orig_num"], df["user"])}
+    issues = []
+    for key, fields in verified.items():
+        onum, disp = users.get(key, ("—", key))
+        if key not in users:
+            issues.append((onum, disp, "verified: no matching order row"))
+        for f in fields:
+            if f not in ("vin_raw", "delivery_raw"):
+                issues.append((onum, disp, "verified: '%s' is not checked — "
+                               "only vin_raw and delivery_raw are" % f))
+    return issues
 
 
 # Column -> human noun for the drop reason (matches the sheet's own wording).
@@ -499,6 +515,27 @@ def load_and_clean(text, meta):
     for _c in ("delivery_est", "delivery_min", "delivery_max"):
         df[_c] = pd.to_datetime(df[_c], errors="coerce")
 
+    # --- Likely entry errors (see ingest/outliers.py) ---
+    # A VIN or delivery estimate that parses fine but contradicts the order's own
+    # date, or the orders around it, is SET ASIDE: made unknown here, once, so every
+    # chart and count downstream agrees. It used to be dropped chart by chart, which
+    # left a misread "8-12" (meant weeks, read as 12 August) counted as delivered.
+    # Nothing is corrected — the data can't say which value is right — and each one
+    # is listed, so the sheet or overrides.yaml can fix it (or `verified` keep it).
+    suspect_vin, suspect_delivery = find_suspects(df, VERIFIED)
+    set_aside = []
+    for i, why in suspect_vin.items():
+        set_aside.append((df.at[i, "orig_num"], df.at[i, "user"],
+                          "VIN %r set aside — %s" % (df.at[i, "vin_raw"], why)))
+        df.at[i, "vin_seq"], df.at[i, "vin_present"] = np.nan, False
+    for i, why in suspect_delivery.items():
+        set_aside.append((df.at[i, "orig_num"], df.at[i, "user"],
+                          "delivery %r set aside — %s" % (df.at[i, "delivery_raw"], why)))
+        df.loc[i, ["delivery_est", "delivery_min", "delivery_max"]] = pd.NaT
+        df.at[i, "delivery_type"] = "unknown"
+        df.at[i, "delivery_anchor_fallback"] = False
+    verify_issues = _check_verified(df, VERIFIED)
+
     # --- Inferred deliveries ---
     # An estimate whose whole span has passed is treated as delivered: the
     # customer most likely took the car and never came back to update the sheet.
@@ -574,21 +611,13 @@ def load_and_clean(text, meta):
     # Delivery text that isn't a known "no date" placeholder yet still didn't
     # parse into a date/range/window — i.e. a genuine parse miss worth review.
     unparseable = []
-    for _, r in df.iterrows():
+    for i, r in df.iterrows():
         low = r["delivery_raw"].strip().lower()
         if (r["delivery_type"] == "unknown" and low
                 and low not in UNKNOWN_TOKENS
-                and not any(s in low for s in UNKNOWN_SUBSTRINGS)):
+                and not any(s in low for s in UNKNOWN_SUBSTRINGS)
+                and i not in suspect_delivery):     # parsed; listed as set aside
             unparseable.append((r["orig_num"], r["user"], r["delivery_raw"]))
-    # Delivery estimates that parse fine alone but contradict the order date. Not
-    # corrected — which of the two dates is wrong can't be told from here — but
-    # listed, and left out of the delivery-time chart, which uses the same check.
-    latency_anomalies = []
-    for _, r in df.iterrows():
-        why = implausible_latency(r["order_date"], r["delivery_min"], r["delivery_max"])
-        if why:
-            latency_anomalies.append((r["orig_num"], r["user"],
-                                      "%r — %s" % (r["delivery_raw"], why)))
     # Usernames that normalize alike (case/space/punctuation) but weren't merged
     # by the exact-lowercase dedup — possibly the same person entered twice.
     by_norm = {}
@@ -640,6 +669,7 @@ def load_and_clean(text, meta):
         "anchor_fallback": int(df["delivery_anchor_fallback"].sum()),
         "bad_order": n_bad_order, "bad_resv": n_bad_resv,
         "n_premature": len(premature_records),
+        "n_set_aside_delivery": len(suspect_delivery),
         # Configured-price summary. n_unpriced counts orders whose configuration
         # hit a price that isn't published yet — reported as its own bucket so the
         # mean/median are never quietly computed over a subset.
@@ -665,6 +695,7 @@ def load_and_clean(text, meta):
             "VINs recovered": unrec_records,
             "Invalid dates dropped": date_records,
             "Premature configs dropped": premature_records,
+            "Likely entry errors set aside": set_aside,
             "Manual fix-ups": override_records,
             "Manual additions": add_records,
             "Removed by curation": del_records,
@@ -672,7 +703,7 @@ def load_and_clean(text, meta):
         "quality": {
             "schema_notices": schema_notices,
             "unparseable": unparseable,
-            "latency_anomalies": latency_anomalies,
+            "entry_errors": set_aside,
             "fuzzy_dups": fuzzy_dups,
             "dup_conflicts": dup_conflicts,
             "merge_conflicts": merge_conflicts,
@@ -682,7 +713,8 @@ def load_and_clean(text, meta):
             "price_issues": price_issues,
             "answer_conflicts": conflicts,
             "conversions": conversions,
-            "override_issues": override_issues + add_issues + del_issues,
+            "override_issues": (override_issues + add_issues + del_issues
+                                + verify_issues),
             # Its own list, not the one in `sanitized`: the pipeline appends the
             # reservation cancellations here so one panel category covers both
             # sheets, and sharing the object made that append silently inflate the

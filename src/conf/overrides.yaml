@@ -44,6 +44,11 @@
 #                  strength of an empty line. To record that something has genuinely
 #                  become unknown, write "unknown" — the parsers understand it.
 #
+#   verified:   values that LOOK like entry errors but have been confirmed, so the
+#               checks in ingest/outliers.py stop setting them aside. Username ->
+#               list of the raw fields confirmed: vin_raw, delivery_raw. A held-
+#               back car with a very low VIN, say, once the owner has confirmed it.
+#
 # Version-controlled and auditable: every applied change/addition/deletion — and
 # every problem (unknown field / no matching or already-present user) — shows in
 # the cleaning report and the data-quality panel. Idempotent; never mutates the cache.
@@ -1086,3 +1091,6 @@ deletions:
       reason: "cancelled by user (2026-09-01)"
       match:
         orig_num: "469"
+
+# Values confirmed correct that the entry-error checks would set aside. See the header.
+verified: {}

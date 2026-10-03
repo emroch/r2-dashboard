@@ -96,6 +96,21 @@ sanitize:
   # Either way the estimate is listed in the data-quality panel, and left out of
   # the delivery-time chart rather than plotted as a real wait.
   delivery_latency_max_days: 365
+  # Likely entry errors: a VIN or firm delivery date that disagrees with the
+  # orders around it (ingest/outliers.py). Each value is scored as a robust z
+  # against the running median of its `cohort` nearest orders along the trend. A
+  # flagged value is set aside as unknown and listed, never corrected.
+  #   vin_z             a VIN this far from orders placed around the same date,
+  #                     either way. Set past every held-back car seen so far (the
+  #                     largest is ~6.6), so it catches digit-level typos.
+  #   early_delivery_z  a firm delivery date this far BEFORE cars with nearby VINs.
+  #                     The later side is never flagged, because held-back cars
+  #                     arrive late. Genuine early deliveries peak at ~3.5; the two
+  #                     misreads seen so far scored 4.6 and 8.7.
+  entry_errors:
+    cohort: 41
+    vin_z: 8
+    early_delivery_z: 4
 
 # Which columns identify a BUILD, for collapsing repeat submissions. Two rows
 # under one username are treated as the same order when all of these match: a

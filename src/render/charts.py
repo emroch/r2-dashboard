@@ -16,7 +16,6 @@ from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
                      TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
                      URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER,
                      WHEEL_SYMBOL)
-from ingest.parsing import implausible_latency
 
 from .cadence import projection as cadence_projection, rate_history
 
@@ -208,12 +207,6 @@ def fig_delivery_vs_vin(df):
     """
     d = _reported(df[df["vin_present"] & df["delivery_est"].notna()],
                   "color", "wheels_short")
-    # Leave out estimates that contradict their own order date, by the same check
-    # that lists them in the data-quality panel and keeps them out of §7. One typo'd
-    # year (a 2027 date on a 2026 order) otherwise stretches the date axis across a
-    # year and squashes every real point into its bottom quarter.
-    d = d[[implausible_latency(o, mn, mx) is None for o, mn, mx in
-           zip(d["order_date"], d["delivery_min"], d["delivery_max"])]]
     fig = go.Figure()
     xs = d["vin_seq"].astype(float)
     cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
@@ -1484,15 +1477,11 @@ def latency_frame(df):
 
     Firm ("explicit") delivery dates only: a range or window is a guess at when the
     car will come, so its midpoint would plot a precision the data doesn't have.
-    Orders whose estimate contradicts the order date are excluded by the SAME check
-    that lists them in the data-quality panel (parsing.implausible_latency), so a
-    point can't be dropped here without appearing there.
+    An estimate that contradicts the order date never gets here: cleaning sets it
+    aside as unknown and lists it (ingest/outliers.py).
     """
     d = df[(df["delivery_type"] == "explicit") & df["order_date"].notna()
            & df["delivery_est"].notna()].copy()
-    ok = [implausible_latency(o, mn, mx) is None for o, mn, mx in
-          zip(d["order_date"], d["delivery_min"], d["delivery_max"])]
-    d = d[ok]
     d["days"] = (d["delivery_est"] - d["order_date"]).dt.days
     # Monday-start week the order was placed in, for the median and coverage.
     d["order_week"] = d["order_date"].dt.to_period("W-SUN").dt.start_time
