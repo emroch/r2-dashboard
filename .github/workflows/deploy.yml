@@ -30,7 +30,15 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     steps:
+      # Check out with the write deploy key, so the cache commit below can push to
+      # main. main's ruleset requires the ruff/mypy checks, which also applies to
+      # DIRECT pushes, and a bot commit has no checks — so a push with the default
+      # GITHUB_TOKEN is rejected. Deploy keys are the ruleset's one bypass actor.
+      # If the DEPLOY_KEY secret is unset this input is empty and checkout falls
+      # back to the token, i.e. exactly the old behaviour.
       - uses: actions/checkout@v7
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - uses: actions/setup-python@v7
         with:
@@ -58,6 +66,8 @@ jobs:
         # is clean at deploy time. That silences wrangler's "uncommitted changes"
         # warning and lets it tag the deployment with this commit. The empty-diff
         # guard + paths-ignore + [skip ci] keep this from triggering another run.
+        # Pushes over SSH with the deploy key from the checkout step, which is what
+        # gets this commit past main's required checks.
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
