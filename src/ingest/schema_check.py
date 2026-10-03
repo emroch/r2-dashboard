@@ -69,7 +69,7 @@ def map_columns(header, expected, ignored, label):
     data-quality panel's table — for present headers that nothing maps and
     `ignored` doesn't list.
     """
-    if len(set(_key(h) for h in expected.values())) != len(expected):
+    if len({_key(h) for h in expected.values()}) != len(expected):
         raise SchemaDrift(
             "%s: two fields in schema.yaml claim the same sheet header, so one "
             "of them\nwould read the wrong column. Mapped headers: %r"

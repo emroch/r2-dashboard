@@ -119,8 +119,9 @@ def _add_build_front(fig, df):
     The front is plotted at each delivery week's midpoint (date on x, VIN on y, like
     the points it summarizes). The projection is a dashed continuation with an
     asymmetric band from its back-tested misses; it is drawn only when
-    cadence.projection could measure them. Aggregate only — it says where the front is heading, never when a
-    particular order will arrive. Returns the projection dict, or None.
+    cadence.projection could measure them. Aggregate only — it says where the
+    front is heading, never when a particular order will arrive. Returns the
+    projection dict, or None.
     """
     proj = cadence_projection(df)
     front = proj["front"] if proj else None
@@ -152,7 +153,8 @@ def _add_build_front(fig, df):
     # back-test can't support more precision than that, and digits beyond it would
     # read as if it could. (It used to quote the miss in days, a second unit for the
     # same band that only made sense after converting through the rate.)
-    rounded = lambda v: np.round(np.asarray(v) / 100.0) * 100.0
+    def rounded(v):
+        return np.round(np.asarray(v) / 100.0) * 100.0
     fig.add_trace(go.Scatter(
         x=pmid, y=np.asarray(proj["center"]), mode="lines",
         name="Projected · ≈ %.0f VINs/day" % proj["rate"], legendgroup=grp,
@@ -819,7 +821,8 @@ def _numeric_bins(values, edges, unit):
     Empty bins are dropped, so widening an edge in geo.yaml can't leave a gap.
     """
     def fmt(v):
-        return format(int(round(v)), ",")
+        # int(): round() of a numpy float can stay a float on older numpy.
+        return format(int(round(v)), ",")  # noqa: RUF046
 
     names = ["< %s%s" % (fmt(edges[0]), unit)]
     names += ["%s–%s%s" % (fmt(lo), fmt(hi), unit)
@@ -951,7 +954,7 @@ def _label_box_stats(fig, values, y_label, span):
     merged = [(min(p for p, _ in g), val, " · ".join(n for _, n in sorted(g)))
               for val, g in groups.items()]
     kept = []
-    for pri, val, name in sorted(merged):                 # most important first
+    for _pri, val, name in sorted(merged):                # most important first
         if all(abs(val - k[0]) >= span * 0.08 for k in kept):
             kept.append((val, name))
     for val, name in kept:
@@ -1187,7 +1190,8 @@ def fig_order_timeline(df, resv=None):
             name="Reserved only (incomplete)", legendgroup="r",
             marker_color=TIMELINE_COLORS["reserved_only"], xbins=dict(size=week)), 1, 1)
     fig.add_trace(go.Histogram(x=np.asarray(df["order_date"].dropna()),
-                               marker_color=TIMELINE_COLORS["ordered"], showlegend=False,
+                               marker_color=TIMELINE_COLORS["ordered"],
+                               showlegend=False,
                                xbins=dict(size=86400000 * 3)), 2, 1)  # 3-day bins
 
     # The 3/7/2024 reveal week (~20x the next-biggest week) flattens everything
@@ -1529,9 +1533,11 @@ def fig_delivery_latency(df):
             x=np.asarray(sub["order_date"]), y=np.asarray(sub["days"]), mode="markers",
             name=label, legendgroup=label,
             marker=dict(color=LATENCY_COLORS["order"], size=8, **style),
-            customdata=np.column_stack([sub["user"], sub["delivery_est"].dt.strftime("%b %d, %Y")]),
+            customdata=np.column_stack(
+                [sub["user"], sub["delivery_est"].dt.strftime("%b %d, %Y")]),
             hovertemplate=("%{customdata[0]}<br>ordered %{x|%b %d, %Y}"
-                           "<br>delivery %{customdata[1]}<br>%{y} days<extra></extra>")),
+                           "<br>delivery %{customdata[1]}<br>%{y} days"
+                           "<extra></extra>")),
             1, 1)
 
     weeks = d.groupby("order_week")["days"].agg(["median", "count"])
@@ -1588,7 +1594,7 @@ def fig_certainty_by_vin(df):
         rows=1, cols=len(groups),
         specs=[[{"type": "domain"} for _ in groups]],
         subplot_titles=["%s  (n=%d)" % (label, len(sub)) for label, sub in groups])
-    for i, (label, sub) in enumerate(groups, start=1):
+    for i, (_label, sub) in enumerate(groups, start=1):
         counts = [int((sub["delivery_type"] == t).sum()) for t in all_types]
         fig.add_trace(go.Pie(
             labels=all_types, values=counts, hole=0.5, sort=False,

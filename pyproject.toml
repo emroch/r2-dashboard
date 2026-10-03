@@ -1,0 +1,38 @@
+# Tool configuration only. This is a run-in-place project, not a package: there
+# is no [project] table and nothing here is installed.
+
+[tool.ruff]
+# The code runs on the system python (3.9) as well as CI's 3.12, so neither the
+# linter nor its fixes may reach for newer syntax.
+target-version = "py39"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Lint, not format: the hand-aligned continuation style is deliberate, so
+# `ruff format` is not used (#43). Nor is import sorting ("I"): ruff's sorter
+# only writes one-name-per-line blocks, the formatter's style, which would undo
+# the wrapped import lists throughout. Correctness-leaning rule sets.
+select = [
+    "F",    # pyflakes: unused names, undefined names
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "B",    # bugbear: likely bugs
+    "C4",   # comprehension simplifications
+    "RUF",  # ruff's own correctness checks
+]
+ignore = [
+    "B905",     # zip(strict=) is 3.10+, and the code must run on 3.9
+    "C408",     # dict(a=1) is the house style for keyword-heavy literals
+    "RUF001",   # ≈ – × · are deliberate in user-facing strings...
+    "RUF002",   # ...and docstrings...
+    "RUF003",   # ...and comments
+    "RUF005",   # [*a, b] vs a + [b] is taste, not correctness
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Page copy: captions and section descriptions are long prose strings, and
+# wrapping them mid-sentence for the linter makes them harder to edit.
+"src/render/page.py" = ["E501"]
+# The suite puts src/ on sys.path before importing from it.
+"tests/*" = ["E402"]

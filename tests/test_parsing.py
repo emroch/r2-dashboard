@@ -544,7 +544,8 @@ def test_apply_additions_appends_new_and_flags_conflicts():
     })
     users = list(add_df["user"])
     assert "Bob" in users and "Carol" in users and "Alice" not in users
-    assert len(added) == 2 and add_df.loc[add_df["user"] == "Bob", "loc_raw"].iloc[0] == "CA"
+    assert len(added) == 2
+    assert add_df.loc[add_df["user"] == "Bob", "loc_raw"].iloc[0] == "CA"
     assert any("already in orders sheet" in d for _, _, d in issues)
     assert any("unknown field" in d for _, _, d in issues)
 
@@ -716,9 +717,11 @@ def test_implausible_latency_flags_only_contradictions():
     T = pd.Timestamp
     order = T("2026-08-18")
     # The real case: a bare "8-12" meant weeks, read as 12 August.
-    assert "before the order" in implausible_latency(order, T("2026-08-12"), T("2026-08-12"))
+    assert "before the order" in implausible_latency(order, T("2026-08-12"),
+                                                     T("2026-08-12"))
     # A typo'd year: more than DELIVERY_LATENCY_MAX days out.
-    assert "days after" in implausible_latency(T("2026-09-25"), T("2027-09-27"), T("2027-09-27"))
+    assert "days after" in implausible_latency(T("2026-09-25"), T("2027-09-27"),
+                                               T("2027-09-27"))
     # Ordinary waits are fine, including same-day and a range that STARTS before the
     # order but ends after it — only an estimate wholly before the order is impossible.
     assert implausible_latency(order, T("2026-09-20"), T("2026-09-20")) is None
@@ -771,7 +774,7 @@ def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
     assert len(med) == 1
     # Only the week with 3 firm dates gets a point, at its median (30 days).
     assert list(med[0].y) == [30.0], list(med[0].y)
-    cov = [t for t in fig.data if t.type == "bar"][0]
+    cov = next(t for t in fig.data if t.type == "bar")
     # Coverage = shown / ALL orders placed that week, so the unknown-estimate,
     # windowed and impossible orders count against it rather than vanishing.
     # Week of 8/3: a,b,c of a,b,c,d = 75%. Week of 8/10: e,f of e,f,g = 67% (the
@@ -797,7 +800,8 @@ def _cadence_input(rate=150.0, weeks=12, per_week=8, start="2026-06-29",
             # A spread of VINs below the front, like held-back cars, plus the front.
             vin = 1000 + rate * (day - T(start)).days - rng.uniform(0, 2000) * (k % 3)
             vin += rng.normal(0, jitter)
-            rows.append(dict(vin_present=True, vin_seq=float(vin), delivery_type="explicit",
+            rows.append(dict(vin_present=True, vin_seq=float(vin),
+                             delivery_type="explicit",
                              delivery_est=day, delivery_min=day, delivery_max=day,
                              order_date=day - pd.Timedelta(days=30)))
     return pd.DataFrame(rows)
@@ -832,13 +836,17 @@ def test_projection_recovers_the_rate_and_measures_its_own_error():
     assert abs(p["rate"] - 150.0) < 15, p["rate"]
     # On a steady synthetic ramp the back-test should find the projection accurate
     # in both directions, and neither side may narrow with the horizon.
-    assert p["ahead_days"][0] < 3 and p["behind_days"][0] < 3, (p["ahead_days"], p["behind_days"])
+    assert p["ahead_days"][0] < 3 and p["behind_days"][0] < 3, (
+        p["ahead_days"], p["behind_days"])
     for side in (p["ahead_days"], p["behind_days"]):
         assert all(b >= a for a, b in zip(side, side[1:])), side
-    # Zero width at the last observed week; each side then comes from its own misses.
+    # Zero width at the last observed week; each side then comes from its own
+    # misses.
     assert p["lo"][0] == p["hi"][0] == p["center"][0]
-    assert np.allclose(p["hi"][1:] - p["center"][1:], np.array(p["ahead_days"]) * p["rate"])
-    assert np.allclose(p["center"][1:] - p["lo"][1:], np.array(p["behind_days"]) * p["rate"])
+    assert np.allclose(p["hi"][1:] - p["center"][1:],
+                       np.array(p["ahead_days"]) * p["rate"])
+    assert np.allclose(p["center"][1:] - p["lo"][1:],
+                       np.array(p["behind_days"]) * p["rate"])
 
 
 def test_band_leans_ahead_when_the_rate_steps_up():
@@ -851,7 +859,8 @@ def test_band_leans_ahead_when_the_rate_steps_up():
     fast["vin_seq"] += slow["vin_seq"].max() - 1000
     p = projection(pd.concat([slow, fast], ignore_index=True))
     assert p is not None
-    assert p["ahead_days"][-1] > 2 * p["behind_days"][-1], (p["ahead_days"], p["behind_days"])
+    assert p["ahead_days"][-1] > 2 * p["behind_days"][-1], (
+        p["ahead_days"], p["behind_days"])
     assert (p["hi"][-1] - p["center"][-1]) > (p["center"][-1] - p["lo"][-1])
 
 
@@ -878,7 +887,8 @@ def test_vin_scatter_keeps_whisker_indices():
     from render.charts import fig_delivery_vs_vin
     df = _cadence_input(weeks=13)
     df["color"], df["wheels_short"] = "Esker Silver", '21" Liquid Tungsten'
-    df["interior"], df["trim"], df["user"] = "Black Crater Signature", "Performance", "u"
+    df["interior"], df["trim"] = "Black Crater Signature", "Performance"
+    df["user"] = "u"
     for c, v in (("vin_display", ""), ("order_display", ""), ("est_display", ""),
                  ("buylease", "Purchase"), ("state", "IL")):
         df[c] = v
@@ -1241,7 +1251,7 @@ def test_report_button_prefill_matches_the_issue_form():
     form_file = "dashboard-report.yml"
     with open(os.path.join(root, ".github", "ISSUE_TEMPLATE", form_file)) as fh:
         form = yaml.safe_load(fh)
-    field_ids = set(b["id"] for b in form["body"] if "id" in b)
+    field_ids = {b["id"] for b in form["body"] if "id" in b}
 
     url = _report_url({"orders_meta": {"updated_at": datetime(2026, 8, 6, 22, 24)},
                        "resv_meta": {"updated_at": None}})
@@ -1348,7 +1358,7 @@ def _interior_frame():
     collision between the two Black Craters would show up as a missing column.
     Carries the hover columns the VIN scatter reads, not just the grouping keys."""
     from config import COLOR_ORDER, INTERIOR_ORDER, WHEEL_ORDER
-    paints = [c for c in COLOR_ORDER[:2]]
+    paints = list(COLOR_ORDER[:2])
     rows = []
     for i, interior in enumerate(INTERIOR_ORDER):
         for j, paint in enumerate(paints):
@@ -1722,7 +1732,7 @@ def test_conflicting_field_takes_the_latest_submission_and_is_flagged():
         dict(BUILD, orig_num="20", user="u", delivery_raw="Aug 28, 2026",
              vin_raw="07156"),
     ])
-    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    out, _merged, _builds, values = _dedupe_by_user(df, IDENT)
     assert len(out) == 1
     row = out.iloc[0]
     assert row["delivery_raw"] == "Aug 28, 2026", "the real date must beat N/A"
@@ -1741,7 +1751,7 @@ def test_different_build_under_one_username_is_kept_and_flagged():
         dict(BUILD, orig_num="1", user="u"),
         dict(BUILD, orig_num="2", user="u", wheels='20" BS'),
     ])
-    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    out, merged, builds, _values = _dedupe_by_user(df, IDENT)
     assert len(out) == 2, "two builds means two orders"
     assert merged == [] and len(builds) == 2
     assert all("different build" in d for _, _, d in builds)
@@ -1751,7 +1761,7 @@ def test_identical_rows_still_collapse():
     from ingest.loaders import _dedupe_by_user
     df = _dedupe_frame([dict(BUILD, orig_num="1", user="u", vin_raw="9"),
                         dict(BUILD, orig_num="2", user="u", vin_raw="9")])
-    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    out, merged, _builds, values = _dedupe_by_user(df, IDENT)
     assert len(out) == 1 and len(merged) == 1 and values == []
 
 
@@ -1759,7 +1769,7 @@ def test_username_case_differences_are_not_a_disagreement():
     from ingest.loaders import _dedupe_by_user
     df = _dedupe_frame([dict(BUILD, orig_num="1", user="Bob", vin_raw="9"),
                         dict(BUILD, orig_num="2", user="bob")])
-    out, merged, builds, values = _dedupe_by_user(df, IDENT)
+    out, _merged, _builds, values = _dedupe_by_user(df, IDENT)
     assert len(out) == 1 and values == [], "case is the grouping key, not a clash"
 
 
@@ -1981,7 +1991,7 @@ def _run_all():
     for name, fn in tests:
         try:
             fn()
-        except Exception as exc:  # noqa: BLE001 - report any failure
+        except Exception as exc:
             failed += 1
             print("FAIL %s: %s" % (name, exc))
         else:
@@ -2055,7 +2065,8 @@ def test_find_suspects_flags_only_the_implausible_direction():
     df = _with(df, user="before", vin_seq=np.nan, vin_present=False,
                order_date="2026-08-18", delivery_est="2026-08-01")
     vin, delivery = find_suspects(df)
-    who = lambda d: sorted(df.loc[list(d), "user"])
+    def who(found):
+        return sorted(df.loc[list(found), "user"])
     assert who(vin) == ["digit"], who(vin)
     assert who(delivery) == ["before", "early"], who(delivery)
     early = df.index[df["user"] == "early"][0]
@@ -2103,8 +2114,8 @@ def test_a_set_aside_estimate_is_unknown_everywhere():
     assert not r["delivered_inferred"]
     listed = [m for _, u, m in report["quality"]["entry_errors"] if u == "tester"]
     assert len(listed) == 1 and "before the order date" in listed[0], listed
-    assert listed == [m for _, u, m in
-                      report["sanitized"]["Likely entry errors set aside"] if u == "tester"]
+    aside = report["sanitized"]["Likely entry errors set aside"]
+    assert listed == [m for _, u, m in aside if u == "tester"]
     assert not [u for _, u, _ in report["quality"]["unparseable"] if u == "tester"]
     assert report["n_set_aside_delivery"] >= 1
 
