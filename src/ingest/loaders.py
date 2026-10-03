@@ -35,13 +35,34 @@ def _extract(records, hdr_idx, idx, fields):
     commas) get an empty cell rather than raising.
     """
     fields = list(fields)
+    return pd.DataFrame(_raw_rows(records, hdr_idx, idx, fields), columns=fields)
+
+
+def _raw_rows(records, hdr_idx, idx, fields):
+    """The mapped cells of each data record, stripped, as lists in `fields` order.
+
+    Shared by _extract and the snapshot replay (ingest/history.py), so a
+    historical snapshot is read exactly the way the current one is.
+    """
     cols = [idx[f] for f in fields]
-    rows = [[(rec[j] if j < len(rec) else "") for j in cols]
+    return [[(rec[j] if j < len(rec) else "").strip() for j in cols]
             for rec in records[hdr_idx + 1:]]
-    df = pd.DataFrame(rows, columns=fields)
-    for c in df.columns:
-        df[c] = df[c].astype(str).str.strip()
-    return df
+
+
+def read_sheet(text, headers, ignored, label):
+    """Raw rows of a sheet export: (fields, rows), with rows a list of lists of
+    stripped strings in `fields` order and blank-username spacer rows dropped.
+
+    The same header location and by-name column mapping load_and_clean and
+    load_reservations use (schema_check.py), without any cleaning.
+    """
+    records = list(csv.reader(io.StringIO(text)))
+    hdr_idx, header = find_header(records, headers["user"], label)
+    idx, _ = map_columns(header, headers, ignored, label)
+    fields = list(headers)
+    u = fields.index("user")
+    rows = [r for r in _raw_rows(records, hdr_idx, idx, fields) if r[u] != ""]
+    return fields, rows
 
 
 def _curated(value):

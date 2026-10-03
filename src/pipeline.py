@@ -2,6 +2,7 @@
 build the dashboard, and print the cleaning report.
 """
 import os
+import time
 
 import pandas as pd
 
@@ -9,6 +10,7 @@ from config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
                      ORDERS_SLUG, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG)
 from render.page import build_dashboard
 from ingest.fetch import fetch_sheet
+from ingest.history import orders_history, reservations_history, summary
 from ingest.loaders import load_and_clean, load_reservations
 
 
@@ -58,6 +60,16 @@ def main():
 
     build_dashboard(df, report, resv)
 
+    # Snapshot replay (data layer stage 1, ingest/history.py). Internal only for
+    # now: nothing on the page reads it, so it is only summarized below, with its
+    # cost, which decides whether it will ever need a build cache.
+    histories = []
+    for name, build in (("orders", orders_history),
+                        ("reservations", reservations_history)):
+        t0 = time.perf_counter()
+        hist = build()
+        histories.append((name, summary(hist), time.perf_counter() - t0))
+
     def _fmt(meta):
         f = meta["fetched_at"].strftime("%Y-%m-%d %H:%M")
         u = meta["updated_at"].strftime("%Y-%m-%d %H:%M") if meta["updated_at"] else "—"
@@ -106,6 +118,14 @@ def main():
     print("Total demand             : %d orders + %d reservations = %d"
           % (report["n_dedup"], resv_report["n_incomplete"],
              report["n_dedup"] + resv_report["n_incomplete"]))
+    print("-" * 64)
+    print("Snapshot history (internal):")
+    for name, sm, secs in histories:
+        print("  %-13s %d snapshots, %d keys (%d gone), %d changed in %d events "
+              "(%d field changes) — %.1fs"
+              % (name, sm["snapshots"], sm["orders"], sm["gone"],
+                 sm["changed_orders"], sm["change_events"], sm["field_changes"],
+                 secs))
     print("-" * 64)
     print("Delivery parse check (unique raw -> normalized):")
     seen = {}
