@@ -5,6 +5,12 @@
 # and the deploy workflow has no pre-merge test of a bump), so those get bumped
 # deliberately, not automatically. Security advisories are handled separately by
 # Dependabot alerts (repo Settings), which stay on.
+#
+# Third-party actions are pinned to a commit SHA, not a tag (CodeQL's
+# actions/unpinned-tag): cloudflare/wrangler-action is handed the Cloudflare API
+# token, and a tag can be moved to different code after the fact. The trailing
+# "# v4.1.3" comment is what Dependabot reads to keep proposing SHA bumps, so
+# keep it when editing. GitHub's own actions/* stay on major tags.
 version: 2
 updates:
   - package-ecosystem: github-actions
