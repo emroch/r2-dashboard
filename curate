@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Ship a curation edit to main through a PR, in one command.
+#
+# main's ruleset requires the ruff/mypy checks, which also blocks direct pushes,
+# so even a one-line overrides.yaml fix needs a PR. This does the whole round
+# trip: check locally, branch, commit, push, open the PR, wait for its checks
+# (including the preview build), merge it, and fast-forward local main.
+#
+#   ./curate "Correct GTodd's delivery window"        the usual case
+#   ./curate --no-wait "…"                             open the PR and stop there
+#   ./curate --no-check "…"                            skip the local ./ci_env check
+#
+# Only CURATION changes are shipped this way: the YAML under src/conf/ and the
+# timestamped caches under data/raw/. Anything else in the working tree stops the
+# script, because code changes deserve a normal PR that someone actually reviews.
+#
+# The local check runs the full pipeline, so it fetches the live sheets — any new
+# incidental caches it writes are picked up and shipped with the edit.
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+CURATION_PATHS=(src/conf data/raw)
+wait=1
+check=1
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-wait)  wait=0; shift ;;
+        --no-check) check=0; shift ;;
+        -h|--help)  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --)         shift; break ;;
+        -*)         echo "error: unknown option $1" >&2; exit 2 ;;
+        *)          break ;;
+    esac
+done
+if [ $# -ne 1 ] || [ -z "$1" ]; then
+    echo 'usage: ./curate [--no-wait] [--no-check] "commit message"' >&2
+    exit 2
+fi
+msg="$1"
+
+say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+# Changed paths (staged, unstaged, untracked), one per line.
+changed() { git status --porcelain --untracked-files=all | cut -c4-; }
+
+[ "$(git branch --show-current)" = main ] || die "run this from main"
+
+# Refuse anything outside the curation paths before touching git state.
+outside="$(changed | grep -v -E '^(src/conf/|data/raw/)' || true)"
+[ -z "$outside" ] || die "changes outside src/conf/ and data/raw/ — open a normal PR for these:
+$outside"
+[ -n "$(changed)" ] || die "nothing to ship"
+
+say "Updating main"
+git pull -q --ff-only
+
+if [ "$check" = 1 ]; then
+    say "Checking locally (./ci_env check)"
+    ./ci_env check >/dev/null || die "local check failed — run ./ci_env check to see why"
+    # The build may have written new caches; they're curation too.
+    outside="$(changed | grep -v -E '^(src/conf/|data/raw/)' || true)"
+    [ -z "$outside" ] || die "the check changed files outside the curation paths:
+$outside"
+fi
+
+branch="curate/$(date +%Y%m%d-%H%M%S)"
+say "Committing to $branch"
+git switch -q -c "$branch"
+git add -- "${CURATION_PATHS[@]}"
+git commit -q -m "$msg"
+files="$(git diff --name-only HEAD~1 HEAD | sed 's/^/- `/; s/$/`/')"
+stranded() {
+    die "$1. The edit is committed on $branch, which is checked out; once the
+problem is fixed, finish by hand: git push -u origin $branch && gh pr create --fill"
+}
+git push -q -u origin "$branch" || stranded "push failed"
+
+say "Opening the PR"
+url="$(gh pr create --base main --head "$branch" --title "$msg" --body "Curation edit shipped with \`./curate\`.
+
+$files")" || stranded "could not open the PR"
+echo "$url"
+
+# Back to main either way, so the working tree isn't left on a throwaway branch.
+git switch -q main
+
+if [ "$wait" = 0 ]; then
+    say "Not waiting (--no-wait): merge it from the PR page once checks pass"
+    exit 0
+fi
+
+# Every check, not just the required ones: ruff and mypy are required, but the
+# preview build is what proves the edited YAML still builds a dashboard.
+say "Waiting for checks"
+# Checks register a few seconds after the push; until then there is nothing to watch.
+for _ in $(seq 1 30); do
+    [ -n "$(gh pr checks "$url" 2>/dev/null || true)" ] && break
+    sleep 5
+done
+gh pr checks "$url" --watch --fail-fast --interval 10 >/dev/null \
+    || die "a check failed — see $url"
+
+say "Merging"
+if ! out="$(gh pr merge "$url" --merge --delete-branch 2>&1)"; then
+    # gh can report a failed local sync after a merge that did go through.
+    [ "$(gh pr view "$url" --json state -q .state)" = MERGED ] \
+        || die "merge failed — see $url
+$out"
+fi
+
+# gh's own local sync after a merge is unreliable here, so fast-forward explicitly.
+git fetch -q origin
+git merge -q --ff-only origin/main
+git branch -q -D "$branch" 2>/dev/null || true
+say "Merged: $(git log --oneline -1)"
