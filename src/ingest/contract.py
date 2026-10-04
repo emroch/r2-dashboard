@@ -5,11 +5,9 @@ presentation rewrite (#66) and reconfigurable charts (#51). Two JSON files are
 published next to the cleaned CSV:
 
   r2_dimensions.json  what each column of r2_orders_clean.csv MEANS for display:
-                      its label, category order, how blanks are handled, the
-                      small-n rule, a caveat, and a color TOKEN per category.
-                      The token names a color; a `palette` block maps tokens
-                      to today's hex values, and CSS is meant to own them. A
-                      category is named, its color is styled.
+                      src/conf/dimensions.yaml, published verbatim as JSON
+                      (labels, category order, blank handling, small-n rule,
+                      caveat and note text, per-category colors and markers).
   r2_series.json      the dashboard's headline counts as they stood each Monday
                       since the first snapshot, plus today. Aggregates only,
                       never a per-order history.
@@ -28,129 +26,28 @@ from __future__ import annotations
 
 import contextlib
 import io
-import re
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
 
-from config import (AS_OF, COLOR_HEX, COLOR_ORDER, INTERIOR_COLOR, INTERIOR_ORDER,
-                    INTERIOR_SHORT, ORDERS_LABEL, ORDERS_SLUG, REGION_COLOR,
-                    RESV_SLUG, TRIM_COLORS, TYPE_COLOR, TYPE_ORDER, WHEEL_ABBR,
-                    WHEEL_COLOR, WHEEL_ORDER, WHEEL_SYMBOL)
+from config import AS_OF, DIMENSIONS, ORDERS_LABEL, ORDERS_SLUG, RESV_SLUG
 
 from .history import snapshot_files
 from .loaders import load_and_clean, load_reservations
 
 CONTRACT_VERSION = 1
 
-# The small-n rule the location charts use (fig_paint_by_location): a state is
-# only drawn on its own with at least this many orders.
-STATE_MIN_ORDERS = 5
-
-
-def _token(kind: str, value: str) -> str:
-    """A CSS-safe color token: "paint", "Catalina Cove" -> "paint-catalina-cove"."""
-    return "%s-%s" % (kind, re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-"))
-
-
-def _cats(kind: str, values, colors: dict[str, str], labels=None, extra=None):
-    """Category list for one dimension, plus the palette entries it uses."""
-    cats, palette = [], {}
-    for v in values:
-        c: dict[str, Any] = {"value": v, "label": (labels or {}).get(v, v)}
-        if v in colors:
-            c["color"] = _token(kind, v)
-            palette[c["color"]] = colors[v]
-        c.update((extra or {}).get(v, {}))
-        cats.append(c)
-    return cats, palette
-
-
-_OMIT = {"policy": "omit",
-         "note": "Blank values are left out of the chart but stay in the cohort; "
-                 "the data-quality panel lists them."}
-_INFERRED = ("Inferred, not reported: an estimate whose whole window has passed "
-             "counts as delivered. It can be wrong both ways.")
-_SELF = "Self-reported in a forum-run sheet; treat as indicative."
-
 
 def dimensions() -> dict[str, Any]:
-    """Metadata for every categorical column of r2_orders_clean.csv."""
-    palette: dict[str, str] = {}
+    """dimensions.yaml, as published: the file's data, unchanged.
 
-    def add(cats_palette):
-        cats, pal = cats_palette
-        palette.update(pal)
-        return cats
-
-    wheel_extra = {w: {"abbr": WHEEL_ABBR[w], "symbol": WHEEL_SYMBOL[w]}
-                   for w in WHEEL_ORDER}
-    dims = [
-        {"name": "color", "column": "color", "label": "Paint",
-         "order": "count", "order_note": "Most ordered first; ties keep the "
-                                         "listed (showroom) order.",
-         "categories": add(_cats("paint", COLOR_ORDER, COLOR_HEX)),
-         "missing": _OMIT, "caveat": None},
-        {"name": "wheels", "column": "wheels_short", "label": "Wheels",
-         "order": "fixed", "order_note": "Ascending size.",
-         "categories": add(_cats("wheel", WHEEL_ORDER, WHEEL_COLOR,
-                                 extra=wheel_extra)),
-         "missing": _OMIT, "caveat": None},
-        {"name": "interior", "column": "interior", "label": "Interior",
-         "order": "fixed", "order_note": "Plainest first.",
-         "categories": add(_cats("interior", INTERIOR_ORDER, INTERIOR_COLOR,
-                                 labels=INTERIOR_SHORT)),
-         "missing": _OMIT, "caveat": None},
-        {"name": "trim", "column": "trim", "label": "Trim", "order": "fixed",
-         "categories": add(_cats("trim", list(TRIM_COLORS), TRIM_COLORS)),
-         "missing": _OMIT, "caveat": None},
-        {"name": "buylease", "column": "buylease", "label": "Purchase or lease",
-         "order": "fixed",
-         "categories": add(_cats("buylease", ["Purchase", "Lease"], {})),
-         "missing": _OMIT, "caveat": None},
-        {"name": "r1_owner", "column": "r1_owner", "label": "Current R1 owner",
-         "order": "fixed", "categories": add(_cats("r1", ["Yes", "No"], {})),
-         "missing": _OMIT,
-         "caveat": "A named R1 model counts as ownership even when the yes/no "
-                   "answer says No."},
-        {"name": "region", "column": "region", "label": "Region", "order": "count",
-         "categories": add(_cats("region", list(REGION_COLOR), REGION_COLOR)),
-         "missing": {"policy": "bucket", "label": "Unknown"}, "caveat": _SELF},
-        {"name": "state", "column": "state", "label": "State / province",
-         "order": "count", "categories": None,
-         "small_n": {"min_orders": STATE_MIN_ORDERS,
-                     "note": "States with fewer orders are summarized by region "
-                             "only."},
-         "missing": {"policy": "bucket", "label": "No state data"},
-         "caveat": _SELF},
-        {"name": "delivery_type", "column": "delivery_type",
-         "label": "Delivery estimate", "order": "fixed",
-         "categories": add(_cats("estimate", [*TYPE_ORDER, "unknown"], TYPE_COLOR,
-                                 labels={"explicit": "Firm date",
-                                         "window": "Relative window",
-                                         "range": "Date range",
-                                         "month": "Month",
-                                         "unknown": "No date given"})),
-         "missing": {"policy": "category", "value": "unknown"},
-         "caveat": "Normalized from free text; a window is measured from the "
-                   "order date."},
-        {"name": "delivered", "column": "delivered_inferred",
-         "label": "Delivered (est.)", "order": "fixed",
-         "categories": add(_cats("delivered", [True, False], {},
-                                 labels={True: "Delivered (est.)",
-                                         False: "Awaiting delivery"})),
-         "missing": None, "caveat": _INFERRED},
-    ]
-    for col, label in (("opted_autonomy", "Autonomy+"), ("opted_tow", "Tow package"),
-                       ("opted_spare", "Compact spare")):
-        dims.append({"name": col, "column": col, "label": label, "order": "fixed",
-                     "categories": add(_cats(col, [True, False], {},
-                                             labels={True: "Yes", False: "No"})),
-                     "missing": None,
-                     "caveat": "\"Included\" with the Launch Package counts as yes."
-                     if col != "opted_spare" else None})
-    return {"version": CONTRACT_VERSION, "palette": palette, "dimensions": dims}
+    Nothing is assembled here on purpose. The YAML is the single, human-edited
+    source for the category vocabulary and its display text, and config.py reads
+    the same file for the charts, so the published metadata can't drift from
+    what the dashboard draws.
+    """
+    return {"version": CONTRACT_VERSION, "dimensions": DIMENSIONS}
 
 
 # --- Time series ---------------------------------------------------------------

@@ -2480,25 +2480,39 @@ def test_left_sheet_and_curated_fields():
 # --- Published data contract (#84) --------------------------------------------
 
 
-def test_dimensions_name_colors_and_cover_the_csv():
+def test_dimensions_are_the_yaml_published_as_is():
+    import json
+
+    import yaml
+
+    from config import _CONF
     from ingest.contract import dimensions
+    with open(_CONF / "dimensions.yaml") as fh:
+        raw = yaml.safe_load(fh)["dimensions"]
     d = dimensions()
+    assert d["dimensions"] == raw, "published unchanged, nothing assembled"
+    json.dumps(d)                                   # publishable as-is
     csv_cols = {"state", "region", "buylease", "trim", "color", "wheels_short",
                 "interior", "opted_autonomy", "opted_tow", "opted_spare",
-                "delivery_type", "delivered_inferred", "r1_owner"}
-    assert {x["column"] for x in d["dimensions"]} == csv_cols
-    for dim in d["dimensions"]:
-        for c in dim["categories"] or []:
+                "delivery_type", "delivered_inferred", "r1_owner", "r1_model"}
+    assert {x["column"] for x in raw.values()} == csv_cols
+    for name, dim in raw.items():
+        assert dim["label"] and dim["order"] in ("count", "fixed"), name
+        miss = dim.get("missing")
+        if miss and miss["policy"] == "category":
+            assert miss["value"] in [c["value"] for c in dim["categories"]], name
+        for c in dim["categories"]:
             if "color" in c:
-                # A category names a token; the palette owns the value.
-                assert c["color"] in d["palette"], c
-                assert re.fullmatch(r"[a-z0-9-]+", c["color"]), c["color"]
-    paint = next(x for x in d["dimensions"] if x["name"] == "color")
-    assert [c["value"] for c in paint["categories"]][:2] == ["Catalina Cove",
-                                                             "Launch Green"]
-    assert d["palette"]["paint-catalina-cove"] == "#4a8db4"
-    import json
-    json.dumps(d)                      # publishable as-is
+                assert re.fullmatch(r"#[0-9a-fA-F]{6}", c["color"]), (name, c)
+
+
+def test_chart_constants_are_views_of_dimensions():
+    from config import (COLOR_HEX, COLOR_ORDER, DIMENSIONS, STATE_MIN_ORDERS,
+                        TYPE_ORDER, WHEEL_SHORT)
+    assert COLOR_ORDER[0] == "Catalina Cove" and COLOR_HEX["Midnight"] == "#000009"
+    assert TYPE_ORDER == ["explicit", "window", "range", "month"], "unknown is apart"
+    assert WHEEL_SHORT['21” Liquid Tungsten All-Season'] == '21" Liquid Tungsten'
+    assert STATE_MIN_ORDERS == DIMENSIONS["state"]["small_n"]["min_orders"] == 5
 
 
 def _orders_text(*users):

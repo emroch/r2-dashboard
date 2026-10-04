@@ -36,8 +36,8 @@
 # `availability`, which is about WHEN a config became orderable.
 
 # ---------------------------------------------------------------------------
-# Paint — same upcharge on every trim that offers it. Order matches
-# palette.yaml's paint_order.
+# Paint — same upcharge on every trim that offers it. Order matches the paint
+# list in dimensions.yaml.
 # ---------------------------------------------------------------------------
 paints:
   Catalina Cove:  2000      # Premium, Performance
