@@ -2327,6 +2327,27 @@ def test_override_flags_redundant_and_outdated_entries():
     assert issues == [], issues
 
 
+def test_verified_field_confirms_an_override_after_a_sheet_change():
+    # KCP's case: the sheet's new text agrees with the override but doesn't
+    # parse. Once someone has re-checked it, the warning should stop.
+    from datetime import datetime
+
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="72", user="KCP",
+                             delivery_raw="4-8 weeks(org), 9 weeks (act) 8/19")])
+    df["key"] = ["kcp"]
+    changed = {("kcp", "delivery_raw"): ("…", datetime(2026, 8, 23),
+                                         datetime(2026, 8, 23))}
+    entry = {"KCP": {"as_of": "2026-08-03", "delivery_raw": "8/19/2026"}}
+    _, issues = _apply_overrides(df, dict(entry), changed=changed)
+    assert "after this override" in issues[0][2]
+    df.at[0, "delivery_raw"] = "4-8 weeks(org), 9 weeks (act) 8/19"
+    applied, issues = _apply_overrides(df, entry, changed=changed,
+                                       verified={"kcp": ["delivery_raw"]})
+    assert len(applied) == 1 and issues == [], issues
+    assert df.at[0, "delivery_raw"] == "8/19/2026", "the override still applies"
+
+
 def test_curation_applies_only_from_its_as_of():
     from ingest.loaders import _apply_additions, _apply_deletions, _apply_overrides
     df = _dedupe_frame([dict(BUILD, orig_num="1", user="a", vin_raw="")])

@@ -63,7 +63,7 @@ def _curated(value):
     return "" if value is None else str(value).strip()
 
 
-def _apply_overrides(df, overrides, when=None, changed=None):
+def _apply_overrides(df, overrides, when=None, changed=None, verified=None):
     """Apply manual fix-ups (username -> {raw field: value}) in place, before
     cleaning, so the values flow through the normal pipeline. Case-insensitive
     username match; validates field names against the schema. Idempotent.
@@ -81,6 +81,10 @@ def _apply_overrides(df, overrides, when=None, changed=None):
       * the sheet's value changed after the override's as_of (`changed` holds
         when each current value took hold, from the snapshot history) — the
         person updated the sheet since, so the override may now be wrong.
+        Not reported for a field listed in `verified` (lowercased username ->
+        raw fields), which records that someone checked and the override
+        still holds — e.g. the sheet's new text says the same thing in a form
+        the parser can't read.
     Returns (applied_records, issue_records) for the report/QA panel."""
     valid = set(ORDERS_COLUMNS)
     rows_by_user: dict[str, list[int]] = {}
@@ -147,7 +151,9 @@ def _apply_overrides(df, overrides, when=None, changed=None):
             # Strictly after: as_of is a day, and a same-day sheet edit is as
             # likely to be what the override responded to as a later update.
             run = (changed or {}).get((key, field))
-            if e.as_of and run and run[2] is not None and run[2].date() > e.as_of:
+            confirmed = field in (verified or {}).get(disp.lower(), ())
+            if (e.as_of and run and run[2] is not None
+                    and run[2].date() > e.as_of and not confirmed):
                 lo, hi = run[2].date(), run[1].date()
                 when_txt = ("on %s" % hi if lo == hi
                             else "between %s and %s" % (lo, hi))
@@ -515,7 +521,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
     #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
     override_records, override_issues = _apply_overrides(df, OVERRIDES, when,
-                                                         changed)
+                                                         changed, VERIFIED)
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS, when)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)

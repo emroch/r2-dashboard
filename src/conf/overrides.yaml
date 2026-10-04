@@ -44,10 +44,16 @@
 #                  strength of an empty line. To record that something has genuinely
 #                  become unknown, write "unknown" — the parsers understand it.
 #
-#   verified:   values that LOOK like entry errors but have been confirmed, so the
-#               checks in ingest/outliers.py stop setting them aside. Username ->
-#               list of the raw fields confirmed: vin_raw, delivery_raw. A held-
-#               back car with a very low VIN, say, once the owner has confirmed it.
+#   verified:   values confirmed correct by a person, for two checks that would
+#               otherwise keep flagging them. Username -> the raw fields confirmed
+#               (vin_raw, delivery_raw), plus the usual source/as_of:
+#                 * the entry-error checks (ingest/outliers.py) stop setting the
+#                   value aside — a held-back car with a very low VIN, say, once
+#                   the owner has confirmed it;
+#                 * an override on that field stops being reported as "the sheet
+#                   changed after this override" — the sheet was re-checked and
+#                   the override still holds (e.g. the new text says the same
+#                   thing in a form the parser can't read).
 #
 # PROVENANCE (curation_version 2, ingest/curation.py). Every entry in every section
 # also carries:
@@ -1249,4 +1255,11 @@ deletions:
         orig_num: "469"
 
 # Values confirmed correct that the entry-error checks would set aside. See the header.
-verified: {}
+verified:
+  # The sheet now reads "4-8 weeks(org), 9 weeks (act) 8/19", which agrees with
+  # the override (8/19/2026) but doesn't parse. Re-checked against the post.
+  KCP:
+    fields: [delivery_raw]
+    source: https://www.rivianforums.com/forum/posts/1060326/
+    as_of: "2026-10-04"
+    reason: "sheet's delivery text agrees with the override; unparseable as written"
