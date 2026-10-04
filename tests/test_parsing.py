@@ -2088,6 +2088,17 @@ def test_find_suspects_honours_verified_values():
     assert len(delivery) == 1
 
 
+def test_find_suspects_with_no_firm_dated_vins():
+    # Nothing to compare: the cohort checks must find nothing rather than fail.
+    # An empty frame indexed with an empty LIST loses its columns in pandas, which
+    # broke cleaning as of an early date once curation was dated (#82).
+    from ingest.outliers import find_suspects
+    df = _suspects_input()
+    df["vin_present"] = False
+    assert find_suspects(df) == ({}, {})
+    assert find_suspects(df.iloc[0:0]) == ({}, {})
+
+
 def test_find_suspects_needs_a_cohort():
     from ingest.outliers import find_suspects
     df = _with(_suspects_input().head(10), user="early", vin_seq=5000.0,
