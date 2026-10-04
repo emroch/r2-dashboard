@@ -182,7 +182,8 @@ This is the hand-off to #66 and #51. Alongside the rows, the pipeline publishes
 The published set:
 
 - **The current cleaned rows**, as today's `r2_orders_clean.csv`.
-- **An aggregate daily time series:**
+- **An aggregate weekly time series** (every Monday plus today; weekly, not daily,
+  was decided in #84 because each point is a ~0.5 s cleaning pass):
   - orders, VIN-assigned, and firm / vague / unknown estimates
   - inferred deliveries
   - reservations, and reservation → order conversions

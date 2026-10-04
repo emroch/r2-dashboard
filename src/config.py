@@ -23,6 +23,9 @@ OUTPUT_DIR = ROOT / "output"
 for d in (DATA_RAW, DATA_PROCESSED, OUTPUT_DIR):
     d.mkdir(parents=True, exist_ok=True)
 CLEAN_CSV = str(DATA_PROCESSED / "r2_orders_clean.csv")
+# The published data contract (ingest/contract.py), deployed beside the CSV.
+DIMENSIONS_JSON = str(DATA_PROCESSED / "r2_dimensions.json")
+SERIES_JSON = str(DATA_PROCESSED / "r2_series.json")
 DASHBOARD = str(OUTPUT_DIR / "r2_orders_dashboard.html")
 
 # Local cache filename timestamp format (see fetch.py change detection).
