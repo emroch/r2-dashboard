@@ -7,12 +7,15 @@ import time
 import pandas as pd
 
 from config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
-                     ORDERS_SLUG, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG)
+                     ORDERS_SLUG, OVERRIDES, RESV_GID, RESV_KEY, RESV_LABEL,
+                     RESV_SLUG)
 from render.page import build_dashboard
 from ingest.fetch import fetch_sheet
 from ingest.history import (current_keys, current_runs, orders_history,
                             reservations_history, summary)
+from ingest.curation import entries
 from ingest.loaders import load_and_clean, load_reservations
+from ingest.timeline import timeline_issues
 
 
 def main():
@@ -35,6 +38,13 @@ def main():
     df, report, parsed = load_and_clean(orders_text, orders_meta,
                                         keys=current_keys(oh),
                                         changed=current_runs(oh))
+
+    # Cross-snapshot checks (ingest/timeline.py) join the data-quality panel.
+    # Fields an override already sets are left out: their sheet history no
+    # longer reaches the dashboard.
+    curated = {(e.target.split("#")[0].lower(), f)
+               for e in entries(OVERRIDES) for f in (e.body or {})}
+    report["quality"].update(timeline_issues(oh, curated))
 
     # cancelled_users keeps a cancelled ORDER from reappearing as an outstanding
     # reservation just because it left the orders cohort.

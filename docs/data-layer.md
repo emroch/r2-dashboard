@@ -131,8 +131,9 @@ none is auto-corrected (the same policy as `ingest/outliers.py`):
 
 - **Changed VINs:** a VIN changed after being set (17 historic cases).
 - **Changed order dates:** an order date changed after submission.
-- **Backward estimates:** a delivery estimate moved earlier after it had already
-  passed, or a firm date reverted to a vague one.
+- **Backward estimates:** a firm date reverted to a vague one, and is still vague.
+  ("Moved earlier after it had passed" was tried in #83 and dropped: on this data it
+  only found people recording the earlier day they actually took delivery.)
 - **Vanished rows:** a row disappeared from the sheet. That is a silent cancellation,
   or a candidate for curation.
 - **Stale curation:**
