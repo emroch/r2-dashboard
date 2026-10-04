@@ -23,6 +23,7 @@ src/
     outliers.py     likely entry errors (values that contradict the order date or their cohort) — set aside, not corrected
     loaders.py      load_and_clean, load_reservations
     history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
+    curation.py     overrides.yaml provenance: source/as_of/reason, effective dates, v2 enforcement
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
     charts.py       the ten fig_* chart builders + helpers
@@ -42,6 +43,7 @@ data/raw/           timestamped live caches (auto change-detected)
 data/processed/     cleaned CSV output
 output/             dashboard HTML output
 tests/              unit tests (test_parsing.py)
+tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 
 The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds a 10-chart interactive Plotly dashboard.
