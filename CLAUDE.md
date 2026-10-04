@@ -24,6 +24,7 @@ src/
     loaders.py      load_and_clean, load_reservations
     history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
     curation.py     overrides.yaml provenance: source/as_of/reason, effective dates, v2 enforcement
+    timeline.py     cross-snapshot QA checks (VIN/order-date changes, firm->vague, rows that left the sheet)
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
     charts.py       the ten fig_* chart builders + helpers

@@ -2412,5 +2412,69 @@ def test_migration_lifts_urls_and_keeps_everything_else():
     assert again == new
 
 
+# --- Cross-snapshot sanity checks (#83) ---------------------------------------
+
+# A fixed configuration rides along, as in the real sheet, so a row whose date
+# changes still clearly matches its order.
+_TF = ["orig_num", "user", "order_raw", "vin_raw", "delivery_raw", "trim", "color",
+       "wheels", "interior"]
+_TCONF = ["Performance", "Midnight", '21" LT', "Black Crater Signature"]
+
+
+def _tsnap(day, *rows):
+    from datetime import datetime
+    return (datetime(2026, 9, day), _TF,
+            [[str(n), *r, *_TCONF] for n, r in enumerate(rows, start=1)])
+
+
+def _timeline(*snaps, curated=None):
+    from ingest.history import replay
+    from ingest.timeline import timeline_issues
+    return timeline_issues(replay(list(snaps), "orders"), curated)
+
+
+def test_vin_changes_ignore_formatting_and_flag_reverts():
+    out = _timeline(
+        _tsnap(1, ("a", "8/1/2026", "", ""), ("b", "8/1/2026", "X1500", ""),
+               ("c", "8/1/2026", "2000", "")),
+        _tsnap(2, ("a", "8/1/2026", "1200", ""), ("b", "8/1/2026", "01500", ""),
+               ("c", "8/1/2026", "2100", "")),
+        _tsnap(3, ("a", "8/1/2026", "1200", ""), ("b", "8/1/2026", "01500", ""),
+               ("c", "8/1/2026", "2000", "")))["vin_changes"]
+    # a: first VIN set (not a change). b: X1500 -> 01500 is de-obfuscation.
+    assert [u for _, u, _ in out] == ["c"], out
+    assert "2000 → 2100 → 2000" in out[0][2] and "wrong row" in out[0][2]
+    assert "between 2026-09-02 and 2026-09-03" in out[0][2], out[0][2]
+
+
+def test_order_date_changes_compare_dates_not_text():
+    out = _timeline(
+        _tsnap(1, ("a", "8/19/2024", "", ""), ("b", "7/7/2026", "", "")),
+        _tsnap(2, ("a", "8/19/2026", "", ""), ("b", "07/07/2026", "", "")))
+    recs = out["order_date_changes"]
+    assert [u for _, u, _ in recs] == ["a"], "07/07/2026 is the same date"
+    assert "8/19/2024 → 8/19/2026" in recs[0][2]
+
+
+def test_firm_to_vague_lists_only_estimates_still_vague():
+    out = _timeline(
+        _tsnap(1, ("a", "8/1/2026", "", "9/20/2026"),
+               ("b", "8/1/2026", "", "9/20/2026")),
+        _tsnap(2, ("a", "8/1/2026", "", "TBD"), ("b", "8/1/2026", "", "Delayed")),
+        _tsnap(3, ("a", "8/1/2026", "", "TBD"), ("b", "8/1/2026", "", "10/5/2026")))
+    recs = out["firm_to_vague"]
+    assert [u for _, u, _ in recs] == ["a"], "b got a new firm date: resolved"
+    assert "'9/20/2026' → 'TBD'" in recs[0][2]
+
+
+def test_left_sheet_and_curated_fields():
+    out = _timeline(
+        _tsnap(1, ("a", "8/1/2026", "1000", ""), ("b", "8/1/2026", "1100", "")),
+        _tsnap(2, ("b", "8/1/2026", "1150", "")), curated={("b", "vin_raw")})
+    assert [u for _, u, _ in out["left_sheet"]] == ["a"]
+    assert "gone by 2026-09-02" in out["left_sheet"][0][2]
+    assert out["vin_changes"] == [], "an override already sets b's VIN"
+
+
 if __name__ == "__main__":
     sys.exit(1 if _run_all() else 0)
