@@ -25,7 +25,8 @@ src/
     history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
     curation.py     overrides.yaml provenance: source/as_of/reason, effective dates, v2 enforcement
     timeline.py     cross-snapshot QA checks (VIN/order-date changes, firm->vague, rows that left the sheet)
-    contract.py     published data contract: dimension metadata + weekly series (r2_dimensions.json / r2_series.json)
+    milestones.py   when each order's final VIN / final delivery date took hold (curated `dates:` or first snapshot showing it); internal
+    contract.py     published data contract: dimension metadata + event-dated daily series (r2_dimensions.json / r2_series.json)
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
     charts.py       the ten fig_* chart builders + helpers
@@ -61,7 +62,7 @@ Run the pipeline from the project root:
 
 Outputs:
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
-- `data/processed/r2_dimensions.json`, `r2_series.json` — the published data contract (`ingest/contract.py`): `dimensions.yaml` as JSON, and the headline counts every Monday plus today. Aggregates only.
+- `data/processed/r2_dimensions.json`, `r2_series.json` — the published data contract (`ingest/contract.py`): `dimensions.yaml` as JSON, and daily counts of what was true by each date (event-dated, from today's data). Aggregates only.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. If a live fetch fails, the newest cache is used.
 

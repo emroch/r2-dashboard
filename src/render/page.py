@@ -365,6 +365,14 @@ _QA_CATS = [
     ("firm_to_vague", "Firm delivery dates that went vague",
      "A firm delivery date replaced by something vaguer (\"TBD\", \"Delayed\") "
      "and still vague. Usually a real delay; worth asking for an update."),
+    ("milestone_issues", "Milestone dates that don't fit",
+     "When each order's final VIN was assigned and its final delivery date set: "
+     "from a post (a `dates:` entry in overrides.yaml), else the first snapshot "
+     "that showed the final value. A posted date is only used if it fits: not in "
+     "the future, not before the order, not after the sheet already showed the "
+     "value, and a scheduling date not after the delivery itself. Listed here: "
+     "posted dates that didn't fit, and sheets that showed a final value before "
+     "the order date, where one of the two dates must be wrong."),
     ("left_sheet", "Orders that left the sheet",
      "An order that disappeared from the sheet without a curated deletion: a "
      "silent cancellation, or a row removed by mistake. If it was a cancellation, "

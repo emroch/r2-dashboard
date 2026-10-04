@@ -53,9 +53,20 @@
 # also carries:
 #   source:  the forum URL (or a list of them), or "inferred — <why>" for a
 #            judgment made from the data itself
-#   as_of:   "YYYY-MM-DD", the date the information was posted. The correction
-#            applies from then on; the history before it shows what the sheet said.
+#   as_of:   "YYYY-MM-DD", when we learned it: the post, or the curation date.
+#            The stale-override check compares later sheet changes against it.
 #   reason:  optional short note
+#   checked: optional "YYYY-MM-DD", a later date on which someone re-checked an
+#            override against the sheet and it still holds. The "sheet changed
+#            after this override" warning then only counts changes after it.
+#   dates:   optional milestone dates for the order's FINAL values (#99), from a
+#            post that says when they happened:
+#              vin_assigned:        when the final VIN was assigned
+#              delivery_scheduled:  when the final delivery date was set
+#            Without them, each is the first snapshot that showed the final
+#            value. An entry may carry only `dates`, to date values the sheet
+#            already has right. A date that can't fit (before the order, after
+#            the sheet already showed the value, ...) is listed, not used.
 # Once the file says `curation_version: 2`, a missing source or as_of stops the
 # build. tools/migrate_curation.py converts the older comment-only format. Use
 # `username#2` (#3, ...) as the key to target one of a user's several orders.
@@ -177,9 +188,12 @@ overrides:
     as_of: "2026-08-03"
     delivery_raw: "8/4/2026"
   # delivery update
+  # The sheet later read "4-8 weeks(org), 9 weeks (act) 8/19": the same date, in
+  # a form the parser can't read. Re-checked against the post.
   KCP:
     source: https://www.rivianforums.com/forum/posts/1060326/
     as_of: "2026-08-03"
+    checked: "2026-08-23"
     delivery_raw: "8/19/2026"
   # vin/delivery update
   tkauftheil:

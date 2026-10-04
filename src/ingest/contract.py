@@ -1,40 +1,36 @@
-"""The published data contract: dimension metadata and an aggregate time series.
+"""The published data contract: dimension metadata and an event-dated series.
 
-Data layer stage 4 (docs/data-layer.md, issue #84), the hand-off to the
-presentation rewrite (#66) and reconfigurable charts (#51). Two JSON files are
-published next to the cleaned CSV:
+The hand-off to the presentation rewrite (#66) and reconfigurable charts (#51).
+Two JSON files are published next to the cleaned CSV:
 
   r2_dimensions.json  what each column of r2_orders_clean.csv MEANS for display:
                       src/conf/dimensions.yaml, published verbatim as JSON
                       (labels, category order, blank handling, small-n rule,
                       caveat and note text, per-category colors and markers).
-  r2_series.json      the dashboard's headline counts as they stood each Monday
-                      since the first snapshot, plus today. Aggregates only,
-                      never a per-order history.
+  r2_series.json      daily counts of what was TRUE by each date (#99): orders
+                      by order date, VINs by when the final VIN was assigned,
+                      deliveries by when they were scheduled and when they
+                      happened. Aggregates only, never a per-order history.
 
-Each point of the series is the REAL cleaning (loaders.load_and_clean) run on the
-snapshot that was current at the end of that day, with `as_of` set to that day.
-So a point is exactly what the dashboard would have counted then, under today's
-cleaning rules and with only the curation that was in effect by that date. The
-last point is today, and the pipeline checks it against the live report.
+"True by date", not "reported by date": the series is built once, from TODAY's
+cleaned data, by each order's own event dates, so an order reported on Tuesday
+for a Monday order counts on Monday. Early points therefore keep rising as late
+reports and better dates arrive. That is true to the data, since the series is
+recomputed every build and nothing is cached. How far the sheet lagged behind
+events is forum participation, which isn't a goal (#99), so it isn't published.
 
-Weekly, not daily (decided on #84): a cleaning pass takes about 0.5 s, so daily
-points would add about 40 s to every build now and minutes within a year.
+Milestone dates come from ingest/milestones.py. Anything the sheet already
+showed in its first snapshot can only be dated "on or before" that day, so it is
+counted on it; `history_start` and `on_history_start` say how much that covers.
 """
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
 
-import contextlib
-import io
-from datetime import datetime
 from typing import Any
 
 import pandas as pd
 
-from config import AS_OF, DIMENSIONS, ORDERS_LABEL, ORDERS_SLUG, RESV_SLUG
-
-from .history import snapshot_files
-from .loaders import load_and_clean, load_reservations
+from config import AS_OF, DIMENSIONS
 
 CONTRACT_VERSION = 1
 
@@ -52,74 +48,71 @@ def dimensions() -> dict[str, Any]:
 
 # --- Time series ---------------------------------------------------------------
 
+SERIES_VERSION = 2
+
 SERIES_METRICS = {
-    "orders": "Unique orders (the dashboard's cohort)",
-    "vin_assigned": "Orders with a VIN",
-    "estimate_firm": "Orders with a firm delivery date",
-    "estimate_vague": "Orders with a window, range or month",
-    "estimate_unknown": "Orders with no usable estimate",
-    "delivered_inferred": "Orders inferred delivered (estimate passed)",
-    "reservations_incomplete": "Reservations not yet ordered",
-    "reservations_converted": "Reservation holders found in the orders sheet",
+    "orders": "Orders placed, by order date",
+    "vin_assigned": "Orders whose final VIN had been assigned",
+    "delivery_scheduled": "Orders whose final delivery date had been set",
+    "delivered": "Orders delivered (inferred: the estimate has passed), by "
+                 "delivery date",
+    "reservations_outstanding": "Reservations still outstanding today, by "
+                                "reservation date",
+    "reservations_converted": "Reservation holders who have since ordered, by "
+                              "order date",
 }
 
 
-def counts(df: pd.DataFrame, report: dict, resv_report: dict | None) -> dict:
-    """The series metrics from one cleaning run."""
-    dc = report["delivery_counts"]
+def _event_dates(df: pd.DataFrame, resv: pd.DataFrame,
+                 converted: set[str]) -> dict[str, pd.Series]:
+    """Each metric's event date per counted order (NaT = no date to count by)."""
+    delivered = df[df["delivered_inferred"].astype(bool)]
+    vin = df[df["vin_present"].astype(bool)]
+    firm = df[df["delivery_type"] == "explicit"]
+    conv = df[df["user"].str.lower().isin(converted)]
     return {
-        "orders": int(report["n_dedup"]),
-        "vin_assigned": int(report["vin_present"]),
-        "estimate_firm": int(dc.get("explicit", 0)),
-        "estimate_vague": int(sum(dc.get(t, 0) for t in ("window", "range", "month"))),
-        "estimate_unknown": int(dc.get("unknown", 0)),
-        "delivered_inferred": int(df["delivered_inferred"].astype(bool).sum()),
-        "reservations_incomplete": (None if resv_report is None
-                                    else int(resv_report["n_incomplete"])),
-        "reservations_converted": (None if resv_report is None
-                                   else int(resv_report["n_matched"])),
+        "orders": df["order_date"],
+        "vin_assigned": vin["vin_assigned"],
+        "delivery_scheduled": firm["delivery_scheduled"],
+        "delivered": delivered["delivery_est"],
+        "reservations_outstanding": resv["resv_date"],
+        "reservations_converted": conv["order_date"],
     }
 
 
-def _latest_by(files: list[tuple[datetime, str]], end: pd.Timestamp) -> str | None:
-    """The newest snapshot written before `end`."""
-    paths = [p for ts, p in files if pd.Timestamp(ts) < end]
-    return paths[-1] if paths else None
+def series(df: pd.DataFrame, resv: pd.DataFrame, converted: set[str],
+           history_start: pd.Timestamp | None, start: pd.Timestamp,
+           end: pd.Timestamp = AS_OF) -> dict[str, Any]:
+    """Daily cumulative counts from `start` to `end`, from today's cleaned data.
 
-
-def point(day: pd.Timestamp, orders_path: str, resv_path: str | None,
-          today: bool = False) -> dict:
-    """Clean the snapshots current at `day` as of `day`, and count."""
-    as_of = None if today else day
-    with open(orders_path) as fh:
-        text = fh.read()
-    # The cleaning prints nothing itself, but keep a stray warning from
-    # interleaving with the pipeline's report.
-    with contextlib.redirect_stdout(io.StringIO()):
-        df, report, _ = load_and_clean(text, {"label": ORDERS_LABEL}, as_of=as_of)
-        resv_report = None
-        if resv_path:
-            with open(resv_path) as fh:
-                _, resv_report = load_reservations(
-                    fh.read(), set(df["user"]), report["cancelled_users"],
-                    as_of=as_of)
-    return {"date": day.date().isoformat(), **counts(df, report, resv_report)}
-
-
-def series(raw_dir: str | None = None, as_of: pd.Timestamp = AS_OF) -> dict:
-    """Every Monday since the first orders snapshot, plus `as_of` (today)."""
-    ofiles = snapshot_files(ORDERS_SLUG, raw_dir)
-    rfiles = snapshot_files(RESV_SLUG, raw_dir)
-    points = []
-    if ofiles:
-        first = pd.Timestamp(ofiles[0][0]).normalize()
-        mondays = pd.date_range(first, as_of, freq="W-MON")
-        for day in [d for d in mondays if d < as_of]:
-            end = day + pd.Timedelta(days=1)        # end of that day
-            path = _latest_by(ofiles, end)
-            if path:
-                points.append(point(day, path, _latest_by(rfiles, end)))
-        points.append(point(as_of, ofiles[-1][1],
-                            rfiles[-1][1] if rfiles else None, today=True))
-    return {"version": CONTRACT_VERSION, "grain": "weekly (Mondays) + today",
-            "metrics": SERIES_METRICS, "points": points}
+    df         cleaned orders, with milestones (ingest/milestones.py)
+    resv       outstanding reservations (load_reservations)
+    converted  lowercased usernames of reservation holders who have ordered
+    Reservations dated before `start` count from the first point.
+    """
+    days = pd.date_range(start.normalize(), end.normalize(), freq="D")
+    if history_start is not None:
+        history_start = pd.Timestamp(history_start).normalize()
+    values, undated, on_start = {}, {}, {}
+    for name, dates in _event_dates(df, resv, converted).items():
+        d = pd.to_datetime(dates, errors="coerce").dt.normalize()
+        undated[name] = int(d.isna().sum())
+        # Before the first day (a 2024 reservation): count from the first point.
+        d = d.dropna().where(lambda x: x >= days[0], days[0])
+        counts = d.value_counts().reindex(days, fill_value=0).cumsum()
+        values[name] = [int(v) for v in counts]
+        if history_start is not None:
+            on_start[name] = int((d == history_start).sum())
+    return {
+        "version": SERIES_VERSION,
+        "basis": "true by date: each order counted on its own event dates, from "
+                 "today's data; recent points are provisional and early points "
+                 "rise as late reports arrive",
+        "history_start": (history_start.date().isoformat()
+                          if history_start is not None else None),
+        "on_history_start": on_start,
+        "metrics": SERIES_METRICS,
+        "dates": [x.date().isoformat() for x in days],
+        "values": values,
+        "undated": undated,
+    }

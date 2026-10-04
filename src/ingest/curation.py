@@ -1,13 +1,19 @@
-"""Provenance and effective dates for the manual curation in overrides.yaml.
+"""Provenance and timing for the manual curation in overrides.yaml.
 
-Data layer stage 2 (docs/data-layer.md, issue #82). Every entry, in every section,
-may carry three META keys alongside what it edits:
+Data layer stage 2 and #99 (docs/data-layer.md). Every entry, in every section,
+may carry these META keys alongside what it edits:
 
   source   where the information came from: a forum URL (or a list of them), or
            text starting with "inferred" for a judgment made from the data itself
-  as_of    the date it became true, i.e. when it was posted. A correction is an
-           event in time: before as_of, the history shows what the sheet said
+  as_of    when we LEARNED it (the post, or the curation date). It anchors the
+           stale-override check: a sheet change after it may mean the override
+           is out of date
+  checked  optional, a later date on which someone confirmed the override still
+           holds; the stale check then counts sheet changes after this instead
   reason   a short note, shown with the entry in the report
+  dates    optional milestone dates for the order's FINAL values (#99):
+           vin_assigned, delivery_scheduled. May stand alone, with no value
+           overridden, to date values the sheet already has (ingest/milestones.py)
 
 They are never sheet fields, so they are split off here before anything is
 applied. While the file is at curation_version 1 (the format before this stage)
@@ -19,9 +25,11 @@ nobody can trace, published on the dashboard, is the thing this exists to preven
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, NamedTuple
+from types import MappingProxyType
+from typing import Any, Mapping, NamedTuple
 
-META = ("source", "as_of", "reason")
+META = ("source", "as_of", "checked", "reason", "dates")
+MILESTONES = ("vin_assigned", "delivery_scheduled")
 
 
 class CurationError(ValueError):
@@ -34,6 +42,14 @@ class Entry(NamedTuple):
     source: list[str]
     as_of: date | None
     reason: str
+    checked: date | None = None
+    dates: Mapping[str, date | None] = MappingProxyType({})
+
+    @property
+    def reviewed(self) -> date | None:
+        """The latest date this entry is known to hold: as_of, or checked."""
+        known = [d for d in (self.as_of, self.checked) if d is not None]
+        return max(known) if known else None
 
 
 def _as_date(v: Any) -> date | None:
@@ -55,17 +71,14 @@ def split(target: Any, spec: Any) -> Entry:
     sources = ([str(s).strip() for s in src] if isinstance(src, list)
                else [str(src).strip()] if src else [])
     body = {k: v for k, v in spec.items() if k not in META}
+    dates = {k: _as_date(v) for k, v in (spec.get("dates") or {}).items()}
     return Entry(str(target), body, sources, _as_date(spec.get("as_of")),
-                 str(spec.get("reason") or "").strip())
+                 str(spec.get("reason") or "").strip(),
+                 _as_date(spec.get("checked")), dates)
 
 
 def entries(section: dict | None) -> list[Entry]:
     return [split(t, s) for t, s in (section or {}).items()]
-
-
-def in_effect(entry: Entry, when: datetime | None) -> bool:
-    """Whether the entry applies to the state at `when` (None = now: all do)."""
-    return when is None or entry.as_of is None or entry.as_of <= when.date()
 
 
 def _valid_source(s: str) -> bool:
@@ -88,6 +101,13 @@ def provenance_problems(section_label: str, items: list[Entry],
         elif e.as_of > today:
             out.append("%s %s: as_of %s is in the future"
                        % (section_label, e.target, e.as_of))
+        if e.checked and e.as_of and e.checked < e.as_of:
+            out.append("%s %s: checked %s is before as_of %s"
+                       % (section_label, e.target, e.checked, e.as_of))
+        for k in e.dates:
+            if k not in MILESTONES:
+                out.append("%s %s: unknown milestone '%s' (known: %s)"
+                           % (section_label, e.target, k, ", ".join(MILESTONES)))
     return out
 
 
