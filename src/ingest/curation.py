@@ -7,7 +7,8 @@ may carry these META keys alongside what it edits:
            text starting with "inferred" for a judgment made from the data itself
   as_of    when we LEARNED it (the post, or the curation date). It anchors the
            stale-override check: a sheet change after it may mean the override
-           is out of date
+           is out of date. Not needed on a dates-only entry, which overrides
+           nothing
   checked  optional, a later date on which someone confirmed the override still
            holds; the stale check then counts sheet changes after this instead
   reason   a short note, shown with the entry in the report
@@ -96,9 +97,13 @@ def provenance_problems(section_label: str, items: list[Entry],
             if not _valid_source(s):
                 out.append("%s %s: source %r is neither a URL nor 'inferred …'"
                            % (section_label, e.target, s))
-        if e.as_of is None:
+        # A dates-only entry overrides nothing, so as_of has no job there: it
+        # anchors the stale check for overridden fields, and dates a final value
+        # that only curation supplied. The milestone dates carry the timing.
+        dates_only = bool(e.dates) and not e.body
+        if e.as_of is None and not dates_only:
             out.append("%s %s: no as_of date" % (section_label, e.target))
-        elif e.as_of > today:
+        elif e.as_of is not None and e.as_of > today:
             out.append("%s %s: as_of %s is in the future"
                        % (section_label, e.target, e.as_of))
         if e.checked and e.as_of and e.checked < e.as_of:
