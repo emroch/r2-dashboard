@@ -31,7 +31,10 @@ src/
     theme.js          re-tint chart chrome on light/dark toggle
     nav.js            sidebar hamburger + scroll-spy
   conf/               data/config YAML (loaded by config.py)
-    palette.yaml      data-encoding colors & markers (paints, interiors, wheels, regions, types, chart fills)
+    dimensions.yaml   category vocabulary: each column's label, order, blank handling, caveat, and
+                      per-category label/color/marker (paints, wheels, interiors, regions, ...);
+                      published as r2_dimensions.json
+    palette.yaml      chart fills that don't name a category (take-rate, timeline, accents)
     theme.yaml        page & chart chrome for light/dark (CSS variables + chart retint colors)
     schema.yaml       sheet sources, column maps, sanitize bounds, option vocab
     geo.yaml          state/province -> region + coordinates, factory, province aliases
@@ -59,9 +62,9 @@ It's a run-in-place project (no install step). Dependencies are listed in
 ## Outputs
 
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
-- `data/processed/r2_dimensions.json` — display metadata for each CSV column: label,
-  category order, blank handling, small-n rule, caveat, and a color token per
-  category (with a `palette` mapping tokens to colors).
+- `data/processed/r2_dimensions.json` — `src/conf/dimensions.yaml` as JSON: each CSV
+  column's label, category order, blank handling, small-n rule, caveat/note text,
+  and per-category colors and markers.
 - `data/processed/r2_series.json` — the dashboard's headline counts as of every
   Monday since the first snapshot, plus today: the real cleaning re-run on the
   snapshot current at each date. Aggregates only; no per-order history.

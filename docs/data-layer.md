@@ -171,7 +171,8 @@ This is the hand-off to #66 and #51. Alongside the rows, the pipeline publishes
 **dimension metadata**, so the page no longer hard-codes per-chart conventions:
 
 - **Ordering and labels:** each dimension's label and its category order (today
-  scattered across `palette.yaml` and `charts.py`).
+  scattered across `palette.yaml` and `charts.py`; now one file, `dimensions.yaml`,
+  published as-is).
 - **Missing values:** the bucket each dimension uses for them ("Unknown",
   "No state data").
 - **Thresholds and caveats:** the small-n threshold, and caveat text (state

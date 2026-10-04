@@ -1,0 +1,287 @@
+# R2 Orders — dimensions: what each categorical column of the cleaned data means.
+#
+# The single place for the category vocabulary: every paint, wheel, interior,
+# region, trim and delivery type, with its display label and color, plus how each
+# column is ordered, how blanks are handled, and the caveat a reader should see.
+# Adding a paint or retuning a color is a data edit here, not a code change.
+#
+# Two readers:
+#   * config.py builds the chart constants from it (COLOR_HEX, WHEEL_SHORT,
+#     TYPE_ORDER, ...), so every chart reads the same vocabulary.
+#   * the build publishes it, unchanged apart from format, as r2_dimensions.json
+#     (ingest/contract.py) for the presentation layer (#66, #51).
+#
+# So everything that is DATA is a key, including the text a reader may be shown:
+#   label    display name
+#   caveat   a disclaimer worth showing with any chart of this column (tooltip,
+#            footnote). Short and plain; it is user-facing.
+#   note     context for the order or the blank handling, also user-facing
+# YAML comments (like this one) are for whoever edits the file, and are not
+# published.
+#
+# Per dimension:
+#   column      the column in r2_orders_clean.csv
+#   order       "count" (most orders first; the listed order breaks ties) or
+#               "fixed" (the listed order)
+#   missing     how a blank value is shown:
+#                 omit      left out of the chart, kept in the cohort (the
+#                           data-quality panel lists it)
+#                 bucket    shown as its own category, named by `label`
+#                 category  already one of the categories (`value`)
+#   small_n     a minimum count for a category to be drawn on its own
+#   categories  value (exactly as it appears in the CSV) + label, color, ...
+
+dimensions:
+
+  # ---------------------------------------------------------------------------
+  # Exterior paints (representative, adjusted for digital display). Listed in the
+  # curated showroom sequence, light-to-dark within family. The charts do NOT
+  # display in this order: they rank paints by how many orders each has, so the
+  # heatmaps read as a gradient and every paint chart agrees (issue #58). This
+  # order is the TIE-BREAK for that ranking — two paints on equal counts keep it
+  # instead of reshuffling between builds. A new paint belongs here.
+  # ---------------------------------------------------------------------------
+  color:
+    column: color
+    label: Paint
+    order: count
+    note: Most-ordered first.
+    missing: {policy: omit}
+    categories:
+      - {value: Catalina Cove,  color: "#4a8db4"}   # dark teal-blue
+      - {value: Launch Green,   color: "#91aa81"}   # muted olive
+      - {value: Forest Green,   color: "#226222"}   # dark green
+      - {value: Borealis,       color: "#6447ac"}   # deep purple
+      - {value: Half Moon Grey, color: "#666666"}   # dark warm grey
+      - {value: Esker Silver,   color: "#AAAAAA"}   # cool silver
+      - {value: Glacier White,  color: "#F2F2F2"}   # near-white
+      - {value: Midnight,       color: "#000009"}   # black
+
+  # ---------------------------------------------------------------------------
+  # Wheels. `sheet` is the EXACT sheet value (note the curly ” the form uses), so
+  # a wheel is identified rather than inferred from its size — the R2 has four
+  # wheels and two of them are 20", so a size test can't tell them apart. Each
+  # trim offers two (see pricing.yaml); only the Performance pair appears in the
+  # data until Premium and Standard ship, and the charts show only those present.
+  #   value  — display label, and what the CSV's wheels_short holds
+  #   abbr   — compact label for dense axes; size + All-Season/All-Terrain, which
+  #            is unique across all four and is the distinction people argue about
+  #   symbol — Plotly marker, dual-encoding with paint color on the scatter charts
+  #   color  — fill for the wheel-mix bars. Listed in ascending size, which is the
+  #            stack order; validated for CVD separation and contrast in both
+  #            light and dark against that order.
+  # ---------------------------------------------------------------------------
+  wheels:
+    column: wheels_short
+    label: Wheels
+    order: fixed
+    note: Ascending size.
+    missing: {policy: omit}
+    categories:
+      - value: 19" Machined Graphite
+        sheet: '19” Machined Graphite All-Season'
+        abbr: 19" AS
+        symbol: triangle-up
+        color: "#2f8f6b"
+      - value: 20" Bicolor Carbon
+        sheet: '20” Bicolor Carbon All-Season'
+        abbr: 20" AS
+        symbol: square
+        color: "#8f4a9c"
+      - value: 20" Black Sand
+        sheet: '20” Black Sand All-Terrain'
+        abbr: 20" AT
+        symbol: diamond
+        color: "#c96a10"
+      - value: 21" Liquid Tungsten
+        sheet: '21” Liquid Tungsten All-Season'
+        abbr: 21" AS
+        symbol: circle
+        color: "#3070b3"
+
+  # ---------------------------------------------------------------------------
+  # Interiors. `value` is the EXACT sheet value, because "Black Crater" and
+  # "Black Crater Signature" are DIFFERENT offerings in pricing.yaml — Standard
+  # gets the plain one, Performance and Premium the Signature. Shortening a label
+  # by stripping the suffix would merge the two into one row the moment Standard
+  # ships, so the short label is recorded here instead of derived.
+  #   short — display label; kept compact, it appears in dense axes and row keys
+  #   color — the cabin color, shared by every interior chart so an interior looks
+  #           the same in the take-rate bars as in the location mix
+  #
+  # How these were arrived at: pixel medians sampled off Rivian's configurator
+  # renders as a starting point, then adjusted by eye. What was sampled, for anyone
+  # re-deriving them later —
+  #   Black Crater Signature   lit upholstery: seat back #48433c, console #58554f
+  #   Coastal Cloud Signature  lit upholstery: seat back #b3b1ad, console #c7c6c4
+  #   Black Crater (plain)     headliner #918f8c / #8c8b87
+  # Plain Black Crater comes from its headliner rather than its seats because below
+  # the beltline it is the same charcoal as the Signature (seat back #524e48,
+  # console #58554f), so the seats can't tell the two cabins apart; the light
+  # headliner and fabric dash are what differ. The renders are a reference point
+  # rather than a constraint — these are meant to be tuned to taste.
+  #
+  # The one thing worth keeping in view when tuning: each of these sits near one of
+  # the two chart surfaces (the dark cabins near the dark card, the light one near
+  # the white card), so a fill on its own doesn't delineate a segment in both
+  # themes. The interior charts draw a border in CHART.edge, which the theme flips
+  # (#2b2b2b light / #aab0b8 dark), and that border is what holds the edge. Pushing
+  # the colors further apart from each other tends to push each one closer to its
+  # weaker surface, so it's worth a look in both themes after a change.
+  # ---------------------------------------------------------------------------
+  interior:
+    column: interior
+    label: Interior
+    order: fixed
+    note: Plainest first.
+    missing: {policy: omit}
+    categories:
+      - value: Black Crater
+        short: Black Crater
+        color: "#71706c"          # from the light headliner — see note above
+      - value: Black Crater Signature
+        short: Black Crater Sig
+        color: "#444240"          # warm charcoal upholstery
+      - value: Coastal Cloud Signature
+        short: Coastal Cloud Sig
+        color: "#d5d3ce"          # light smoke upholstery
+
+  # ---------------------------------------------------------------------------
+  # Trims, for the take-rate panels that stack by trim. A light to dark ramp from
+  # the entry trim up to Performance, keyed to the same blue the price charts use.
+  # Only drawn once more than one trim has orders.
+  # ---------------------------------------------------------------------------
+  trim:
+    column: trim
+    label: Trim
+    order: fixed
+    missing: {policy: omit}
+    categories:
+      - {value: Standard,    color: "#a8c6e0"}
+      - {value: Premium,     color: "#4c78a8"}
+      - {value: Performance, color: "#2a4a6b"}
+
+  buylease:
+    column: buylease
+    label: Purchase or lease
+    order: fixed
+    missing: {policy: omit}
+    categories:
+      - {value: Purchase}
+      - {value: Lease}
+
+  r1_owner:
+    column: r1_owner
+    label: Current R1 owner
+    order: fixed
+    missing: {policy: omit}
+    caveat: Naming an R1 model counts as owning one, even where the yes/no answer
+      says No.
+    categories:
+      - {value: "Yes"}
+      - {value: "No"}
+
+  # ---------------------------------------------------------------------------
+  # Which R1 an owner has, for the R1-owner panel's stack. Greens to match that
+  # panel's bar. Two different non-answers, deliberately not one shared segment:
+  # an owner who skipped the model follow-up, and a non-owner the question never
+  # applied to. "Unspecified" sits inside the Yes bar, so it needs to read as its
+  # own thing against the model greens rather than as the non-owner grey.
+  # (Label spelled "No R1" rather than "None": a bare None is YAML null.)
+  # ---------------------------------------------------------------------------
+  r1_model:
+    column: r1_model
+    label: R1 model
+    order: fixed
+    missing: {policy: category, value: Unspecified}
+    note: Unspecified is an owner who didn't name a model; No R1 is a non-owner.
+    categories:
+      - {value: R1T,         color: "#54a24b"}
+      - {value: R1S,         color: "#8fbf6f"}
+      - {value: Both,        color: "#2f6b2f"}
+      - {value: Unspecified, color: "#8899a6"}
+      - {value: "No R1",     color: "#c2ccd6"}
+
+  # ---------------------------------------------------------------------------
+  # Region -> color (geographic demand maps + destination chart).
+  # ---------------------------------------------------------------------------
+  region:
+    column: region
+    label: Region
+    order: count
+    missing: {policy: bucket, label: Unknown}
+    caveat: Location is self-reported.
+    categories:
+      - {value: West,      color: "#e94747"}
+      - {value: Midwest,   color: "#5096e1"}
+      - {value: South,     color: "#f58518"}
+      - {value: Northeast, color: "#4fb843"}
+      - {value: Canada,    color: "#9467bd"}
+
+  state:
+    column: state
+    label: State / province
+    order: count
+    missing: {policy: bucket, label: No state data}
+    small_n:
+      min_orders: 5
+      note: States with fewer orders are summarized by region only.
+    caveat: Location is self-reported.
+    categories: []              # the states present; geo.yaml has the full list
+
+  # ---------------------------------------------------------------------------
+  # Delivery-estimate certainty -> color + marker opacity. `unknown` covers rows
+  # with no parseable estimate. Opacities are all 1.0 today (previously the vaguer
+  # types were faded; kept here so re-fading is a one-line tweak). Listed firm to
+  # vague, which is the stack / iteration order.
+  # ---------------------------------------------------------------------------
+  delivery_type:
+    column: delivery_type
+    label: Delivery estimate
+    order: fixed
+    note: Firm to vague.
+    missing: {policy: category, value: unknown}
+    caveat: Normalized from free text. A relative window ("4-8 weeks") is measured
+      from the order date.
+    categories:
+      - {value: explicit, label: Firm date,       color: "#1f77b4", opacity: 1.0}
+      - {value: window,   label: Relative window, color: "#ff7f0e", opacity: 1.0}
+      - {value: range,    label: Date range,      color: "#2ca02c", opacity: 1.0}
+      - {value: month,    label: Month,           color: "#9467bd", opacity: 1.0}
+      - {value: unknown,  label: No date given,   color: "#bbbbbb", opacity: 1.0}
+
+  delivered:
+    column: delivered_inferred
+    label: Delivered (est.)
+    order: fixed
+    caveat: Inferred, not reported. An estimate whose whole window has passed
+      counts as delivered, which can be wrong both ways.
+    categories:
+      - {value: true,  label: Delivered (est.)}
+      - {value: false, label: Awaiting delivery}
+
+  opted_autonomy:
+    column: opted_autonomy
+    label: Autonomy+
+    order: fixed
+    caveat: '"Included" with the Launch Package counts as yes.'
+    categories:
+      - {value: true,  label: "Yes"}
+      - {value: false, label: "No"}
+
+  opted_tow:
+    column: opted_tow
+    label: Tow package
+    order: fixed
+    caveat: '"Included" with the Launch Package counts as yes.'
+    categories:
+      - {value: true,  label: "Yes"}
+      - {value: false, label: "No"}
+
+  opted_spare:
+    column: opted_spare
+    label: Compact spare
+    order: fixed
+    categories:
+      - {value: true,  label: "Yes"}
+      - {value: false, label: "No"}
