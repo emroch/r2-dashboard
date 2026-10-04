@@ -2288,6 +2288,30 @@ def test_curation_v2_requires_provenance_and_v1_does_not():
             assert why in str(exc), exc
 
 
+def test_a_dates_only_entry_needs_no_as_of():
+    # It overrides nothing, so there is nothing for as_of to anchor.
+    from ingest.curation import CurationError, check
+    today = date(2026, 10, 4)
+    dates_only = {"overrides": {"jediknight": {
+        "source": "https://x", "dates": {"delivery_scheduled": "2026-08-04"}}}}
+    check(2, dates_only, today)
+    # An entry that overrides a field still needs one.
+    try:
+        check(2, {"overrides": {"u": {"source": "https://x", "vin_raw": "1500",
+                                      "dates": {"vin_assigned": "2026-08-04"}}}},
+              today)
+        raise AssertionError("an override without as_of must be refused")
+    except CurationError as exc:
+        assert "no as_of" in str(exc)
+    # A source is still required.
+    try:
+        check(2, {"overrides": {"u": {"dates": {"vin_assigned": "2026-08-04"}}}},
+              today)
+        raise AssertionError("a dates-only entry still needs a source")
+    except CurationError as exc:
+        assert "no source" in str(exc)
+
+
 def test_override_by_order_key_targets_one_of_several_orders():
     from ingest.loaders import _apply_overrides
     df = _dedupe_frame([
