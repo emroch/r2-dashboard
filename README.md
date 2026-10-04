@@ -59,6 +59,12 @@ It's a run-in-place project (no install step). Dependencies are listed in
 ## Outputs
 
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
+- `data/processed/r2_dimensions.json` — display metadata for each CSV column: label,
+  category order, blank handling, small-n rule, caveat, and a color token per
+  category (with a `palette` mapping tokens to colors).
+- `data/processed/r2_series.json` — the dashboard's headline counts as of every
+  Monday since the first snapshot, plus today: the real cleaning re-run on the
+  snapshot current at each date. Aggregates only; no per-order history.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped
   live caches. A new cache is written only when the fetched content differs from

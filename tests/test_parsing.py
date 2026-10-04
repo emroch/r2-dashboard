@@ -10,6 +10,7 @@ PASS/FAIL per test plus a summary (exit code 1 if anything fails).
 import csv
 import io
 import os
+import re
 import sys
 from datetime import date
 
@@ -2474,6 +2475,110 @@ def test_left_sheet_and_curated_fields():
     assert [u for _, u, _ in out["left_sheet"]] == ["a"]
     assert "gone by 2026-09-02" in out["left_sheet"][0][2]
     assert out["vin_changes"] == [], "an override already sets b's VIN"
+
+
+# --- Published data contract (#84) --------------------------------------------
+
+
+def test_dimensions_name_colors_and_cover_the_csv():
+    from ingest.contract import dimensions
+    d = dimensions()
+    csv_cols = {"state", "region", "buylease", "trim", "color", "wheels_short",
+                "interior", "opted_autonomy", "opted_tow", "opted_spare",
+                "delivery_type", "delivered_inferred", "r1_owner"}
+    assert {x["column"] for x in d["dimensions"]} == csv_cols
+    for dim in d["dimensions"]:
+        for c in dim["categories"] or []:
+            if "color" in c:
+                # A category names a token; the palette owns the value.
+                assert c["color"] in d["palette"], c
+                assert re.fullmatch(r"[a-z0-9-]+", c["color"]), c["color"]
+    paint = next(x for x in d["dimensions"] if x["name"] == "color")
+    assert [c["value"] for c in paint["categories"]][:2] == ["Catalina Cove",
+                                                             "Launch Green"]
+    assert d["palette"]["paint-catalina-cove"] == "#4a8db4"
+    import json
+    json.dumps(d)                      # publishable as-is
+
+
+def _orders_text(*users):
+    """An orders export with one tester-like row per username."""
+    lines = _orders_csv(_orders_header()).splitlines()
+    head, row = lines[:-1], lines[-1]
+    out = [row.replace("tester", u).replace(",1,", ",%d," % n, 1)
+           for n, u in enumerate(users, start=1)]
+    return "\n".join(head + out) + "\n"
+
+
+def _resv_text(*users):
+    from config import RESERVATIONS_COLUMNS
+    hdr = ["", "#", "Username", RESERVATIONS_COLUMNS["resv_raw"], "Location"]
+    out = io.StringIO()
+    csv.writer(out).writerows([[""] * 5, ["", "", "Tracker Form"], hdr]
+                              + [["", str(n), u, "3/7/2024", "CA"]
+                                 for n, u in enumerate(users, start=1)])
+    return out.getvalue()
+
+
+def test_series_is_the_real_cleaning_as_of_each_monday_and_today():
+    import tempfile
+
+    from config import ORDERS_LABEL, ORDERS_SLUG, RESV_SLUG
+    from ingest.contract import counts, series
+    from ingest.loaders import load_and_clean, load_reservations
+    snaps = {"20260904-120000": (_orders_text("t1"), _resv_text("t1", "r1", "r2")),
+             "20260915-120000": (_orders_text("t1", "t2"),
+                                 _resv_text("t1", "t2", "r1", "r2"))}
+    with tempfile.TemporaryDirectory() as d:
+        for ts, (otext, rtext) in snaps.items():
+            for slug, text in ((ORDERS_SLUG, otext), (RESV_SLUG, rtext)):
+                with open(os.path.join(d, "%s_%s.csv" % (slug, ts)), "w") as fh:
+                    fh.write(text)
+        today = pd.Timestamp("2026-09-23")
+        ser = series(d, as_of=today)
+    dates = [p["date"] for p in ser["points"]]
+    assert dates == ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-23"], dates
+    pts = {p["date"]: {k: v for k, v in p.items() if k != "date"}
+           for p in ser["points"]}
+
+    def direct(ts, as_of):
+        otext, rtext = snaps[ts]
+        df, report, _ = load_and_clean(otext, {"label": ORDERS_LABEL}, as_of=as_of)
+        _, rrep = load_reservations(rtext, set(df["user"]),
+                                    report["cancelled_users"], as_of=as_of)
+        return counts(df, report, rrep)
+    # Each point is the snapshot current at the end of that day, cleaned as of
+    # that day: 9/14 still sees the 9/04 snapshot, 9/21 the 9/15 one.
+    assert pts["2026-09-14"] == direct("20260904-120000", pd.Timestamp("2026-09-14"))
+    assert pts["2026-09-21"] == direct("20260915-120000", pd.Timestamp("2026-09-21"))
+    # Acceptance (#84): the last point is exactly a direct count of the latest
+    # snapshot, cleaned today.
+    assert pts["2026-09-23"] == direct("20260915-120000", None)
+    # t2 ordered in the 9/15 snapshot, so one more holder has converted.
+    assert pts["2026-09-21"]["reservations_converted"] == \
+        pts["2026-09-14"]["reservations_converted"] + 1
+    assert set(ser["metrics"]) == set(pts["2026-09-23"])
+
+
+def test_cleaning_as_of_an_earlier_day():
+    # The date checks and the delivered inference move with as_of.
+    from ingest.loaders import load_and_clean
+    lines = _orders_csv(_orders_header()).splitlines()
+    from config import ORDERS_HEADERS
+    header = _orders_header()
+    row = next(csv.reader([lines[-1]]))
+    row[header.index(ORDERS_HEADERS["delivery_raw"])] = "8/1/2026"
+    out = io.StringIO()
+    csv.writer(out).writerow(row)
+    text = "\n".join(lines[:-1]) + "\n" + out.getvalue()
+
+    def tester(as_of):
+        df, _, _ = load_and_clean(text, {"label": "t"}, as_of=as_of)
+        return df[df["user"] == "tester"].iloc[0]
+    assert tester(pd.Timestamp("2026-08-15"))["delivered_inferred"]
+    assert not tester(pd.Timestamp("2026-07-20"))["delivered_inferred"]
+    # Ordered 6/15: on 6/1 that order date is in the future, so it's dropped.
+    assert pd.isna(tester(pd.Timestamp("2026-06-01"))["order_date"])
 
 
 if __name__ == "__main__":
