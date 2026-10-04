@@ -40,7 +40,7 @@ from config import (CACHE_TS_FMT, DATA_RAW, ORDERS_HEADERS, ORDERS_IGNORED,
                     ORDERS_LABEL, ORDERS_SLUG, RESERVATIONS_COLUMNS,
                     RESV_IGNORED, RESV_LABEL, RESV_SLUG)
 
-from .loaders import read_sheet
+from .schema_check import read_sheet
 
 # Fields that say which order a row is, weighted by how rarely they change. The
 # configuration and dates almost never change (5 of 674 orders ever changed their
@@ -210,3 +210,23 @@ def summary(h: History) -> dict:
             "changed_orders": int(ch["key"].nunique()),
             "change_events": len(ch[["key", "first_seen"]].drop_duplicates()),
             "field_changes": len(ch)}
+
+
+def current_keys(h: History) -> dict[str, str]:
+    """"#" -> order key for the rows of the newest snapshot, which is the one the
+    loader cleans. Orders that have left the sheet are not in it."""
+    if not h.snapshots:
+        return {}
+    o = h.orders[(h.orders["last_seen"] == h.snapshots[-1])]
+    return dict(zip(o["orig_num"], o["key"]))
+
+
+def current_runs(h: History) -> dict[tuple[str, str], tuple]:
+    """(key, field) -> (value, first_seen, after) of each field's CURRENT value:
+    what the sheet says now, and the window in which it started saying it."""
+    if not h.snapshots:
+        return {}
+    e = h.events[h.events["last_seen"] == h.snapshots[-1]]
+    return {(k, f): (v, first, None if pd.isna(a) else a)
+            for k, f, v, first, a in zip(e["key"], e["field"], e["value"],
+                                         e["first_seen"], e["after"])}

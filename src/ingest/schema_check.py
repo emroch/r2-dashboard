@@ -23,6 +23,8 @@ stopping for:
 Header text is compared with case folded and whitespace runs collapsed, so
 re-capitalizing or re-spacing a question doesn't stop the build.
 """
+import csv
+import io
 
 
 class SchemaDrift(RuntimeError):
@@ -116,3 +118,30 @@ def map_columns(header, expected, ignored, label):
                ", ".join("%s %r" % (_col_letter(j), c) for j, c in hint)
                or "none"))
     return idx, notices
+
+
+def raw_rows(records, hdr_idx, idx, fields):
+    """The mapped cells of each data record, stripped, as lists in `fields` order.
+
+    Shared by loaders._extract and the snapshot replay (ingest/history.py), so a
+    historical snapshot is read exactly the way the current one is.
+    """
+    cols = [idx[f] for f in fields]
+    return [[(rec[j] if j < len(rec) else "").strip() for j in cols]
+            for rec in records[hdr_idx + 1:]]
+
+
+def read_sheet(text, headers, ignored, label):
+    """Raw rows of a sheet export: (fields, rows), with rows a list of lists of
+    stripped strings in `fields` order and blank-username spacer rows dropped.
+
+    The same header location and by-name column mapping load_and_clean and
+    load_reservations use, without any cleaning.
+    """
+    records = list(csv.reader(io.StringIO(text)))
+    hdr_idx, header = find_header(records, headers["user"], label)
+    idx, _ = map_columns(header, headers, ignored, label)
+    fields = list(headers)
+    u = fields.index("user")
+    rows = [r for r in raw_rows(records, hdr_idx, idx, fields) if r[u] != ""]
+    return fields, rows
