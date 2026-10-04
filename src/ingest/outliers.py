@@ -163,7 +163,9 @@ def find_suspects(df: pd.DataFrame, verified: dict[str, list[str]] | None = None
     # already known to be wrong.
     d = df[df["vin_present"].astype(bool) & (df["delivery_type"] == "explicit")
            & df["delivery_est"].notna()]
-    d = d[[i not in vin and i not in delivery for i in d.index]]
+    # A boolean mask, not a list: indexing with an EMPTY list selects no columns,
+    # so a frame with no qualifying rows would lose them all.
+    d = d[~d.index.isin([*vin, *delivery])]
     z, med = trend_z(d["vin_seq"].astype(float), _days(d["delivery_est"]))
     for i, est, zi, mi in zip(d.index, d["delivery_est"], z, med):
         if zi < -OUTLIER_EARLY_DELIVERY_Z and i in checked["delivery_raw"]:
