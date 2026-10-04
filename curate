@@ -4,7 +4,11 @@
 # main's ruleset requires the ruff/mypy checks, which also blocks direct pushes,
 # so even a one-line overrides.yaml fix needs a PR. This does the whole round
 # trip: check locally, branch, commit, push, open the PR, wait for its checks
-# (including the preview build), merge it, and fast-forward local main.
+# (including the preview build), rebase-merge it, and fast-forward local main.
+#
+# Rebase, not a merge commit: a curation edit is one small data commit, and a
+# "Merge pull request" wrapper around each one would double main's history for
+# no information. Code PRs keep merge commits; only this script rebases.
 #
 #   ./curate "Correct GTodd's delivery window"        the usual case
 #   ./curate --no-wait "…"                             open the PR and stop there
@@ -87,7 +91,7 @@ echo "$url"
 git switch -q main
 
 if [ "$wait" = 0 ]; then
-    say "Not waiting (--no-wait): merge it from the PR page once checks pass"
+    say "Not waiting (--no-wait): rebase-merge it from the PR page once checks pass"
     exit 0
 fi
 
@@ -103,7 +107,7 @@ gh pr checks "$url" --watch --fail-fast --interval 10 >/dev/null \
     || die "a check failed — see $url"
 
 say "Merging"
-if ! out="$(gh pr merge "$url" --merge --delete-branch 2>&1)"; then
+if ! out="$(gh pr merge "$url" --rebase --delete-branch 2>&1)"; then
     # gh can report a failed local sync after a merge that did go through.
     [ "$(gh pr view "$url" --json state -q .state)" = MERGED ] \
         || die "merge failed — see $url
