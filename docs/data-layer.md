@@ -172,7 +172,8 @@ overrides:
   override against the sheet. Sheet changes before it no longer count as stale.
 - **`dates`** (#99, optional) holds milestone dates for the order's final values,
   `vin_assigned` and `delivery_scheduled`, from a post that says when they
-  happened. An entry may carry only `dates`, to date values the sheet already has.
+  happened. An entry may carry only `dates`, to date values the sheet already has;
+  it then needs a `source` but no `as_of`, since it overrides nothing.
   A date that can't fit is listed in the data-quality panel and not used: in the
   future, before the order, after the sheet already showed the value, or a
   scheduling date after the delivery.
