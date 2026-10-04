@@ -7,15 +7,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
-from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, ELEV_BINS, FACTORY,
-                     HEATMAP_COLORSCALE, INTERIOR_COLOR, INTERIOR_ORDER,
-                     CADENCE_COLORS, CADENCE_WINDOW_WEEKS, INTERIOR_SHORT,
-                     LATENCY_COLORS, PRICE_COLORS,
-                     PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
-                     STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS, TIMELINE_COLORS,
-                     TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
-                     URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER,
-                     WHEEL_SYMBOL)
+from config import (AS_OF, CADENCE_COLORS, CADENCE_WINDOW_WEEKS, CHART, CHART_UI,
+                    COLOR_ORDER, ELEV_BINS, FACTORY, HEATMAP_COLORSCALE,
+                    INTERIOR_COLOR, INTERIOR_ORDER, INTERIOR_SHORT, LATENCY_COLORS,
+                    PRICE_COLORS, PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
+                    STATE_MIN_ORDERS, STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS,
+                    TIMELINE_COLORS, TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
+                    URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER, WHEEL_SYMBOL)
 
 from .cadence import projection as cadence_projection, rate_history
 
@@ -614,7 +612,7 @@ def _paint_order(df):
 
     Every paint chart reads this, so the ranking a reader picks up from the
     take-rate bars also holds in the combo heatmaps, both scatter legends and the
-    location mix. These sites used to follow the palette's curated `paint_order`,
+    location mix. These sites used to follow the curated paint list's order,
     which is a sensible showroom sequence but not a popularity one: it put Forest
     Green third on 25 orders while Catalina Cove's 186 landed mid-grid, so the
     heatmap had no legible gradient at all (issue #58).
@@ -725,7 +723,7 @@ def _mix_layout(fig, legend_title, height):
                     borderwidth=1))
 
 
-def fig_paint_by_location(df, min_state_orders=5):
+def fig_paint_by_location(df, min_state_orders=STATE_MIN_ORDERS):
     """Paint mix overall, by region, and by the states with enough orders.
 
     All three panels are 100% stacked, so a region/state's color preference is
@@ -1590,7 +1588,7 @@ def fig_certainty_by_vin(df):
     groups = [("VIN assigned", df[df["vin_present"]]),
               ("No VIN yet", df[~df["vin_present"]])]
     all_types = TYPE_ORDER + ["unknown"]
-    tcolor = TYPE_COLOR  # includes "unknown" (from palette.yaml delivery_types)
+    tcolor = TYPE_COLOR  # includes "unknown" (dimensions.yaml delivery_type)
     fig = make_subplots(
         rows=1, cols=len(groups),
         specs=[[{"type": "domain"} for _ in groups]],

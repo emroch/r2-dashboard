@@ -422,7 +422,7 @@ def _apply_deletions(df, deletions, what, valid_fields=(), when=None):
     return pd.Series(df.index.isin(drop), index=df.index), records, issues
 
 
-def _availability_mask(df):
+def _availability_mask(df, as_of=AS_OF):
     """Flag orders whose selected trim/paint/interior wasn't orderable yet on the
     order date — the config wasn't buildable, so it isn't a real confirmed order.
 
@@ -448,7 +448,7 @@ def _availability_mask(df):
                 if avail is None:
                     reasons[i] = "%s not orderable yet (unreleased)" % what
                 elif pd.isna(od):
-                    if avail > AS_OF:  # config still unavailable as of today
+                    if avail > as_of:  # config still unavailable as of today
                         reasons[i] = ("%s not orderable until %s (no order date)"
                                       % (what, avail.date()))
                 elif od < avail:
@@ -460,7 +460,7 @@ def _availability_mask(df):
     return mask, records
 
 
-def load_and_clean(text, meta, keys=None, changed=None, when=None):
+def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     """Clean the orders sheet. Returns (df, report, parsed).
 
     keys     "#" -> order key for this snapshot (history.current_keys). Without
@@ -468,8 +468,13 @@ def load_and_clean(text, meta, keys=None, changed=None, when=None):
              full history except where an earlier row has been deleted.
     changed  (key, field) -> when each current value took hold
              (history.current_runs), for the stale-override check.
-    when     apply only curation in effect at this time (None = now).
+    as_of    clean the data as it stood on this date (None = today): the date
+             checks, the delivered-by-now inference and window fallbacks use it,
+             and only curation in effect by then applies. Used for the
+             published time series (ingest/contract.py).
     """
+    when = as_of
+    today = AS_OF if as_of is None else as_of
     _check_curation()
     # The orders sheet export carries title/notes rows above the header AND a
     # leading blank column. Parse with the csv module (robust to quoted newlines
@@ -548,8 +553,8 @@ def load_and_clean(text, meta, keys=None, changed=None, when=None):
     # are typos (often a delivery date). Null them either way — FIRST, so a
     # future/typo order date can't shield a not-yet-orderable config from the drop
     # below (the availability check reads a nulled date as "no order date").
-    order_future = df["order_date"] > AS_OF
-    resv_future = df["resv_date"] > AS_OF
+    order_future = df["order_date"] > today
+    resv_future = df["resv_date"] > today
     bad_order = df["order_date"].notna() & (order_future
                                             | (df["order_date"] < ORDER_DATE_MIN))
     bad_resv = df["resv_date"].notna() & (resv_future
@@ -559,7 +564,7 @@ def load_and_clean(text, meta, keys=None, changed=None, when=None):
 
     # Orders whose trim/paint/interior wasn't orderable on the order date aren't
     # real confirmed orders — drop the whole row (see _availability_mask).
-    drop_mask, premature_records = _availability_mask(df)
+    drop_mask, premature_records = _availability_mask(df, today)
 
     # Report each out-of-range date as a stat-card / QA entry, but not for rows
     # we're dropping outright — those surface under "Premature configs dropped"
@@ -583,7 +588,7 @@ def load_and_clean(text, meta, keys=None, changed=None, when=None):
     n_dedup = len(df)  # final cohort: dedup + additions − not-yet-orderable drops
 
     # --- Delivery estimate (windows anchored to order date) ---
-    parsed = [parse_delivery(r, o)
+    parsed = [parse_delivery(r, o, today)
               for r, o in zip(df["delivery_raw"], df["order_date"])]
     df["delivery_est"] = [p["est"] for p in parsed]
     df["delivery_min"] = [p["min"] for p in parsed]
@@ -630,7 +635,7 @@ def load_and_clean(text, meta, keys=None, changed=None, when=None):
     # than a quoted date. Strictly before today, so an estimate landing today
     # isn't called done yet, and "unknown" never qualifies (no bound to pass).
     df["delivered_inferred"] = (df["delivery_max"].notna()
-                                & (df["delivery_max"] < AS_OF))
+                                & (df["delivery_max"] < today))
 
     # --- Config normalization ---
     df["wheels_short"] = [wheel_label(w) for w in df["wheels"]]
@@ -810,7 +815,7 @@ def load_and_clean(text, meta, keys=None, changed=None, when=None):
     return df, report, parsed
 
 
-def load_reservations(text, order_users, cancelled_users=()):
+def load_reservations(text, order_users, cancelled_users=(), as_of=None):
     """Parse the reservations-only sheet and return (resv_df, resv_report).
 
     A different form from the orders sheet (columns: #, Username, R2 reservation
@@ -821,8 +826,10 @@ def load_reservations(text, order_users, cancelled_users=()):
     already present in the orders sheet (they are counted as orders — the
     remainder are "incomplete" orders) and anyone whose order was cancelled, since
     they have left the dataset rather than reverted to holding a reservation; null
-    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state.
+    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state. `as_of`
+    cleans it as it stood on that date (see load_and_clean).
     """
+    today = AS_OF if as_of is None else as_of
     records = list(csv.reader(io.StringIO(text)))
     hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
                                  RESV_LABEL)
@@ -842,7 +849,7 @@ def load_reservations(text, order_users, cancelled_users=()):
 
     # Cancelled reservations, before the data-derived drops below.
     del_mask, del_records, del_issues = _apply_deletions(
-        resv, DELETIONS_RESV, "reservation", RESERVATIONS_COLUMNS)
+        resv, DELETIONS_RESV, "reservation", RESERVATIONS_COLUMNS, when=as_of)
     resv = resv[~del_mask]
 
     # Remove reservation-holders who already appear in the orders sheet, and
@@ -865,7 +872,7 @@ def load_reservations(text, order_users, cancelled_users=()):
     resv["resv_date"] = resv["resv_raw"].apply(parse_simple_date)
     resv["resv_date"] = pd.to_datetime(resv["resv_date"], errors="coerce")
     bad = resv["resv_date"].notna() & ((resv["resv_date"] < RESV_DATE_MIN)
-                                       | (resv["resv_date"] > AS_OF))
+                                       | (resv["resv_date"] > today))
     resv.loc[bad, "resv_date"] = pd.NaT
     geo_enrich(resv)
 
