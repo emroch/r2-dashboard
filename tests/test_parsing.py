@@ -2246,7 +2246,7 @@ def test_snapshot_history_reads_caches_like_the_loader(tmp_dir=None):
 
 
 def test_curation_meta_is_split_from_what_an_entry_edits():
-    from ingest.curation import in_effect, split
+    from ingest.curation import split
     e = split("u", {"source": ["https://a", "https://b"], "as_of": "2026-09-01",
                     "reason": "posted", "delivery_raw": "9/30/2026"})
     assert e.body == {"delivery_raw": "9/30/2026"}
@@ -2255,9 +2255,13 @@ def test_curation_meta_is_split_from_what_an_entry_edits():
     assert split("u", {"as_of": date(2026, 9, 1)}).as_of == e.as_of
     # Non-mapping entries (a plain deletion reason, a verified list) carry none.
     assert split("u", "cancelled").body == "cancelled"
-    assert in_effect(e, None), "no `when` means now: everything applies"
-    assert not in_effect(e, pd.Timestamp("2026-08-31"))
-    assert in_effect(e, pd.Timestamp("2026-09-01 08:00"))
+    # #99: checked and dates are meta too, never sheet fields.
+    e = split("u", {"as_of": "2026-08-03", "checked": "2026-08-23",
+                    "dates": {"vin_assigned": "2026-08-12"}, "vin_raw": "1500"})
+    assert e.body == {"vin_raw": "1500"}
+    assert str(e.reviewed) == "2026-08-23"
+    assert str(e.dates["vin_assigned"]) == "2026-08-12"
+    assert str(split("u", {"as_of": "2026-08-03"}).reviewed) == "2026-08-03"
 
 
 def test_curation_v2_requires_provenance_and_v1_does_not():
@@ -2325,25 +2329,6 @@ def test_override_flags_redundant_and_outdated_entries():
     same_day = {"a": {"as_of": "2026-09-19", "delivery_raw": "9/25/2026"}}
     _, issues = _apply_overrides(df, same_day, changed=changed)
     assert issues == [], issues
-
-
-def test_curation_applies_only_from_its_as_of():
-    from ingest.loaders import _apply_additions, _apply_deletions, _apply_overrides
-    df = _dedupe_frame([dict(BUILD, orig_num="1", user="a", vin_raw="")])
-    df["key"] = ["a"]
-    before, after = pd.Timestamp("2026-09-01"), pd.Timestamp("2026-09-30")
-    entry = {"a": {"as_of": "2026-09-15", "vin_raw": "1500"}}
-    applied, _ = _apply_overrides(df, entry, when=before)
-    assert applied == [] and df.at[0, "vin_raw"] == ""
-    applied, _ = _apply_overrides(df, entry, when=after)
-    assert df.at[0, "vin_raw"] == "1500"
-    add = {"newbie": {"as_of": "2026-09-15", "loc_raw": "CA"}}
-    assert _apply_additions(df, add, when=before)[0] is None
-    add_df, _, _ = _apply_additions(df, add, when=after)
-    assert list(add_df["key"]) == ["newbie"]
-    gone = {"a": {"as_of": "2026-09-15", "reason": "cancelled"}}
-    assert not _apply_deletions(df, gone, "order", when=before)[0].any()
-    assert _apply_deletions(df, gone, "order", when=after)[0].all()
 
 
 def test_dedupe_ignores_order_keys():
@@ -2526,84 +2511,143 @@ def test_chart_constants_are_views_of_dimensions():
     assert STATE_MIN_ORDERS == DIMENSIONS["state"]["small_n"]["min_orders"] == 5
 
 
-def _orders_text(*users):
-    """An orders export with one tester-like row per username."""
-    lines = _orders_csv(_orders_header()).splitlines()
-    head, row = lines[:-1], lines[-1]
-    out = [row.replace("tester", u).replace(",1,", ",%d," % n, 1)
-           for n, u in enumerate(users, start=1)]
-    return "\n".join(head + out) + "\n"
+# --- Curation timing: checked, milestone dates, event-dated series (#99) -------
 
 
-def _resv_text(*users):
-    from config import RESERVATIONS_COLUMNS
-    hdr = ["", "#", "Username", RESERVATIONS_COLUMNS["resv_raw"], "Location"]
-    out = io.StringIO()
-    csv.writer(out).writerows([[""] * 5, ["", "", "Tracker Form"], hdr]
-                              + [["", str(n), u, "3/7/2024", "CA"]
-                                 for n, u in enumerate(users, start=1)])
-    return out.getvalue()
+def test_checked_confirms_an_override_after_a_sheet_change():
+    # KCP's case: the sheet's new text agrees with the override but doesn't
+    # parse. Once someone re-checks it, the outdated warning should stop.
+    from datetime import datetime
+
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="72", user="KCP",
+                             delivery_raw="4-8 weeks(org), 9 weeks (act) 8/19")])
+    df["key"] = ["kcp"]
+    changed = {("kcp", "delivery_raw"): ("…", datetime(2026, 8, 23),
+                                         datetime(2026, 8, 23))}
+    entry = {"KCP": {"as_of": "2026-08-03", "delivery_raw": "8/19/2026"}}
+    _, issues = _apply_overrides(df, entry, changed=changed)
+    assert "after this override (as_of 2026-08-03)" in issues[0][2], issues
+    df.at[0, "delivery_raw"] = "4-8 weeks(org), 9 weeks (act) 8/19"
+    entry["KCP"]["checked"] = "2026-08-23"
+    applied, issues = _apply_overrides(df, entry, changed=changed)
+    assert len(applied) == 1 and issues == [], issues
+    assert df.at[0, "delivery_raw"] == "8/19/2026", "the override still applies"
 
 
-def test_series_is_the_real_cleaning_as_of_each_monday_and_today():
-    import tempfile
-
-    from config import ORDERS_LABEL, ORDERS_SLUG, RESV_SLUG
-    from ingest.contract import counts, series
-    from ingest.loaders import load_and_clean, load_reservations
-    snaps = {"20260904-120000": (_orders_text("t1"), _resv_text("t1", "r1", "r2")),
-             "20260915-120000": (_orders_text("t1", "t2"),
-                                 _resv_text("t1", "t2", "r1", "r2"))}
-    with tempfile.TemporaryDirectory() as d:
-        for ts, (otext, rtext) in snaps.items():
-            for slug, text in ((ORDERS_SLUG, otext), (RESV_SLUG, rtext)):
-                with open(os.path.join(d, "%s_%s.csv" % (slug, ts)), "w") as fh:
-                    fh.write(text)
-        today = pd.Timestamp("2026-09-23")
-        ser = series(d, as_of=today)
-    dates = [p["date"] for p in ser["points"]]
-    assert dates == ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-23"], dates
-    pts = {p["date"]: {k: v for k, v in p.items() if k != "date"}
-           for p in ser["points"]}
-
-    def direct(ts, as_of):
-        otext, rtext = snaps[ts]
-        df, report, _ = load_and_clean(otext, {"label": ORDERS_LABEL}, as_of=as_of)
-        _, rrep = load_reservations(rtext, set(df["user"]),
-                                    report["cancelled_users"], as_of=as_of)
-        return counts(df, report, rrep)
-    # Each point is the snapshot current at the end of that day, cleaned as of
-    # that day: 9/14 still sees the 9/04 snapshot, 9/21 the 9/15 one.
-    assert pts["2026-09-14"] == direct("20260904-120000", pd.Timestamp("2026-09-14"))
-    assert pts["2026-09-21"] == direct("20260915-120000", pd.Timestamp("2026-09-21"))
-    # Acceptance (#84): the last point is exactly a direct count of the latest
-    # snapshot, cleaned today.
-    assert pts["2026-09-23"] == direct("20260915-120000", None)
-    # t2 ordered in the 9/15 snapshot, so one more holder has converted.
-    assert pts["2026-09-21"]["reservations_converted"] == \
-        pts["2026-09-14"]["reservations_converted"] + 1
-    assert set(ser["metrics"]) == set(pts["2026-09-23"])
+def _ms_frame(**row):
+    """One cleaned order with the columns milestones() reads."""
+    base = dict(orig_num="1", user="u", key="u",
+                order_date=pd.Timestamp("2026-08-01"), vin_present=True,
+                vin_seq=1500.0, delivery_type="explicit",
+                delivery_est=pd.Timestamp("2026-09-30"))
+    base.update(row)
+    return pd.DataFrame([base])
 
 
-def test_cleaning_as_of_an_earlier_day():
-    # The date checks and the delivered inference move with as_of.
-    from ingest.loaders import load_and_clean
-    lines = _orders_csv(_orders_header()).splitlines()
-    from config import ORDERS_HEADERS
-    header = _orders_header()
-    row = next(csv.reader([lines[-1]]))
-    row[header.index(ORDERS_HEADERS["delivery_raw"])] = "8/1/2026"
-    out = io.StringIO()
-    csv.writer(out).writerow(row)
-    text = "\n".join(lines[:-1]) + "\n" + out.getvalue()
+def _ms_history(*snaps):
+    from datetime import datetime
 
-    def tester(as_of):
-        df, _, _ = load_and_clean(text, {"label": "t"}, as_of=as_of)
-        return df[df["user"] == "tester"].iloc[0]
-    assert tester(pd.Timestamp("2026-08-15"))["delivered_inferred"]
-    assert not tester(pd.Timestamp("2026-07-20"))["delivered_inferred"]
-    # Ordered 6/15: on 6/1 that order date is in the future, so it's dropped.
-    assert pd.isna(tester(pd.Timestamp("2026-06-01"))["order_date"])
+    from ingest.history import replay
+    fields = ["orig_num", "user", "vin_raw", "delivery_raw", "trim", "color"]
+    return replay([(datetime(2026, 9, d), fields,
+                    [[str(n), u, v, dl, "Performance", "Midnight"]
+                     for n, (u, v, dl) in enumerate(rows, start=1)])
+                   for d, rows in snaps], "orders")
+
+
+def _with_curation(overrides, fn):
+    import ingest.milestones as ms
+    old = (ms.OVERRIDES, ms.ADDITIONS)
+    ms.OVERRIDES, ms.ADDITIONS = overrides, {}
+    try:
+        return fn(ms)
+    finally:
+        ms.OVERRIDES, ms.ADDITIONS = old
+
+
+def test_milestones_date_the_final_value_not_the_transients():
+    h = _ms_history((1, [("u", "", "4-8 weeks")]),
+                    (3, [("u", "1200", "4-8 weeks")]),        # a transient VIN
+                    (5, [("u", "", "9/20/2026")]),
+                    (8, [("u", "X1500", "9/30/2026")]),       # the final VIN
+                    (9, [("u", "01500", "9/30/2026")]))       # reformatted only
+    df, issues = _with_curation({}, lambda ms: ms.milestones(_ms_frame(), h))
+    assert issues == []
+    # The final VIN dates from 9/8, its first appearance; 1200 earlier doesn't
+    # count, and reformatting X1500 -> 01500 isn't a new value.
+    assert str(df.at[0, "vin_assigned"].date()) == "2026-09-08"
+    assert str(df.at[0, "delivery_scheduled"].date()) == "2026-09-08"
+
+
+def test_milestones_use_a_curated_date_only_when_it_fits():
+    h = _ms_history((8, [("u", "1500", "9/30/2026")]))
+    cur = {"u": {"as_of": "2026-09-08", "dates": {
+        "vin_assigned": "2026-08-12", "delivery_scheduled": "2026-09-10"}}}
+    df, issues = _with_curation(cur, lambda ms: ms.milestones(_ms_frame(), h))
+    # The VIN date fits: after the order, before the sheet showed it.
+    assert str(df.at[0, "vin_assigned"].date()) == "2026-08-12"
+    # The schedule date is after the sheet already showed the date: not used.
+    assert str(df.at[0, "delivery_scheduled"].date()) == "2026-09-08"
+    assert "already showed" in issues[0][2], issues
+    early = {"u": {"as_of": "2026-09-08", "dates": {"vin_assigned": "2026-07-01"}}}
+    _, issues = _with_curation(early, lambda ms: ms.milestones(_ms_frame(), h))
+    assert "before the order date" in issues[0][2], issues
+    _, issues = _with_curation(early, lambda ms: ms.milestones(
+        _ms_frame(vin_present=False), h))
+    assert "no final VIN" in issues[0][2], issues
+
+
+def test_milestones_search_merged_duplicates_and_curation():
+    # The surviving row (key "u") never showed a VIN; its merged duplicate did.
+    h = _ms_history((4, [("u", "", ""), ("u", "1500", "")]))
+    df, _ = _with_curation({}, lambda ms: ms.milestones(
+        _ms_frame(delivery_type="window"), h))
+    assert str(df.at[0, "vin_assigned"].date()) == "2026-09-04"
+    assert pd.isna(df.at[0, "delivery_scheduled"]), "no firm date, no milestone"
+    # A final value that never reached the sheet dates from its curation as_of.
+    cur = {"u": {"as_of": "2026-09-20", "vin_raw": "1500"}}
+    df, _ = _with_curation(cur, lambda ms: ms.milestones(
+        _ms_frame(), _ms_history((4, [("u", "", "")]))))
+    assert str(df.at[0, "vin_assigned"].date()) == "2026-09-20"
+
+
+def test_series_counts_what_was_true_by_each_date():
+    from ingest.contract import series
+    T = pd.Timestamp
+    df = pd.DataFrame([
+        dict(user="a", order_date=T("2026-08-01"), vin_present=True,
+             vin_assigned=T("2026-08-10"), delivery_type="explicit",
+             delivery_scheduled=T("2026-08-15"), delivery_est=T("2026-08-20"),
+             delivered_inferred=True),
+        dict(user="b", order_date=T("2026-08-03"), vin_present=False,
+             vin_assigned=pd.NaT, delivery_type="window",
+             delivery_scheduled=pd.NaT, delivery_est=T("2026-10-30"),
+             delivered_inferred=False),
+        dict(user="c", order_date=pd.NaT, vin_present=False, vin_assigned=pd.NaT,
+             delivery_type="unknown", delivery_scheduled=pd.NaT,
+             delivery_est=pd.NaT, delivered_inferred=False),
+    ])
+    resv = pd.DataFrame({"resv_date": [T("2024-03-07"), T("2026-08-02"), pd.NaT]})
+    s = series(df, resv, {"a"}, T("2026-08-05"), T("2026-08-01"),
+               end=T("2026-08-21"))
+    at = {d: {k: v[i] for k, v in s["values"].items()}
+          for i, d in enumerate(s["dates"])}
+    assert len(s["dates"]) == 21 and s["dates"][0] == "2026-08-01"
+    # b, ordered 8/3, counts from 8/3: what was true then, not when reported.
+    assert at["2026-08-02"]["orders"] == 1 and at["2026-08-03"]["orders"] == 2
+    assert at["2026-08-09"]["vin_assigned"] == 0
+    assert at["2026-08-10"]["vin_assigned"] == 1
+    assert at["2026-08-14"]["delivery_scheduled"] == 0
+    assert at["2026-08-20"]["delivered"] == 1
+    # A 2024 reservation counts from the first point; one has no date at all.
+    assert at["2026-08-01"]["reservations_outstanding"] == 1
+    assert at["2026-08-02"]["reservations_outstanding"] == 2
+    assert s["undated"]["orders"] == 1
+    assert s["undated"]["reservations_outstanding"] == 1
+    assert at["2026-08-21"]["reservations_converted"] == 1
+    assert s["history_start"] == "2026-08-05"
+    assert set(s["metrics"]) == set(s["values"])
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ def _curated(value):
     return "" if value is None else str(value).strip()
 
 
-def _apply_overrides(df, overrides, when=None, changed=None):
+def _apply_overrides(df, overrides, changed=None):
     """Apply manual fix-ups (username -> {raw field: value}) in place, before
     cleaning, so the values flow through the normal pipeline. Case-insensitive
     username match; validates field names against the schema. Idempotent.
@@ -75,12 +75,12 @@ def _apply_overrides(df, overrides, when=None, changed=None):
     the merge uses — and the ambiguity is REPORTED, naming the order keys
     (`user#2`, ...) that target one order exactly (ingest/history.py).
 
-    Curation v2 (ingest/curation.py): an entry whose `as_of` is after `when` is
-    not in effect yet and is skipped. Two kinds of staleness are reported:
+    Two kinds of staleness are reported (curation v2, ingest/curation.py):
       * the sheet already says what the override says — it can be removed;
-      * the sheet's value changed after the override's as_of (`changed` holds
-        when each current value took hold, from the snapshot history) — the
-        person updated the sheet since, so the override may now be wrong.
+      * the sheet's value changed after the override was last known to hold —
+        its as_of, or its `checked` date if someone has re-confirmed it since
+        (`changed` holds when each current value took hold, from the snapshot
+        history). The person updated the sheet, so the override may be wrong.
     Returns (applied_records, issue_records) for the report/QA panel."""
     valid = set(ORDERS_COLUMNS)
     rows_by_user: dict[str, list[int]] = {}
@@ -89,8 +89,6 @@ def _apply_overrides(df, overrides, when=None, changed=None):
     rows_by_key = dict(zip(df["key"], df.index)) if "key" in df.columns else {}
     applied, issues = [], []
     for e in curation.entries(overrides):
-        if not curation.in_effect(e, when):
-            continue
         uname, fields = e.target, e.body
         if "#" in uname:
             # An order key targets one order exactly; no ambiguity to resolve.
@@ -144,21 +142,25 @@ def _apply_overrides(df, overrides, when=None, changed=None):
                 continue
             df.at[i, field] = new
             applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
-            # Strictly after: as_of is a day, and a same-day sheet edit is as
+            # Strictly after: these are days, and a same-day sheet edit is as
             # likely to be what the override responded to as a later update.
             run = (changed or {}).get((key, field))
-            if e.as_of and run and run[2] is not None and run[2].date() > e.as_of:
+            held = e.reviewed
+            if held and run and run[2] is not None and run[2].date() > held:
                 lo, hi = run[2].date(), run[1].date()
                 when_txt = ("on %s" % hi if lo == hi
                             else "between %s and %s" % (lo, hi))
+                since = ("checked %s" % e.checked if e.checked
+                         else "as_of %s" % e.as_of)
                 issues.append((onum, disp,
                                "%s: the sheet changed to %r %s, after this "
-                               "override (as_of %s) — check it still applies"
-                               % (field, old, when_txt, e.as_of)))
+                               "override (%s) — check it still applies, then "
+                               "add or update `checked:`"
+                               % (field, old, when_txt, since)))
     return applied, issues
 
 
-def _apply_additions(df, additions, when=None):
+def _apply_additions(df, additions):
     """Append forum-only orders (username -> {raw field: value}) that are NOT in
     the sheet, as new rows, so they flow through cleaning like any other row.
     Case-insensitive; validates field names; guards against names already in the
@@ -168,8 +170,6 @@ def _apply_additions(df, additions, when=None):
     sheet_users = {str(u).lower() for u in df["user"]}
     seen, new_rows, added, issues = set(), [], [], []
     for e in curation.entries(additions):
-        if not curation.in_effect(e, when):
-            continue
         uname, fields = e.target, e.body
         key = str(uname).lower()
         if key in sheet_users:
@@ -344,7 +344,7 @@ def _dedupe_by_user(df, identity):
     return out, merged, build_conflicts, value_conflicts
 
 
-def _apply_deletions(df, deletions, what, valid_fields=(), when=None):
+def _apply_deletions(df, deletions, what, valid_fields=()):
     """Drop entries the person has said no longer exist — a cancellation.
 
     These rows are otherwise perfectly valid: nothing in the data marks them, so
@@ -378,8 +378,6 @@ def _apply_deletions(df, deletions, what, valid_fields=(), when=None):
         by_user.setdefault(str(u).strip().lower(), []).append(i)
     drop, records, issues = [], [], []
     for e in curation.entries(deletions):
-        if not curation.in_effect(e, when):
-            continue
         uname = e.target
         if isinstance(e.body, dict):
             reason = _curated(e.reason)
@@ -422,7 +420,7 @@ def _apply_deletions(df, deletions, what, valid_fields=(), when=None):
     return pd.Series(df.index.isin(drop), index=df.index), records, issues
 
 
-def _availability_mask(df, as_of=AS_OF):
+def _availability_mask(df):
     """Flag orders whose selected trim/paint/interior wasn't orderable yet on the
     order date — the config wasn't buildable, so it isn't a real confirmed order.
 
@@ -448,7 +446,7 @@ def _availability_mask(df, as_of=AS_OF):
                 if avail is None:
                     reasons[i] = "%s not orderable yet (unreleased)" % what
                 elif pd.isna(od):
-                    if avail > as_of:  # config still unavailable as of today
+                    if avail > AS_OF:  # config still unavailable as of today
                         reasons[i] = ("%s not orderable until %s (no order date)"
                                       % (what, avail.date()))
                 elif od < avail:
@@ -460,7 +458,7 @@ def _availability_mask(df, as_of=AS_OF):
     return mask, records
 
 
-def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
+def load_and_clean(text, meta, keys=None, changed=None):
     """Clean the orders sheet. Returns (df, report, parsed).
 
     keys     "#" -> order key for this snapshot (history.current_keys). Without
@@ -468,13 +466,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
              full history except where an earlier row has been deleted.
     changed  (key, field) -> when each current value took hold
              (history.current_runs), for the stale-override check.
-    as_of    clean the data as it stood on this date (None = today): the date
-             checks, the delivered-by-now inference and window fallbacks use it,
-             and only curation in effect by then applies. Used for the
-             published time series (ingest/contract.py).
     """
-    when = as_of
-    today = AS_OF if as_of is None else as_of
     _check_curation()
     # The orders sheet export carries title/notes rows above the header AND a
     # leading blank column. Parse with the csv module (robust to quoted newlines
@@ -501,7 +493,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     # that was then deleted. Ahead of the data-derived checks too, so a cancelled
     # order isn't also reported as a premature config or a bad date.
     del_mask, del_records, del_issues = _apply_deletions(
-        df, DELETIONS_ORDERS, "order", ORDERS_COLUMNS, when=when)
+        df, DELETIONS_ORDERS, "order", ORDERS_COLUMNS)
     cancelled_users = [u for _, u, _ in del_records]
     df = df[~del_mask].reset_index(drop=True)
 
@@ -514,9 +506,8 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
 
     # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
     #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
-    override_records, override_issues = _apply_overrides(df, OVERRIDES, when,
-                                                         changed)
-    add_df, add_records, add_issues = _apply_additions(df, ADDITIONS, when)
+    override_records, override_issues = _apply_overrides(df, OVERRIDES, changed)
+    add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)
     # n_dedup (the final cohort size the dashboard counts) is set after the
@@ -553,8 +544,8 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     # are typos (often a delivery date). Null them either way — FIRST, so a
     # future/typo order date can't shield a not-yet-orderable config from the drop
     # below (the availability check reads a nulled date as "no order date").
-    order_future = df["order_date"] > today
-    resv_future = df["resv_date"] > today
+    order_future = df["order_date"] > AS_OF
+    resv_future = df["resv_date"] > AS_OF
     bad_order = df["order_date"].notna() & (order_future
                                             | (df["order_date"] < ORDER_DATE_MIN))
     bad_resv = df["resv_date"].notna() & (resv_future
@@ -564,7 +555,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
 
     # Orders whose trim/paint/interior wasn't orderable on the order date aren't
     # real confirmed orders — drop the whole row (see _availability_mask).
-    drop_mask, premature_records = _availability_mask(df, today)
+    drop_mask, premature_records = _availability_mask(df)
 
     # Report each out-of-range date as a stat-card / QA entry, but not for rows
     # we're dropping outright — those surface under "Premature configs dropped"
@@ -588,7 +579,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     n_dedup = len(df)  # final cohort: dedup + additions − not-yet-orderable drops
 
     # --- Delivery estimate (windows anchored to order date) ---
-    parsed = [parse_delivery(r, o, today)
+    parsed = [parse_delivery(r, o)
               for r, o in zip(df["delivery_raw"], df["order_date"])]
     df["delivery_est"] = [p["est"] for p in parsed]
     df["delivery_min"] = [p["min"] for p in parsed]
@@ -635,7 +626,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     # than a quoted date. Strictly before today, so an estimate landing today
     # isn't called done yet, and "unknown" never qualifies (no bound to pass).
     df["delivered_inferred"] = (df["delivery_max"].notna()
-                                & (df["delivery_max"] < today))
+                                & (df["delivery_max"] < AS_OF))
 
     # --- Config normalization ---
     df["wheels_short"] = [wheel_label(w) for w in df["wheels"]]
@@ -815,7 +806,7 @@ def load_and_clean(text, meta, keys=None, changed=None, as_of=None):
     return df, report, parsed
 
 
-def load_reservations(text, order_users, cancelled_users=(), as_of=None):
+def load_reservations(text, order_users, cancelled_users=()):
     """Parse the reservations-only sheet and return (resv_df, resv_report).
 
     A different form from the orders sheet (columns: #, Username, R2 reservation
@@ -826,10 +817,8 @@ def load_reservations(text, order_users, cancelled_users=(), as_of=None):
     already present in the orders sheet (they are counted as orders — the
     remainder are "incomplete" orders) and anyone whose order was cancelled, since
     they have left the dataset rather than reverted to holding a reservation; null
-    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state. `as_of`
-    cleans it as it stood on that date (see load_and_clean).
+    pre-reveal (<2024-03-07) reservation dates; geo-enrich by state.
     """
-    today = AS_OF if as_of is None else as_of
     records = list(csv.reader(io.StringIO(text)))
     hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
                                  RESV_LABEL)
@@ -849,7 +838,7 @@ def load_reservations(text, order_users, cancelled_users=(), as_of=None):
 
     # Cancelled reservations, before the data-derived drops below.
     del_mask, del_records, del_issues = _apply_deletions(
-        resv, DELETIONS_RESV, "reservation", RESERVATIONS_COLUMNS, when=as_of)
+        resv, DELETIONS_RESV, "reservation", RESERVATIONS_COLUMNS)
     resv = resv[~del_mask]
 
     # Remove reservation-holders who already appear in the orders sheet, and
@@ -872,7 +861,7 @@ def load_reservations(text, order_users, cancelled_users=(), as_of=None):
     resv["resv_date"] = resv["resv_raw"].apply(parse_simple_date)
     resv["resv_date"] = pd.to_datetime(resv["resv_date"], errors="coerce")
     bad = resv["resv_date"].notna() & ((resv["resv_date"] < RESV_DATE_MIN)
-                                       | (resv["resv_date"] > today))
+                                       | (resv["resv_date"] > AS_OF))
     resv.loc[bad, "resv_date"] = pd.NaT
     geo_enrich(resv)
 
