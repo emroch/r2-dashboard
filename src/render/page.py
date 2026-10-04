@@ -353,6 +353,22 @@ _QA_CATS = [
      "extra digit). A late delivery or a low VIN is never flagged on its own, "
      "because a held-back car explains both. A value confirmed correct can be "
      "kept with overrides.yaml's verified list."),
+    ("vin_changes", "VINs that changed after being set",
+     "From the sheet's history (every committed snapshot): a VIN replaced by a "
+     "DIFFERENT VIN after one was recorded. Reformatting and de-obfuscation don't "
+     "count. Often a typo fix, but a change that goes back to an earlier value "
+     "usually means someone edited the wrong row and then put it back. Fields an "
+     "override already sets are left out."),
+    ("order_date_changes", "Order dates that changed after submission",
+     "An order date replaced by a different date. Most are year-typo fixes, but a "
+     "date that moves by weeks shifts every delivery window measured from it."),
+    ("firm_to_vague", "Firm delivery dates that went vague",
+     "A firm delivery date replaced by something vaguer (\"TBD\", \"Delayed\") "
+     "and still vague. Usually a real delay; worth asking for an update."),
+    ("left_sheet", "Orders that left the sheet",
+     "An order that disappeared from the sheet without a curated deletion: a "
+     "silent cancellation, or a row removed by mistake. If it was a cancellation, "
+     "a deletion in overrides.yaml records why."),
     ("merge_conflicts", "Repeat submissions that disagreed",
      "Fields where a person's repeat submissions of the SAME build contradicted "
      "each other. The rows are merged into one order, taking each field from the "
