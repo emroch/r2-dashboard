@@ -286,10 +286,11 @@ def _parse_week_of(s: str) -> tuple[date, date] | None:
     return (monday, monday + timedelta(days=6))
 
 
-def _anchor(order_date: Stamp) -> tuple[pd.Timestamp, bool]:
+def _anchor(order_date: Stamp,
+            as_of: pd.Timestamp | None = None) -> tuple[pd.Timestamp, bool]:
     """Anchor for relative windows: the order date, else the as-of date."""
     if pd.isna(order_date) or order_date < ORDER_ANCHOR_MIN:
-        return AS_OF, True
+        return (AS_OF if as_of is None else as_of), True
     return order_date, False
 
 
@@ -495,7 +496,8 @@ _DELIVERY_RULES = (
 )
 
 
-def parse_delivery(raw: str | None, order_date: Stamp) -> dict[str, Any]:
+def parse_delivery(raw: str | None, order_date: Stamp,
+                   as_of: pd.Timestamp | None = None) -> dict[str, Any]:
     """Normalize a delivery estimate.
 
     Returns dict(est, min, max, type, anchor, anchor_fallback). Relative
@@ -504,7 +506,8 @@ def parse_delivery(raw: str | None, order_date: Stamp) -> dict[str, Any]:
     types (explicit / range / month) leave anchor as NaT.
 
     The shapes it understands, and the order they are tried in, are _DELIVERY_RULES
-    above; this is just the driver.
+    above; this is just the driver. `as_of` is the date a window falls back to
+    when there's no usable order date (default: today).
     """
     raw = (raw or "").strip()
     low = raw.lower()
@@ -519,7 +522,7 @@ def parse_delivery(raw: str | None, order_date: Stamp) -> dict[str, Any]:
             return out
 
         if isinstance(res, (_Weeks, _Days)):
-            anchor, fallback = _anchor(order_date)
+            anchor, fallback = _anchor(order_date, as_of)
             unit = "weeks" if isinstance(res, _Weeks) else "days"
             out.update(min=anchor + pd.Timedelta(**{unit: res.lo}),
                        max=anchor + pd.Timedelta(**{unit: res.hi}),

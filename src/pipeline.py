@@ -1,18 +1,20 @@
 """Pipeline orchestration: fetch both sheets, clean, write the tidy CSV,
 build the dashboard, and print the cleaning report.
 """
+import json
 import os
 import time
 
 import pandas as pd
 
-from config import (CLEAN_CSV, DASHBOARD, ORDERS_GID, ORDERS_KEY, ORDERS_LABEL,
-                     ORDERS_SLUG, OVERRIDES, RESV_GID, RESV_KEY, RESV_LABEL,
-                     RESV_SLUG)
+from config import (CLEAN_CSV, DASHBOARD, DIMENSIONS_JSON, ORDERS_GID,
+                    ORDERS_KEY, ORDERS_LABEL, ORDERS_SLUG, OVERRIDES, RESV_GID,
+                    RESV_KEY, RESV_LABEL, RESV_SLUG, SERIES_JSON)
 from render.page import build_dashboard
 from ingest.fetch import fetch_sheet
 from ingest.history import (current_keys, current_runs, orders_history,
                             reservations_history, summary)
+from ingest.contract import counts, dimensions, series
 from ingest.curation import entries
 from ingest.loaders import load_and_clean, load_reservations
 from ingest.timeline import timeline_issues
@@ -84,6 +86,24 @@ def main():
     out.to_csv(CLEAN_CSV, index=False)
 
     build_dashboard(df, report, resv)
+
+    # The published data contract (ingest/contract.py): dimension metadata plus
+    # the weekly series. The series' last point re-runs today's cleaning from the
+    # same snapshots, so it must equal what this build just counted; a mismatch
+    # means the series no longer describes the dashboard, which is worth a failed
+    # build rather than a silently wrong file.
+    t0 = time.perf_counter()
+    ser = series()
+    series_secs = time.perf_counter() - t0
+    live = counts(df, report, resv_report)
+    last = {k: v for k, v in ser["points"][-1].items() if k != "date"}
+    if last != live:
+        raise SystemExit("series' last point %r disagrees with this build %r"
+                         % (last, live))
+    with open(DIMENSIONS_JSON, "w") as fh:
+        json.dump(dimensions(), fh, indent=1)
+    with open(SERIES_JSON, "w") as fh:
+        json.dump(ser, fh, indent=1)
 
 
     def _fmt(meta):
@@ -175,7 +195,11 @@ def main():
     for m in (orders_meta, resv_meta):
         if m["changed"] and m["cache"]:
             print("Cached (new data)  : %s" % os.path.basename(m["cache"]))
+    print("Data contract: %d series points (%.1fs), %d dimensions"
+          % (len(ser["points"]), series_secs, len(dimensions()["dimensions"])))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
+    print("Wrote: %s, %s" % (os.path.basename(DIMENSIONS_JSON),
+                             os.path.basename(SERIES_JSON)))
     print("Wrote: %s" % os.path.basename(DASHBOARD))
 
 

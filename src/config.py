@@ -1,5 +1,5 @@
 """Configuration: paths, run timestamps, and the loaders for the externalized
-data files (palette.yaml, schema.yaml, geo.yaml, delivery.yaml).
+data files (dimensions.yaml, palette.yaml, schema.yaml, geo.yaml, delivery.yaml, ...).
 
 Kept import-light on purpose so every other module can pull constants from here
 without a circular dependency. NOW/AS_OF are evaluated at import time. The
@@ -23,6 +23,9 @@ OUTPUT_DIR = ROOT / "output"
 for d in (DATA_RAW, DATA_PROCESSED, OUTPUT_DIR):
     d.mkdir(parents=True, exist_ok=True)
 CLEAN_CSV = str(DATA_PROCESSED / "r2_orders_clean.csv")
+# The published data contract (ingest/contract.py), deployed beside the CSV.
+DIMENSIONS_JSON = str(DATA_PROCESSED / "r2_dimensions.json")
+SERIES_JSON = str(DATA_PROCESSED / "r2_series.json")
 DASHBOARD = str(OUTPUT_DIR / "r2_orders_dashboard.html")
 
 # Local cache filename timestamp format (see fetch.py change detection).
@@ -44,7 +47,7 @@ def _load(name):
         return yaml.safe_load(fh)
 
 
-_PALETTE = _load("palette.yaml")   # colors & marker encodings
+_PALETTE = _load("palette.yaml")   # chart fills (category colors: dimensions.yaml)
 _SCHEMA = _load("schema.yaml")     # sources, column maps, sanitize, option vocab
 _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
@@ -87,38 +90,54 @@ RESV_LABEL, RESV_SLUG = _RESV_SRC["label"], _RESV_SRC["slug"]
 ORDERS_THREAD = _ORDERS_SRC["thread_url"]
 RESV_THREAD = _RESV_SRC["thread_url"]
 
-# --- Colors & marker encodings (palette.yaml) -----------------------------
-# Exterior paints: the display hex actually used. COLOR_ORDER is the palette's
-# curated sequence, which the charts use only to break ties when ranking paints by
-# order count (see charts._paint_order) — it is not the display order.
-COLOR_HEX = dict(_PALETTE["paints"])
-COLOR_ORDER = list(_PALETTE["paint_order"])
-# Interiors, keyed by the exact sheet value for the same reason as wheels: two of
-# them share the "Black Crater" base name and differ only by the Signature
-# suffix, so nothing may derive one label from the other. INTERIOR_ORDER is the
-# palette's plainest-first order, which the charts display in.
-_INTERIORS = _PALETTE["interiors"]
-INTERIOR_ORDER = list(_INTERIORS)
-INTERIOR_SHORT = {k: v["short"] for k, v in _INTERIORS.items()}
-# One color per interior, sampled from the configurator renders, serving every
-# interior chart. Each sits close to one of the two chart surfaces, so those
-# charts draw a CHART.edge border to delineate it — see palette.yaml.
-INTERIOR_COLOR = {k: v["color"] for k, v in _INTERIORS.items()}
-# Wheels. The palette is keyed by the exact sheet value; WHEEL_SHORT maps that to
+# --- Category vocabulary (dimensions.yaml) --------------------------------
+# Every categorical column's categories, labels and colors live in one file, which
+# is also published as-is (r2_dimensions.json, ingest/contract.py). The constants
+# below are views of it for the charts.
+DIMENSIONS = _load("dimensions.yaml")["dimensions"]
+
+
+def _cats(dim):
+    return DIMENSIONS[dim]["categories"]
+
+
+# Exterior paints: the display hex actually used. COLOR_ORDER is the curated
+# sequence, which the charts use only to break ties when ranking paints by order
+# count (see charts._paint_order) — it is not the display order.
+COLOR_HEX = {c["value"]: c["color"] for c in _cats("color")}
+COLOR_ORDER = [c["value"] for c in _cats("color")]
+# Interiors, keyed by the exact sheet value: two of them share the "Black
+# Crater" base name and differ only by the Signature suffix, so nothing may
+# derive one label from the other. INTERIOR_ORDER is plainest-first, which the
+# charts display in. Each color sits close to one of the two chart surfaces, so
+# those charts draw a CHART.edge border to delineate it — see dimensions.yaml.
+INTERIOR_ORDER = [c["value"] for c in _cats("interior")]
+INTERIOR_SHORT = {c["value"]: c["short"] for c in _cats("interior")}
+INTERIOR_COLOR = {c["value"]: c["color"] for c in _cats("interior")}
+# Wheels. Each is identified by its exact sheet value; WHEEL_SHORT maps that to
 # the display label, and every other table is keyed BY that label, since it's the
-# label the DataFrame carries (wheels_short). WHEEL_ORDER preserves the palette's
-# ascending-size order, which is the stack order the colors were validated in.
-# Two of the four wheels are 20", so nothing here may infer identity from size.
-_WHEELS = _PALETTE["wheels"]
-WHEEL_SHORT = {raw: w["short"] for raw, w in _WHEELS.items()}
-WHEEL_ORDER = [w["short"] for w in _WHEELS.values()]
-WHEEL_ABBR = {w["short"]: w["abbr"] for w in _WHEELS.values()}
-WHEEL_SYMBOL = {w["short"]: w["symbol"] for w in _WHEELS.values()}
-WHEEL_COLOR = {w["short"]: w["color"] for w in _WHEELS.values()}
-REGION_COLOR = dict(_PALETTE["regions"])
-TYPE_COLOR = {t: d["color"] for t, d in _PALETTE["delivery_types"].items()}
-TYPE_OPACITY = {t: d["opacity"] for t, d in _PALETTE["delivery_types"].items()}
-TYPE_ORDER = list(_PALETTE["delivery_type_order"])
+# label the DataFrame carries (wheels_short). WHEEL_ORDER is ascending size, the
+# stack order the colors were validated in. Two of the four wheels are 20", so
+# nothing here may infer identity from size.
+WHEEL_SHORT = {c["sheet"]: c["value"] for c in _cats("wheels")}
+WHEEL_ORDER = [c["value"] for c in _cats("wheels")]
+WHEEL_ABBR = {c["value"]: c["abbr"] for c in _cats("wheels")}
+WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in _cats("wheels")}
+WHEEL_COLOR = {c["value"]: c["color"] for c in _cats("wheels")}
+REGION_COLOR = {c["value"]: c["color"] for c in _cats("region")}
+# Delivery-estimate types, firm to vague. TYPE_ORDER leaves out the "no estimate"
+# category, which the charts handle on its own.
+TYPE_COLOR = {c["value"]: c["color"] for c in _cats("delivery_type")}
+TYPE_OPACITY = {c["value"]: c["opacity"] for c in _cats("delivery_type")}
+TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
+              if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
+# Stacked take-rate panels: trim ramp, and which R1 an owner has.
+TRIM_COLORS = {c["value"]: c["color"] for c in _cats("trim")}
+R1_MODEL_COLORS = {c["value"]: c["color"] for c in _cats("r1_model")}
+# A state is drawn on its own only with at least this many orders.
+STATE_MIN_ORDERS = int(DIMENSIONS["state"]["small_n"]["min_orders"])
+
+# --- Chart fills (palette.yaml) --------------------------------------------
 # Single-series chart fills (bars/histograms) + the heatmap colorscale name.
 TAKE_RATE = dict(_PALETTE["take_rate"])
 TIMELINE_COLORS = dict(_PALETTE["timeline"])
@@ -131,9 +150,6 @@ PRICE_COLORS = dict(_PALETTE["price"])
 LATENCY_COLORS = dict(_PALETTE["latency"])
 # Build front / projection overlay and the cadence companion chart.
 CADENCE_COLORS = dict(_PALETTE["cadence"])
-# Stacked take-rate panels: trim ramp, and which R1 an owner has.
-TRIM_COLORS = dict(_PALETTE["trims"])
-R1_MODEL_COLORS = dict(_PALETTE["r1_models"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Both maps are field -> exact sheet header text, and both sheets are read the

@@ -171,7 +171,8 @@ This is the hand-off to #66 and #51. Alongside the rows, the pipeline publishes
 **dimension metadata**, so the page no longer hard-codes per-chart conventions:
 
 - **Ordering and labels:** each dimension's label and its category order (today
-  scattered across `palette.yaml` and `charts.py`).
+  scattered across `palette.yaml` and `charts.py`; now one file, `dimensions.yaml`,
+  published as-is).
 - **Missing values:** the bucket each dimension uses for them ("Unknown",
   "No state data").
 - **Thresholds and caveats:** the small-n threshold, and caveat text (state
@@ -182,7 +183,8 @@ This is the hand-off to #66 and #51. Alongside the rows, the pipeline publishes
 The published set:
 
 - **The current cleaned rows**, as today's `r2_orders_clean.csv`.
-- **An aggregate daily time series:**
+- **An aggregate weekly time series** (every Monday plus today; weekly, not daily,
+  was decided in #84 because each point is a ~0.5 s cleaning pass):
   - orders, VIN-assigned, and firm / vague / unknown estimates
   - inferred deliveries
   - reservations, and reservation → order conversions
