@@ -7,16 +7,18 @@ import time
 
 import pandas as pd
 
-from config import (CLEAN_CSV, DASHBOARD, DIMENSIONS_JSON, ORDERS_GID,
-                    ORDERS_KEY, ORDERS_LABEL, ORDERS_SLUG, OVERRIDES, RESV_GID,
-                    RESV_KEY, RESV_LABEL, RESV_SLUG, SERIES_JSON)
+from config import (CLEAN_CSV, DASHBOARD, DIMENSIONS_JSON, ORDER_DATE_MIN,
+                    ORDERS_GID, ORDERS_KEY, ORDERS_LABEL, ORDERS_SLUG,
+                    OVERRIDES, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG,
+                    SERIES_JSON)
 from render.page import build_dashboard
 from ingest.fetch import fetch_sheet
 from ingest.history import (current_keys, current_runs, orders_history,
                             reservations_history, summary)
-from ingest.contract import counts, dimensions, series
+from ingest.contract import dimensions, series
 from ingest.curation import entries
 from ingest.loaders import load_and_clean, load_reservations
+from ingest.milestones import milestones
 from ingest.timeline import timeline_issues
 
 
@@ -47,6 +49,9 @@ def main():
     curated = {(e.target.split("#")[0].lower(), f)
                for e in entries(OVERRIDES) for f in (e.body or {})}
     report["quality"].update(timeline_issues(oh, curated))
+    # Milestone dates for each order's final VIN and delivery date (#99):
+    # internal, for the series below; never exported per order.
+    df, report["quality"]["milestone_issues"] = milestones(df, oh)
 
     # cancelled_users keeps a cancelled ORDER from reappearing as an outstanding
     # reservation just because it left the orders cohort.
@@ -88,18 +93,24 @@ def main():
     build_dashboard(df, report, resv)
 
     # The published data contract (ingest/contract.py): dimension metadata plus
-    # the weekly series. The series' last point re-runs today's cleaning from the
-    # same snapshots, so it must equal what this build just counted; a mismatch
+    # the event-dated daily series, built from this build's cleaned data. Its last
+    # point plus what has no date must add up to this build's totals; a mismatch
     # means the series no longer describes the dashboard, which is worth a failed
     # build rather than a silently wrong file.
+    converted = {str(u).lower() for _, u, _ in resv_report["matched_records"]}
     t0 = time.perf_counter()
-    ser = series()
+    ser = series(df, resv, converted,
+                 pd.Timestamp(oh.snapshots[0]) if oh.snapshots else None,
+                 ORDER_DATE_MIN)
     series_secs = time.perf_counter() - t0
-    live = counts(df, report, resv_report)
-    last = {k: v for k, v in ser["points"][-1].items() if k != "date"}
-    if last != live:
-        raise SystemExit("series' last point %r disagrees with this build %r"
-                         % (last, live))
+    totals = {"orders": report["n_dedup"],
+              "vin_assigned": int(df["vin_present"].sum()),
+              "delivered": int(df["delivered_inferred"].astype(bool).sum())}
+    for name, total in totals.items():
+        got = ser["values"][name][-1] + ser["undated"][name]
+        if got != total:
+            raise SystemExit("series %s ends at %d (+ undated) but this build "
+                             "counts %d" % (name, got, total))
     with open(DIMENSIONS_JSON, "w") as fh:
         json.dump(dimensions(), fh, indent=1)
     with open(SERIES_JSON, "w") as fh:
@@ -195,8 +206,8 @@ def main():
     for m in (orders_meta, resv_meta):
         if m["changed"] and m["cache"]:
             print("Cached (new data)  : %s" % os.path.basename(m["cache"]))
-    print("Data contract: %d series points (%.1fs), %d dimensions"
-          % (len(ser["points"]), series_secs, len(dimensions()["dimensions"])))
+    print("Data contract: %d daily series points (%.2fs), %d dimensions"
+          % (len(ser["dates"]), series_secs, len(dimensions()["dimensions"])))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
     print("Wrote: %s, %s" % (os.path.basename(DIMENSIONS_JSON),
                              os.path.basename(SERIES_JSON)))
