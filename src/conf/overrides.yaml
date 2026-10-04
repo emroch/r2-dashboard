@@ -86,50 +86,63 @@
 #   reservations:
 #     AnotherUser: "cancelled the reservation — https://..."
 
+curation_version: 2
+
 overrides:
   # delivery delayed from 6/30 -> 7/10
-  # https://www.rivianforums.com/forum/threads/r2-order-timeline-data-point-vin-assigned-in-steps-stage.60108/post-1043872
   hodags:
+    source: https://www.rivianforums.com/forum/posts/1043872/
+    as_of: "2026-07-11"
     delivery_raw: "7/10/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047369
   NCSwa:
+    source: https://www.rivianforums.com/forum/posts/1047369/
+    as_of: "2026-07-19"
     delivery_raw: "7/15/2026"
   # VIN update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047660
   adagia:
+    source: https://www.rivianforums.com/forum/posts/1047660/
+    as_of: "2026-07-19"
     vin_raw: "02275"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1048085
   dduffey:
+    source: https://www.rivianforums.com/forum/posts/1048085/
+    as_of: "2026-07-19"
     delivery_raw: "7/18/2026"
   # delivery delayed 7/20-7/24
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049355
-  "california gold":
+  california gold:
+    source: https://www.rivianforums.com/forum/posts/1049355/
+    as_of: "2026-07-19"
     delivery_raw: "7/24/2026"
   # delivery delayed 7/10-7/14
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049498
   bpmcc503:
+    source: https://www.rivianforums.com/forum/posts/1049498/
+    as_of: "2026-07-19"
     delivery_raw: "7/14/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1049653
   RivianPGH:
+    source: https://www.rivianforums.com/forum/posts/1049653/
+    as_of: "2026-07-19"
     delivery_raw: "7/20/2026"
     vin_raw: "218X"
   # probable typo (2027 -> 2026)
   Ti3vom:
+    source: "inferred - delivery is more than a year after the order date"
+    as_of: "2026-07-19"
     delivery_raw: "8/6/2026"
   # same contradiction — "No" plus an R1S. His forum profile lists an R1S, so the
   # gate answer is the wrong one. (Profile, not a specific post.)
-  # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/
   mclark2112:
+    source: https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/
+    as_of: "2026-08-05"
     delivery_raw: "8/19/2026"
     r1_owner: "Yes"
   # answered the owner gate but skipped the model follow-up; the forum post shows
   # an R1S. The only owner left without a model, so the R1 stack now has no
   # unexplained segment under "Yes".
-  # https://www.rivianforums.com/forum/threads/r2-compact-spare-tire-are-you-ordering-it-on-your-build.59589/post-1011373
   SeaMonkey80:
+    source: https://www.rivianforums.com/forum/posts/1011373/
+    as_of: "2026-08-05"
     r1_model: "R1S"
   # the only order answering "Launch Package = No", which can't be right today —
   # the package is currently the only way to buy a Performance, and 232 of 233
@@ -137,255 +150,322 @@ overrides:
   # Without this the bundle doesn't apply and Autonomy+/Tow get billed separately,
   # putting them $3,400 above every comparable build.
   Jmd1948:
+    source: "inferred - Launch Package is only available config at the time"
+    as_of: "2026-08-05"
     launch: "Yes"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1051958/
   dmartin:
+    source: https://www.rivianforums.com/forum/posts/1051958/
+    as_of: "2026-08-03"
     delivery_raw: "7/23/2026"
   # VIN/delivery update
-  # https://www.rivianforums.com/forum/posts/1053263/
-  # https://www.rivianforums.com/forum/threads/forest-green-r2-now-on-display-at-rivian-factory.61807/post-1056256
   Josh X:
+    source:
+      - https://www.rivianforums.com/forum/posts/1053263/
+      - https://www.rivianforums.com/forum/posts/1056256/
+    as_of: "2026-08-03"
     delivery_raw: "7/25/2026"
     vin_raw: "1345"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1053908/
   DaveA:
+    source: https://www.rivianforums.com/forum/posts/1053908/
+    as_of: "2026-08-03"
     delivery_raw: "8/5/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1054733/
   jtm1631:
+    source: https://www.rivianforums.com/forum/posts/1054733/
+    as_of: "2026-08-03"
     delivery_raw: "8/4/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1060326/
   KCP:
+    source: https://www.rivianforums.com/forum/posts/1060326/
+    as_of: "2026-08-03"
     delivery_raw: "8/19/2026"
   # vin/delivery update
-  # https://www.rivianforums.com/forum/posts/1060756/
-  # https://www.rivianforums.com/forum/posts/1059992/
   tkauftheil:
+    source:
+      - https://www.rivianforums.com/forum/posts/1060756/
+      - https://www.rivianforums.com/forum/posts/1059992/
+    as_of: "2026-08-03"
     delivery_raw: "8/27/2026"
     vin_raw: "X42XX"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1061910/
   cwq93r:
+    source: https://www.rivianforums.com/forum/posts/1061910/
+    as_of: "2026-08-03"
     delivery_raw: "8/6/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1062205/
   R1TCA:
+    source: https://www.rivianforums.com/forum/posts/1062205/
+    as_of: "2026-08-03"
     delivery_raw: "7/28/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1062358/
   Super_Dave:
+    source: https://www.rivianforums.com/forum/posts/1062358/
+    as_of: "2026-08-03"
     delivery_raw: "8/4/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1064384/
   pretzelsaremakingmethirsty:
+    source: https://www.rivianforums.com/forum/posts/1064384/
+    as_of: "2026-08-03"
     delivery_raw: "8/5/2026"
   # delivery estimate
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
-  # https://www.rivianforums.com/forum/posts/1066257/
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065243
   jediknight:
+    source:
+      - https://www.rivianforums.com/forum/posts/1065243/
+      - https://www.rivianforums.com/forum/posts/1066257/
+      - https://www.rivianforums.com/forum/posts/1065243/
+    as_of: "2026-08-03"
     delivery_raw: "8/7/26"
     r1_owner: "Yes"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1065585/
   Coney129:
+    source: https://www.rivianforums.com/forum/posts/1065585/
+    as_of: "2026-08-06"
     delivery_raw: "8/24/26"
     vin_raw: "2922"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1066579/
   cthelan:
+    source: https://www.rivianforums.com/forum/posts/1066579/
+    as_of: "2026-08-06"
     delivery_raw: "8/10/26 - 8/14/26"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1066502/
   VMI9d3:
+    source: https://www.rivianforums.com/forum/posts/1066502/
+    as_of: "2026-08-06"
     delivery_raw: "TBD"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1066820/
-  # https://www.rivianforums.com/forum/posts/1068196/
   Eric9610:
+    source:
+      - https://www.rivianforums.com/forum/posts/1066820/
+      - https://www.rivianforums.com/forum/posts/1068196/
+    as_of: "2026-08-06"
     delivery_raw: "8/7/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1067552/
   TXKidd:
+    source: https://www.rivianforums.com/forum/posts/1067552/
+    as_of: "2026-08-18"
     delivery_raw: "8/14/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/catalina-cove-delivery-on-friday-cancelled.62013/post-1068097
   a9967:
+    source: https://www.rivianforums.com/forum/posts/1068097/
+    as_of: "2026-08-18"
     delivery_raw: "8/6/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1068101
   andisimose:
+    source: https://www.rivianforums.com/forum/posts/1068101/
+    as_of: "2026-08-18"
     delivery_raw: "8/11/2026"
   # vin update
-  # https://www.rivianforums.com/forum/posts/1071839/
   robstilltrippin:
+    source: https://www.rivianforums.com/forum/posts/1071839/
+    as_of: "2026-08-18"
     vin_raw: "59XX"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1073061
   solidbrix:
+    source: https://www.rivianforums.com/forum/posts/1073061/
+    as_of: "2026-08-18"
     delivery_raw: "8/19/2026"
   # vin update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1079143
   DBDR:
+    source: https://www.rivianforums.com/forum/posts/1079143/
+    as_of: "2026-08-21"
     vin_raw: "TBD"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1080568
   WhiskeyDoc:
+    source: https://www.rivianforums.com/forum/posts/1080568/
+    as_of: "2026-08-21"
     delivery_raw: "8/19/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1081153
   Ryanbac:
+    source: https://www.rivianforums.com/forum/posts/1081153/
+    as_of: "2026-08-21"
     delivery_raw: "9/5/2026"
     vin_raw: "72XX"
   # vin update
-  # https://www.rivianforums.com/forum/posts/1081450/
   deadstar114:
+    source: https://www.rivianforums.com/forum/posts/1081450/
+    as_of: "2026-08-21"
     vin_raw: "36XX"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/my-r2-coastal-interior-real-live-in-the-flesh-in-midnight-r2.63084/
   protamine:
+    source: https://www.rivianforums.com/forum/threads/my-r2-coastal-interior-real-live-in-the-flesh-in-midnight-r2.63084/
+    as_of: "2026-08-23"
     delivery_raw: "8/25/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-owners-how-long-between-build-notice-and-vin-notice.63182/post-1084889
   # Note: username does not match entry exactly
   DTH Texas:
+    source: https://www.rivianforums.com/forum/posts/1084889/
+    as_of: "2026-08-26"
     delivery_raw: "9/5/2026"
   # color correction
-  # https://www.rivianforums.com/forum/posts/1085294/
   NorthshoreR2:
+    source: https://www.rivianforums.com/forum/posts/1085294/
+    as_of: "2026-08-26"
     color: "Launch Green"
   # order update
-  # https://www.rivianforums.com/forum/posts/1085228/
-  # https://www.rivianforums.com/forum/posts/1090885/
   windblowlc:
+    source:
+      - https://www.rivianforums.com/forum/posts/1085228/
+      - https://www.rivianforums.com/forum/posts/1090885/
+    as_of: "2026-08-26"
     order_raw: "8/18/2026"
     delivery_raw: "9/4/2026"
     vin_raw: "91XX"
     wheels: '20” Black Sand All-Terrain'
   # delivery estimate
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085647
   NormalLife:
+    source: https://www.rivianforums.com/forum/posts/1085647/
+    as_of: "2026-08-26"
     delivery_raw: "9/14/26 - 9/18/26"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085673
   kurtlikevonnegut:
+    source: https://www.rivianforums.com/forum/posts/1085673/
+    as_of: "2026-08-26"
     delivery_raw: "8/11/2026"
   # vin update, reservation correction
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1085900
   tivoboy:
+    source: https://www.rivianforums.com/forum/posts/1085900/
+    as_of: "2026-08-26"
     resv_raw: "3/7/2024"
     vin_raw: "47XX"
   # delivery update
-  # https://www.rivianforums.com/forum/threads/update-on-r2-order-invitation-timing-now-in-account.60826/post-1072975
   derekmw:
+    source: https://www.rivianforums.com/forum/posts/1072975/
+    as_of: "2026-08-27"
     delivery_raw: "8/11/2026"
   # vin update
-  # https://www.rivianforums.com/forum/threads/vin-for-coastal-cloud-r2-received.63201/post-1089756
   deacon:
+    source: https://www.rivianforums.com/forum/posts/1089756/
+    as_of: "2026-09-01"
     vin_raw: "09011"
   # vin update
-  # https://www.rivianforums.com/forum/posts/1086109/
   momo_your_momoness:
+    source: https://www.rivianforums.com/forum/posts/1086109/
+    as_of: "2026-09-01"
     vin_raw: "4770"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1086585/
   sdiesel619:
+    source: https://www.rivianforums.com/forum/posts/1086585/
+    as_of: "2026-09-01"
     delivery_raw: "9/12/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1090008/
   r2deeztwo:
+    source: https://www.rivianforums.com/forum/posts/1090008/
+    as_of: "2026-09-01"
     delivery_raw: "9/12/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1090677/
   RivianRiverRat:
+    source: https://www.rivianforums.com/forum/posts/1090677/
+    as_of: "2026-09-01"
     delivery_raw: "9/1/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1090725/
   Ssmtsx:
+    source: https://www.rivianforums.com/forum/posts/1090725/
+    as_of: "2026-09-01"
     delivery_raw: "9/9/2026"
   # order update
-  # https://www.rivianforums.com/forum/posts/1092339/
   reodds:
+    source: https://www.rivianforums.com/forum/posts/1092339/
+    as_of: "2026-09-15"
     order_raw: "8/18/2026"
     vin_raw: "9522"
     color: "Glacier White"
   # order update
-  # https://riviantrackr.com/news/rivian-r2-factory-pickup-normal-illinois/
-  # https://www.rivianforums.com/forum/posts/1088293/
   RivianTrackr:
+    source:
+      - https://riviantrackr.com/news/rivian-r2-factory-pickup-normal-illinois/
+      - https://www.rivianforums.com/forum/posts/1088293/
+    as_of: "2026-09-15"
     delivery_raw: "7/24/2026"
     vin_raw: "4149"
-  # https://www.rivianforums.com/forum/posts/1099230/
   RivianInCharleston:
+    source: https://www.rivianforums.com/forum/posts/1099230/
+    as_of: "2026-09-15"
     delivery_raw: "9/5/2026"
     vin_raw: "2715"
-  # https://www.rivianforums.com/forum/posts/1101727
   WreckItRivian:
+    source: https://www.rivianforums.com/forum/posts/1101727
+    as_of: "2026-09-15"
     order_raw: "9/15/2026"
     delivery_raw: "Unknown"
-  # https://www.rivianforums.com/forum/posts/1101904
   FL5Guy:
+    source: https://www.rivianforums.com/forum/posts/1101904
+    as_of: "2026-09-15"
     order_raw: "9/15/2026"
     color: "Borealis"
     interior: "Coastal Cloud Signature"
     wheels: '20” Black Sand All-Terrain'
-  # https://www.rivianforums.com/forum/posts/1104654/
   drydeniv:
+    source: https://www.rivianforums.com/forum/posts/1104654/
+    as_of: "2026-09-16"
     vin_raw: "9537"
     delivery_raw: "9/30/2026"
-  # https://www.rivianforums.com/forum/posts/1104511/
   alanr2:
+    source: https://www.rivianforums.com/forum/posts/1104511/
+    as_of: "2026-09-19"
     delivery_raw: "9/19/2026"
-  # https://www.rivianforums.com/forum/threads/hudson-nh-service-center-in-the-works.39368/post-1104184
   lars24:
+    source: https://www.rivianforums.com/forum/posts/1104184/
+    as_of: "2026-09-19"
     delivery_raw: "9/17/2026"
   # correcting unparseable sheet data
   SpeedDemon5:
+    source: "inferred - provided in sheet but not parseable"
+    as_of: "2026-09-19"
     delivery_raw: "8/4/2026"
   # partial vin
-  # https://www.rivianforums.com/forum/posts/1105681/
   KenyMcCormick:
+    source: https://www.rivianforums.com/forum/posts/1105681/
+    as_of: "2026-09-22"
     vin_raw: "116XX"
   # invalid vin and delivery date
-  # https://www.rivianforums.com/forum/posts/1107561/
   AlisR2:
+    source: https://www.rivianforums.com/forum/posts/1107561/
+    as_of: "2026-09-22"
     vin_raw: "unknown"
     delivery_raw: "unknown"
   # partial vin
-  # https://www.rivianforums.com/forum/posts/1107729/
   carnewsrundown:
+    source: https://www.rivianforums.com/forum/posts/1107729/
+    as_of: "2026-09-24"
     vin_raw: "109XX"
   # partial vin
-  # https://www.rivianforums.com/forum/posts/1107735/
   farnvader:
+    source: https://www.rivianforums.com/forum/posts/1107735/
+    as_of: "2026-09-24"
     vin_raw: "116XX"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1107737/
   R1T Preds Fan:
+    source: https://www.rivianforums.com/forum/posts/1107737/
+    as_of: "2026-09-24"
     delivery_raw: "9/29/2026"
   # delivery update
-  # https://www.rivianforums.com/forum/posts/1108123/
   R2shan:
+    source: https://www.rivianforums.com/forum/posts/1108123/
+    as_of: "2026-09-24"
     delivery_raw: "9/22/2026"
   # partial vin
-  # https://www.rivianforums.com/forum/posts/1108302/
   evlee:
+    source: https://www.rivianforums.com/forum/posts/1108302/
+    as_of: "2026-09-24"
     vin_raw: "115XX"
   # partial vin
-  # https://www.rivianforums.com/forum/posts/1108378/
   snovarev:
+    source: https://www.rivianforums.com/forum/posts/1108378/
+    as_of: "2026-09-24"
     vin_raw: "1220X"
   # delivery update
   GoArmy:
+    source: "https://www.rivianforums.com/forum/posts/1108987/"
+    as_of: "2026-09-24"
     delivery_raw: "9/5/2026"
 
 additions:
   # forum-only order — not in the tracker sheet
-  # https://www.rivianforums.com/forum/threads/r2-esker-silver-road-trip-report.61400/post-1047128
   jtg11:
+    source: https://www.rivianforums.com/forum/posts/1047128/
+    as_of: "2026-07-19"
     resv_raw: "3/7/2024"
     delivery_raw: "7/8/2026"
     vin_raw: "226X"
@@ -400,9 +480,11 @@ additions:
     r1_owner: "Yes"
     r1_model: "Both"
   # forum-only order — not in the tracker sheet
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1059229
-  # https://www.rivianforums.com/forum/posts/1056526/
   benpellow:
+    source:
+      - https://www.rivianforums.com/forum/posts/1059229/
+      - https://www.rivianforums.com/forum/posts/1056526/
+    as_of: "2026-08-03"
     resv_raw: "3/7/2024"
     order_raw: "6/30/2026"
     delivery_raw: "8/6/2026"
@@ -417,8 +499,9 @@ additions:
     tow: "Included"
     r1_owner: "No"
   # non-forum user
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1064979
   Eric9610's Dad:
+    source: https://www.rivianforums.com/forum/posts/1064979/
+    as_of: "2026-08-03"
     resv_raw: "3/7/2024"
     order_raw: "7/22/2026"
     delivery_raw: "TBD"
@@ -432,9 +515,11 @@ additions:
     autonomy: "Included"
     tow: "Included"
   # forum-only order — not in the tracker sheet
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1065145
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1067089
   windshieldfarmer:
+    source:
+      - https://www.rivianforums.com/forum/posts/1065145/
+      - https://www.rivianforums.com/forum/posts/1067089/
+    as_of: "2026-08-03"
     resv_raw: "5/28/2026"
     order_raw: "7/28/2026"
     delivery_raw: "8/14/2026"
@@ -448,10 +533,12 @@ additions:
     autonomy: "Included"
     tow: "Included"
     spare: "Yes"
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1047165
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1054135
-  # https://www.rivianforums.com/forum/threads/dont-have-a-vin-yet-but-apparently-my-cargo-cover-order-is-delayed.61143/post-1066408
   RoadtripEV:
+    source:
+      - https://www.rivianforums.com/forum/posts/1047165/
+      - https://www.rivianforums.com/forum/posts/1054135/
+      - https://www.rivianforums.com/forum/posts/1066408/
+    as_of: "2026-08-06"
     order_raw: "6/24/2026"
     delivery_raw: "8/7/2026"
     loc_raw: "AZ"
@@ -465,8 +552,9 @@ additions:
     spare: "Yes"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1068024
   ontheclock:
+    source: https://www.rivianforums.com/forum/posts/1068024/
+    as_of: "2026-08-18"
     resv_raw: "2/10/2026"
     order_raw: "7/14/2026"
     delivery_raw:
@@ -479,8 +567,9 @@ additions:
     wheels: '21” Liquid Tungsten All-Season'
     autonomy: "Included"
     tow: "Included"
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1073063
   UlmVT:
+    source: https://www.rivianforums.com/forum/posts/1073063/
+    as_of: "2026-08-18"
     order_raw: "8/11/2026"
     vin_raw: "62XX"
     loc_raw: "VT"
@@ -492,8 +581,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1075386
   tonyg777:
+    source: https://www.rivianforums.com/forum/posts/1075386/
+    as_of: "2026-08-18"
     resv_raw: "2/20/2026"
     order_raw: "8/13/2026"
     delivery_raw: "9/12/2026"
@@ -508,9 +598,11 @@ additions:
     tow: "Included"
     spare: "No"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1076571
-  # https://www.rivianforums.com/forum/threads/%F0%9F%93%B8-daily-random-r2-photos-thread-post-your-pics.61808/post-1097367
   RomanMF:
+    source:
+      - https://www.rivianforums.com/forum/posts/1076571/
+      - https://www.rivianforums.com/forum/posts/1097367/
+    as_of: "2026-08-18"
     resv_raw: "3/7/2024"
     order_raw: "8/11/2026"
     delivery_raw: "9/9/26"
@@ -524,8 +616,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/threads/forest-green-coastal-cloud-for-r2-available-1-40pm-edt-8-18-26.62878/post-1078744
   DDRIVIR2:
+    source: https://www.rivianforums.com/forum/posts/1078744/
+    as_of: "2026-08-18"
     resv_raw: "2/23/2026"
     order_raw: "8/18/2026"
     loc_raw: "FL"
@@ -538,8 +631,9 @@ additions:
     tow: "Included"
     spare: "No"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/threads/forest-green-coastal-cloud-for-r2-available-1-40pm-edt-8-18-26.62878/post-1078833
   renderpaz:
+    source: https://www.rivianforums.com/forum/posts/1078833/
+    as_of: "2026-08-18"
     order_raw: "8/18/2026"
     loc_raw: "CA"
     trim: "Performance"
@@ -551,9 +645,11 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "Both"
-  # https://www.rivianforums.com/forum/posts/1078811/
-  # https://www.rivianforums.com/forum/posts/1097577/
   Lysdexic:
+    source:
+      - https://www.rivianforums.com/forum/posts/1078811/
+      - https://www.rivianforums.com/forum/posts/1097577/
+    as_of: "2026-08-18"
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
     delivery_raw: "9/18/2026"
@@ -567,10 +663,12 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1076750
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1082006
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1077789
   602flyer:
+    source:
+      - https://www.rivianforums.com/forum/posts/1076750/
+      - https://www.rivianforums.com/forum/posts/1082006/
+      - https://www.rivianforums.com/forum/posts/1077789/
+    as_of: "2026-08-23"
     order_raw: "6/17/2026"
     delivery_raw: "8/20/2026"
     vin_raw: "2405"
@@ -584,8 +682,9 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1084073
   Zathras' Daughter-in-law:
+    source: https://www.rivianforums.com/forum/posts/1084073/
+    as_of: "2026-08-26"
     resv_raw: "3/7/2024"
     order_raw: "8/23/2026"
     delivery_raw: "9/3/2026"
@@ -599,8 +698,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1086726/
   RivianCO:
+    source: https://www.rivianforums.com/forum/posts/1086726/
+    as_of: "2026-09-01"
     order_raw: "8/27/2026"
     loc_raw: "CO"
     trim: "Performance"
@@ -611,10 +711,12 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1086869/
-  # https://www.rivianforums.com/forum/threads/growing-efficiency-gap-r2-w-21-vs-20-tire-sets.62299/post-1086204
-  # https://www.rivianforums.com/forum/threads/esker-silver-r2-at-trenton-nj-rivian-center.62701/post-1078359
   husky:
+    source:
+      - https://www.rivianforums.com/forum/posts/1086869/
+      - https://www.rivianforums.com/forum/posts/1086204/
+      - https://www.rivianforums.com/forum/posts/1078359/
+    as_of: "2026-09-01"
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
     delivery_raw: "9/4/2026"
@@ -628,8 +730,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1088101/
   gene1138:
+    source: https://www.rivianforums.com/forum/posts/1088101/
+    as_of: "2026-09-01"
     order_raw: "8/27/2026"
     vin_raw: "1761"
     loc_raw: "NJ"
@@ -641,8 +744,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1089124/
   RivianDD:
+    source: https://www.rivianforums.com/forum/posts/1089124/
+    as_of: "2026-09-01"
     resv_raw: "6/27/2026"
     order_raw: "8/18/2026"
     delivery_raw: "9/19/2026"
@@ -656,9 +760,11 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1090126/
-  # https://www.rivianforums.com/forum/threads/64175/
   jhlf30:
+    source:
+      - https://www.rivianforums.com/forum/posts/1090126/
+      - https://www.rivianforums.com/forum/threads/64175/
+    as_of: "2026-09-01"
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
     delivery_raw: "9/12/2026"
@@ -672,8 +778,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1090462/
   ahassab:
+    source: https://www.rivianforums.com/forum/posts/1090462/
+    as_of: "2026-09-01"
     resv_raw: "7/19/2025"
     order_raw: "8/18/2026"
     delivery_raw: "Unknown"
@@ -686,9 +793,11 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1090213/
-  # https://www.rivianforums.com/forum/posts/1093549/
   morph860:
+    source:
+      - https://www.rivianforums.com/forum/posts/1090213/
+      - https://www.rivianforums.com/forum/posts/1093549/
+    as_of: "2026-09-01"
     resv_raw: "5/28/2026"
     order_raw: "9/1/2026"
     delivery_raw: "9/8/2026"
@@ -701,8 +810,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1091269/
   sl55:
+    source: https://www.rivianforums.com/forum/posts/1091269/
+    as_of: "2026-09-15"
     order_raw: "8/19/2026"
     loc_raw: "WI"
     trim: "Performance"
@@ -714,9 +824,11 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1S"
-  # https://www.rivianforums.com/forum/posts/1091296/
-  # https://www.rivianforums.com/forum/posts/1109036/
   tgrick:
+    source:
+      - https://www.rivianforums.com/forum/posts/1091296/
+      - https://www.rivianforums.com/forum/posts/1109036/
+    as_of: "2026-09-15"
     resv_raw: "3/14/2026"
     order_raw: "8/19/2026"
     vin_raw: "112XX"
@@ -729,8 +841,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1092056/
   ncone:
+    source: https://www.rivianforums.com/forum/posts/1092056/
+    as_of: "2026-09-15"
     order_raw: "8/4/2026"
     delivery_raw: "9/12/2026"
     vin_raw: "08172"
@@ -743,8 +856,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1093618/
   KAG:
+    source: https://www.rivianforums.com/forum/posts/1093618/
+    as_of: "2026-09-15"
     resv_raw: "3/7/2024"
     order_raw: "8/11/2026"
     delivery_raw: "9/14/2026"
@@ -757,8 +871,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1094956/
   theunderlord:
+    source: https://www.rivianforums.com/forum/posts/1094956/
+    as_of: "2026-09-15"
     delivery_raw: "9/3/2026"
     vin_raw: "6371"
     loc_raw: "WA"
@@ -770,8 +885,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1096232/
   jpatton:
+    source: https://www.rivianforums.com/forum/posts/1096232/
+    as_of: "2026-09-15"
     order_raw: "9/8/2026"
     loc_raw: "UT"
     trim: "Performance"
@@ -782,8 +898,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1101752
   ZheWiz:
+    source: https://www.rivianforums.com/forum/posts/1101752
+    as_of: "2026-09-15"
     resv_raw: "3/7/2024"
     order_raw: "9/15/2026"
     loc_raw: "NY"
@@ -795,8 +912,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1101782/
   lallenw:
+    source: https://www.rivianforums.com/forum/posts/1101782/
+    as_of: "2026-09-15"
     order_raw: "9/15/2026"
     loc_raw: "CA"
     trim: "Performance"
@@ -807,8 +925,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1101860
   friscorays:
+    source: https://www.rivianforums.com/forum/posts/1101860
+    as_of: "2026-09-15"
     order_raw: "9/15/2026"
     loc_raw: "TX"
     trim: "Performance"
@@ -819,8 +938,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1101965
   throwdown:
+    source: https://www.rivianforums.com/forum/posts/1101965
+    as_of: "2026-09-16"
     order_raw: "9/15/2026"
     loc_raw: "CO"
     trim: "Performance"
@@ -832,8 +952,9 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/posts/1107133/
   BarbPollak:
+    source: https://www.rivianforums.com/forum/posts/1107133/
+    as_of: "2026-09-22"
     resv_raw: "7/29/2026"
     order_raw: "9/22/2026"
     loc_raw: "WA"
@@ -845,8 +966,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1107334/
   caffeinated:
+    source: https://www.rivianforums.com/forum/posts/1107334/
+    as_of: "2026-09-22"
     resv_raw: "8/11/2024"
     order_raw: "9/22/2026"
     loc_raw: "CA"
@@ -858,8 +980,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1107427/
   dscoti:
+    source: https://www.rivianforums.com/forum/posts/1107427/
+    as_of: "2026-09-22"
     resv_raw: "6/21/2026"
     order_raw: "9/22/2026"
     loc_raw: "NV"
@@ -871,8 +994,9 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/posts/1108623/
   surfinkal:
+    source: https://www.rivianforums.com/forum/posts/1108623/
+    as_of: "2026-09-24"
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
     vin_raw: "121XX"
@@ -886,8 +1010,9 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/threads/launch-green-coastal-cloud-r2-delivered.64650/
   tgo10000:
+    source: https://www.rivianforums.com/forum/threads/launch-green-coastal-cloud-r2-delivered.64650/
+    as_of: "2026-09-24"
     order_raw: "8/18/2026"
     delivery_raw: "9/23/2026"
     loc_raw: "MO"
@@ -900,8 +1025,9 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "Both"
-  # https://www.rivianforums.com/forum/posts/1109264/
   KenCar:
+    source: https://www.rivianforums.com/forum/posts/1109264/
+    as_of: "2026-09-24"
     resv_raw: "3/7/2024"
     order_raw: "8/18/2026"
     delivery_raw: "Mid October"
@@ -929,9 +1055,11 @@ additions:
   # unpriced instead of priced at base. So these count as orders, and each one
   # fills in as its details get reported.
   # ---------------------------------------------------------------------
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1032122
-  # https://www.rivianforums.com/forum/threads/r2-orders-vin-deliveries-list-tracker-stats-%F0%9F%93%8A.59905/post-1050124
   Derick38:
+    source:
+      - https://www.rivianforums.com/forum/posts/1032122/
+      - https://www.rivianforums.com/forum/posts/1050124/
+    as_of: "2026-08-18"
     resv_raw: "2/7/2026"
     order_raw: "6/18/2026"
     delivery_raw: "7/17/2026"
@@ -947,9 +1075,11 @@ additions:
     spare:
     r1_owner: "No"
     r1_model:
-  # https://www.rivianforums.com/forum/threads/who-hasnt-been-invited-to-order-with-an-early-reservation.60562/post-1033448
-  # https://www.rivianforums.com/forum/threads/r2-owners-how-long-between-build-notice-and-vin-notice.63182/post-1085455
   flyboi:
+    source:
+      - https://www.rivianforums.com/forum/posts/1033448/
+      - https://www.rivianforums.com/forum/posts/1085455/
+    as_of: "2026-08-26"
     resv_raw: "3/7/2024"
     order_raw:
     delivery_raw:
@@ -965,10 +1095,12 @@ additions:
     spare:
     r1_owner: "Yes"
     r1_model: "R1T"
-  # order: https://www.rivianforums.com/forum/threads/which-r2-colors-look-best-when-dirty.61008/post-1039007
-  # delivery: https://www.rivianforums.com/forum/threads/esker-silver-paint-sample-closeup-photos.62267/post-1067971
-  # spare: https://www.rivianforums.com/forum/threads/ridiculous-spare-tire-policy.62834/post-1083971
   gdyear78:
+    source:
+      - https://www.rivianforums.com/forum/posts/1039007/  # order
+      - https://www.rivianforums.com/forum/posts/1067971/  # delivery
+      - https://www.rivianforums.com/forum/posts/1083971/  # spare
+    as_of: "2026-08-26"
     resv_raw: "7/24/2024"
     # guestimate
     order_raw: "7/3/2026"
@@ -985,9 +1117,11 @@ additions:
     spare: "Yes"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/threads/update-on-r2-order-invitation-timing-now-in-account.60826/post-1034374
-  # https://www.rivianforums.com/forum/threads/coastal-cloud-catalina-cove-ordered.62926/post-1086550
   jling360:
+    source:
+      - https://www.rivianforums.com/forum/posts/1034374/
+      - https://www.rivianforums.com/forum/posts/1086550/
+    as_of: "2026-09-01"
     resv_raw: "3/7/2024"
     order_raw: "8/27/2026"
     delivery_raw:
@@ -1003,8 +1137,9 @@ additions:
     spare:
     r1_owner: "Yes"
     r1_model: "R1S"
-  # https://www.rivianforums.com/forum/posts/1086671/
   jennq:
+    source: https://www.rivianforums.com/forum/posts/1086671/
+    as_of: "2026-09-01"
     resv_raw: "3/7/2024"
     order_raw: "8/27/2026"
     delivery_raw:
@@ -1020,8 +1155,9 @@ additions:
     spare:
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/posts/1090281/
   ender_okc:
+    source: https://www.rivianforums.com/forum/posts/1090281/
+    as_of: "2026-09-01"
     resv_raw: "3/7/2024"
     order_raw: "9/1/2026"
     delivery_raw:
@@ -1036,8 +1172,9 @@ additions:
     tow: "Included"
     spare:
     r1_owner: "No"
-  # https://www.rivianforums.com/forum/threads/r2-delivery-problems.63276/post-1092023
   virginia_rivian:
+    source: https://www.rivianforums.com/forum/posts/1092023/
+    as_of: "2026-09-15"
     resv_raw: "3/7/2024"
     order_raw: "8/4/2026"
     delivery_raw: "9/2/2026"
@@ -1052,8 +1189,9 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1T"
-  # https://www.rivianforums.com/forum/threads/posts/1107771
   thrillseeker1234:
+    source: https://www.rivianforums.com/forum/threads/posts/1107771
+    as_of: "2026-09-24"
     resv_raw: "7/18/2026"
     order_raw: "9/16/2026"
     delivery_raw: "4-8 weeks"
@@ -1071,8 +1209,9 @@ additions:
 # Cancellations — entries that were valid but no longer exist. See the header.
 deletions:
   orders:
-    # https://www.rivianforums.com/forum/threads/picked-up-my-r2-today.62964/post-1086661
     prytog:
+      source: https://www.rivianforums.com/forum/posts/1086661/
+      as_of: "2026-08-27"
       reason: "cancelled by user (2026-08-27)"
       match:
         order_raw: "8/18/2026"
@@ -1083,22 +1222,28 @@ deletions:
     # the two collapse to one. Removing it here rather than overriding it matters:
     # deletions run BEFORE dedup, fix-ups after.
     FL5Guy:
+      source: "inferred"
+      as_of: "2026-09-15"
       reason: "stale resubmission — wheels corrected in #296"
       match:
         wheels: '21” Liquid Tungsten All-Season'
         order_raw: "7/23/2026"
     ToWn3r:
+      source: "inferred"
+      as_of: "2026-09-16"
       reason: "stale resubmission — dates corrected in #350"
       match:
         orig_num: "304"
   reservations:
-    # https://www.rivianforums.com/forum/threads/r2-reservation-list-tracker-stats-%F0%9F%93%8A.24890/post-1082894
     JungGravy:
+      source: https://www.rivianforums.com/forum/posts/1082894/
+      as_of: "2026-08-27"
       reason: "cancelled by user (2026-08-23)"
       match:
         orig_num: "1063"
-    # https://www.rivianforums.com/forum/posts/1090752/
     SCSEV:
+      source: https://www.rivianforums.com/forum/posts/1090752/
+      as_of: "2026-09-01"
       reason: "cancelled by user (2026-09-01)"
       match:
         orig_num: "469"
