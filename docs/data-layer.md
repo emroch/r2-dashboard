@@ -196,8 +196,52 @@ presentation decision, made in that stage.
 - **Benchmark first.** Stage 1 measures replay time. If it's too slow, the event log
   becomes a **gitignored build cache** first. A committed store is considered only
   after that.
-- **Repo growth:** about 125 MB a year of raw CSVs at today's cadence. Not addressed
-  here. Storing diffs instead of full snapshots is a later option.
+- **Repo growth:** see *Snapshot storage* below. Git stores the snapshots as
+  deltas, so the repository itself stays small. The costs that grow are the
+  working tree and the replay time.
+
+### Snapshot storage (long term)
+
+Decision record, discussed in #89. **Decision (2026-10-03): keep today's format, a
+timestamped snapshot per change, and revisit when a trigger below fires.**
+
+Measured 2026-10-03:
+
+- **Working tree:** `data/raw` holds 29 MB on disk across 226 order and 83
+  reservation snapshots.
+- **Git's own storage:** a fresh bare clone of the whole repo, every snapshot
+  included, takes **under 1 MB** of objects. Consecutive snapshots are nearly
+  identical, and git stores them as deltas.
+- **Actual change:** the line-level difference between consecutive order snapshots
+  totals 254 KB, against 16.9 MB of raw files.
+- **Replay time:** about 1.5 s per sheet (stage 1), growing linearly.
+
+The options weighed:
+
+| | Option | Why / why not |
+|---|---|---|
+| ✓ | **Timestamped snapshots, written only on change** (today) | Unique filenames, so no merge conflicts: the scheduled deploy, local builds and `./curate` can all add caches at once. Two copies of one change become a no-op snapshot, which replay handles without generating events. Raw data stays plain files, independent of git operations. |
+| ✗ | **One mirror file per sheet, with git history as the log** | Every concurrent writer edits one file, so merge conflicts. Replay needs full history (`fetch-depth: 0`). A squash, rebase or history rewrite silently loses snapshots, and commit time stands in for fetch time. It saves almost nothing, since git already deltas the snapshots. |
+| ✗ | **Journaled database** | A binary SQLite file in git neither deltas nor merges. A text journal is the event log stage 1 already derives: committing it adds a second source of truth, and appends to one file conflict. It could make sense outside git, but that adds hosting. |
+
+Known weakness of the chosen format: a value's time window runs back to the
+previous *changed* snapshot (7 h median, 121 h max), not to the last check that
+found no change. Day-level timing is enough for everything planned so far.
+
+Triggers to revisit, with the change each one points to:
+
+- **Working tree:** `data/raw` passes about 250 MB, or CI checkout time becomes
+  noticeable. Pack each closed month's snapshots into one compressed archive that
+  replay reads. Only one writer touches a closed month, so this can't conflict.
+- **Replay time:** replay takes more than about 10 s. Add a gitignored event-log
+  cache.
+- **Timing precision:** a feature needs sub-day timing (#34, maybe). Record checks
+  that found no change as one marker file per check
+  (`data/raw/checks/<slug>_<ts>`), which is conflict-free. Deploy run times from
+  the Actions API would miss local checks.
+- **Coupling:** data and code coupling gets painful (syncing `main` into `dev/*`
+  just for caches, ruleset friction). Move the snapshots to a `data` branch or a
+  separate repo, at the cost of the pipeline checking out two refs.
 
 ## Stages
 
