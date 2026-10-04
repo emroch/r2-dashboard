@@ -63,7 +63,11 @@ It's a run-in-place project (no install step). Dependencies are listed in
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped
   live caches. A new cache is written only when the fetched content differs from
   the newest cache (change detection), so a cache's timestamp marks when the data
-  last changed. If a live fetch fails, the newest cache is used.
+  last changed. If a live fetch fails, the newest cache is used. Caches from local
+  builds are worth committing too: each one can only add a change the scheduled
+  deploy missed, and a duplicate is harmless. Why the history is kept as separate
+  snapshots and not a single tracked file or a database is recorded in
+  `docs/data-layer.md` (*Snapshot storage*) and #89.
 
 ## Data source
 
