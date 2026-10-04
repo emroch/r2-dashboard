@@ -65,9 +65,10 @@ It's a run-in-place project (no install step). Dependencies are listed in
 - `data/processed/r2_dimensions.json` — `src/conf/dimensions.yaml` as JSON: each CSV
   column's label, category order, blank handling, small-n rule, caveat/note text,
   and per-category colors and markers.
-- `data/processed/r2_series.json` — the dashboard's headline counts as of every
-  Monday since the first snapshot, plus today: the real cleaning re-run on the
-  snapshot current at each date. Aggregates only; no per-order history.
+- `data/processed/r2_series.json` — daily counts of what was true by each date:
+  orders, final VINs assigned, final delivery dates set, deliveries, outstanding and
+  converted reservations, each counted on its own event date from today's data, so
+  late reports revise past points. Aggregates only; no per-order history.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped
   live caches. A new cache is written only when the fetched content differs from
