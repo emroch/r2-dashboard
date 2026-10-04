@@ -67,6 +67,8 @@
 #            value. An entry may carry only `dates`, to date values the sheet
 #            already has right. A date that can't fit (before the order, after
 #            the sheet already showed the value, ...) is listed, not used.
+# A dates-only entry (just `source` and `dates`, no field overridden) needs no
+# as_of: the milestone dates carry the timing.
 # Once the file says `curation_version: 2`, a missing source or as_of stops the
 # build. tools/migrate_curation.py converts the older comment-only format. Use
 # `username#2` (#3, ...) as the key to target one of a user's several orders.
