@@ -297,48 +297,48 @@ Redesigning means the old figures can't be the reference. Instead:
 ## Stages
 
 Each stage is one issue and one PR, from `presentation/<stage>` into `dev/presentation`,
-tracked under **#102**. Issue numbers are added once this design is reviewed.
+tracked under **#102**. Blockers are also set as issue dependencies.
 
-1. **Tooling** (`tooling`). `package.json` (eslint and wrangler pinned),
+1. **#104 Tooling** (`tooling`). `package.json` (eslint and wrangler pinned),
    `eslint.config.js`, `tests/js/`, a `js` job in `checks.yml`, the `.gitignore` and
    wrangler-action changes, the `src/web/` skeleton, the hashed asset copy and
    `_headers`.
    - *Acceptance:* the preview deploys from a clean tree.
    - *Acceptance:* the page is unchanged apart from its script tags.
    - *Acceptance:* the `js` check is added to the ruleset's required checks.
-2. **Theming and scaffolding** (`scaffold`). Category CSS, the OKLCH mark rule and its
+2. **#105 Theming and scaffolding** (`scaffold`). Category CSS, the OKLCH mark rule and its
    fallback, `theme.js` reduced to the toggle and `r2:themechange`, `components.py`,
    the `aggregates.reconcile` skeleton, `sections.yaml`, and `r2_view.json`. Blocked
    by 1.
    - *Acceptance:* reconciliation runs in the pipeline.
    - *Acceptance:* Glacier White and Midnight marks stay visible in both themes.
-3. **§2 HTML spike** (`takerate`). §2 as take-rate rows, shown beside the Plotly
+3. **#106 §2 HTML spike** (`takerate`). §2 as take-rate rows, shown beside the Plotly
    version on the preview. Blocked by 2.
    - *Acceptance:* the direction decision is recorded here, with evidence on payload,
      VoiceOver and theming.
    - *Acceptance:* `fig_config_dashboard` and its tests are migrated.
-4. **Library spike** (`lib-spike`). §10 and §12 in each candidate library. Blocked by
+4. **#107 Library spike** (`lib-spike`). §10 and §12 in each candidate library. Blocked by
    2; can run alongside 3.
    - *Acceptance:* the library decision is recorded here.
    - *Acceptance:* `adapter.js` and the `scatter` template are merged, and §10 is live
      with its whisker toggle in the URL.
    - *Acceptance:* the library is fetched only when a chart nears the viewport.
-5. **Static group A** (`static-a`). §3, §4, §8 and the summary readouts. Blocked by 3.
-6. **Static group B** (`static-b`). §13–16. Blocked by 3.
-7. **Time charts** (`lib-time`). §5, §6, §7. Blocked by 4.
-8. **Remaining library charts** (`lib-rest`). §9, §11, §12, §17; then delete
+5. **#108 Static group A** (`static-a`). §3, §4, §8 and the summary readouts. Blocked by 3.
+6. **#109 Static group B** (`static-b`). §13–16. Blocked by 3.
+7. **#110 Time charts** (`lib-time`). §5, §6, §7. Blocked by 4.
+8. **#111 Remaining library charts** (`lib-rest`). §9, §11, §12, §17; then delete
    `charts.py`, plotly and the retint code. Blocked by 4–7.
    - *Acceptance:* no plotly remains in the repo, and the budgets are met.
-9. **Polish** (`polish`). Blocked by 5–8.
+9. **#112 Polish** (`polish`). Blocked by 5–8.
    - **#41:** header behavior on narrow screens.
    - **#46:** close the report menu when one of its links is clicked.
    - **#30:** the 390 px pass, ARIA, and a color-blind palette option.
    - **#29:** the remainder, a sortable table of the cleaned rows.
-10. **Cutover.** `dev/presentation` into `main` in one PR, after the Worker change is
+10. **#113 Cutover.** `dev/presentation` into `main` in one PR, after the Worker change is
     deployed.
     - *Acceptance:* every reconciliation passes, and the preview is reviewed section by
       section.
-11. **Explore view, #51** (`explore`), after the cutover. `r2_cube.json`, dimension
+11. **#114 Explore view, #51** (`explore`), after the cutover. `r2_cube.json`, dimension
     pickers, caveats composed for the chosen dimensions, the small-n rule enforced by
     the renderer, and picks kept in the URL. Mostly UI, since stage 2 fixes the
     registry and the cube's shape.
