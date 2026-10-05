@@ -6,9 +6,13 @@
 // template's loader. No section is mounted yet (the first is #107), so for now
 // it finds nothing and does nothing.
 //
+// It also wires each component's "Download CSV" button (lib/csv.js).
+//
 // Importing this module must not touch the DOM: tests import it under Node,
 // where there is no document. Only boot() reads the page, and it runs on its
 // own only in a browser.
+
+import { wireCsv } from "./lib/csv.js";
 
 // template name -> () => import("./charts/<template>.js"). Filled as templates land.
 export const templates = {};
@@ -37,4 +41,7 @@ export function boot(root, registry = templates) {
   return Promise.all(mounted);
 }
 
-if (typeof document !== "undefined") boot(document);
+if (typeof document !== "undefined") {
+  wireCsv(document);
+  boot(document);
+}

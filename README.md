@@ -22,7 +22,11 @@ src/
     schema_check.py   locates columns by name; verifies them against schema.yaml
     loaders.py        load_and_clean, load_reservations
   render/             build the webpage
-    colors.py         color-transform functions + derived display palettes
+    colors.py         color transforms (HLS palettes for Plotly, OKLCH for marks)
+    categories.py     category colors as CSS classes (true swatch + theme-clamped mark)
+    aggregates.py     reconciled counts behind the components
+    components.py     the shared component frame (summary, n, caveats, data table)
+    view.py           builds the aggregates; writes r2_view.json
     charts.py         the ten fig_* chart builders + helpers
     page.py           BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
     assets.py         publishes src/web/ as content-hashed static assets
@@ -32,7 +36,9 @@ src/
     head.js           pre-paint theme set (no flash), inlined
   web/                browser code, served as static files (no build step)
     main.js           boots browser-drawn components (ES module)
-    theme.js          re-tint chart chrome on light/dark toggle
+    lib/csv.js        data table -> CSV download
+    theme.js          light/dark toggle (fires r2:themechange)
+    plotly-theme.js   re-tint Plotly chart chrome on theme change
     nav.js            sidebar hamburger + scroll-spy
     scrollzoom.js     map wheel-zoom vs. page scroll
   conf/               data/config YAML (loaded by config.py)
@@ -41,6 +47,7 @@ src/
                       published as r2_dimensions.json
     palette.yaml      chart fills that don't name a category (take-rate, timeline, accents)
     theme.yaml        page & chart chrome for light/dark (CSS variables + chart retint colors)
+    sections.yaml     the page's sections: order, title, prose, charts
     schema.yaml       sheet sources, column maps, sanitize bounds, option vocab
     geo.yaml          state/province -> region + coordinates, factory, province aliases
     delivery.yaml     delivery-estimate normalization (tokens, overrides, month names)
@@ -51,6 +58,7 @@ data/
 output/               dashboard HTML output
 tests/
   test_parsing.py     unit tests (run via pytest OR plain python3)
+  test_view.py        presentation-layer tests (sections, category CSS + contrast, aggregates)
   js/                 browser-code unit tests (node --test)
 ```
 
@@ -133,6 +141,7 @@ same token deploys both.
 
 ```sh
 python3 tests/test_parsing.py     # no pytest required
+python3 tests/test_view.py
 # or
 pytest tests/
 

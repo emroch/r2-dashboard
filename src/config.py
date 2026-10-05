@@ -26,6 +26,9 @@ CLEAN_CSV = str(DATA_PROCESSED / "r2_orders_clean.csv")
 # The published data contract (ingest/contract.py), deployed beside the CSV.
 DIMENSIONS_JSON = str(DATA_PROCESSED / "r2_dimensions.json")
 SERIES_JSON = str(DATA_PROCESSED / "r2_series.json")
+# The page's view data (render/view.py): spec + data for each browser-drawn
+# component. Fetched by the page; deployed beside the contract files.
+VIEW_JSON = str(DATA_PROCESSED / "r2_view.json")
 DASHBOARD = str(OUTPUT_DIR / "r2_orders_dashboard.html")
 
 # Local cache filename timestamp format (see fetch.py change detection).
@@ -53,6 +56,8 @@ _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
 _THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
 _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
+# The page's section registry: order, title, prose, and what each section draws.
+SECTIONS_CONF = _load("sections.yaml")["sections"]
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only

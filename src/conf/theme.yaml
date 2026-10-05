@@ -36,6 +36,14 @@ css:
     warn: "#9a6a00"
     chg: "#2e7d32"
     stat-bg: "#f3ae3d"  # Compass Yellow
+    # Mark lightness range (OKLCH L, 0-1) for category colors drawn as data marks
+    # (render/categories.py): a mark keeps its paint's hue and chroma, with the
+    # lightness clamped into this range so it stays visible on the card. 0.65 is
+    # the highest cap at which every category color holds WCAG's 3:1 for non-text
+    # marks against the white card (tests/test_view.py checks it). Swatches show
+    # the true color and ignore this.
+    mark-lmin: "0"
+    mark-lmax: "0.65"
   dark:
     bg: "#15171c"
     fg: "#dfe4ea"
@@ -61,6 +69,9 @@ css:
     warn: "#ffd27f"
     chg: "#8fdf8f"
     stat-bg: "#f3ae3d"  # Compass Yellow
+    # Dark card: marks lifted to at least 0.70, and pale ones capped at 0.92.
+    mark-lmin: "0.70"
+    mark-lmax: "0.92"
   fixed:                        # header / sidebar / disclaimer chrome (same in both themes)
     topbar-fg: "#ffffff"
     topbar-sh: "rgba(0,0,0,.22)"
@@ -79,10 +90,15 @@ css:
     chip-fg: "#1c1c1c"
     tip-sh: "rgba(0,0,0,.22)"
     footer-link: "#4c78a8"
+    # Delivery stages share their category's mark and differ only in opacity, so
+    # "fainter = not yet" reads the same on a light or a dark card.
+    a-delivered: "1"
+    a-vin: "0.65"
+    a-wait: "0.35"
 
 # ---------------------------------------------------------------------------
 # Chart chrome. The `light` values are baked into the server-rendered charts;
-# the theme toggle (THEME_JS) swaps to `dark`. Covers font, gridlines, axis
+# the theme toggle (web/plotly-theme.js) swaps to `dark`. Covers font, gridlines, axis
 # lines, geo land/borders, legend boxes, the "managed" marker/line edge grey,
 # and the factory star.
 # ---------------------------------------------------------------------------
