@@ -12,17 +12,21 @@ import io
 import numpy as np
 import pandas as pd
 
-from config import (ADDITIONS, AS_OF, AVAILABILITY, DELETIONS_ORDERS,
-                     DEDUPE_IDENTITY, DELETIONS_RESV, OPTED_IN_TOKENS,
+from config import (ADDITIONS, AS_OF, AVAILABILITY, CURATION_VERSION,
+                     DELETIONS_ORDERS, DEDUPE_IDENTITY, DELETIONS_RESV,
+                     OPTED_IN_TOKENS,
                      ORDER_DATE_MIN, ORDERS_COLUMNS, ORDERS_HEADERS,
                      ORDERS_IGNORED, OVERRIDES, RESERVATIONS_COLUMNS,
                      RESV_DATE_MIN, RESV_IGNORED, RESV_LABEL, SPARE_TOKENS,
-                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VERIFIED)
+                     UNKNOWN_SUBSTRINGS, UNKNOWN_TOKENS, VERIFIED,
+                     VERIFIED_RAW)
+from . import curation
+from .history import replay
 from .outliers import find_suspects
 from .parsing import (clean_vin, geo_enrich, haversine_mi, parse_delivery,
                       parse_simple_date, reconcile_r1_owner, wheel_label)
 from .pricing import PRICE_PARTS, price_order, reconcile_launch_options
-from .schema_check import find_header, map_columns
+from .schema_check import find_header, map_columns, raw_rows
 
 
 def _extract(records, hdr_idx, idx, fields):
@@ -35,13 +39,7 @@ def _extract(records, hdr_idx, idx, fields):
     commas) get an empty cell rather than raising.
     """
     fields = list(fields)
-    cols = [idx[f] for f in fields]
-    rows = [[(rec[j] if j < len(rec) else "") for j in cols]
-            for rec in records[hdr_idx + 1:]]
-    df = pd.DataFrame(rows, columns=fields)
-    for c in df.columns:
-        df[c] = df[c].astype(str).str.strip()
-    return df
+    return pd.DataFrame(raw_rows(records, hdr_idx, idx, fields), columns=fields)
 
 
 def _curated(value):
@@ -65,42 +63,62 @@ def _curated(value):
     return "" if value is None else str(value).strip()
 
 
-def _apply_overrides(df, overrides):
+def _apply_overrides(df, overrides, changed=None):
     """Apply manual fix-ups (username -> {raw field: value}) in place, before
     cleaning, so the values flow through the normal pipeline. Case-insensitive
     username match; validates field names against the schema. Idempotent.
 
     A username can legitimately hold MORE THAN ONE row here: dedup keeps repeat
     submissions whose builds differ as separate orders rather than guessing (see
-    _dedupe_by_user). That makes the target ambiguous, so the fix-up lands on the
-    latest submission — people resubmit to correct themselves, the same rule the
-    merge uses — and the ambiguity is REPORTED. It used to be resolved silently:
-    a dict comprehension kept whichever row came last, so a correction meant for
-    one order could edit the other with nothing said about it anywhere.
+    _dedupe_by_user). A plain username is then ambiguous, so the fix-up lands on
+    the latest submission — people resubmit to correct themselves, the same rule
+    the merge uses — and the ambiguity is REPORTED, naming the order keys
+    (`user#2`, ...) that target one order exactly (ingest/history.py).
+
+    Two kinds of staleness are reported (curation v2, ingest/curation.py):
+      * the sheet already says what the override says — it can be removed;
+      * the sheet's value changed after the override was last known to hold —
+        its as_of, or its `checked` date if someone has re-confirmed it since
+        (`changed` holds when each current value took hold, from the snapshot
+        history). The person updated the sheet, so the override may be wrong.
     Returns (applied_records, issue_records) for the report/QA panel."""
     valid = set(ORDERS_COLUMNS)
     rows_by_user: dict[str, list[int]] = {}
     for i, u in zip(df.index, df["user"]):
         rows_by_user.setdefault(str(u).lower(), []).append(i)
+    rows_by_key = dict(zip(df["key"], df.index)) if "key" in df.columns else {}
     applied, issues = [], []
-    for uname, fields in (overrides or {}).items():
-        rows = rows_by_user.get(str(uname).lower())
-        if not rows:
-            issues.append(("—", str(uname), "no matching order row"))
-            continue
-        # df is in sheet order with a fresh index, so the last row is the one
-        # submitted most recently.
-        i = rows[-1]
-        if len(rows) > 1:
-            issues.append((
-                df.at[i, "orig_num"], df.at[i, "user"],
-                "%d separate orders under this username (%s) — fix-up applied to "
-                "the latest (#%s) only; if the others are stale resubmissions, "
-                "delete them so they collapse"
-                % (len(rows),
-                   ", ".join("#%s" % df.at[j, "orig_num"] for j in rows),
-                   df.at[i, "orig_num"])))
+    for e in curation.entries(overrides):
+        uname, fields = e.target, e.body
+        if "#" in uname:
+            # An order key targets one order exactly; no ambiguity to resolve.
+            i = rows_by_key.get(uname.lower())
+            if i is None:
+                issues.append(("—", uname, "no order with key %s" % uname.lower()))
+                continue
+        else:
+            rows = rows_by_user.get(uname.lower())
+            if not rows:
+                issues.append(("—", uname, "no matching order row"))
+                continue
+            # df is in sheet order with a fresh index, so the last row is the one
+            # submitted most recently.
+            i = rows[-1]
+            if len(rows) > 1:
+                keys = ""
+                if "key" in df.columns:
+                    keys = " or target one by key: %s" % ", ".join(
+                        df.at[j, "key"] for j in rows)
+                issues.append((
+                    df.at[i, "orig_num"], df.at[i, "user"],
+                    "%d separate orders under this username (%s) — fix-up applied "
+                    "to the latest (#%s) only; if the others are stale "
+                    "resubmissions, delete them so they collapse%s"
+                    % (len(rows),
+                       ", ".join("#%s" % df.at[j, "orig_num"] for j in rows),
+                       df.at[i, "orig_num"], keys)))
         onum, disp = df.at[i, "orig_num"], df.at[i, "user"]
+        key = df.at[i, "key"] if "key" in df.columns else None
         for field, value in (fields or {}).items():
             if field not in valid:
                 issues.append((onum, disp, "unknown field '%s'" % field))
@@ -117,9 +135,28 @@ def _apply_overrides(df, overrides):
                                "stands (write \"unknown\" to overwrite it)" % field))
                 continue
             old, new = df.at[i, field], _curated(value)
-            if old != new:
-                df.at[i, field] = new
-                applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
+            if old == new:
+                issues.append((onum, disp,
+                               "%s: the sheet already says %r — this override can "
+                               "be removed" % (field, new)))
+                continue
+            df.at[i, field] = new
+            applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
+            # Strictly after: these are days, and a same-day sheet edit is as
+            # likely to be what the override responded to as a later update.
+            run = (changed or {}).get((key, field))
+            held = e.reviewed
+            if held and run and run[2] is not None and run[2].date() > held:
+                lo, hi = run[2].date(), run[1].date()
+                when_txt = ("on %s" % hi if lo == hi
+                            else "between %s and %s" % (lo, hi))
+                since = ("checked %s" % e.checked if e.checked
+                         else "as_of %s" % e.as_of)
+                issues.append((onum, disp,
+                               "%s: the sheet changed to %r %s, after this "
+                               "override (%s) — check it still applies, then "
+                               "add or update `checked:`"
+                               % (field, old, when_txt, since)))
     return applied, issues
 
 
@@ -132,7 +169,8 @@ def _apply_additions(df, additions):
     valid = set(ORDERS_COLUMNS)
     sheet_users = {str(u).lower() for u in df["user"]}
     seen, new_rows, added, issues = set(), [], [], []
-    for uname, fields in (additions or {}).items():
+    for e in curation.entries(additions):
+        uname, fields = e.target, e.body
         key = str(uname).lower()
         if key in sheet_users:
             issues.append(("—", str(uname),
@@ -144,6 +182,7 @@ def _apply_additions(df, additions):
         seen.add(key)
         row = dict.fromkeys(ORDERS_COLUMNS, "")
         row["user"], row["orig_num"] = str(uname), "add"
+        row["key"] = key
         set_fields = []
         for field, value in (fields or {}).items():
             if field not in valid:
@@ -158,8 +197,26 @@ def _apply_additions(df, additions):
         new_rows.append(row)
         added.append(("add", str(uname),
                       "manual entry — " + ", ".join(sorted(set_fields))))
-    add_df = pd.DataFrame(new_rows, columns=ORDERS_COLUMNS) if new_rows else None
+    add_df = (pd.DataFrame(new_rows, columns=[*ORDERS_COLUMNS, "key"])
+              if new_rows else None)
     return add_df, added, issues
+
+
+def _snapshot_keys(df):
+    """Order keys from this snapshot alone: a one-snapshot replay."""
+    fields = list(df.columns)
+    h = replay([(AS_OF, fields, df.values.tolist())])
+    return dict(zip(h.orders["orig_num"], h.orders["key"]))
+
+
+def _check_curation():
+    """Stop the build if overrides.yaml lacks provenance its version requires."""
+    curation.check(CURATION_VERSION,
+                   {"overrides": OVERRIDES, "additions": ADDITIONS,
+                    "deletions.orders": DELETIONS_ORDERS,
+                    "deletions.reservations": DELETIONS_RESV,
+                    "verified": VERIFIED_RAW},
+                   AS_OF.date())
 
 
 def _check_verified(df, verified):
@@ -211,7 +268,9 @@ def _dedupe_by_user(df, identity):
     Returns (df, merged_records, build_conflicts, value_conflicts).
     """
     ident = [c for c in identity if c in df.columns]
-    compare = [c for c in df.columns if c != "orig_num"]
+    # Not "#" or the order key: both name the ROW, not what it says, so they
+    # differ between any two submissions. The surviving row keeps its own.
+    compare = [c for c in df.columns if c not in ("orig_num", "key")]
 
     def _submission_order(i):
         """Sheet row number, which is the closest thing to submission order —
@@ -318,12 +377,13 @@ def _apply_deletions(df, deletions, what, valid_fields=()):
     for i, u in zip(df.index, df["user"]):
         by_user.setdefault(str(u).strip().lower(), []).append(i)
     drop, records, issues = [], [], []
-    for uname, spec in (deletions or {}).items():
-        if isinstance(spec, dict):
-            reason = _curated(spec.get("reason"))
-            match = {f: _curated(v) for f, v in (spec.get("match") or {}).items()}
+    for e in curation.entries(deletions):
+        uname = e.target
+        if isinstance(e.body, dict):
+            reason = _curated(e.reason)
+            match = {f: _curated(v) for f, v in (e.body.get("match") or {}).items()}
         else:
-            reason, match = _curated(spec), {}
+            reason, match = _curated(e.body), {}
         if not reason:
             # The reason IS the evidence — nothing in the data marks a removal — and
             # it is published in the audit panel, so a blank one leaves a row saying
@@ -398,7 +458,16 @@ def _availability_mask(df):
     return mask, records
 
 
-def load_and_clean(text, meta):
+def load_and_clean(text, meta, keys=None, changed=None):
+    """Clean the orders sheet. Returns (df, report, parsed).
+
+    keys     "#" -> order key for this snapshot (history.current_keys). Without
+             it, keys are assigned from this snapshot alone, which agrees with the
+             full history except where an earlier row has been deleted.
+    changed  (key, field) -> when each current value took hold
+             (history.current_runs), for the stale-override check.
+    """
+    _check_curation()
     # The orders sheet export carries title/notes rows above the header AND a
     # leading blank column. Parse with the csv module (robust to quoted newlines
     # in the title cells), find the header record by locating "Username", then
@@ -412,6 +481,11 @@ def load_and_clean(text, meta):
     df = _extract(records, hdr_idx, idx, ORDERS_COLUMNS)
     df = df[df["user"] != ""].reset_index(drop=True)  # drop blank spacer rows
     n_raw = len(df)
+    # Order keys (ingest/history.py), so curation can target one of a user's
+    # several orders as user#n. Carried through every stage; never exported.
+    if keys is None:
+        keys = _snapshot_keys(df)
+    df["key"] = [keys.get(o, u.lower()) for o, u in zip(df["orig_num"], df["user"])]
 
     # --- Cancellations, before everything else ---
     # Ahead of the dedup so a cancelled name loses ALL of its rows together: run
@@ -432,7 +506,7 @@ def load_and_clean(text, meta):
 
     # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
     #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
-    override_records, override_issues = _apply_overrides(df, OVERRIDES)
+    override_records, override_issues = _apply_overrides(df, OVERRIDES, changed)
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)

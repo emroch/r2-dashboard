@@ -22,6 +22,11 @@ src/
     schema_check.py column location by name + verification against schema.yaml
     outliers.py     likely entry errors (values that contradict the order date or their cohort) — set aside, not corrected
     loaders.py      load_and_clean, load_reservations
+    history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
+    curation.py     overrides.yaml provenance: source/as_of/reason, effective dates, v2 enforcement
+    timeline.py     cross-snapshot QA checks (VIN/order-date changes, firm->vague, rows that left the sheet)
+    milestones.py   when each order's final VIN / final delivery date took hold (curated `dates:` or first snapshot showing it); internal
+    contract.py     published data contract: dimension metadata + event-dated daily series (r2_dimensions.json / r2_series.json)
   render/           BUILD THE WEBPAGE
     colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
     charts.py       the ten fig_* chart builders + helpers
@@ -31,7 +36,8 @@ src/
     styles.css      the page stylesheet (its own <style> slot; theme vars separate)
     head.js         pre-paint theme set (no flash); theme.js re-tints charts on toggle; nav.js sidebar scroll-spy
   conf/             the data/config YAML (loaded by config.py at import)
-    palette.yaml    data-encoding colors & markers — paints, interiors, wheels, regions, delivery-type colors, chart fills (take-rate/timeline), heatmap scale
+    dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
+    palette.yaml    chart fills that don't name a category (take-rate/timeline tints, accents, heatmap scale)
     theme.yaml      page & chart chrome for light/dark — CSS custom properties + chart retint colors + static chart accents
     schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
@@ -41,6 +47,7 @@ data/raw/           timestamped live caches (auto change-detected)
 data/processed/     cleaned CSV output
 output/             dashboard HTML output
 tests/              unit tests (test_parsing.py)
+tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 
 The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds a 10-chart interactive Plotly dashboard.
@@ -55,6 +62,7 @@ Run the pipeline from the project root:
 
 Outputs:
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
+- `data/processed/r2_dimensions.json`, `r2_series.json` — the published data contract (`ingest/contract.py`): `dimensions.yaml` as JSON, and daily counts of what was true by each date (event-dated, from today's data). Aggregates only.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. If a live fetch fails, the newest cache is used.
 
@@ -106,7 +114,7 @@ Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4)
 ## Guidance
 
 - Data is always pulled live from the source sheets and cached under `data/raw/` (timestamped, change-detected) — there are **no hand-maintained snapshots**, so do not add or rely on manual CSV copies. Write cleaned/derived data to `data/processed/`; never mutate the raw caches.
-- Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `palette.yaml` (data-encoding colors/markers + chart fills), `theme.yaml` (page & chart chrome for light/dark), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
+- Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `dimensions.yaml` (the category vocabulary: labels, order, colors/markers, caveats; published verbatim as `r2_dimensions.json`), `palette.yaml` (chart fills), `theme.yaml` (page & chart chrome for light/dark), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.
 - Both sheets' columns are located **by name** (`ingest/schema_check.py`), and only the columns listed in `schema.yaml` are read at all — so reordering a sheet or adding a question to the form changes nothing here. Every run verifies each mapped column is present exactly once; a renamed/removed/duplicated one raises `SchemaDrift` and **stops the pipeline**, because it would otherwise read as empty (or ambiguously) for every row. The fix is to edit `orders_columns` / `reservations_columns` to match the sheet. A new *unmapped* column is only reported in the data-quality panel; add it to `ignored_columns` once it's knowingly unused, or map it to use it.
 - Lint is `ruff check` (no `ruff format`, no import sorting — the hand-aligned continuation style is deliberate) and types are `mypy` with `check_untyped_defs`, both via `./ci_env lint` and the `Static checks` PR workflow. The code must still run on the system 3.9, so a module using `X | None` hints needs `from __future__ import annotations`, and names used only in hints (e.g. pandas' `NaTType`) are imported under `TYPE_CHECKING`.

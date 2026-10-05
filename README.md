@@ -31,7 +31,10 @@ src/
     theme.js          re-tint chart chrome on light/dark toggle
     nav.js            sidebar hamburger + scroll-spy
   conf/               data/config YAML (loaded by config.py)
-    palette.yaml      data-encoding colors & markers (paints, interiors, wheels, regions, types, chart fills)
+    dimensions.yaml   category vocabulary: each column's label, order, blank handling, caveat, and
+                      per-category label/color/marker (paints, wheels, interiors, regions, ...);
+                      published as r2_dimensions.json
+    palette.yaml      chart fills that don't name a category (take-rate, timeline, accents)
     theme.yaml        page & chart chrome for light/dark (CSS variables + chart retint colors)
     schema.yaml       sheet sources, column maps, sanitize bounds, option vocab
     geo.yaml          state/province -> region + coordinates, factory, province aliases
@@ -59,11 +62,22 @@ It's a run-in-place project (no install step). Dependencies are listed in
 ## Outputs
 
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
+- `data/processed/r2_dimensions.json` — `src/conf/dimensions.yaml` as JSON: each CSV
+  column's label, category order, blank handling, small-n rule, caveat/note text,
+  and per-category colors and markers.
+- `data/processed/r2_series.json` — daily counts of what was true by each date:
+  orders, final VINs assigned, final delivery dates set, deliveries, outstanding and
+  converted reservations, each counted on its own event date from today's data, so
+  late reports revise past points. Aggregates only; no per-order history.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped
   live caches. A new cache is written only when the fetched content differs from
   the newest cache (change detection), so a cache's timestamp marks when the data
-  last changed. If a live fetch fails, the newest cache is used.
+  last changed. If a live fetch fails, the newest cache is used. Caches from local
+  builds are worth committing too: each one can only add a change the scheduled
+  deploy missed, and a duplicate is harmless. Why the history is kept as separate
+  snapshots and not a single tracked file or a database is recorded in
+  `docs/data-layer.md` (*Snapshot storage*) and #89.
 
 ## Data source
 
