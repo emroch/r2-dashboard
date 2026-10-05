@@ -66,7 +66,7 @@ Outputs:
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. If a live fetch fails, the newest cache is used.
 
-Shipping a curation edit (`src/conf/*.yaml`, new `data/raw` caches): `./curate "message"` runs `./ci_env check`, then branches, commits, opens a PR, waits for its checks and rebase-merges it (one linear data commit, no merge commit) — `main`'s ruleset blocks direct pushes. It refuses changes outside those paths.
+Shipping a curation edit (`src/conf/*.yaml`, new `data/raw` caches): `./curate "message"` runs `./ci_env check`, then branches, commits, opens a PR, waits for its checks and squash-merges it (one linear data commit, no merge commit; rebase merges are refused because `main` requires signed commits) — `main`'s ruleset blocks direct pushes. It refuses changes outside those paths.
 
 Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
 
