@@ -159,7 +159,9 @@ def takerate(cid: str, spec: dict, agg: Aggregate) -> str:
             % (cls, '<span class="swatch"></span>' if c["ref"] else "",
                escape(str(c["label"])), format(int(c["n"]), ","),
                share(int(c["n"]), total), segs, escape(split)))
-    table = Table(["Option", "Orders", "Share"] + [STAGE_LABELS[s].capitalize()
+    # Only the first letter is raised: str.capitalize() would lower "VIN".
+    table = Table(["Option", "Orders", "Share"] + [STAGE_LABELS[s][:1].upper()
+                                                   + STAGE_LABELS[s][1:]
                                                    for s in STAGES],
                   [[c["label"], c["n"], share(int(c["n"]), total)]
                    + [c["stages"][s] for s in STAGES] for c in cells])

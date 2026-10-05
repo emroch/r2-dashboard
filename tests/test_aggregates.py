@@ -242,6 +242,7 @@ def test_takerate_rows_carry_swatch_counts_bar_and_stage_text():
     assert "1 not reported, left out." in html
     assert "Inferred, not reported." in html, "the stage split's own caveat"
     assert "<th scope=\"col\">Delivered (est.)</th>" in html
+    assert "<th scope=\"col\">With a VIN</th>" in html, "VIN keeps its capitals"
 
 
 def test_rows_without_a_category_color_are_neutral():
