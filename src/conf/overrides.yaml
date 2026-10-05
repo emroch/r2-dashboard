@@ -107,32 +107,20 @@ overrides:
     source: https://www.rivianforums.com/forum/posts/1043872/
     as_of: "2026-07-11"
     delivery_raw: "7/10/2026"
-  # delivery update
   NCSwa:
     source: https://www.rivianforums.com/forum/posts/1047369/
     as_of: "2026-07-19"
     delivery_raw: "7/15/2026"
-  # VIN update
-  adagia:
-    source: https://www.rivianforums.com/forum/posts/1047660/
-    as_of: "2026-07-19"
-    vin_raw: "02275"
-  # delivery update
-  dduffey:
-    source: https://www.rivianforums.com/forum/posts/1048085/
-    as_of: "2026-07-19"
-    delivery_raw: "7/18/2026"
-  # delivery delayed 7/20-7/24
+  # delivery delayed 7/20 -> 7/24
   california gold:
     source: https://www.rivianforums.com/forum/posts/1049355/
     as_of: "2026-07-19"
     delivery_raw: "7/24/2026"
-  # delivery delayed 7/10-7/14
+  # delivery delayed 7/10 -> 7/14
   bpmcc503:
     source: https://www.rivianforums.com/forum/posts/1049498/
     as_of: "2026-07-19"
     delivery_raw: "7/14/2026"
-  # delivery update
   RivianPGH:
     source: https://www.rivianforums.com/forum/posts/1049653/
     as_of: "2026-07-19"
@@ -166,12 +154,10 @@ overrides:
     source: "inferred - Launch Package is only available config at the time"
     as_of: "2026-08-05"
     launch: "Yes"
-  # delivery update
   dmartin:
     source: https://www.rivianforums.com/forum/posts/1051958/
     as_of: "2026-08-03"
     delivery_raw: "7/23/2026"
-  # VIN/delivery update
   Josh X:
     source:
       - https://www.rivianforums.com/forum/posts/1053263/
@@ -179,17 +165,14 @@ overrides:
     as_of: "2026-08-03"
     delivery_raw: "7/25/2026"
     vin_raw: "1345"
-  # delivery update
   DaveA:
     source: https://www.rivianforums.com/forum/posts/1053908/
     as_of: "2026-08-03"
     delivery_raw: "8/5/2026"
-  # delivery update
   jtm1631:
     source: https://www.rivianforums.com/forum/posts/1054733/
     as_of: "2026-08-03"
     delivery_raw: "8/4/2026"
-  # delivery update
   # The sheet later read "4-8 weeks(org), 9 weeks (act) 8/19": the same date, in
   # a form the parser can't read. Re-checked against the post.
   KCP:
@@ -197,7 +180,6 @@ overrides:
     as_of: "2026-08-03"
     checked: "2026-08-23"
     delivery_raw: "8/19/2026"
-  # vin/delivery update
   tkauftheil:
     source:
       - https://www.rivianforums.com/forum/posts/1060756/
@@ -205,110 +187,82 @@ overrides:
     as_of: "2026-08-03"
     delivery_raw: "8/27/2026"
     vin_raw: "X42XX"
-  # delivery update
   cwq93r:
     source: https://www.rivianforums.com/forum/posts/1061910/
-    as_of: "2026-08-03"
-    delivery_raw: "8/6/2026"
-  # delivery update
+    dates:
+      delivery_scheduled: "2026-07-30"
   R1TCA:
     source: https://www.rivianforums.com/forum/posts/1062205/
     as_of: "2026-08-03"
     delivery_raw: "7/28/2026"
-  # delivery update
   Super_Dave:
     source: https://www.rivianforums.com/forum/posts/1062358/
     as_of: "2026-08-03"
     delivery_raw: "8/4/2026"
-  # delivery update
   pretzelsaremakingmethirsty:
     source: https://www.rivianforums.com/forum/posts/1064384/
     as_of: "2026-08-03"
     delivery_raw: "8/5/2026"
-  # delivery estimate
   jediknight:
-    source:
-      - https://www.rivianforums.com/forum/posts/1065243/
-      - https://www.rivianforums.com/forum/posts/1066257/
-      - https://www.rivianforums.com/forum/posts/1065243/
-    as_of: "2026-08-03"
-    delivery_raw: "8/7/26"
-    r1_owner: "Yes"
-  # delivery update
+    source: https://www.rivianforums.com/forum/posts/1066257/
+    dates:
+      delivery_scheduled: "2026-08-04"
   Coney129:
     source: https://www.rivianforums.com/forum/posts/1065585/
     as_of: "2026-08-06"
     delivery_raw: "8/24/26"
     vin_raw: "2922"
-  # delivery update
   cthelan:
     source: https://www.rivianforums.com/forum/posts/1066579/
     as_of: "2026-08-06"
     delivery_raw: "8/10/26 - 8/14/26"
-  # delivery update
-  VMI9d3:
-    source: https://www.rivianforums.com/forum/posts/1066502/
-    as_of: "2026-08-06"
-    delivery_raw: "TBD"
-  # delivery update
   Eric9610:
     source:
       - https://www.rivianforums.com/forum/posts/1066820/
       - https://www.rivianforums.com/forum/posts/1068196/
     as_of: "2026-08-06"
     delivery_raw: "8/7/2026"
-  # delivery update
   TXKidd:
     source: https://www.rivianforums.com/forum/posts/1067552/
     as_of: "2026-08-18"
     delivery_raw: "8/14/2026"
-  # delivery update
   a9967:
     source: https://www.rivianforums.com/forum/posts/1068097/
     as_of: "2026-08-18"
     delivery_raw: "8/6/2026"
-  # delivery update
   andisimose:
     source: https://www.rivianforums.com/forum/posts/1068101/
     as_of: "2026-08-18"
     delivery_raw: "8/11/2026"
-  # vin update
   robstilltrippin:
     source: https://www.rivianforums.com/forum/posts/1071839/
     as_of: "2026-08-18"
     vin_raw: "59XX"
-  # delivery update
   solidbrix:
     source: https://www.rivianforums.com/forum/posts/1073061/
     as_of: "2026-08-18"
     delivery_raw: "8/19/2026"
-  # vin update
   DBDR:
     source: https://www.rivianforums.com/forum/posts/1079143/
     as_of: "2026-08-21"
     vin_raw: "TBD"
-  # delivery update
   WhiskeyDoc:
     source: https://www.rivianforums.com/forum/posts/1080568/
     as_of: "2026-08-21"
     delivery_raw: "8/19/2026"
-  # delivery update
   Ryanbac:
     source: https://www.rivianforums.com/forum/posts/1081153/
-    as_of: "2026-08-21"
-    delivery_raw: "9/5/2026"
-    vin_raw: "72XX"
-  # vin update
+    dates:
+      vin_assigned: "2026-08-13"
+      delivery_scheduled: "2026-08-20"
   deadstar114:
     source: https://www.rivianforums.com/forum/posts/1081450/
-    as_of: "2026-08-21"
-    vin_raw: "36XX"
-  # delivery update
+    dates:
+      vin_assigned: "2026-08-21"
   protamine:
     source: https://www.rivianforums.com/forum/threads/my-r2-coastal-interior-real-live-in-the-flesh-in-midnight-r2.63084/
     as_of: "2026-08-23"
     delivery_raw: "8/25/2026"
-  # delivery update
   # Note: username does not match entry exactly
   DTH Texas:
     source: https://www.rivianforums.com/forum/posts/1084889/
@@ -319,7 +273,6 @@ overrides:
     source: https://www.rivianforums.com/forum/posts/1085294/
     as_of: "2026-08-26"
     color: "Launch Green"
-  # order update
   windblowlc:
     source:
       - https://www.rivianforums.com/forum/posts/1085228/
@@ -329,65 +282,53 @@ overrides:
     delivery_raw: "9/4/2026"
     vin_raw: "91XX"
     wheels: '20” Black Sand All-Terrain'
-  # delivery estimate
   NormalLife:
     source: https://www.rivianforums.com/forum/posts/1085647/
-    as_of: "2026-08-26"
-    delivery_raw: "9/14/26 - 9/18/26"
-  # delivery update
+    dates:
+      vin_assigned: "2026-08-15"
   kurtlikevonnegut:
     source: https://www.rivianforums.com/forum/posts/1085673/
     as_of: "2026-08-26"
     delivery_raw: "8/11/2026"
-  # vin update, reservation correction
   tivoboy:
     source: https://www.rivianforums.com/forum/posts/1085900/
     as_of: "2026-08-26"
     resv_raw: "3/7/2024"
     vin_raw: "47XX"
-  # delivery update
   derekmw:
     source: https://www.rivianforums.com/forum/posts/1072975/
     as_of: "2026-08-27"
     delivery_raw: "8/11/2026"
-  # vin update
   deacon:
     source: https://www.rivianforums.com/forum/posts/1089756/
     as_of: "2026-09-01"
     vin_raw: "09011"
-  # vin update
   momo_your_momoness:
     source: https://www.rivianforums.com/forum/posts/1086109/
-    as_of: "2026-09-01"
-    vin_raw: "4770"
-  # delivery update
+    dates:
+      vin_assigned: "2026-08-20"
   sdiesel619:
     source: https://www.rivianforums.com/forum/posts/1086585/
     as_of: "2026-09-01"
     delivery_raw: "9/12/2026"
-  # delivery update
   r2deeztwo:
     source: https://www.rivianforums.com/forum/posts/1090008/
     as_of: "2026-09-01"
     delivery_raw: "9/12/2026"
-  # delivery update
   RivianRiverRat:
     source: https://www.rivianforums.com/forum/posts/1090677/
     as_of: "2026-09-01"
     delivery_raw: "9/1/2026"
-  # delivery update
   Ssmtsx:
     source: https://www.rivianforums.com/forum/posts/1090725/
     as_of: "2026-09-01"
     delivery_raw: "9/9/2026"
-  # order update
   reodds:
     source: https://www.rivianforums.com/forum/posts/1092339/
     as_of: "2026-09-15"
     order_raw: "8/18/2026"
     vin_raw: "9522"
     color: "Glacier White"
-  # order update
   RivianTrackr:
     source:
       - https://riviantrackr.com/news/rivian-r2-factory-pickup-normal-illinois/
@@ -405,18 +346,11 @@ overrides:
     as_of: "2026-09-15"
     order_raw: "9/15/2026"
     delivery_raw: "Unknown"
-  FL5Guy:
-    source: https://www.rivianforums.com/forum/posts/1101904
-    as_of: "2026-09-15"
-    order_raw: "9/15/2026"
-    color: "Borealis"
-    interior: "Coastal Cloud Signature"
-    wheels: '20” Black Sand All-Terrain'
   drydeniv:
     source: https://www.rivianforums.com/forum/posts/1104654/
-    as_of: "2026-09-16"
-    vin_raw: "9537"
-    delivery_raw: "9/30/2026"
+    dates:
+      vin_assigned: "2026-09-10"
+      delivery_scheduled: "2026-09-18"
   alanr2:
     source: https://www.rivianforums.com/forum/posts/1104511/
     as_of: "2026-09-19"
@@ -430,11 +364,10 @@ overrides:
     source: "inferred - provided in sheet but not parseable"
     as_of: "2026-09-19"
     delivery_raw: "8/4/2026"
-  # partial vin
   KenyMcCormick:
     source: https://www.rivianforums.com/forum/posts/1105681/
-    as_of: "2026-09-22"
-    vin_raw: "116XX"
+    dates:
+      vin_assigned: "2026-09-20"
   # invalid vin and delivery date
   AlisR2:
     source: https://www.rivianforums.com/forum/posts/1107561/
@@ -451,12 +384,10 @@ overrides:
     source: https://www.rivianforums.com/forum/posts/1107735/
     as_of: "2026-09-24"
     vin_raw: "116XX"
-  # delivery update
   R1T Preds Fan:
     source: https://www.rivianforums.com/forum/posts/1107737/
     as_of: "2026-09-24"
     delivery_raw: "9/29/2026"
-  # delivery update
   R2shan:
     source: https://www.rivianforums.com/forum/posts/1108123/
     as_of: "2026-09-24"
@@ -471,7 +402,6 @@ overrides:
     source: https://www.rivianforums.com/forum/posts/1108378/
     as_of: "2026-09-24"
     vin_raw: "1220X"
-  # delivery update
   GoArmy:
     source: "https://www.rivianforums.com/forum/posts/1108987/"
     as_of: "2026-09-24"
