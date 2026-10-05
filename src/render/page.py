@@ -11,13 +11,13 @@ Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
 import json
 import os
 from pathlib import Path
-from textwrap import dedent
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, Tag
 from plotly.offline import get_plotlyjs
 
 from .assets import publish_assets
+from .categories import category_css
 from .charts import (delivery_progress,
                      fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
@@ -31,7 +31,7 @@ from .charts import (delivery_progress,
                      fig_vin_cadence,
                      fig_vin_vs_order, fig_wheels_by_location)
 from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
-                    RESV_THREAD, THEME_CSS, AS_OF)
+                    RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -50,153 +50,33 @@ def _tpl(name):
     return (_TPL_DIR / name).read_text(encoding="utf-8")
 
 
-# Display order = list order. Section numbers (chart titles + sidebar links) are
-# assigned from position at render time, so reordering this list is all it takes;
-# grouped here as build -> timing -> production/VIN -> geography.
-SECTIONS = [
-    ("Configuration take-rates",
-     dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
-               so they are omitted here.) Every panel covers the orders that answered the question it charts, so an
-               unanswered one sits out rather than forming a blank bar — a few people skipped purchase-vs-lease, and a
-               few orders are known from a forum post that gave a date and a location without stating the build. They
-               still count in the cohort total, and the data-quality panel lists the ones held back from the price
-               stats. Options are ordered by how many chose them; the yes/no answers keep their natural reading order
-               instead, since which one leads there isn't a finding. The compact spare is the exception to the rule
-               above: for the option columns an unanswered question means not opted in, so those count as No."""),
-     fig_config_dashboard),
-    ("Configuration combinations",
-     dedent("""Which options people pair together, as counts per pairing: exterior paint against wheels, then
-               against interior. Cells carry the count as well as the shade, since at these volumes a 1 and a 3
-               look alike by color alone. Only options that have actually been ordered get a column, so the grid
-               fills out as trims and configs open up rather than showing empty rows in advance. A pairing needs
-               both halves, so an order that hasn't reported one of them isn't in this grid."""),
-     (fig_color_wheel_heatmap, fig_color_interior_heatmap)),
-    ("Configured price",
-     dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
-               destination, doc fees, taxes, or incentives. The top panel gives one bar per exact price (the cohort lands
-               on a small set of totals, so binning would hide real structure), with the median's own label highlighted
-               and the mean shown as a stat. The middle panel covers the option spend alone — the base is a constant per
-               trim, so the choices are the interesting part — with each category's take rate alongside, since a big
-               average means something different when everyone pays a little rather than a few paying a lot. The bottom
-               panel is a box per trim, and fills in as Premium and Standard ship. Orders whose configuration hits a
-               price Rivian hasn't published are excluded rather than counted as zero — see the data-quality panel."""),
-     (fig_price_distribution, fig_price_options, fig_price_by_trim)),
-    ("Reservation & order timeline",
-     dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
-               above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
-               the y-axis is clipped just above the tail to keep the 2-year trickle readable. The bottom shows when
-               orders were finalized."""),
-     fig_order_timeline),
-    ("Estimated delivery timeline",
-     dedent("""When the cohort expects delivery, stacked by how firm the estimate is."""),
-     fig_delivery_timeline),
-    ("Order-to-delivery time",
-     dedent("""How long people wait between placing an order and delivery, for orders with a firm delivery date
-               — a range or window is a guess, so its midpoint would claim precision it doesn't have. Each point is
-               one order, at its order date; filled points are dates that have passed (presumed delivered) and open
-               points are scheduled in the future. The line is the weekly median, drawn only for weeks with at least
-               three firm dates. <strong>Read the recent end with care.</strong> A firm date usually only appears
-               once delivery is close, so the latest order weeks are represented mainly by their <em>fast</em>
-               deliveries — their slower orders haven't been scheduled yet. The bottom panel shows how much of each
-               week's orders the points above actually cover; where it is low, the median is biased short and will
-               likely rise as the rest report. Estimates that contradict the order date are left out and listed in
-               the data-quality panel."""),
-     fig_delivery_latency),
-    ("Estimate certainty vs. VIN status",
-     dedent("""Share of orders with known delivery dates."""),
-     fig_certainty_by_vin),
-    ("VIN sequence vs. order date",
-     dedent("""Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how tightly production
-               sequence tracks order timing. Click a config in the legend to hide it, or double-click to isolate
-               one."""),
-     fig_vin_vs_order),
-    ("Delivery date vs. VIN sequence",
-     dedent("""Each point is an order with both a VIN and a delivery estimate. Color = paint, marker shape = wheels;
-               whiskers span the quoted delivery window. Clusters of one color across a VIN range hint at same-config
-               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one.
-               <br><br>The yellow line is the <em>build front</em>: the 90th-percentile VIN delivered each finished
-               week, from firm delivery dates only. Delivery stands in for build date — the lag between them moves
-               where a VIN appears but not the slope, which is the build rate — and the high percentile tracks the
-               newest cars arriving rather than the held-back ones still trickling in. The dashed line projects the
-               front a few weeks ahead at the current rate, and the shaded band is how far off that same projection
-               has actually been, measured by re-running it from earlier weeks on every build. It is an aggregate
-               only: where the front is heading, not when any particular order will arrive.
-               <br><br><strong>The band leans upward on purpose.</strong> Production is still ramping, and so far it
-               has ramped in steps — cadence more than doubled in two weeks in mid-August — so past projections have
-               almost always fallen <em>behind</em> what actually happened, rarely ahead. Each side of the band is the
-               typical miss in that direction, so the upper side is the room for another step up. The line itself
-               stays at the current rate deliberately: models that extrapolate the ramp were tested and did worse,
-               carrying August's jump into September's plateau. The band narrows on its own as weeks at a steady rate
-               accumulate. Below, the rate itself over time."""),
-     (fig_delivery_vs_vin, fig_vin_cadence)),
-    ("VIN sequence by configuration",
-     dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·
-               color · wheels · interior); marker fill = paint, shape = wheels. Clusters along a row suggest
-               same-config cars were built in a batch. Interior is part of the row key rather than a third marker
-               encoding, since fill and shape are already taken and a third cue on a 10px marker would be
-               guesswork; rows appear only for configurations that have a VIN, so the newer cabins show up here as
-               their orders get assigned."""),
-     fig_vin_by_config),
-    ("Geographic demand",
-     dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
-               total demand (orders + incomplete reservations). Bubble area = count; the first two share a scale, while
-               total demand (~20x larger) scales to its own. The bars beside each map give that panel's per-region
-               total."""),
-     fig_geo),
-    ("Orders by state",
-     dedent("""Every state that has ordered, sorted by total, as a delivery pipeline: assumed delivered, then awaiting
-               delivery with a VIN known, then no VIN yet. The three stack to the state's full count, so bar length is
-               the state total. Deliveries are <em>inferred</em>, not reported — an order whose whole delivery estimate
-               has passed is assumed to have arrived, on the theory that people rarely come back to update the sheet
-               afterwards. That is rough and errs both ways: a delayed car still looks delivered, and one that arrived
-               early against a vague estimate does not. Any estimate with a known end date counts, including a relative
-               window that finished a while ago; orders with no estimate never do. Deliveries count whether or not a VIN
-               is known, since some people post about taking delivery without ever updating their VIN. The top row sums
-               every state on its own scale — at the shared one it would flatten every other bar. It is the same split as
-               the summary's delivery-progress cards, counted over the orders with a known state."""),
-     fig_state_totals),
-    ("Paint preference by location",
-     dedent("""Does color taste vary geographically? All three panels are 100% stacked, so each row's paint mix is
-               comparable regardless of order volume — the West has ~70x Canada's. The overall row on top is the
-               baseline: read a region against it to see which paints it over- or under-indexes on. Bar labels carry the
-               sample size (n=), and hover gives the underlying counts. The state panel is limited to states with enough
-               orders to be meaningful; below that a single order swings the mix by 100 points, so the rest stay
-               summarized in the region panel."""),
-     fig_paint_by_location),
-    ("Wheel preference by location",
-     dedent("""Wheel choice for every order with a known state, as a 100% stacked mix per group so rows stay
-               comparable regardless of order volume; the top row is the whole cohort, a baseline to read the others
-               against, and each bar label carries its sample size (n=). The lower three panels order their bars by
-               <em>value</em> rather than by volume. Sources, all per-state published figures:
-               <a href="https://pubs.usgs.gov/pp/1200us/report.pdf" target="_blank" rel="noopener">USGS</a> mean
-               state elevation (area-weighted),
-               <a href="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/" target="_blank"
-               rel="noopener">NOAA</a> statewide annual mean temperature over the 1991&ndash;2020 normals, and the
-               <a href="https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html"
-               target="_blank" rel="noopener">Census 2020</a> urban share of population &mdash; except DC, which has
-               no NOAA statewide series and uses the
-               <a href="https://www.ncei.noaa.gov/access/services/data/v1?dataset=normals-monthly-1991-2020&amp;stations=USW00013743&amp;format=pdf&amp;startDate=0001-01-01&amp;endDate=9996-12-31"
-               target="_blank" rel="noopener">Reagan National station normal</a> instead. Because every order sits at
-               its state's average rather than its own location, these panels can show <em>that</em> a group's mix
-               differs &mdash; not why. Read any lean as a prompt to look closer, not a finding: the all-season
-               versus all-terrain efficiency argument carries confounds &mdash; local terrain, driving mix, when each
-               wheel was orderable &mdash; that state averages cannot separate."""),
-     fig_wheels_by_location),
-    ("Interior preference by location",
-     dedent("""Interior mix overall and by region, read the same way as the paint and wheel panels above: each row is
-               100% stacked so a region's mix is comparable regardless of order volume, the overall row on top is the
-               baseline, and every bar carries its sample size (n=). Region only, no per-state row &mdash; the newer
-               cabins are a small share of orders, and split by state most rows would hold one or two of them, where a
-               single order swings the mix by 100 points. Segment fills are sampled from Rivian's own configurator
-               renders, so a bar shows roughly the real cabin color; since charcoal and smoke each come close to one of
-               the two page themes, the segments carry a border that follows the theme rather than the data."""),
-     fig_interior_by_location),
-    ("Destination vs. delivery date",
-     dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
-               farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
-               the legend to hide it, or double-click to isolate one."""),
-     fig_dest_vs_delivery),
-]
+# The Plotly figure builders a section can name in sections.yaml (`charts:`).
+# Each moves to a presentation-layer component as its section migrates
+# (docs/presentation.md, Stages).
+_BUILDERS = {f.__name__: f for f in (
+    fig_config_dashboard, fig_color_wheel_heatmap, fig_color_interior_heatmap,
+    fig_price_distribution, fig_price_options, fig_price_by_trim,
+    fig_order_timeline, fig_delivery_timeline, fig_delivery_latency,
+    fig_certainty_by_vin, fig_vin_vs_order, fig_delivery_vs_vin, fig_vin_cadence,
+    fig_vin_by_config, fig_geo, fig_state_totals, fig_paint_by_location,
+    fig_wheels_by_location, fig_interior_by_location, fig_dest_vs_delivery)}
+
+
+def _section(entry):
+    """(title, desc_html, builder or tuple of builders) from a sections.yaml entry."""
+    unknown = [n for n in entry["charts"] if n not in _BUILDERS]
+    if unknown:
+        raise LookupError("sections.yaml: %r names unknown charts %s"
+                          % (entry["title"], unknown))
+    builders = tuple(_BUILDERS[n] for n in entry["charts"])
+    return (entry["title"], entry["desc"],
+            builders[0] if len(builders) == 1 else builders)
+
+
+# Display order = list order (src/conf/sections.yaml). Section numbers (chart
+# titles + sidebar links) are assigned from position at render time.
+SECTIONS = [_section(e) for e in SECTIONS_CONF]
+
 
 def _css_block(sel, vars_):
     """One CSS rule of `--name:value;` custom properties from a {name: value} map."""
@@ -224,13 +104,15 @@ CHROME_JSON = json.dumps({"light": CHART_CHROME["light"],
 
 # The page scripts are static assets under src/web/, published content-hashed by
 # render/assets.py and loaded at the end of <body> in page.html's order:
-#   theme.js       the toggle, and the re-theme of the (already-rendered) Plotly
-#                  charts. Data-encoding colors (markers/bars/paints) are left
-#                  untouched; only chart chrome is swapped.
-#   nav.js         sidebar toggle + scroll-spy, report-menu dismissal, local times
-#   scrollzoom.js  wheel arbitration between zooming a map and scrolling the page
-#   main.js        the module that boots browser-drawn components (none yet)
-PAGE_SCRIPTS = {"theme-script": "theme.js", "nav-script": "nav.js",
+#   plotly-theme.js  re-tints the (already-rendered) Plotly charts' chrome on each
+#                    r2:themechange. Data colors are left untouched. Goes with
+#                    the last Plotly chart (#111).
+#   theme.js         the toggle; fires r2:themechange, keeps theme-color in step
+#   nav.js           sidebar toggle + scroll-spy, report-menu dismissal, local times
+#   scrollzoom.js    wheel arbitration between zooming a map and scrolling the page
+#   main.js          the module that boots browser-drawn components (none yet)
+PAGE_SCRIPTS = {"plotly-theme-script": "plotly-theme.js",
+                "theme-script": "theme.js", "nav-script": "nav.js",
                 "zoom-script": "scrollzoom.js", "main-script": "main.js"}
 
 # Plotly toolbar, applied to every figure. Box- and lasso-select mark points for
@@ -500,7 +382,7 @@ def build_dashboard(df, report, resv):
         for b in builders:
             fig = (b(df, resv) if b in (fig_geo, fig_order_timeline) else b(df))
             # Transparent backgrounds let the themed section card show through, so
-            # the charts adapt to light/dark (chrome is re-tinted by theme.js).
+            # the charts adapt to light/dark (chrome is re-tinted by plotly-theme.js).
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)")
             pid += 1
@@ -641,9 +523,9 @@ def build_dashboard(df, report, resv):
                         for sid, t in nav_items)
     # Header/sidebar chrome takes its greens from the palette (a nod to the
     # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
+    header_bg = COLOR_HEX.get("Forest Green", "#226222")
     chrome_css = ":root{--header-bg:%s;--side-bg:%s;}" % (
-        COLOR_HEX.get("Forest Green", "#226222"),
-        COLOR_HEX.get("Launch Green", "#91aa81"))
+        header_bg, COLOR_HEX.get("Launch Green", "#91aa81"))
 
     # Populate the (valid, standalone) template's DOM by element id, then splice
     # the Plotly fragments into their placeholders. Script/style content is set
@@ -661,6 +543,10 @@ def build_dashboard(df, report, resv):
     slot(id="theme-vars").string = _THEME_VARS_CSS
     slot(id="page-style").string = _tpl("styles.css")
     slot(id="chrome-vars").string = chrome_css
+    slot(id="category-vars").string = category_css()
+    # The browser tab/status-bar tint matches the header; theme.js keeps it in
+    # step if the header color ever differs per theme.
+    slot(id="theme-color")["content"] = header_bg
     slot(id="head-init").string = HEAD_JS
     slot(id="chrome-data").string = CHROME_JSON
     assets = publish_assets(Path(DASHBOARD).parent)

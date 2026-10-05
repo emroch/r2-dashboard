@@ -95,6 +95,9 @@ js_deps() {
     fi
 }
 
+# Every Python test file, each runnable on its own (no pytest needed).
+py_tests() { "$1" tests/test_parsing.py && "$1" tests/test_view.py; }
+
 js_lint() { js_deps; npx --no-install eslint .; }
 js_test() { js_deps; npm test --silent; }
 
@@ -114,10 +117,10 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         ;;
     test)
         if [ "${1:-}" = "--both" ]; then
-            banner "CI stack" "$PY";      "$PY" tests/test_parsing.py
-            banner "system python" python3; python3 tests/test_parsing.py
+            banner "CI stack" "$PY";      py_tests "$PY"
+            banner "system python" python3; py_tests python3
         else
-            banner "CI stack" "$PY";      "$PY" tests/test_parsing.py
+            banner "CI stack" "$PY";      py_tests "$PY"
         fi
         ;;
     build)
@@ -138,7 +141,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         "$VENV/bin/ruff" check .
         "$VENV/bin/mypy"
         js_lint
-        "$PY" tests/test_parsing.py
+        py_tests "$PY"
         js_test
         "$PY" src/pipeline.py
         ;;

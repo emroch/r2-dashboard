@@ -30,9 +30,13 @@ src/
     milestones.py   when each order's final VIN / final delivery date took hold (curated `dates:` or first snapshot showing it); internal
     contract.py     published data contract: dimension metadata + event-dated daily series (r2_dimensions.json / r2_series.json)
   render/           BUILD THE WEBPAGE
-    colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
+    colors.py       color transforms: HLS display palettes for Plotly (COLOR_DISPLAY / WHISKER_HEX) + OKLCH math (marks, contrast)
+    categories.py   category colors as CSS: a .cat-<dim>-<slug> class per colored category (--paint true color, --mark theme-clamped) + fallback
+    aggregates.py   counts for components, each reconciled against its cohort (cells + excluded == cohort, or the build stops)
+    components.py   the component frame: title, summary, n + composed caveats, <details> data table + CSV button
+    view.py         builds + reconciles the page's aggregates; writes r2_view.json (browser-drawn components' specs; none yet)
     charts.py       the ten fig_* chart builders + helpers
-    page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
+    page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
   templates/        valid standalone page shell, filled at render time
     page.html       valid HTML shell — empty id'd slots, populated via the DOM
@@ -40,14 +44,17 @@ src/
     head.js         pre-paint theme set (no flash) — inlined, since it must run before first paint
     _headers        Cloudflare Pages cache headers (copied into the deploy)
   web/              the page's browser code, served as static files (docs/presentation.md, "JS layout")
-    main.js         ES module: boots browser-drawn components at [data-chart] mounts (none yet)
-    theme.js        theme toggle + re-tint of Plotly chart chrome (classic script)
+    main.js         ES module: boots browser-drawn components at [data-chart] mounts (none yet); wires CSV buttons
+    lib/csv.js      a component's data table -> CSV download (pure, unit-tested)
+    theme.js        theme toggle; fires r2:themechange, keeps the theme-color meta in step (classic script)
+    plotly-theme.js re-tints the Plotly charts' chrome on r2:themechange; goes with Plotly (classic script)
     nav.js          sidebar scroll-spy, report-menu dismissal, local times (classic script)
     scrollzoom.js   map wheel-zoom vs. page-scroll arbitration (classic script)
   conf/             the data/config YAML (loaded by config.py at import)
     dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
     palette.yaml    chart fills that don't name a category (take-rate/timeline tints, accents, heatmap scale)
-    theme.yaml      page & chart chrome for light/dark — CSS custom properties + chart retint colors + static chart accents
+    theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities) + chart retint colors + static chart accents
+    sections.yaml   the page's sections in order: title, prose (HTML), and what each draws
     schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
     delivery.yaml   delivery-estimate normalization — unknown tokens/substrings, explicit overrides, month names
@@ -55,7 +62,7 @@ src/
 data/raw/           timestamped live caches (auto change-detected)
 data/processed/     cleaned CSV output
 output/             dashboard HTML output
-tests/              unit tests: test_parsing.py (Python); js/*.test.mjs (node --test)
+tests/              unit tests: test_parsing.py, test_view.py (Python); js/*.test.mjs (node --test)
 tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 
@@ -71,13 +78,14 @@ Run the pipeline from the project root:
 
 Outputs:
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
+- `data/processed/r2_view.json` — the page's view data (`render/view.py`): spec + data of each browser-drawn component. Fetched by the page.
 - `data/processed/r2_dimensions.json`, `r2_series.json` — the published data contract (`ingest/contract.py`): `dimensions.yaml` as JSON, and daily counts of what was true by each date (event-dated, from today's data). Aggregates only.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. If a live fetch fails, the newest cache is used.
 
 Shipping a curation edit (`src/conf/*.yaml`, new `data/raw` caches): `./curate "message"` runs `./ci_env check`, then branches, commits, opens a PR, waits for its checks and rebase-merges it (one linear data commit, no merge commit) — `main`'s ruleset blocks direct pushes. It refuses changes outside those paths.
 
-Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
+Tests: `python3 tests/test_parsing.py` and `python3 tests/test_view.py` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
 
 ### Matching CI locally (`./ci_env`)
 
@@ -128,5 +136,7 @@ Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4)
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.
 - Both sheets' columns are located **by name** (`ingest/schema_check.py`), and only the columns listed in `schema.yaml` are read at all — so reordering a sheet or adding a question to the form changes nothing here. Every run verifies each mapped column is present exactly once; a renamed/removed/duplicated one raises `SchemaDrift` and **stops the pipeline**, because it would otherwise read as empty (or ambiguously) for every row. The fix is to edit `orders_columns` / `reservations_columns` to match the sheet. A new *unmapped* column is only reported in the data-quality panel; add it to `ignored_columns` once it's knowingly unused, or map it to use it.
 - **JS tooling.** The browser code under `src/web/` is plain ES modules and classic scripts, served as-is with no build step. `package.json` exists only for the dev tools: eslint (correctness rules, no formatter), `node --test` for `tests/js/`, and a pinned `wrangler` that the deploy workflows install with `npm ci --ignore-scripts` before `cloudflare/wrangler-action`, which then uses it instead of installing its own (that used to rewrite `package.json` in the checkout). Both files are tracked; `node_modules/` is not. The `js` job in `checks.yml` runs eslint and the tests; `./ci_env js` / `lint` / `check` run them locally. A module imported by a test must not touch the DOM at import time. `package-lock.json` must resolve every package from the public registry (`https://registry.npmjs.org/`); `tests/js/lockfile.test.mjs` fails otherwise, since an `npm install` on a machine configured with a private npm mirror records that mirror's URLs, which CI can't reach.
+- **Category colors and marks.** A component never writes a hex color: it refers to a category as `"<dimension>:<value>"`, and `render/categories.py` turns that into a CSS class (`category_class`, which fails on a category without a color). The swatch that identifies a category uses `var(--paint)` (the true color); a data mark uses `var(--mark)`, the same hue and chroma with lightness clamped to the theme's `mark-lmin`/`mark-lmax` (theme.yaml), so every category holds 3:1 against the card in both themes (`tests/test_view.py` checks it). Changing a category color or the bounds: rerun the tests.
+- **Reconciled aggregates.** Numbers a component shows come from `render/aggregates.py`, and each declares the cohort it counts; `cells + excluded` must equal that cohort or the build stops (`ReconcileError`), the same rule as the series totals check. Leave a row out on purpose by putting it in `excluded` with a reason, never by dropping it.
 - **Viewing a local build.** The page's scripts are files under `output/assets/<hash>/`. The classic scripts work when `output/r2_orders_dashboard.html` is opened as a `file://` URL, but browsers refuse ES modules from `file://`, so anything `main.js` mounts needs a local server: `python3 -m http.server -d output`.
 - Lint is `ruff check` (no `ruff format`, no import sorting — the hand-aligned continuation style is deliberate) and types are `mypy` with `check_untyped_defs`, both via `./ci_env lint` and the `Static checks` PR workflow. The code must still run on the system 3.9, so a module using `X | None` hints needs `from __future__ import annotations`, and names used only in hints (e.g. pandas' `NaTType`) are imported under `TYPE_CHECKING`.

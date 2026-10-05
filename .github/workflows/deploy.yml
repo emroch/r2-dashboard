@@ -60,6 +60,7 @@ jobs:
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
           cp data/processed/r2_dimensions.json dist/r2_dimensions.json
           cp data/processed/r2_series.json dist/r2_series.json
+          cp data/processed/r2_view.json dist/r2_view.json
           cp -R output/assets dist/assets
           cp src/templates/_headers dist/_headers
 

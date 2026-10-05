@@ -10,8 +10,11 @@ import pandas as pd
 from config import (CLEAN_CSV, DASHBOARD, DIMENSIONS_JSON, ORDER_DATE_MIN,
                     ORDERS_GID, ORDERS_KEY, ORDERS_LABEL, ORDERS_SLUG,
                     OVERRIDES, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG,
-                    SERIES_JSON)
+                    SERIES_JSON, VIEW_JSON)
+from render.aggregates import ReconcileError
 from render.page import build_dashboard
+from render.view import build as build_view
+from render.view import unknown_categories, view_json
 from ingest.fetch import fetch_sheet
 from ingest.history import (current_keys, current_runs, orders_history,
                             reservations_history, summary)
@@ -116,6 +119,16 @@ def main():
     with open(SERIES_JSON, "w") as fh:
         json.dump(ser, fh, indent=1)
 
+    # The presentation layer's aggregates (render/view.py): every one must add
+    # back up to the cohort it counts, or the build stops, the same rule as the
+    # series check above.
+    try:
+        view = build_view(df)
+    except ReconcileError as exc:
+        raise SystemExit(str(exc)) from exc
+    with open(VIEW_JSON, "w") as fh:
+        json.dump(view_json(view), fh, indent=1)
+
 
     def _fmt(meta):
         f = meta["fetched_at"].strftime("%Y-%m-%d %H:%M")
@@ -208,9 +221,14 @@ def main():
             print("Cached (new data)  : %s" % os.path.basename(m["cache"]))
     print("Data contract: %d daily series points (%.2fs), %d dimensions"
           % (len(ser["dates"]), series_secs, len(dimensions()["dimensions"])))
+    unknown = unknown_categories(view)
+    print("View: %d aggregates reconciled, %d components%s"
+          % (len(view.aggregates), len(view.components),
+             "; NOT IN dimensions.yaml: " + ", ".join(unknown) if unknown else ""))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
-    print("Wrote: %s, %s" % (os.path.basename(DIMENSIONS_JSON),
-                             os.path.basename(SERIES_JSON)))
+    print("Wrote: %s, %s, %s" % (os.path.basename(DIMENSIONS_JSON),
+                                 os.path.basename(SERIES_JSON),
+                                 os.path.basename(VIEW_JSON)))
     print("Wrote: %s" % os.path.basename(DASHBOARD))
 
 

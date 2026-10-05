@@ -164,17 +164,26 @@ theme. What changes is the mechanism, from JS re-tinting to CSS that can't drift
   --mark: oklch(from var(--paint) clamp(var(--mark-lmin), l, var(--mark-lmax)) c h);
   ```
 
-  The bounds are per theme in `theme.yaml`, starting from what #66 measured (dark:
-  0.70–0.92; light: at most 0.68). Glacier White and Midnight, the paints at either
-  extreme, stay visible on both surfaces by construction.
-- **Stages are alpha.** Delivered, VIN assigned and waiting share the paint and differ
-  only in alpha (1, 0.65, 0.35), which reads correctly on either surface.
+  The bounds are per theme in `theme.yaml`. Dark is what #66 measured: 0.70–0.92.
+  Light is capped at **0.65**, a little below the 0.68 #66 measured. 0.65 is the
+  highest cap at which every category color holds WCAG's 3:1 for non-text marks
+  against the white card (at 0.68, ten fall just short, Glacier White at 2.9:1).
+  `tests/test_view.py` checks 3:1 for every category in both themes. Glacier White
+  and Midnight, the paints at either extreme, stay visible on both surfaces by
+  construction.
+- **Stages are opacity.** Delivered, VIN assigned and waiting share the mark and differ
+  only in opacity (1, 0.65, 0.35; `--a-delivered`/`--a-vin`/`--a-wait`), which reads
+  correctly on either surface. Opacity on the segment rather than an alpha channel in
+  the color, so the fallback path needs nothing extra.
 - **Fallback.** Browsers without relative color syntax (before Safari 18) get an
   `@supports not (color: oklch(from red l c h))` block of clamped colors that Python
-  precomputes. `colors.py` moves from HLS to OKLCH to do it.
+  precomputes (`colors.py`'s OKLCH functions; the HLS whisker tints stay until the
+  Plotly charts that use them are gone).
 - **JS charts** resolve category colors through computed style, and re-render from
-  their spec on an `r2:themechange` event fired by the theme toggle. Nothing is
-  re-tinted by index.
+  their spec on an `r2:themechange` event fired by the theme toggle (`theme.js`, once
+  at load and on every toggle). Nothing is re-tinted by index; the Plotly charts'
+  retint now lives in its own `plotly-theme.js`, a listener for the same event, and is
+  deleted with them.
 - **Retired:** `CHART.edge` borders on near-surface fills, the HLS whisker tints, and
   most of `palette.yaml`. With legibility handled by the clamp, `dimensions.yaml` can
   record the **real** paint colors, as a separate, reviewable data edit.

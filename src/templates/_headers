@@ -8,12 +8,14 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# The published data contract and rows change every build under fixed names, so
+# The published data contract, the page's view data and the rows change every build under fixed names, so
 # they are always revalidated (cheap: an ETag check). This is Pages' default,
 # stated here so it doesn't change by accident.
 /r2_dimensions.json
   Cache-Control: public, max-age=0, must-revalidate
 /r2_series.json
+  Cache-Control: public, max-age=0, must-revalidate
+/r2_view.json
   Cache-Control: public, max-age=0, must-revalidate
 /r2_orders_clean.csv
   Cache-Control: public, max-age=0, must-revalidate
