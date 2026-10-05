@@ -21,7 +21,6 @@ sections:
   - title: "Configuration take-rates"
     components: [takerate-color, takerate-wheels, takerate-interior,
                  takerate-buylease, takerate-spare, takerate-r1]
-    charts: [fig_config_dashboard]
     desc: >-
       What this cohort ordered. Each panel counts the orders that answered its
       question, so an unanswered one sits out rather than forming a blank row; the

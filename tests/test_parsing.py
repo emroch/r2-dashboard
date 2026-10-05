@@ -672,28 +672,6 @@ def test_reconcile_launch_does_not_change_price():
     assert parts["price"] == 57990 + 2500 + 900
 
 
-def test_config_panel_stacks_only_when_split_has_two_values():
-    # The stack is conditional: one trim renders plain bars and no legend, two
-    # trims split each bar and add the trim legend. Uses synthetic rows so the
-    # multi-trim path is covered before Premium/Standard actually ship.
-    import pandas as pd
-    from render.charts import fig_config_dashboard
-    cols = dict(color="Esker Silver", interior="Black Crater Signature",
-                wheels_short='21" Liquid Tungsten', buylease="Purchase",
-                opted_spare=True, r1_owner="No", r1_model="")
-    one = pd.DataFrame([dict(cols, trim="Performance") for _ in range(3)])
-    two = pd.DataFrame([dict(cols, trim="Performance") for _ in range(3)]
-                       + [dict(cols, trim="Premium") for _ in range(2)])
-    f1, f2 = fig_config_dashboard(one), fig_config_dashboard(two)
-    assert not any(t.showlegend for t in f1.data), "single trim should add no legend"
-    names = {t.name for t in f2.data if t.name}
-    assert {"Performance", "Premium"} <= names, names
-    # The wheels panel should now be two stacked traces summing to the 5 rows.
-    wheels = [t for t in f2.data if t.name in ("Performance", "Premium")
-              and t.x and t.x[0] == '21" Liquid Tungsten']
-    assert sum(int(v) for t in wheels for v in t.y) == 5
-
-
 def test_reconcile_r1_owner_trusts_a_named_model():
     # "Are you a current R1 owner?" is one click; naming R1S/R1T is concrete
     # information a non-owner has no reason to give, so the model wins and the
@@ -1489,15 +1467,15 @@ def test_every_paint_chart_uses_the_same_order():
     # mid-grid. Each of these read that sequence independently; they must now all
     # follow one popularity ranking, or a reader learns an order in §2 that fails
     # them in §3.
+    # (The §2 take-rate rows follow it too: test_aggregates.py.)
     from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_config_dashboard, fig_delivery_vs_vin,
-                               fig_paint_by_location, fig_vin_vs_order)
+                               fig_delivery_vs_vin, fig_paint_by_location,
+                               fig_vin_vs_order)
     df = _paint_rank_frame()
     want = _paint_order(df)
     assert want == _expected_paint_rank()
 
-    # §2 take-rate bars, and §3 heatmap rows (top-down: the y axis is reversed).
-    assert list(fig_config_dashboard(df).data[0].x) == want
+    # §3 heatmap rows (top-down: the y axis is reversed).
     assert list(fig_color_wheel_heatmap(df).data[0].y) == want
 
     # §8 / §9 scatter legends: one entry per paint × wheel, paints in rank order.
@@ -1882,66 +1860,15 @@ def test_blank_deletion_reason_is_reported():
     assert any("no reason recorded" in d for _, _, d in issues), issues
 
 
-def test_an_owner_who_named_no_model_still_counts_as_an_owner():
-    # "No model given" means two different things depending on the gate, and they
-    # used to share one "No / unspecified" segment — which inside the Yes bar read
-    # as a "No" contradicting its own bar. The owner is trusted either way, so the
-    # Yes bar's total must be every owner.
-    from render.charts import _MODEL_UNSPECIFIED, _NO_R1, fig_config_dashboard
-    cols = dict(color="Esker Silver", interior="Black Crater Signature",
-                wheels_short='21" Liquid Tungsten', trim="Performance",
-                buylease="Purchase", opted_spare=True)
-    df = pd.DataFrame(
-        [dict(cols, r1_owner="Yes", r1_model="R1T") for _ in range(4)]
-        + [dict(cols, r1_owner="Yes", r1_model="") for _ in range(3)]
-        + [dict(cols, r1_owner="No", r1_model="") for _ in range(9)])
-    seg = {t.name: list(t.y) for t in fig_config_dashboard(df).data
-           if getattr(t, "x", None) and tuple(t.x) == ("Yes", "No") and t.name}
-    assert seg["R1T"] == [4, 0]
-    assert seg[_MODEL_UNSPECIFIED] == [3, 0], "an owner with no model stays an owner"
-    assert seg[_NO_R1] == [0, 9], "a non-owner is not 'unspecified'"
-    # The two non-answers must not collapse into one segment again.
-    assert _MODEL_UNSPECIFIED != _NO_R1
-    owners = sum(v[0] for v in seg.values())
-    assert owners == 7, "the Yes bar totals every owner, model named or not"
-
-
-def test_yes_no_panels_keep_a_fixed_order_and_drop_blanks():
-    # Purchase before Lease and Yes before No read as a sequence, so which is larger
-    # shouldn't decide the order — by count they'd also swap places between builds as
-    # the numbers move. Unanswered rows sit out rather than forming a blank bar (41
-    # of 565 never answered purchase-vs-lease, which outnumbered Lease itself).
-    from render.charts import _ordered_counts, fig_config_dashboard
-    s = pd.Series(["Lease"] * 9 + ["Purchase"] * 2 + ["Weird"])
-    got = _ordered_counts(s, ("Purchase", "Lease"))
-    assert list(got.index) == ["Purchase", "Lease", "Weird"], list(got.index)
-    assert list(got.values) == [2, 9, 1], "counts follow the labels, not the order"
-    # An unanticipated answer is appended, never silently dropped.
-    assert "Weird" in got.index
-
-    cols = dict(color="Esker Silver", interior="Black Crater Signature",
-                wheels_short='21" Liquid Tungsten', trim="Performance",
-                opted_spare=True, r1_owner="Yes", r1_model="R1T")
-    df = pd.DataFrame(
-        [dict(cols, buylease="Purchase") for _ in range(3)]
-        + [dict(cols, buylease="Lease") for _ in range(5)]
-        + [dict(cols, buylease="", r1_owner="") for _ in range(2)])
-    panels = {tuple(t.x): t for t in fig_config_dashboard(df).data
-              if getattr(t, "x", None) and isinstance(t.x, tuple)}
-    assert ("Purchase", "Lease") in panels, list(panels)
-    buylease = panels[("Purchase", "Lease")]
-    assert list(buylease.y) == [3, 5], "Purchase leads despite Lease being larger"
-    assert not any("" in k or "Blank" in k for k in panels), list(panels)
-
-
 def test_an_unreported_build_is_left_out_of_the_config_charts():
     # An order whose build was never reported carries no choice to plot, so the
     # configuration charts cover the orders that did report the option they chart.
     # Taking the CATEGORY out while leaving the ROWS in would be the subtle bug: the
     # 100%-stacked panels divide by each bar's own total, so the stack would quietly
     # stop adding up to 100.
+    # (The §2 take-rate rows: test_aggregates.py.)
     from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_config_dashboard, fig_paint_by_location)
+                               fig_paint_by_location)
     df = _paint_rank_frame()
     blank = df.iloc[[0]].copy()
     blank["user"] = "unreported"
@@ -1951,10 +1878,6 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     df = pd.concat([df, blank], ignore_index=True)
 
     assert "" not in _paint_order(df), "a blank is not a paint"
-    bars = fig_config_dashboard(df).data[0]
-    assert "" not in list(bars.x) and "Unknown" not in list(bars.x)
-    assert sum(int(v) for v in bars.y) == len(df) - 1, "the blank row is not counted"
-
     h = fig_color_wheel_heatmap(df).data[0]
     assert "" not in list(h.y) and "Unknown" not in list(h.y)
     assert sum(sum(r) for r in h.z) == len(df) - 1

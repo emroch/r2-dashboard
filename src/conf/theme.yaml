@@ -93,8 +93,9 @@ css:
     # Delivery stages share their category's mark and differ only in opacity, so
     # "fainter = not yet" reads the same on a light or a dark card.
     a-delivered: "1"
-    a-vin: "0.65"
-    a-wait: "0.35"
+    a-scheduled: "0.75"
+    a-vin: "0.5"
+    a-wait: "0.3"
 
 # ---------------------------------------------------------------------------
 # Chart chrome. The `light` values are baked into the server-rendered charts;

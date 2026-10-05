@@ -42,7 +42,8 @@ class Table:
 def caveats(dims: Sequence[str], extra: Sequence[str] = ()) -> list[str]:
     """The caveat texts for a component showing these dimensions, in order and
     without repeats: each dimension's `caveat`, then its `small_n` note, then
-    any component-specific `extra`."""
+    any component-specific `extra`. A group of components says the caveats they
+    all share once (shared_caveats), so each frame drops those."""
     out: list[str] = []
     for d in dims:
         spec = DIMENSIONS[d]
@@ -58,7 +59,8 @@ def _table(cid: str, table: Table) -> str:
     body = "".join("<tr>%s</tr>" % "".join("<td>%s</td>" % escape(str(v)) for v in r)
                    for r in table.rows)
     return ('<details class="r2c-data"><summary>Data</summary>'
-            '<table id="%s-data"><thead><tr>%s</tr></thead><tbody>%s</tbody></table>'
+            '<div class="r2c-scroll"><table id="%s-data"><thead><tr>%s</tr></thead>'
+            '<tbody>%s</tbody></table></div>'
             '<button type="button" class="r2c-csv" data-table="%s-data" '
             'data-file="%s.csv" hidden>Download CSV</button></details>'
             % (cid, head, body, cid, cid))
@@ -66,11 +68,14 @@ def _table(cid: str, table: Table) -> str:
 
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
           n: int | None = None, dims: Sequence[str] = (),
-          notes: Sequence[str] = (), table: Table | None = None) -> str:
+          notes: Sequence[str] = (), table: Table | None = None,
+          shared: Sequence[str] = ()) -> str:
     """One component's HTML. `cid` is the element id ("c-..."); `body` is trusted
-    HTML (a component renderer's output); every other text is escaped."""
+    HTML (a component renderer's output); every other text is escaped.
+    `shared` caveats are said by the component's group, so they're left out."""
     meta = ([] if n is None else ["n = %s" % format(n, ",")]) + [
-        '<span class="caveat">%s</span>' % escape(c) for c in caveats(dims, notes)]
+        '<span class="caveat">%s</span>' % escape(c) for c in caveats(dims, notes)
+        if c not in shared]
     return "".join([
         '<figure class="r2c" id="%s" role="group" aria-labelledby="%s-t">' % (cid, cid),
         '<figcaption id="%s-t">%s</figcaption>' % (cid, escape(title)),
@@ -79,6 +84,27 @@ def frame(cid: str, title: str, body: str, *, summary: str | None = None,
         '<p class="r2c-meta">%s</p>' % " · ".join(meta) if meta else "",
         _table(cid, table) if table is not None else "",
         "</figure>"])
+
+
+def component_dims(spec: dict) -> list[str]:
+    """The dimensions whose caveats a component carries: its own, plus what its
+    template adds (a take-rate's stage split is inferred delivery status)."""
+    return list(spec.get("dims", [])) + (
+        ["delivered"] if spec.get("template") == "takerate" else [])
+
+
+def shared_caveats(specs: Sequence[dict]) -> list[str]:
+    """The caveats every one of these components carries, in order: said once
+    for the group instead of in each frame."""
+    if not specs:
+        return []
+    each = [caveats(component_dims(sp)) for sp in specs]
+    return [c for c in each[0] if all(c in e for e in each[1:])]
+
+
+def notes_html(texts: Sequence[str]) -> str:
+    return ('<p class="r2c-notes">%s</p>' % " ".join(escape(t) for t in texts)
+            if texts else "")
 
 
 # --- Summary sentences ----------------------------------------------------------
@@ -130,7 +156,8 @@ def stage_key() -> str:
         % (st, escape(STAGE_LABELS[st])) for st in STAGES))
 
 
-def takerate(cid: str, spec: dict, agg: Aggregate) -> str:
+def takerate(cid: str, spec: dict, agg: Aggregate,
+             shared: Sequence[str] = ()) -> str:
     """A take-rate component: one row per category, largest bar full width.
 
     Each row has a swatch (when the category has a color), its name, the count
@@ -165,14 +192,10 @@ def takerate(cid: str, spec: dict, agg: Aggregate) -> str:
                                                    for s in STAGES],
                   [[c["label"], c["n"], share(int(c["n"]), total)]
                    + [c["stages"][s] for s in STAGES] for c in cells])
-    excluded = sum(agg.excluded.values())
-    notes = (["%s not reported, left out." % format(excluded, ",")]
-             if excluded else [])
     labels = [c.get("label") or c.get("short") or str(c["value"])
               for c in DIMENSIONS[agg.dim]["categories"]] if agg.dim else []
     summary = (summarize(spec["summary"], cells, labels)
                if spec.get("summary") and cells else None)
     return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary,
-                 n=total, dims=list(spec.get("dims", [])) + ["delivered"],
-                 notes=notes, table=table)
+                 n=total, dims=component_dims(spec), table=table, shared=shared)

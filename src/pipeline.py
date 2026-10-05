@@ -222,7 +222,7 @@ def main():
           % (len(ser["dates"]), series_secs, len(dimensions()["dimensions"])))
     unknown = unknown_categories(view)
     print("View: %d aggregates reconciled, %d HTML + %d browser-drawn components%s"
-          % (len(view.aggregates), len(view.html), len(view.components),
+          % (len(view.aggregates), len(view.static), len(view.components),
              "; NOT IN dimensions.yaml: " + ", ".join(unknown) if unknown else ""))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
     print("Wrote: %s, %s, %s" % (os.path.basename(DIMENSIONS_JSON),

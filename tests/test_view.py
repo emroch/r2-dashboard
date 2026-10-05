@@ -29,7 +29,8 @@ def test_every_section_names_known_charts_and_renders_in_order():
         assert title == entry["title"] and desc.strip(), title
         names = [b.__name__ for b in
                  (builders if isinstance(builders, tuple) else (builders,))]
-        assert names == entry["charts"], title
+        assert names == entry.get("charts", []), title
+        assert names or entry.get("components"), "%s draws nothing" % title
         assert all(n in _BUILDERS for n in names), title
 
 
@@ -160,9 +161,9 @@ def test_view_build_reconciles_and_renders_every_component():
                 r1_model=["", ""])
     view = build(_orders(**cols))
     assert {a.dim for a in view.aggregates} >= set(DIMENSIONS)
-    assert set(view.html) == set(COMPONENTS)
-    for cid, html in view.html.items():
-        assert html.startswith('<figure class="r2c" id="c-%s"' % cid), cid
+    assert set(view.static) == set(COMPONENTS)
+    for cid in view.static:
+        assert view.render(cid).startswith('<figure class="r2c" id="c-%s"' % cid), cid
     # Static components are HTML in the page; nothing is browser-drawn yet.
     assert view_json(view) == {"version": 1, "components": {}}
 

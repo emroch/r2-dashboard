@@ -10,9 +10,9 @@ from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
 from config import (AS_OF, CADENCE_COLORS, CADENCE_WINDOW_WEEKS, CHART, CHART_UI,
                     COLOR_ORDER, ELEV_BINS, FACTORY, HEATMAP_COLORSCALE,
                     INTERIOR_COLOR, INTERIOR_ORDER, INTERIOR_SHORT, LATENCY_COLORS,
-                    PRICE_COLORS, PRICE_TRIMS, R1_MODEL_COLORS, REGION_COLOR,
-                    STATE_MIN_ORDERS, STATE_TOTALS_COLORS, TAKE_RATE, TEMP_BINS,
-                    TIMELINE_COLORS, TRIM_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
+                    PRICE_COLORS, PRICE_TRIMS, REGION_COLOR,
+                    STATE_MIN_ORDERS, STATE_TOTALS_COLORS, TEMP_BINS,
+                    TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
                     URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER, WHEEL_SYMBOL)
 
 from .cadence import projection as cadence_projection, rate_history
@@ -382,157 +382,6 @@ def fig_vin_vs_order(df):
     return fig
 
 
-# Legend label for a blank answer to a conditional follow-up question.
-_UNSPECIFIED = "No / unspecified"
-
-# The R1 panel's two flavours of "no model given", which are NOT the same answer:
-# an owner who skipped the follow-up, and a non-owner the question never applied to.
-# One shared label read as "No / unspecified" in both, which inside the Yes bar
-# looked like a "No" segment contradicting its own bar. Splitting them keeps the Yes
-# bar's total equal to every owner — the gate is trusted whether or not a model was
-# named — so the panel is a true owner / non-owner split.
-_MODEL_UNSPECIFIED = "Unspecified"
-_NO_R1 = "No R1"
-
-
-def _split_values(df, col, palette):
-    """Distinct values of a split column, in palette order then any extras. Blanks
-    collapse to the sentinel label so a conditional follow-up question
-    (which R1 do you own?) gets one labelled segment instead of an empty name."""
-    seen = set(df[col].replace("", _UNSPECIFIED).unique())
-    ordered = [k for k in palette if k in seen]
-    return ordered + sorted(seen - set(ordered))
-
-
-def _take_rate_panel(fig, row, col, df, cat_col, counts, labels, fill,
-                     split_col=None, palette=None, legend_key=None,
-                     show_legend=False):
-    """One take-rate panel, stacked by `split_col` when that column actually holds
-    more than one value.
-
-    With a single value there's nothing to compare, so it renders as a plain bar
-    and adds no legend entry — today's cohort is 100% Performance, and a legend
-    reading "Trim: Performance" would be noise. The stacks appear on their own as
-    Premium and Standard ship. Returns True if it drew a stack.
-    """
-    splits = _split_values(df, split_col, palette or {}) if split_col else []
-    if len(splits) < 2:
-        fig.add_trace(go.Bar(x=labels, y=np.asarray(counts), marker_color=fill,
-                             marker_line=dict(color=CHART["edge"], width=1),
-                             showlegend=False,
-                             hovertemplate="%{x}: %{y}<extra></extra>"), row, col)
-        return False
-    sv = df[split_col].replace("", _UNSPECIFIED)
-    for s in splits:
-        vals = [int(((df[cat_col] == c) & (sv == s)).sum()) for c in counts.index]
-        fig.add_trace(go.Bar(
-            x=labels, y=np.asarray(vals), name=s, legendgroup=s,
-            showlegend=show_legend, legend=legend_key or "legend",
-            marker_color=(palette or {}).get(s, CHART_UI["muted"]),
-            marker_line=dict(color=CHART["edge"], width=1),
-            hovertemplate="%{x} · " + str(s) + ": %{y}<extra></extra>"), row, col)
-    return True
-
-
-def fig_config_dashboard(df):
-    """Config take-rate small-multiples.
-
-    Panels whose mix should differ by trim once the lineup fills out — wheels,
-    interior, purchase vs. lease — stack by trim, and the R1-owner panel stacks by
-    which R1 the owner has. Each split is only drawn when the data holds more than
-    one value in it, so a single-trim cohort still renders plain bars instead of a
-    one-entry legend (see _take_rate_panel).
-
-    Autonomy+ and Tow have no panel here: the Launch Package bundles both, so they
-    sit at ~100% across the cohort. They'll be worth adding, split by trim, once
-    the package is discontinued and the answers fragment.
-    """
-    fig = make_subplots(
-        rows=2, cols=3,
-        subplot_titles=("Exterior color", "Wheels", "Interior",
-                        "Purchase vs. lease", "Compact spare tire",
-                        "Current R1 owner?"))
-
-    # Already descending by popularity, but via _paint_order rather than a bare
-    # value_counts(): that promises no order among EQUAL counts, so tied paints
-    # swapped places between daily builds. Sharing the helper also guarantees this
-    # panel and every other paint chart show one order rather than two that merely
-    # look alike while no two paints happen to tie.
-    paints = _paint_order(df)
-    cc = df["color"].value_counts().reindex(paints)
-    fig.add_trace(go.Bar(x=list(cc.index), y=np.asarray(cc.values),
-                         marker_color=[_paint_fill(c) for c in cc.index],
-                         marker_line=dict(color=CHART["edge"], width=1),
-                         showlegend=False,
-                         hovertemplate="%{x}: %{y}<extra></extra>"), 1, 1)
-
-    # Trim-split panels share one legend; `shown` makes only the first contribute
-    # entries so the trim colors aren't listed three times.
-    shown = False
-    dw = _reported(df, "wheels_short")
-    wc = dw["wheels_short"].value_counts()
-    shown |= _take_rate_panel(fig, 1, 2, dw, "wheels_short", wc, list(wc.index),
-                              TAKE_RATE["wheels"], "trim", TRIM_COLORS,
-                              "legend", not shown)
-
-    di = _reported(df, "interior")
-    ic = di["interior"].value_counts()
-    # Labels and colors both come from the palette, keyed by the exact sheet value.
-    # This used to strip " Signature" off the name to shorten it, which would fold
-    # Standard's Black Crater into Performance's Black Crater Signature — two
-    # different interiors sharing one bar — as soon as Standard shipped.
-    ic_names = [INTERIOR_SHORT.get(s, s) for s in ic.index]
-    shown |= _take_rate_panel(
-        fig, 1, 3, di, "interior", ic, ic_names,
-        [INTERIOR_COLOR.get(s, TAKE_RATE["interior_fallback"]) for s in ic.index],
-        "trim", TRIM_COLORS, "legend", not shown)
-
-    bl = _reported(df, "buylease")
-    bc = _ordered_counts(bl["buylease"], ("Purchase", "Lease"))
-    shown |= _take_rate_panel(fig, 2, 1, bl, "buylease", bc, list(bc.index),
-                              TAKE_RATE["buylease"], "trim", TRIM_COLORS,
-                              "legend", not shown)
-
-    sc = _ordered_counts(df["opted_spare"].map({True: "Yes", False: "No"}),
-                         ("Yes", "No"))
-    fig.add_trace(go.Bar(x=list(sc.index), y=np.asarray(sc.values),
-                         marker_color=TAKE_RATE["spare"], showlegend=False,
-                         marker_line=dict(color=CHART["edge"], width=1),
-                         hovertemplate="%{x}: %{y}<extra></extra>"), 2, 2)
-
-    # Uses the reconciled owner flag, so a row that named a model counts as an
-    # owner (see parsing.reconcile_r1_owner) instead of contradicting its own stack.
-    r1 = _reported(df.assign(r1_owner=df.get("r1_owner_effective",
-                                             df["r1_owner"])), "r1_owner")
-    # Label a missing model by what the gate said, so the two cases stop sharing a
-    # segment (see _MODEL_UNSPECIFIED). An owner who didn't name a model still counts
-    # as an owner: reconcile_r1_owner already trusts a named model over a "No" gate,
-    # and trusting a "Yes" gate over a skipped follow-up is the same principle.
-    r1 = r1.assign(r1_model=r1["r1_model"].mask(
-        r1["r1_model"].astype(str).str.strip() == "",
-        r1["r1_owner"].map(lambda o: _MODEL_UNSPECIFIED if o == "Yes" else _NO_R1)))
-    rc = _ordered_counts(r1["r1_owner"], ("Yes", "No"))
-    stacked_r1 = _take_rate_panel(fig, 2, 3, r1, "r1_owner", rc, list(rc.index),
-                                  TAKE_RATE["r1_owner"], "r1_model",
-                                  R1_MODEL_COLORS, "legend2", True)
-
-    legends = {}
-    if shown:
-        legends["legend"] = dict(
-            title=dict(text="Trim"), x=1.01, xanchor="left", y=0.99,
-            yanchor="top", font=dict(size=11), bgcolor=CHART["legbg"],
-            bordercolor=CHART["legbd"], borderwidth=1)
-    if stacked_r1:
-        legends["legend2"] = dict(
-            title=dict(text="R1 owned"), x=1.01, xanchor="left", y=0.42,
-            yanchor="top", font=dict(size=11), bgcolor=CHART["legbg"],
-            bordercolor=CHART["legbd"], borderwidth=1)
-    fig.update_layout(template="plotly_white", height=680, title_text=None,
-                      bargap=0.25, barmode="stack",
-                      margin=dict(r=150 if legends else 40), **legends)
-    return fig
-
-
 def _config_heatmap(df, col, values, x_title, labels=None, height=520):
     """Paint × `col` combo counts as a heatmap.
 
@@ -631,23 +480,6 @@ def _paint_order(df):
     rank = {c: i for i, c in enumerate(COLOR_ORDER)}
     return sorted(counts.index,
                   key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
-
-
-def _ordered_counts(series, preferred):
-    """Counts in a fixed reading order: `preferred` first, then anything else.
-
-    Some answers have an inherent order that a popularity sort scrambles — Purchase
-    before Lease, Yes before No read as a sequence, and which one happens to be
-    larger is beside the point (it also means the bars can swap places between
-    builds as the counts move). The configuration options keep their count-based
-    order, where relative popularity IS the finding.
-
-    A value not in `preferred` is appended rather than dropped, so an answer nobody
-    anticipated stays visible instead of vanishing from its own panel.
-    """
-    counts = series.value_counts()
-    order = [v for v in preferred if v in counts.index]
-    return counts.reindex(order + [v for v in counts.index if v not in preferred])
 
 
 def _stable_counts(counts):

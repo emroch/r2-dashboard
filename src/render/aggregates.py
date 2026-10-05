@@ -95,21 +95,29 @@ def _blank(v: Any) -> bool:
         (isinstance(v, str) and not v.strip())
 
 
-# Delivery stages, in reading order: how far an order has got. The same split as
-# the summary's delivery-progress cards and the take-rate bars (theme.yaml's
-# --a-delivered / --a-vin / --a-wait opacities).
-STAGES = ("delivered", "vin", "wait")
-STAGE_LABELS = {"delivered": "delivered (est.)", "vin": "with a VIN",
-                "wait": "waiting for a VIN"}
+# Delivery stages, in reading order: how far an order has got. The split the
+# take-rate bars show (theme.yaml's --a-* opacities, one per stage).
+#   delivered  its delivery is inferred (the estimated window has passed)
+#   scheduled  a firm delivery date, not yet passed. Rivian schedules delivery
+#              only after a VIN is assigned, so a scheduled order with no VIN
+#              reported is incomplete data, not a contradiction: it counts here.
+#   vin        a VIN, no firm date yet
+#   wait       neither
+STAGES = ("delivered", "scheduled", "vin", "wait")
+STAGE_LABELS = {"delivered": "delivered", "scheduled": "delivery scheduled",
+                "vin": "with a VIN", "wait": "waiting for a VIN"}
 
 
 def stages(df: pd.DataFrame) -> pd.Series:
-    """Each order's delivery stage: "delivered" if its delivery is inferred,
-    else "vin" if it has a VIN, else "wait"."""
+    """Each order's delivery stage (see STAGES)."""
     def yes(v: Any) -> bool:
         return not _blank(v) and bool(v)
-    return pd.Series(["delivered" if yes(d) else "vin" if yes(v) else "wait"
-                      for d, v in zip(df["delivered_inferred"], df["vin_present"])],
+    firm = df["delivery_type"] if "delivery_type" in df else pd.Series(
+        None, index=df.index)
+    return pd.Series(["delivered" if yes(d) else "scheduled" if f == "explicit"
+                      else "vin" if yes(v) else "wait"
+                      for d, f, v in zip(df["delivered_inferred"], firm,
+                                         df["vin_present"])],
                      index=df.index)
 
 

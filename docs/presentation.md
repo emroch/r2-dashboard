@@ -171,10 +171,13 @@ theme. What changes is the mechanism, from JS re-tinting to CSS that can't drift
   `tests/test_view.py` checks 3:1 for every category in both themes. Glacier White
   and Midnight, the paints at either extreme, stay visible on both surfaces by
   construction.
-- **Stages are opacity.** Delivered, VIN assigned and waiting share the mark and differ
-  only in opacity (1, 0.65, 0.35; `--a-delivered`/`--a-vin`/`--a-wait`), which reads
-  correctly on either surface. Opacity on the segment rather than an alpha channel in
-  the color, so the fallback path needs nothing extra.
+- **Stages are opacity.** Delivered, delivery scheduled, VIN assigned and waiting share
+  the mark and differ only in opacity (1, 0.75, 0.5, 0.3; `--a-delivered`,
+  `--a-scheduled`, `--a-vin`, `--a-wait`), which reads correctly on either surface.
+  Opacity on the segment rather than an alpha channel in the color, so the fallback
+  path needs nothing extra. "Scheduled" is a firm delivery date not yet passed; Rivian
+  schedules delivery only after a VIN is assigned, so a scheduled order with no VIN
+  reported counts as scheduled (the VIN is just unreported).
 - **Fallback.** Browsers without relative color syntax (before Safari 18) get an
   `@supports not (color: oklch(from red l c h))` block of clamped colors that Python
   precomputes (`colors.py`'s OKLCH functions; the HLS whisker tints stay until the
@@ -322,7 +325,8 @@ tracked under **#102**. Blockers are also set as issue dependencies.
    - *Acceptance:* reconciliation runs in the pipeline.
    - *Acceptance:* Glacier White and Midnight marks stay visible in both themes.
 3. **#106 §2 HTML spike** (`takerate`). §2 as take-rate rows, shown beside the Plotly
-   version on the preview. Blocked by 2.
+   version on the preview. Blocked by 2. **Done: the direction is adopted (see
+   Decisions).**
    - *Acceptance:* the direction decision is recorded here, with evidence on payload,
      VoiceOver and theming.
    - *Acceptance:* `fig_config_dashboard` and its tests are migrated.
@@ -354,6 +358,31 @@ tracked under **#102**. Blockers are also set as issue dependencies.
 
 After that, **#85** (#32 trends, #34 estimate accuracy, reservation → order conversion)
 lands as new components on the registry.
+
+## Decisions
+
+Recorded as each stage settles them.
+
+- **Direction: HTML-first components, adopted (2026-10-05, #106 / #121).** §2's
+  take-rates were rebuilt as `takerate` rows and shown above the Plotly figure on the
+  preview, then the figure was removed. The evidence:
+  - **Same numbers:** every count matched the Plotly figure on the same data (paint,
+    wheels, interior, purchase/lease, spare, and R1 ownership).
+  - **Payload:** 2.4 KB gzipped for the six panels against 2.5 KB for the figure's
+    JSON, and no chart library.
+  - **Themes:** the category marks hold contrast in both themes (Glacier White is a
+    visible grey bar on white, its swatch still white); the empty bar track was
+    dropped because it blurred into the faintest stage in dark mode.
+  - **390 px:** the panels reflow to one column; the Plotly figure collapsed into
+    overlapping labels at that width.
+  - **Accessibility:** each panel is a group labelled by its title, rows are a list
+    whose text carries every number, bars are hidden from assistive technology, and a
+    real `<table>` (with a CSV download) mirrors each panel.
+
+  Settled with it: a group of components says the caveats they all share once, under
+  the grid, instead of in every frame; per-panel "not reported" counts are left to
+  `n =` and the summary sentence; the take-rates' trim split moves to the explore view
+  (#114), since the bars are split by delivery stage.
 
 ## Risks and open questions
 

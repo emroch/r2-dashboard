@@ -95,11 +95,17 @@ def test_reconcile_fails_on_an_aggregate_that_loses_rows():
 
 # --- Delivery stages ------------------------------------------------------------
 
-def test_stages_follow_delivery_then_vin():
+def test_stages_follow_delivery_then_schedule_then_vin():
     from render.aggregates import stages
-    df = _orders(delivered_inferred=[True, False, False, True, None],
-                 vin_present=[False, True, False, True, None])
-    assert list(stages(df)) == ["delivered", "vin", "wait", "delivered", "wait"]
+    df = _orders(delivered_inferred=[True, False, False, False, True, None, False],
+                 delivery_type=["explicit", "explicit", "window", None, "unknown",
+                                None, "explicit"],
+                 vin_present=[False, True, True, False, True, None, False])
+    assert list(stages(df)) == ["delivered", "scheduled", "vin", "wait",
+                                "delivered", "wait", "scheduled"]
+    # The last order: a firm date but no VIN reported. Delivery is only scheduled
+    # after a VIN is assigned, so the missing VIN is incomplete data and the
+    # order counts as scheduled, not as waiting for a VIN.
 
 
 def test_stage_split_always_sums_to_the_cell():
@@ -112,7 +118,8 @@ def test_stage_split_always_sums_to_the_cell():
         assert sum(c["stages"].values()) == c["n"], c
         assert list(c["stages"]) == list(STAGES)
     midnight = a.cells[0]
-    assert midnight["stages"] == {"delivered": 1, "vin": 1, "wait": 1}
+    assert midnight["stages"] == {"delivered": 1, "scheduled": 0, "vin": 1,
+                                  "wait": 1}
     # The blank is excluded, whatever its stage.
     assert a.excluded == {"not reported": 1}
 
@@ -236,13 +243,30 @@ def test_takerate_rows_carry_swatch_counts_bar_and_stage_text():
     # The widest row (Midnight, 3) fills the track, so each of its three stages is
     # a third of it, and Borealis's single waiting order is a third too.
     assert html.count('style="width:33.33%"') == 4
-    assert "1 delivered (est.) · 1 with a VIN · 1 waiting for a VIN" in html
+    assert "1 delivered · 1 with a VIN · 1 waiting for a VIN" in html
     assert '<span class="tr-bar" aria-hidden="true">' in html
     assert "Midnight leads, with 75% of 4 orders." in html
-    assert "1 not reported, left out." in html
-    assert "Inferred, not reported." in html, "the stage split's own caveat"
-    assert "<th scope=\"col\">Delivered (est.)</th>" in html
+    assert "not reported" not in html, "the n and the summary already say it"
+    assert "Delivery status is inferred" in html, "the stage split's own caveat"
+    assert "<th scope=\"col\">Delivered</th>" in html
     assert "<th scope=\"col\">With a VIN</th>" in html, "VIN keeps its capitals"
+
+
+def test_a_group_says_its_shared_caveats_once():
+    # Every take-rate carries the delivery-status caveat; the R1 panel also
+    # carries R1 ownership's. A group of them says the shared one once.
+    from render.aggregates import counts, r1_models
+    from render.components import notes_html, shared_caveats, takerate
+    specs = [COMPONENTS["takerate-color"], COMPONENTS["takerate-r1"]]
+    shared = shared_caveats(specs)
+    assert len(shared) == 1 and shared[0].startswith("Delivery status is inferred")
+    df = _orders(color=["Midnight"], r1_owner_effective=["Yes"], r1_model=["R1T"])
+    paint = takerate("c-p", specs[0], counts(df, "color", by_stage=True), shared)
+    r1 = takerate("c-r", specs[1], r1_models(df, by_stage=True), shared)
+    assert "Delivery status" not in paint and "Delivery status" not in r1
+    assert "Naming an R1 model counts as owning one" in r1
+    assert "Delivery status is inferred" in notes_html(shared)
+    assert notes_html([]) == ""
 
 
 def test_rows_without_a_category_color_are_neutral():

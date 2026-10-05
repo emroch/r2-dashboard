@@ -18,11 +18,11 @@ from plotly.offline import get_plotlyjs
 
 from .assets import publish_assets
 from .categories import category_css
-from .components import stage_key
+from .components import notes_html, shared_caveats, stage_key
 from .charts import (delivery_progress,
                      fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
-                     fig_config_dashboard, fig_delivery_timeline,
+                     fig_delivery_timeline,
                      fig_delivery_latency, fig_delivery_vs_vin,
                      fig_dest_vs_delivery, fig_geo,
                      fig_interior_by_location,
@@ -55,7 +55,7 @@ def _tpl(name):
 # Each moves to a presentation-layer component as its section migrates
 # (docs/presentation.md, Stages).
 _BUILDERS = {f.__name__: f for f in (
-    fig_config_dashboard, fig_color_wheel_heatmap, fig_color_interior_heatmap,
+    fig_color_wheel_heatmap, fig_color_interior_heatmap,
     fig_price_distribution, fig_price_options, fig_price_by_trim,
     fig_order_timeline, fig_delivery_timeline, fig_delivery_latency,
     fig_certainty_by_vin, fig_vin_vs_order, fig_delivery_vs_vin, fig_vin_cadence,
@@ -76,13 +76,15 @@ def _section(entry):
 
 
 def _components_html(cids, view):
-    """A section's components, in a grid; take-rates get the stage key once."""
+    """A section's components, in a grid. Take-rates get the stage key once, and
+    the caveats every component in the group carries are said once, under it."""
     if not cids:
         return ""
     key = (stage_key() if any(COMPONENTS[c]["template"] == "takerate" for c in cids)
            else "")
-    return '<div class="r2c-group">%s<div class="r2c-grid">%s</div></div>' % (
-        key, "".join(view.html[c] for c in cids))
+    shared = shared_caveats([COMPONENTS[c] for c in cids]) if len(cids) > 1 else []
+    return '<div class="r2c-group">%s<div class="r2c-grid">%s</div>%s</div>' % (
+        key, "".join(view.render(c, shared) for c in cids), notes_html(shared))
 
 
 # Display order = list order (src/conf/sections.yaml). Section numbers (chart
@@ -410,11 +412,6 @@ def build_dashboard(df, report, resv, view):
             frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
         comps = _components_html(SECTION_COMPONENTS[i], view)
-        if comps and frags:
-            # #106's review: the Plotly chart stays under its replacement until the
-            # direction is decided, then goes.
-            frags.insert(0, '<p class="r2c-compare">The previous chart, kept for '
-                            'comparison while #106 is reviewed:</p>')
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
             '%s%s</section>' % (n, n, _esc(title), desc, comps, "".join(frags)))
