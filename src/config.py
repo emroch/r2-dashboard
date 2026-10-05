@@ -58,6 +58,8 @@ _THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
 _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
 # The page's section registry: order, title, prose, and what each section draws.
 SECTIONS_CONF = _load("sections.yaml")["sections"]
+# The presentation layer's components, by id (what each draws and says).
+COMPONENTS = _load("charts.yaml")["components"]
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only

@@ -95,8 +95,11 @@ js_deps() {
     fi
 }
 
-# Every Python test file, each runnable on its own (no pytest needed).
-py_tests() { "$1" tests/test_parsing.py && "$1" tests/test_view.py; }
+# Every Python test file (tests/test_*.py), each runnable on its own (no pytest).
+py_tests() {
+    local f
+    for f in tests/test_*.py; do "$1" "$f" || return 1; done
+}
 
 js_lint() { js_deps; npx --no-install eslint .; }
 js_test() { js_deps; npm test --silent; }

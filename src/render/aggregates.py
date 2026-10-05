@@ -95,7 +95,26 @@ def _blank(v: Any) -> bool:
         (isinstance(v, str) and not v.strip())
 
 
-def counts(df: pd.DataFrame, dim: str, cohort: str = "orders") -> Aggregate:
+# Delivery stages, in reading order: how far an order has got. The same split as
+# the summary's delivery-progress cards and the take-rate bars (theme.yaml's
+# --a-delivered / --a-vin / --a-wait opacities).
+STAGES = ("delivered", "vin", "wait")
+STAGE_LABELS = {"delivered": "delivered (est.)", "vin": "with a VIN",
+                "wait": "waiting for a VIN"}
+
+
+def stages(df: pd.DataFrame) -> pd.Series:
+    """Each order's delivery stage: "delivered" if its delivery is inferred,
+    else "vin" if it has a VIN, else "wait"."""
+    def yes(v: Any) -> bool:
+        return not _blank(v) and bool(v)
+    return pd.Series(["delivered" if yes(d) else "vin" if yes(v) else "wait"
+                      for d, v in zip(df["delivered_inferred"], df["vin_present"])],
+                     index=df.index)
+
+
+def counts(df: pd.DataFrame, dim: str, cohort: str = "orders",
+           by_stage: bool = False) -> Aggregate:
     """One dimension's category counts over a cohort.
 
     Blanks follow the dimension's `missing` policy: `omit` (and no policy)
@@ -104,44 +123,85 @@ def counts(df: pd.DataFrame, dim: str, cohort: str = "orders") -> Aggregate:
     `order`: "fixed" is the listed order; "count" is most orders first, the
     listed order breaking ties. Unlisted values come last, most orders first.
     A dimension with no listed categories (state) has an open vocabulary.
+
+    by_stage adds each cell's split by delivery stage, `stages` {stage: n},
+    which always sums to the cell's n.
     """
     spec = DIMENSIONS[dim]
     col = _FRAME_COLUMN.get(spec["column"], spec["column"])
     rows = df[COHORTS[cohort](df)]
-    missing = spec.get("missing") or {"policy": "omit"}
+    return _count(rows[col], stages(rows) if by_stage else None, dim, cohort,
+                  spec.get("missing") or {"policy": "omit"})
+
+
+def r1_models(df: pd.DataFrame, by_stage: bool = False) -> Aggregate:
+    """R1 ownership as one list: each model an owner named, owners who didn't
+    name one ("Unspecified"), and non-owners ("No R1").
+
+    A blank r1_model means different things depending on the owner question, so
+    it can't be one dimension's blank policy: an owner who skipped the follow-up
+    is still an owner, and a non-owner was never asked. Uses the reconciled owner
+    flag (r1_owner_effective), so a row that named a model counts as an owner.
+    Orders that didn't answer the owner question are excluded as not reported.
+    """
+    owner = df[_FRAME_COLUMN["r1_owner"]]
+    model = df["r1_model"]
+    unspecified = DIMENSIONS["r1_model"]["missing"]["value"]
+    values = pd.Series(
+        [None if _blank(o) else
+         (unspecified if _blank(m) else m) if o == "Yes" else "No R1"
+         for o, m in zip(owner, model)], index=df.index, dtype=object)
+    agg = _count(values, stages(df) if by_stage else None, "r1_model", "orders",
+                 {"policy": "omit"})
+    agg.name = "orders by R1 ownership"
+    return agg
+
+
+def _count(values: pd.Series, stage: pd.Series | None, dim: str, cohort: str,
+           missing: dict[str, Any]) -> Aggregate:
+    spec = DIMENSIONS[dim]
     listed = spec.get("categories") or []
     by_value = {c["value"]: c for c in listed}
     rank = {c["value"]: i for i, c in enumerate(listed)}
+    stage_of = stage if stage is not None else pd.Series(None, index=values.index)
 
-    tally: dict[Any, int] = {}
-    blanks = 0
-    for v in rows[col]:
-        if _blank(v):
-            blanks += 1
-        else:
-            tally[v] = tally.get(v, 0) + 1
+    tally: dict[Any, dict[str, int]] = {}
+    blank_stages: dict[str, int] = {}
+    for v, st in zip(values, stage_of):
+        bucket = blank_stages if _blank(v) else tally.setdefault(v, {})
+        bucket[st] = bucket.get(st, 0) + 1
+    blanks = sum(blank_stages.values())
     excluded = {}
     if blanks and missing["policy"] == "category":
-        tally[missing["value"]] = tally.get(missing["value"], 0) + blanks
+        into = tally.setdefault(missing["value"], {})
+        for st, n in blank_stages.items():
+            into[st] = into.get(st, 0) + n
     elif blanks and missing["policy"] != "bucket":
         excluded[NOT_REPORTED] = blanks
 
-    def cell(v: Any, n: int) -> dict[str, Any]:
+    def total(v: Any) -> int:
+        return sum(tally[v].values())
+
+    def cell(v: Any, split: dict[str, int], label: str | None = None,
+             known: bool = True) -> dict[str, Any]:
         c = by_value.get(v)
-        known = c is not None or not listed
-        label = (c or {}).get("label") or (c or {}).get("short") or str(v)
-        return {"value": v, "label": label, "n": n, "known": known,
-                "ref": "%s:%s" % (dim, v) if c and "color" in c else None}
+        out = {"value": v, "n": sum(split.values()), "known": known,
+               "label": label or (c or {}).get("label") or (c or {}).get("short")
+               or str(v),
+               "ref": "%s:%s" % (dim, v) if c and "color" in c else None}
+        if stage is not None:
+            out["stages"] = {st: split.get(st, 0) for st in STAGES}
+        return out
 
     known_vals = [v for v in tally if v in by_value or not listed]
     unknown = sorted((v for v in tally if v not in known_vals),
-                     key=lambda v: (-tally[v], str(v)))
+                     key=lambda v: (-total(v), str(v)))
     if spec.get("order") == "fixed":
         known_vals.sort(key=lambda v: rank.get(v, 0))
     else:
-        known_vals.sort(key=lambda v: (-tally[v], rank.get(v, 0), str(v)))
-    cells = [cell(v, tally[v]) for v in known_vals + unknown]
+        known_vals.sort(key=lambda v: (-total(v), rank.get(v, 0), str(v)))
+    cells = ([cell(v, tally[v]) for v in known_vals]
+             + [cell(v, tally[v], known=False) for v in unknown])
     if blanks and missing["policy"] == "bucket":
-        cells.append({"value": None, "label": missing["label"], "n": blanks,
-                      "known": True, "ref": None})
+        cells.append(cell(None, blank_stages, label=missing["label"]))
     return Aggregate("%s by %s" % (cohort, dim), cohort, cells, excluded, dim)

@@ -105,7 +105,7 @@ html.nav-shown .sidebar{transform:translateX(0);}
  .topbar{padding:10px 16px;}
  .wrap{padding:8px 14px 48px;}
 }
-section{scroll-margin-top:calc(var(--header-h,92px) + 8px);}
+section,.r2c{scroll-margin-top:calc(var(--header-h,92px) + 8px);}
 .wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
 section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:10px;
  margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px var(--card-sh);
@@ -190,3 +190,28 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .stage-delivered{opacity:var(--a-delivered);}
 .stage-vin{opacity:var(--a-vin);}
 .stage-wait{opacity:var(--a-wait);}
+/* A section's components: a responsive grid of frames, under one stage key. */
+.r2c-group{margin:10px 0 4px;}
+.r2c-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));
+ gap:6px 28px;align-items:start;}
+.r2c-grid .r2c{margin:8px 0 0;}
+.r2c-compare{margin:22px 0 4px;font-size:12px;color:var(--desc);font-style:italic;}
+.stage-key{margin:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;
+ color:var(--desc);}
+.stage-key i{display:inline-block;width:14px;height:8px;border-radius:2px;
+ margin-right:5px;vertical-align:middle;}
+/* takerate (render/components.py): name and count on one line, the bar under
+   them, then the stage counts. Bar segments are inline-width marks. */
+.tr{list-style:none;margin:0;padding:0;}
+.tr-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;
+ padding:5px 0;font-size:13px;}
+.tr-name{display:flex;align-items:center;gap:6px;min-width:0;}
+.tr-n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+.tr-pct{color:var(--desc);margin-left:4px;}
+.tr-bar{grid-column:1 / -1;display:flex;height:8px;margin-top:3px;
+ border-radius:2px;overflow:hidden;}
+.tr-bar i{display:block;height:100%;}
+.tr-split{grid-column:1 / -1;font-size:11px;color:var(--desc);margin-top:2px;}
+/* Rows whose category has no color of its own (purchase/lease, yes/no) get a
+   neutral mark: color is kept for what it identifies. */
+.tr-neutral{--mark:var(--desc);}

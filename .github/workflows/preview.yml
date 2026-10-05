@@ -133,9 +133,7 @@ jobs:
       # net, incl. validating Dependabot's action-bump PRs against the new
       # versions before they merge.
       - name: Run tests
-        run: |
-          python3 tests/test_parsing.py
-          python3 tests/test_view.py
+        run: for f in tests/test_*.py; do python3 "$f" || exit 1; done
 
       - name: Build dashboard (fetch -> clean -> render)
         run: python3 src/pipeline.py

@@ -33,8 +33,8 @@ src/
     colors.py       color transforms: HLS display palettes for Plotly (COLOR_DISPLAY / WHISKER_HEX) + OKLCH math (marks, contrast)
     categories.py   category colors as CSS: a .cat-<dim>-<slug> class per colored category (--paint true color, --mark theme-clamped) + fallback
     aggregates.py   counts for components, each reconciled against its cohort (cells + excluded == cohort, or the build stops)
-    components.py   the component frame: title, summary, n + composed caveats, <details> data table + CSV button
-    view.py         builds + reconciles the page's aggregates; writes r2_view.json (browser-drawn components' specs; none yet)
+    components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate)
+    view.py         builds + reconciles the page's aggregates, renders the static components; writes r2_view.json (browser-drawn specs; none yet)
     charts.py       the ten fig_* chart builders + helpers
     page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
@@ -54,7 +54,8 @@ src/
     dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
     palette.yaml    chart fills that don't name a category (take-rate/timeline tints, accents, heatmap scale)
     theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities) + chart retint colors + static chart accents
-    sections.yaml   the page's sections in order: title, prose (HTML), and what each draws
+    sections.yaml   the page's sections in order: title, prose (HTML), and what each draws (components, then Plotly charts)
+    charts.yaml     the presentation-layer components by id: template, title, dims, aggregate, summary sentence
     schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
     delivery.yaml   delivery-estimate normalization — unknown tokens/substrings, explicit overrides, month names
@@ -62,7 +63,7 @@ src/
 data/raw/           timestamped live caches (auto change-detected)
 data/processed/     cleaned CSV output
 output/             dashboard HTML output
-tests/              unit tests: test_parsing.py, test_view.py (Python); js/*.test.mjs (node --test)
+tests/              unit tests: test_parsing.py, test_aggregates.py, test_view.py (Python); js/*.test.mjs (node --test)
 tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 
@@ -85,7 +86,7 @@ Outputs:
 
 Shipping a curation edit (`src/conf/*.yaml`, new `data/raw` caches): `./curate "message"` runs `./ci_env check`, then branches, commits, opens a PR, waits for its checks and rebase-merges it (one linear data commit, no merge commit) — `main`'s ruleset blocks direct pushes. It refuses changes outside those paths.
 
-Tests: `python3 tests/test_parsing.py` and `python3 tests/test_view.py` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
+Tests: each `tests/test_*.py` runs on its own with `python3` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
 
 ### Matching CI locally (`./ci_env`)
 
