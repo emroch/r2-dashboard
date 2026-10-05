@@ -24,14 +24,13 @@ sections:
     desc: >-
       What this cohort ordered. Each panel counts the orders that answered its
       question, so an unanswered one sits out rather than forming a blank row; the
-      count left out is noted under the panel, and the data-quality panel lists the
-      orders that never reported their build. Every bar is split by how far those
-      orders have got: delivered (inferred, from a delivery date that has passed),
-      assigned a VIN, or still waiting for one. Paints are ordered by how many chose
-      them; wheels, interiors and the yes/no answers keep their natural order. For
-      the compact spare an unanswered question means not opted in, so those count
-      as No. Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the
-      cohort, so they have no panel yet.
+      data-quality panel lists the orders that never reported their build. Every
+      bar is split by how far those orders have got: delivered, delivery
+      scheduled, assigned a VIN, or still waiting for one. Paints are ordered by
+      how many chose them; wheels, interiors and the yes/no answers keep their
+      natural order. For the compact spare an unanswered question means not opted
+      in, so those count as No. Trim, Launch Package, Autonomy+ and Tow are ~100%
+      uniform across the cohort, so they have no panel yet.
 
   - title: "Configuration combinations"
     charts: [fig_color_wheel_heatmap, fig_color_interior_heatmap]

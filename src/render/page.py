@@ -77,14 +77,15 @@ def _section(entry):
 
 def _components_html(cids, view):
     """A section's components, in a grid. Take-rates get the stage key once, and
-    the caveats every component in the group carries are said once, under it."""
+    the caveats every component in the group carries are said once, under the
+    key (for take-rates that is the delivery-status note the key needs)."""
     if not cids:
         return ""
     key = (stage_key() if any(COMPONENTS[c]["template"] == "takerate" for c in cids)
            else "")
     shared = shared_caveats([COMPONENTS[c] for c in cids]) if len(cids) > 1 else []
-    return '<div class="r2c-group">%s<div class="r2c-grid">%s</div>%s</div>' % (
-        key, "".join(view.render(c, shared) for c in cids), notes_html(shared))
+    return '<div class="r2c-group">%s%s<div class="r2c-grid">%s</div></div>' % (
+        key, notes_html(shared), "".join(view.render(c, shared) for c in cids))
 
 
 # Display order = list order (src/conf/sections.yaml). Section numbers (chart

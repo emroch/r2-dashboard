@@ -192,10 +192,11 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
                                                    for s in STAGES],
                   [[c["label"], c["n"], share(int(c["n"]), total)]
                    + [c["stages"][s] for s in STAGES] for c in cells])
+    # No "n =" line: the summary sentence already gives the cohort size.
     labels = [c.get("label") or c.get("short") or str(c["value"])
               for c in DIMENSIONS[agg.dim]["categories"]] if agg.dim else []
     summary = (summarize(spec["summary"], cells, labels)
                if spec.get("summary") and cells else None)
     return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary,
-                 n=total, dims=component_dims(spec), table=table, shared=shared)
+                 dims=component_dims(spec), table=table, shared=shared)

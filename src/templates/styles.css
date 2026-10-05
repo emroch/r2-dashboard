@@ -193,13 +193,19 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .stage-scheduled{opacity:var(--a-scheduled);}
 .stage-vin{opacity:var(--a-vin);}
 .stage-wait{opacity:var(--a-wait);}
-/* A section's components: a responsive grid of frames, under one stage key. */
+/* A section's components: a grid of frames under one stage key. Two across at
+   most, and only while each column is at least 340px, so rows stay roomy (with
+   the sidebar open on a mid-size window that is already one across); always one
+   across from the width where the sidebar floats over the page (900px, as .main
+   above). */
 .r2c-group{margin:10px 0 4px;}
-.r2c-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));
- gap:22px 28px;align-items:start;}
+.r2c-grid{display:grid;
+ grid-template-columns:repeat(auto-fill,minmax(max(340px,calc((100% - 40px) / 2)),1fr));
+ gap:22px 40px;align-items:start;}
+@media (max-width:900px){.r2c-grid{grid-template-columns:minmax(0,1fr);}}
 .r2c-grid .r2c{margin:8px 0 0;}
-/* Caveats every component in the group shares, said once under the grid. */
-.r2c-notes{margin:14px 0 0;font-size:12px;color:var(--desc);}
+/* Caveats every component in the group shares, said once under the stage key. */
+.r2c-notes{margin:4px 0 0;font-size:12px;color:var(--desc);}
 .stage-key{margin:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;
  color:var(--desc);}
 .stage-key i{display:inline-block;width:14px;height:8px;border-radius:2px;

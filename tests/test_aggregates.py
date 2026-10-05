@@ -228,6 +228,14 @@ def test_every_registered_summary_fills_on_real_categories():
         summarize(spec["summary"], [{"label": labels[0], "n": 1}], labels)
 
 
+def test_every_takerate_summary_states_its_cohort_size():
+    # Take-rates have no "n =" line: the summary sentence says how many orders
+    # the panel counts, so each one must use {n}.
+    for cid, spec in COMPONENTS.items():
+        if spec["template"] == "takerate":
+            assert "{n}" in spec.get("summary", ""), cid
+
+
 def test_takerate_rows_carry_swatch_counts_bar_and_stage_text():
     from render.aggregates import counts
     from render.components import takerate
