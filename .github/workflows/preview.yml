@@ -146,7 +146,21 @@ jobs:
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
           cp data/processed/r2_dimensions.json dist/r2_dimensions.json
           cp data/processed/r2_series.json dist/r2_series.json
+          cp -R output/assets dist/assets
           cp src/templates/_headers dist/_headers
+
+      # wrangler is pinned in package.json. Installed before the deploy action,
+      # which then finds it and uses it instead of running its own `npm i
+      # wrangler` in the checkout (which rewrote package.json and dirtied the tree).
+      - uses: actions/setup-node@v7
+        if: steps.pr.outputs.deployable == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install wrangler (pinned in package.json)
+        if: steps.pr.outputs.deployable == 'true'
+        run: npm ci --ignore-scripts
 
       # Preview deploy + comment: same-repo, non-Dependabot PRs only (forks and
       # Dependabot have no access to the CLOUDFLARE_* secrets). A non-production
@@ -159,6 +173,18 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=r2-dashboard --branch=pr-${{ steps.pr.outputs.number }} --commit-dirty=true
+
+      # The action must have used the pinned wrangler rather than installing its
+      # own, which rewrites package.json (#104). Only the npm files are checked:
+      # the build itself can add a data/raw cache when the sheet has changed.
+      - name: Check the deploy left package.json alone
+        if: steps.preview.outcome == 'success'
+        run: |
+          if [ -n "$(git status --porcelain -- package.json package-lock.json)" ]; then
+            git diff -- package.json
+            echo "::error::the deploy action changed package.json; it did not use the pinned wrangler"
+            exit 1
+          fi
 
       - name: Comment preview URL on the PR
         if: steps.preview.outcome == 'success'

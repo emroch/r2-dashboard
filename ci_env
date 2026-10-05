@@ -11,8 +11,10 @@
 #
 #   ./ci_env test      run the unit tests under the CI stack (default)
 #   ./ci_env build     run the full pipeline (fetch -> clean -> render)
-#   ./ci_env check     lint + types + tests + build, i.e. what CI does on a PR
-#   ./ci_env lint      ruff check + mypy (settings in pyproject.toml)
+#   ./ci_env check     lint + types + tests (Python and JS) + build, i.e. what
+#                      CI does on a PR
+#   ./ci_env lint      ruff check + mypy (pyproject.toml) + eslint (eslint.config.js)
+#   ./ci_env js        just the JS: eslint + the node --test suite
 #   ./ci_env shell     print the activate line for an interactive session
 #   ./ci_env python …  run any python command under the CI stack
 #   ./ci_env sync      (re)create the venv from requirements.txt and exit
@@ -21,6 +23,10 @@
 # python, which is how you catch version-dependent behavior:
 #
 #   ./ci_env test --both
+#
+# The JS tools (eslint, and the wrangler the deploys use) come from
+# package-lock.json via `npm ci`, into node_modules/, reinstalled when the
+# lockfile changes. Node itself is whatever is installed (.nvmrc names CI's).
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -73,6 +79,25 @@ if [ ! -x "$PY" ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$want" ]; then
     echo "$want" > "$STAMP"
 fi
 
+# The JS tools from package-lock.json, reinstalled when the lockfile changes
+# (the same `npm ci --ignore-scripts` the workflows run).
+js_deps() {
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "error: npm not found — install Node $(cat .nvmrc) (brew install node)" >&2
+        exit 1
+    fi
+    local want
+    want="$(shasum package-lock.json | cut -d' ' -f1)"
+    if [ "$(cat node_modules/.lock.sha 2>/dev/null || true)" != "$want" ]; then
+        echo "==> installing JS tools (npm ci, pinned package-lock.json)" >&2
+        npm ci --ignore-scripts --no-audit --no-fund >&2
+        echo "$want" > node_modules/.lock.sha
+    fi
+}
+
+js_lint() { js_deps; npx --no-install eslint .; }
+js_test() { js_deps; npm test --silent; }
+
 cmd="${1:-test}"
 [ $# -gt 0 ] && shift || true
 
@@ -102,12 +127,19 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
     lint)
         "$VENV/bin/ruff" check .
         "$VENV/bin/mypy"
+        js_lint
+        ;;
+    js)
+        js_lint
+        js_test
         ;;
     check)
         banner "CI stack" "$PY"
         "$VENV/bin/ruff" check .
         "$VENV/bin/mypy"
+        js_lint
         "$PY" tests/test_parsing.py
+        js_test
         "$PY" src/pipeline.py
         ;;
     shell)
@@ -117,7 +149,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         exec "$PY" "$@"
         ;;
     *)
-        sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

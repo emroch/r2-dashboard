@@ -1985,6 +1985,52 @@ def test_an_unreported_build_is_unpriced_not_priced_at_base():
     assert all("not reported" in i for i in issues), issues
 
 
+# --- Page assets: content-hashed copies of src/web/ (#104) ---------------------
+
+def test_publish_assets_hashes_content_and_replaces_old_builds():
+    import tempfile
+    from pathlib import Path
+
+    from render.assets import asset_hash, publish_assets
+    with tempfile.TemporaryDirectory() as d:
+        src, out = Path(d, "web"), Path(d, "out")
+        (src / "charts").mkdir(parents=True)
+        (src / "main.js").write_text("boot();")
+        (src / "charts" / "scatter.js").write_text("export {};")
+        (src / ".DS_Store").write_text("finder litter")
+        first = publish_assets(out, src)
+        h1 = asset_hash(src)
+        assert first == "assets/%s/" % h1 and len(h1) == 8
+        got = sorted(p.relative_to(out).as_posix()
+                     for p in out.rglob("*") if p.is_file())
+        assert got == ["assets/%s/charts/scatter.js" % h1,
+                       "assets/%s/main.js" % h1], got
+        # A dotfile is not page code, so it can't change the hash.
+        (src / ".DS_Store").write_text("more litter")
+        assert asset_hash(src) == h1
+        # Any change to a real file is a new URL, and the old copy is removed.
+        (src / "main.js").write_text("boot(document);")
+        second = publish_assets(out, src)
+        assert second != first
+        assert [p.name for p in (out / "assets").iterdir()] == [asset_hash(src)]
+
+
+def test_page_scripts_are_published_assets():
+    # Every script page.html loads from the asset prefix is a real file under
+    # src/web/, and the chrome JSON island parses back to theme.yaml's values.
+    from config import CHART_CHROME
+    from render.assets import WEB_DIR
+    from render.page import CHROME_JSON, PAGE_SCRIPTS, _tpl
+    shell = _tpl("page.html")
+    for sid, name in PAGE_SCRIPTS.items():
+        assert 'id="%s"' % sid in shell, sid
+        assert (WEB_DIR / name).is_file(), name
+    assert 'id="chrome-data"' in shell
+    import json
+    assert json.loads(CHROME_JSON) == {"light": CHART_CHROME["light"],
+                                       "dark": CHART_CHROME["dark"]}
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

@@ -1,6 +1,6 @@
 name: Static checks
 
-# Lint and type-check every pull request. Its own workflow rather than a step in preview.yml, so
+# Lint and type-check every pull request, Python and JS. Its own workflow rather than a step in preview.yml, so
 # a lint finding fails a check on the PR without holding back the preview build
 # and deploy — the preview is how the change gets reviewed, and a style nit or a
 # type complaint shouldn't hide it. Needs no secrets, so it runs the same for forks.
@@ -53,3 +53,29 @@ jobs:
       # Settings (files, strictness, the plotly exemption) live in pyproject.toml.
       - name: mypy
         run: mypy
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node from .nvmrc, the one place its version is set (the deploy workflows
+      # read it too).
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # The pinned dev tools from package-lock.json. Install scripts are skipped:
+      # nothing here needs one (workerd's only checks its binary), and it keeps a
+      # dependency's script from running in CI.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Settings live in eslint.config.js. Correctness rules only, no formatter.
+      - name: eslint
+        run: npx eslint .
+
+      # The browser code's unit tests, under node's built-in runner.
+      - name: node --test
+        run: npm test

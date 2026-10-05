@@ -47,7 +47,7 @@
  // Localize the server-rendered <time data-r2time> stamps to the viewer's own
  // timezone (the datetime attr carries the absolute instant); falls back to the
  // build-timezone text if this doesn't run.
- var tzf; try{tzf=new Intl.DateTimeFormat(undefined,{timeZoneName:'short'});}catch(e){}
+ var tzf; try{tzf=new Intl.DateTimeFormat(undefined,{timeZoneName:'short'});}catch{/* best effort */}
  function pad(n){return (n<10?'0':'')+n;}
  document.querySelectorAll('time[data-r2time]').forEach(function(t){
   var d=new Date(t.getAttribute('datetime'));
