@@ -12,6 +12,7 @@ tidy CSV plus a 10-chart HTML dashboard.
 ```
 r2_dashboard          run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
 requirements.txt      pandas, numpy, plotly, PyYAML, beautifulsoup4
+package.json          JS dev tools (eslint, pinned wrangler); Node version in .nvmrc
 src/
   config.py           paths, run timestamps + loaders for the conf/ YAML files
   pipeline.py         main() orchestration + report printing (fetch -> clean -> render)
@@ -24,12 +25,16 @@ src/
     colors.py         color-transform functions + derived display palettes
     charts.py         the ten fig_* chart builders + helpers
     page.py           BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
-  templates/          valid standalone page shell + assets, filled at render time
+    assets.py         publishes src/web/ as content-hashed static assets
+  templates/          valid standalone page shell, filled at render time
     page.html         valid HTML shell (empty id'd slots, populated via the DOM)
     styles.css        page stylesheet (its own <style> slot)
-    head.js           pre-paint theme set (no flash)
+    head.js           pre-paint theme set (no flash), inlined
+  web/                browser code, served as static files (no build step)
+    main.js           boots browser-drawn components (ES module)
     theme.js          re-tint chart chrome on light/dark toggle
     nav.js            sidebar hamburger + scroll-spy
+    scrollzoom.js     map wheel-zoom vs. page scroll
   conf/               data/config YAML (loaded by config.py)
     dimensions.yaml   category vocabulary: each column's label, order, blank handling, caveat, and
                       per-category label/color/marker (paints, wheels, interiors, regions, ...);
@@ -46,6 +51,7 @@ data/
 output/               dashboard HTML output
 tests/
   test_parsing.py     unit tests (run via pytest OR plain python3)
+  js/                 browser-code unit tests (node --test)
 ```
 
 ## Running
@@ -129,7 +135,15 @@ same token deploys both.
 python3 tests/test_parsing.py     # no pytest required
 # or
 pytest tests/
+
+npm ci --ignore-scripts           # once: the pinned JS tools
+npx eslint . && npm test          # JS lint + node --test
 ```
+
+`./ci_env check` runs all of it, plus the pipeline, under the CI stack.
+
+To view a local build with its scripts, serve `output/` (`python3 -m http.server -d
+output`): browsers don't load ES modules from a `file://` page.
 
 ## Reporting a problem
 

@@ -1,11 +1,12 @@
 """Dashboard assembly: the section registry, template loading, HTML helpers,
 and the build_dashboard entry point that renders every chart into one HTML file.
 
-The page's static assets live as real files under templates/ — page.html (a
-valid, standalone HTML shell with id'd slots) plus styles.css and the
-head/theme/nav scripts. build_dashboard parses the shell with BeautifulSoup and
-populates it by element id (theme vars, stat cards, nav links, chart sections),
-then splices Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
+The page shell lives under templates/ — page.html (a valid, standalone HTML
+shell with id'd slots) plus styles.css and the inlined head.js. The page scripts
+live under web/ and are published as hashed static assets (render/assets.py).
+build_dashboard parses the shell with BeautifulSoup and populates it by element
+id (theme vars, stat cards, nav links, chart sections, script URLs), then splices
+Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
 """
 import json
 import os
@@ -16,6 +17,7 @@ from urllib.parse import urlencode
 from bs4 import BeautifulSoup, Tag
 from plotly.offline import get_plotlyjs
 
+from .assets import publish_assets
 from .charts import (delivery_progress,
                      fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
@@ -213,20 +215,23 @@ _THEME_VARS_CSS = "\n%s\n%s\n" % (
 HEAD_JS = _tpl("head.js")
 
 # The light/dark chart-chrome objects come from theme.yaml (config.CHART_CHROME),
-# injected into the script below so THEME_JS and the baked-in chart colors agree.
-_CHROME_JS = "var LIGHT=%s;var DARK=%s;" % (
-    json.dumps(CHART_CHROME["light"], separators=(",", ":")),
-    json.dumps(CHART_CHROME["dark"], separators=(",", ":")))
+# written into the page as a JSON island that theme.js reads, so its retint and
+# the baked-in chart colors agree. "</" is escaped so the JSON can't close the
+# <script> element it sits in.
+CHROME_JSON = json.dumps({"light": CHART_CHROME["light"],
+                          "dark": CHART_CHROME["dark"]},
+                         separators=(",", ":")).replace("</", "<\\/")
 
-# Runs at end of <body>: wire the toggle and re-theme the (already-rendered)
-# Plotly charts. Data-encoding colors (markers/bars/paints) are left untouched;
-# only chart chrome — text, gridlines, geo land/borders, legend boxes, and the
-# transparent backgrounds that let the themed card show through — is swapped.
-THEME_JS = _tpl("theme.js").replace("/*__CHROME_JS__*/", _CHROME_JS)
-
-# Chart-navigation sidebar: hamburger toggle (narrow screens) + scroll-spy that
-# highlights the section currently in view via IntersectionObserver.
-NAV_JS = _tpl("nav.js")
+# The page scripts are static assets under src/web/, published content-hashed by
+# render/assets.py and loaded at the end of <body> in page.html's order:
+#   theme.js       the toggle, and the re-theme of the (already-rendered) Plotly
+#                  charts. Data-encoding colors (markers/bars/paints) are left
+#                  untouched; only chart chrome is swapped.
+#   nav.js         sidebar toggle + scroll-spy, report-menu dismissal, local times
+#   scrollzoom.js  wheel arbitration between zooming a map and scrolling the page
+#   main.js        the module that boots browser-drawn components (none yet)
+PAGE_SCRIPTS = {"theme-script": "theme.js", "nav-script": "nav.js",
+                "zoom-script": "scrollzoom.js", "main-script": "main.js"}
 
 # Plotly toolbar, applied to every figure. Box- and lasso-select mark points for
 # a selection this dashboard never reads, so they only add width to a bar that
@@ -237,12 +242,6 @@ PLOTLY_CONFIG = {
     "displaylogo": False,
     "modeBarButtonsToRemove": ["select2d", "lasso2d"],
 }
-
-# Arbitrates the scroll wheel between zooming a map and scrolling the page
-# (see scrollzoom.js). Separate from nav.js so the scroll-spy and the wheel
-# arbitration stay independently readable.
-ZOOM_JS = _tpl("scrollzoom.js")
-
 
 def _report_url(report):
     """The "Report issue" button's target: the repo's dashboard-report issue form
@@ -501,7 +500,7 @@ def build_dashboard(df, report, resv):
         for b in builders:
             fig = (b(df, resv) if b in (fig_geo, fig_order_timeline) else b(df))
             # Transparent backgrounds let the themed section card show through, so
-            # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
+            # the charts adapt to light/dark (chrome is re-tinted by theme.js).
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)")
             pid += 1
@@ -663,9 +662,10 @@ def build_dashboard(df, report, resv):
     slot(id="page-style").string = _tpl("styles.css")
     slot(id="chrome-vars").string = chrome_css
     slot(id="head-init").string = HEAD_JS
-    slot(id="theme-script").string = THEME_JS
-    slot(id="nav-script").string = NAV_JS
-    slot(id="zoom-script").string = ZOOM_JS
+    slot(id="chrome-data").string = CHROME_JSON
+    assets = publish_assets(Path(DASHBOARD).parent)
+    for sid, name in PAGE_SCRIPTS.items():
+        slot(id=sid)["src"] = assets + name
     slot(id="reportData")["href"] = ORDERS_THREAD
     slot(id="reportGithub")["href"] = _report_url(report)
     slot(id="reportForum")["href"] = FORUM_DM_URL

@@ -60,6 +60,7 @@ jobs:
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
           cp data/processed/r2_dimensions.json dist/r2_dimensions.json
           cp data/processed/r2_series.json dist/r2_series.json
+          cp -R output/assets dist/assets
           cp src/templates/_headers dist/_headers
 
       - name: Persist fetch history
@@ -75,6 +76,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/raw
           git diff --cached --quiet || (git commit -m "data: refresh caches [skip ci]" && git push)
+
+      # wrangler is pinned in package.json. Installed before the deploy action,
+      # which then finds it and uses it instead of running its own `npm i
+      # wrangler` in the checkout (which rewrote package.json and dirtied the tree).
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install wrangler (pinned in package.json)
+        run: npm ci --ignore-scripts
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0  # v4.1.3

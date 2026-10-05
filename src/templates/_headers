@@ -1,7 +1,26 @@
-# Cloudflare Pages: browser-cache the Plotly bundle. This applies when Pages
-# serves directly on *.pages.dev (production origin + PR previews); the Worker
-# sets the same header on the emroch.com/r2-dashboard path. Fixed filename + a
-# day of caching (cheap ETag revalidation after) — no version churn, and a
-# stale copy after a rare plotly bump still renders (stable API) and self-heals.
+# Cloudflare Pages response headers. These apply when Pages serves directly on
+# *.pages.dev (production origin + PR previews), and pass through the Worker on
+# the emroch.com/r2-dashboard path (worker/worker.js returns Pages' response).
+
+# The page's scripts, content-hashed by the build (src/render/assets.py): a
+# change to any of them is a new assets/<hash>/ path, so a cached copy can never
+# be stale under its own name and browsers can keep it for good.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The published data contract and rows change every build under fixed names, so
+# they are always revalidated (cheap: an ETag check). This is Pages' default,
+# stated here so it doesn't change by accident.
+/r2_dimensions.json
+  Cache-Control: public, max-age=0, must-revalidate
+/r2_series.json
+  Cache-Control: public, max-age=0, must-revalidate
+/r2_orders_clean.csv
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Browser-cache the Plotly bundle. The Worker sets the same header on the
+# emroch.com/r2-dashboard path. Fixed filename + a day of caching (cheap ETag
+# revalidation after) — no version churn, and a stale copy after a rare plotly
+# bump still renders (stable API) and self-heals.
 /plotly.min.js
   Cache-Control: public, max-age=86400

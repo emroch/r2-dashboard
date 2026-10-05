@@ -1,6 +1,9 @@
 
 (function(){
-/*__CHROME_JS__*/
+// The light/dark chart chrome from theme.yaml, which the build writes into the
+// page as a JSON island (this file is a static asset, the same on every build).
+var CHROME=JSON.parse(document.getElementById('chrome-data').textContent);
+var LIGHT=CHROME.light,DARK=CHROME.dark;
 function themeCharts(dark){
  if(!window.Plotly)return;
  var t=dark?DARK:LIGHT;
@@ -31,7 +34,7 @@ function themeCharts(dark){
   // Filter dropdowns/buttons keep a fixed light background + dark text (not
   // theme-swapped): their hover highlight is a fixed bright fill, so dark text
   // stays legible in both idle and hover states, in light or dark mode.
-  try{window.Plotly.relayout(gd,up);}catch(e){}
+  try{window.Plotly.relayout(gd,up);}catch{/* best effort */}
   var idx=[],staridx=[],boxidx=[];
   (gd.data||[]).forEach(function(tr,i){
    var lc=tr.marker&&tr.marker.line?tr.marker.line.color:null;
@@ -43,9 +46,9 @@ function themeCharts(dark){
    var bl=tr.line?tr.line.color:null;
    if(tr.type==='box'&&typeof bl==='string'&&managed.indexOf(bl.toLowerCase())>=0)boxidx.push(i);
   });
-  if(idx.length){try{window.Plotly.restyle(gd,{'marker.line.color':t.edge},idx);}catch(e){}}
-  if(boxidx.length){try{window.Plotly.restyle(gd,{'line.color':t.edge},boxidx);}catch(e){}}
-  if(staridx.length){try{window.Plotly.restyle(gd,{'marker.color':t.star},staridx);}catch(e){}}
+  if(idx.length){try{window.Plotly.restyle(gd,{'marker.line.color':t.edge},idx);}catch{/* best effort */}}
+  if(boxidx.length){try{window.Plotly.restyle(gd,{'line.color':t.edge},boxidx);}catch{/* best effort */}}
+  if(staridx.length){try{window.Plotly.restyle(gd,{'marker.color':t.star},staridx);}catch{/* best effort */}}
  });
 }
 function apply(t){
@@ -60,7 +63,7 @@ window.addEventListener('load',function(){
  if(b)b.addEventListener('click',function(){
   var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
   var nt=cur==='dark'?'light':'dark';
-  try{localStorage.setItem('r2theme',nt);}catch(e){}
+  try{localStorage.setItem('r2theme',nt);}catch{/* best effort */}
   apply(nt);
  });
 });
