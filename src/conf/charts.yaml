@@ -3,7 +3,8 @@
 # One entry per component, by id. A section lists the ids it shows in
 # sections.yaml (`components:`), in display order. Per entry:
 #   template   how it is drawn: takerate (rows with a stage-split bar), heatmap
-#              (a table with shaded cells), mix (100% rows) — HTML, drawn by
+#              (a table with shaded cells), mix (100% rows), bars (one bar per
+#              row), range (a min..max strip per row) — HTML, drawn by
 #              render/components.py; scatter — d3, in the browser
 #   title      its heading
 #   dims       the dimensions it shows (dimensions.yaml). Their caveats and
@@ -79,6 +80,34 @@ components:
     aggregate: crosstab
     summary: "{share_in:VIN assigned|Firm date} of orders with a VIN have a firm
       delivery date, against {share_in:No VIN yet|Firm date} of those without."
+
+  # Configured price, over the orders with a computable price (the "priced"
+  # cohort). Placeholders as above, plus {meta:KEY}: a statistic the aggregate
+  # computed (price_distribution: median, mean, min, max; price_options:
+  # options_mean, options_share; price_by_trim: medians).
+  #   amount   bars: the cell field a bar measures (default: the count)
+  #   table    bars: the data table's column headings
+  price-distribution:
+    template: bars
+    title: Price distribution
+    aggregate: price_distribution
+    table: [Price, Orders, Note]
+    summary: "The median configured price is {meta:median} and the mean
+      {meta:mean}, across {n} orders from {meta:min} to {meta:max}."
+  price-options:
+    template: bars
+    title: Where the option money goes
+    aggregate: price_options
+    amount: amount
+    accent: true
+    table: [Option, Average per order, Take rate]
+    summary: "Options add {meta:options_mean} per order on average,
+      {meta:options_share} of the price."
+  price-by-trim:
+    template: range
+    title: Configured price by trim
+    aggregate: price_by_trim
+    summary: "Median configured price by trim: {meta:medians}."
 
   # Browser-drawn (mounted) components: Python builds the spec + data
   # (render/specs.py, into r2_view.json) and the page draws it with d3

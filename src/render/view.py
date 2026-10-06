@@ -22,9 +22,9 @@ import pandas as pd
 
 from config import COMPONENTS, DIMENSIONS
 
-from .aggregates import (Aggregate, cohort_sizes, counts, crosstab, r1_models,
-                         reconcile)
-from .components import heatmap, mix, mount, takerate
+from .aggregates import (Aggregate, cohort_sizes, counts, crosstab, price_by_trim,
+                         price_distribution, price_options, r1_models, reconcile)
+from .components import bars, heatmap, mix, mount, range_strip, takerate
 from .specs import delivery_vs_vin
 
 VIEW_VERSION = 1
@@ -57,10 +57,14 @@ class View:
 _AGGREGATES = {
     "r1_models": lambda df, spec: r1_models(df, by_stage=True),
     "crosstab": lambda df, spec: crosstab(df, spec["dims"][0], spec["dims"][1]),
+    "price_distribution": lambda df, spec: price_distribution(df),
+    "price_options": lambda df, spec: price_options(df),
+    "price_by_trim": lambda df, spec: price_by_trim(df),
 }
 
 # charts.yaml `template` -> renderer, for the templates drawn as HTML here.
-_STATIC = {"takerate": takerate, "heatmap": heatmap, "mix": mix}
+_STATIC = {"takerate": takerate, "heatmap": heatmap, "mix": mix, "bars": bars,
+           "range": range_strip}
 
 # charts.yaml `aggregate` -> spec builder, for the browser-drawn templates.
 _SPECS = {"delivery_vs_vin": delivery_vs_vin}

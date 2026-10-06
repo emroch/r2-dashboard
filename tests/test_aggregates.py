@@ -1,6 +1,7 @@
 """Tests for the presentation layer's aggregates and the take-rate component
 (#105, #106): counts and their blank policies, delivery stages, R1 ownership,
-reconciliation, summary sentences, and the take-rate rows.
+reconciliation, summary sentences, and the take-rate rows; then the crosstab
+components (#108) and configured price.
 
 The take-rate tests carry over what the Plotly take-rate figure's tests checked
 (test_parsing.py, before #106): one paint order everywhere, blanks left out
@@ -226,6 +227,8 @@ def test_every_registered_summary_fills_on_real_categories():
     for spec in COMPONENTS.values():
         if not spec.get("summary"):
             continue
+        if str(spec.get("aggregate")).startswith("price_"):
+            continue        # filled from the aggregate's meta: the price tests
         if spec.get("aggregate") == "crosstab":
             # Every pairing of the two vocabularies, as a crosstab's cells are.
             rows, cols = labels(spec["dims"][0]), labels(spec["dims"][1])
@@ -392,6 +395,105 @@ def test_share_in_reads_a_column_share_within_a_row():
         pass
     else:
         raise AssertionError("an unknown row filled")
+
+
+# --- Configured price (§4): carries over fig_price_distribution, fig_price_options
+# and fig_price_by_trim's arithmetic (spot-checked equal on the live data, #108).
+
+_OPTION_COLS = ("price_base", "price_drive", "price_paint", "price_wheels",
+                "price_interior", "price_spare", "price_autonomy_tow")
+
+
+def _priced(prices, **cols):
+    """Columns for priced orders: a Performance base of 57,990 and the rest as
+    paint, unless given."""
+    n = len(prices)
+    base = {"price": list(prices), "price_trim": ["Performance"] * n,
+            "opted_autonomy": [True] * n, "opted_tow": [True] * n}
+    base.update({c: [0.0] * n for c in _OPTION_COLS})
+    base["price_base"] = [57990.0] * n
+    base["price_paint"] = [p - 57990.0 for p in prices]
+    base.update(cols)
+    return base
+
+
+def test_price_distribution_counts_exact_prices_and_marks_the_median():
+    from render.aggregates import price_distribution, reconcile, cohort_sizes
+    df = _orders(**_priced([57990.0, 59990.0, 59990.0, 62745.0]), color=[None] * 4)
+    df.loc[len(df)] = None                          # an unpriced order: not here
+    a = price_distribution(df)
+    assert [(c["label"], c["n"]) for c in a.cells] == \
+        [("$57,990", 1), ("$59,990", 2), ("$62,745", 1)]
+    assert [c["highlight"] for c in a.cells] == [False, True, False]
+    assert a.meta == {"median": "$59,990", "mean": "$60,179", "min": "$57,990",
+                      "max": "$62,745"}
+    reconcile([a], cohort_sizes(df))
+    # An even count can put the median midway between two prices: one row is
+    # still marked, the lower (as the Plotly chart did).
+    a = price_distribution(_orders(**_priced([57990.0, 59990.0, 62745.0, 62745.0])))
+    assert a.meta["median"] == "$61,368"
+    assert [c["highlight"] for c in a.cells] == [False, True, False]
+
+
+def test_price_options_skip_inapplicable_rows_and_explain_a_zero():
+    from render.aggregates import price_options, reconcile, cohort_sizes
+    n = 200
+    df = _orders(**_priced([59990.0] * n, price_wheels=[1000.0] + [0.0] * (n - 1)))
+    a = price_options(df)
+    rows = {c["label"]: c for c in a.cells}
+    assert list(rows) == ["Paint", "Wheels", "Interior", "Autonomy+ / Tow"], \
+        "biggest first; drive and spare apply to nobody, so no row"
+    assert rows["Paint"]["note"] == "100% chose · $2,000 avg"
+    assert rows["Wheels"]["note"] == "1 of 200 paid · $1,000", "under 1%: a count"
+    assert rows["Interior"]["note"] == "none paid yet"
+    assert rows["Autonomy+ / Tow"]["note"] == "included free for 200 of 200"
+    # The option total is price - base (here all paint: the fixture's wheels
+    # aren't in the price).
+    assert a.meta == {"options_mean": "$2,000", "options_share": "3.3%"}
+    assert a.counted == n
+    reconcile([a], cohort_sizes(df))
+
+
+def test_price_by_trim_keeps_every_trim_and_shares_the_axis():
+    from config import PRICE_TRIMS
+    from render.aggregates import price_by_trim
+    a = price_by_trim(_orders(**_priced([57990.0, 59990.0, 60990.0, 62745.0])))
+    assert [c["label"] for c in a.cells] == list(PRICE_TRIMS)
+    perf = a.cells[0]["stats"]
+    assert (perf["min"], perf["median"], perf["max"]) == (57990.0, 60490.0, 62745.0)
+    assert (perf["q1"], perf["q3"]) == (59490.0, 61428.75), "pandas' linear quantiles"
+    assert all(c["n"] == 0 and not c["stats"] for c in a.cells[1:])
+    assert (a.meta["lo"], a.meta["hi"]) == (57490.0, 63245.0), "padded by $500"
+
+
+def test_stat_labels_merge_stats_that_round_to_the_same_dollar():
+    from render.components import stat_labels
+    st = {"min": 57990, "q1": 59990, "median": 59990.4, "q3": 60990, "max": 62745}
+    assert stat_labels(st) == [("min", 57990), ("Q1 / median", 59990),
+                               ("Q3", 60990), ("max", 62745)]
+
+
+def test_price_components_render_rows_text_and_tables():
+    from render.aggregates import price_by_trim, price_distribution, price_options
+    from render.components import bars, range_strip
+    df = _orders(**_priced([57990.0, 59990.0, 59990.0]))
+    html = bars("c-p", COMPONENTS["price-distribution"], price_distribution(df))
+    assert html.count('<li class="tr-row br-row') == 2
+    assert ('<li class="tr-row br-row br-hi"><span class="tr-name">$59,990 '
+            '<b class="br-tag">median</b>') in html
+    assert 'acc-price-accent" style="width:100.00%"' in html
+    assert 'acc-price-bar" style="width:50.00%"' in html
+    assert "The median configured price is $59,990 and the mean $59,323, across " \
+        "3 orders from $57,990 to $59,990." in html
+    html = bars("c-o", COMPONENTS["price-options"], price_options(df))
+    assert '<th scope="col">Average per order</th>' in html and "$1,333" in html
+    assert "Options add $1,333 per order on average, 2.2% of the price." in html
+    html = range_strip("c-t", COMPONENTS["price-by-trim"], price_by_trim(df))
+    assert html.count('<span class="rg-strip"') == 1
+    assert "min $57,990 · Q1 $58,990 · median / Q3 / max $59,990 · mean $59,323" \
+        in html
+    assert html.count("no orders yet") == len(price_by_trim(df).cells) - 1
+    assert "Median configured price by trim: Performance $59,990." in html
 
 
 def _run_all():

@@ -26,7 +26,7 @@ from typing import Any
 
 import pandas as pd
 
-from config import DIMENSIONS
+from config import DIMENSIONS, PRICE_TRIMS
 
 # The cohorts an aggregate can declare, each a mask over the cleaned orders.
 COHORTS: dict[str, Callable[[pd.DataFrame], Any]] = {
@@ -271,3 +271,108 @@ def crosstab(df: pd.DataFrame, row_dim: str, col_dim: str,
     return Aggregate("%s by %s × %s" % (cohort, row_dim, col_dim), cohort, cells,
                      excluded, meta={"rows": row_cells, "cols": col_cells,
                                      "row_dim": row_dim, "col_dim": col_dim})
+
+
+# --- Configured price (§4) --------------------------------------------------------
+# Over the "priced" cohort: orders whose whole configuration has a published
+# price. An unpriced order is counted in the report and the data-quality panel,
+# never here as zero.
+
+def _money(v: float) -> str:
+    return "$%s" % format(round(v), ",")
+
+
+def price_distribution(df: pd.DataFrame) -> Aggregate:
+    """Orders per exact configured price, ascending. The cohort lands on a few
+    exact totals (options are fixed amounts), so these are exact prices, not
+    bins. The cell nearest the median is marked: an even count can put the
+    median between two prices."""
+    d = df[COHORTS["priced"](df)]
+    counts = d["price"].value_counts().sort_index()
+    meta: dict[str, Any] = {}
+    cells = []
+    if len(d):
+        prices = [float(p) for p in counts.index]
+        med = float(d["price"].median())
+        mi = min(range(len(prices)), key=lambda i: abs(prices[i] - med))
+        cells = [{"value": p, "label": _money(p), "n": int(k), "known": True,
+                  "ref": None, "highlight": i == mi,
+                  "note": "median" if i == mi else ""}
+                 for i, (p, k) in enumerate(zip(prices, counts.values))]
+        meta = {"median": _money(med), "mean": _money(float(d["price"].mean())),
+                "min": _money(float(d["price"].min())),
+                "max": _money(float(d["price"].max()))}
+    return Aggregate("priced by exact price", "priced", cells, meta=meta)
+
+
+# The option categories priced, in reading order, and the note a $0 row carries:
+# "nobody bought the upgrade" and "everybody gets it free" both show $0 and mean
+# opposite things, so a zero row is kept only with a note saying which.
+_OPTIONS = (("price_drive", "Drive system", None), ("price_paint", "Paint", None),
+            ("price_wheels", "Wheels", None),
+            ("price_interior", "Interior", "none paid yet"),
+            ("price_spare", "Compact spare", None),
+            ("price_autonomy_tow", "Autonomy+ / Tow", "bundled"))
+
+
+def price_options(df: pd.DataFrame) -> Aggregate:
+    """Average spend per option category across every priced order, with the
+    share that paid for it, biggest first. The trim base is left out: a constant
+    per trim, ~140x the largest option, it would flatten every other row.
+    Reconciles by basis (every priced order is in every average)."""
+    d = df[COHORTS["priced"](df)]
+    n = len(d)
+    held = (int((d["opted_autonomy"].astype(bool) | d["opted_tow"].astype(bool)).sum())
+            if n and {"opted_autonomy", "opted_tow"} <= set(d.columns) else 0)
+    cells: list[dict[str, Any]] = []
+    for col, label, zero_note in _OPTIONS if n else ():
+        v = d[col].fillna(0)
+        avg, paid = float(v.mean()), v[v > 0]
+        if not avg and zero_note is None:
+            continue                     # doesn't apply to anyone: no row at all
+        if len(paid):
+            pct = 100.0 * len(paid) / n
+            # Under a percent rounds to "0% chose", which reads as nobody.
+            note = ("%d of %d paid · %s" % (len(paid), n, _money(float(paid.mean())))
+                    if pct < 1 else
+                    "%.0f%% chose · %s avg" % (pct, _money(float(paid.mean()))))
+        elif zero_note == "bundled":
+            note = "included free for %d of %d" % (held, n)
+        else:
+            note = zero_note or ""
+        cells.append({"value": label, "label": label, "amount": avg,
+                      "display": _money(avg), "note": note, "n": len(paid),
+                      "known": True, "ref": None})
+    cells.sort(key=lambda c: -float(c["amount"]))
+    meta: dict[str, Any] = {}
+    if n:
+        extra = float((d["price"] - d["price_base"].fillna(0)).mean())
+        meta = {"options_mean": _money(extra),
+                "options_share": "%.1f%%" % (100.0 * extra / float(d["price"].mean()))}
+    return Aggregate("priced option spend", "priced", cells, meta=meta, basis=n)
+
+
+def price_by_trim(df: pd.DataFrame) -> Aggregate:
+    """The configured-price spread per trim, every trim in pricing.yaml's order
+    whether it has orders or not: min, quartiles, median, max and mean. The axis
+    (meta lo..hi) is shared, padded by 8% of the range or $500."""
+    d = df[COHORTS["priced"](df)]
+    cells = []
+    for trim in PRICE_TRIMS:
+        p = d.loc[d["price_trim"] == trim, "price"].astype(float)
+        stats = ({k: float(p.quantile(q)) for k, q in
+                  (("min", 0), ("q1", .25), ("median", .5), ("q3", .75), ("max", 1))}
+                 if len(p) else {})
+        if len(p):
+            stats["mean"] = float(p.mean())
+        cells.append({"value": trim, "label": trim, "n": len(p), "stats": stats,
+                      "known": True, "ref": None})
+    meta: dict[str, Any] = {}
+    if len(d):
+        lo, hi = float(d["price"].min()), float(d["price"].max())
+        pad = max((hi - lo) * 0.08, 500.0)
+        meta = {"lo": lo - pad, "hi": hi + pad,
+                "medians": "; ".join(
+                    "%s %s" % (c["label"], _money(c["stats"]["median"]))
+                    for c in cells if c["n"])}
+    return Aggregate("priced by trim", "priced", cells, meta=meta)
