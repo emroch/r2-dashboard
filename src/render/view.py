@@ -1,27 +1,29 @@
-"""The page's view data: what the browser draws, and the checks behind it.
+"""The page's view data: what each component shows, and the checks behind it.
 
 docs/presentation.md, "Data contract additions". build() computes every
-aggregate the page's components use and reconciles them against their cohorts
-(render/aggregates.py), and collects the spec + data of each browser-drawn
-component for r2_view.json, which the page fetches.
+aggregate the page's components use, reconciles them against their cohorts
+(render/aggregates.py), keeps the static components' aggregates for page.py to render
+(View.render, render/components.py), and collects the spec + data of each browser-drawn
+component for r2_view.json, which the page fetches (none yet).
 
-No section is a component yet, so the view has no components. The build still
-counts every dimension in dimensions.yaml and reconciles those counts, so the
-building block the components will share is exercised on the real data from the
-start: a value the vocabulary doesn't cover, or a blank-handling rule that loses
-rows, shows up as a failed build rather than in a chart.
+The components are declared in src/conf/charts.yaml. The build also counts every
+dimension in dimensions.yaml and reconciles those counts, so a value the
+vocabulary doesn't cover, or a blank-handling rule that loses rows, fails the
+build rather than showing up wrong in a chart.
 """
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
-from config import DIMENSIONS
+from config import COMPONENTS, DIMENSIONS
 
-from .aggregates import Aggregate, cohort_sizes, counts, reconcile
+from .aggregates import Aggregate, cohort_sizes, counts, r1_models, reconcile
+from .components import takerate
 
 VIEW_VERSION = 1
 
@@ -30,13 +32,42 @@ VIEW_VERSION = 1
 class View:
     # component id -> its house-schema spec and data (mounted components only)
     components: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # component id -> its aggregate (static components, drawn as HTML)
+    static: dict[str, Aggregate] = field(default_factory=dict)
     aggregates: list[Aggregate] = field(default_factory=list)
+
+    def render(self, cid: str, shared: Sequence[str] = ()) -> str:
+        """A static component's HTML. `shared` caveats are said once by the
+        component's group (components.shared_caveats), so its frame drops them."""
+        spec = COMPONENTS[cid]
+        return _STATIC[spec["template"]]("c-" + cid, spec, self.static[cid], shared)
+
+
+# charts.yaml `aggregate` -> how to count it. The default is the first
+# dimension's counts.
+_AGGREGATES = {"r1_models": lambda df, spec: r1_models(df, by_stage=True)}
+
+# charts.yaml `template` -> renderer, for the templates drawn as HTML here.
+_STATIC = {"takerate": takerate}
+
+
+def _aggregate(df: pd.DataFrame, spec: dict[str, Any]) -> Aggregate:
+    how = spec.get("aggregate")
+    if how is None:
+        return counts(df, spec["dims"][0], by_stage=spec["template"] == "takerate")
+    return _AGGREGATES[how](df, spec)
 
 
 def build(df: pd.DataFrame) -> View:
-    """Compute and reconcile the page's aggregates. Raises ReconcileError."""
+    """Compute and reconcile the page's aggregates, and render its static
+    components. Raises ReconcileError."""
     view = View()
     view.aggregates += [counts(df, dim) for dim in DIMENSIONS]
+    for cid, spec in COMPONENTS.items():
+        agg = _aggregate(df, spec)
+        agg.name = "%s (%s)" % (cid, agg.name)
+        view.aggregates.append(agg)
+        view.static[cid] = agg
     reconcile(view.aggregates, cohort_sizes(df))
     return view
 
@@ -44,8 +75,9 @@ def build(df: pd.DataFrame) -> View:
 def unknown_categories(view: View) -> list[str]:
     """"<dimension>: <value>" for values counted that dimensions.yaml doesn't
     list, for the cleaning report."""
-    return ["%s: %s" % (a.dim, c["value"])
-            for a in view.aggregates for c in a.cells if not c["known"]]
+    return list(dict.fromkeys("%s: %s" % (a.dim, c["value"])
+                                for a in view.aggregates for c in a.cells
+                                if not c["known"]))
 
 
 def view_json(view: View) -> dict[str, Any]:

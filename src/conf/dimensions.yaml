@@ -254,8 +254,8 @@ dimensions:
     column: delivered_inferred
     label: Delivered (est.)
     order: fixed
-    caveat: Inferred, not reported. An estimate whose whole window has passed
-      counts as delivered, which can be wrong both ways.
+    caveat: Delivery status is inferred from each order's estimated delivery
+      window.
     categories:
       - {value: true,  label: Delivered (est.)}
       - {value: false, label: Awaiting delivery}

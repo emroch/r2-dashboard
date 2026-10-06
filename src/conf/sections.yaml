@@ -9,28 +9,28 @@
 #   desc    the prose under the heading. HTML, so <strong>, <em>, <br> and links
 #           work and & must be written &amp;. Folded (">-"), so line breaks here
 #           are just spaces in the page.
-#   charts  what the section draws, in order: the Plotly figure builders in
-#           render/charts.py, by name. These are replaced by component ids
-#           (docs/presentation.md) as each section moves off Plotly.
+#   components  presentation-layer components, by id (charts.yaml), in order
+#   charts  Plotly figure builders in render/charts.py, by name, drawn after the
+#           components. Each goes as its section moves to components
+#           (docs/presentation.md).
 #
 # Editing prose or order is a data edit here, not a code change.
 
 sections:
 
   - title: "Configuration take-rates"
-    charts: [fig_config_dashboard]
+    components: [takerate-color, takerate-wheels, takerate-interior,
+                 takerate-buylease, takerate-spare, takerate-r1]
     desc: >-
-      What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100%
-      uniform across the cohort, so they are omitted here.) Every panel covers the
-      orders that answered the question it charts, so an unanswered one sits out
-      rather than forming a blank bar — a few people skipped purchase-vs-lease, and
-      a few orders are known from a forum post that gave a date and a location
-      without stating the build. They still count in the cohort total, and the
-      data-quality panel lists the ones held back from the price stats. Options are
-      ordered by how many chose them; the yes/no answers keep their natural reading
-      order instead, since which one leads there isn't a finding. The compact spare
-      is the exception to the rule above: for the option columns an unanswered
-      question means not opted in, so those count as No.
+      What this cohort ordered. Each panel counts the orders that answered its
+      question, so an unanswered one sits out rather than forming a blank row; the
+      data-quality panel lists the orders that never reported their build. Every
+      bar is split by how far those orders have got: delivered, delivery
+      scheduled, assigned a VIN, or still waiting for one. Paints are ordered by
+      how many chose them; wheels, interiors and the yes/no answers keep their
+      natural order. For the compact spare an unanswered question means not opted
+      in, so those count as No. Trim, Launch Package, Autonomy+ and Tow are ~100%
+      uniform across the cohort, so they have no panel yet.
 
   - title: "Configuration combinations"
     charts: [fig_color_wheel_heatmap, fig_color_interior_heatmap]

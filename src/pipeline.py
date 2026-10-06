@@ -93,7 +93,14 @@ def main():
         out[c] = out[c].dt.strftime("%Y-%m-%d")
     out.to_csv(CLEAN_CSV, index=False)
 
-    build_dashboard(df, report, resv)
+    # The presentation layer's aggregates and components (render/view.py): every
+    # aggregate must add back up to the cohort it counts, or the build stops,
+    # the same rule as the series check below.
+    try:
+        view = build_view(df)
+    except ReconcileError as exc:
+        raise SystemExit(str(exc)) from exc
+    build_dashboard(df, report, resv, view)
 
     # The published data contract (ingest/contract.py): dimension metadata plus
     # the event-dated daily series, built from this build's cleaned data. Its last
@@ -118,14 +125,6 @@ def main():
         json.dump(dimensions(), fh, indent=1)
     with open(SERIES_JSON, "w") as fh:
         json.dump(ser, fh, indent=1)
-
-    # The presentation layer's aggregates (render/view.py): every one must add
-    # back up to the cohort it counts, or the build stops, the same rule as the
-    # series check above.
-    try:
-        view = build_view(df)
-    except ReconcileError as exc:
-        raise SystemExit(str(exc)) from exc
     with open(VIEW_JSON, "w") as fh:
         json.dump(view_json(view), fh, indent=1)
 
@@ -222,8 +221,8 @@ def main():
     print("Data contract: %d daily series points (%.2fs), %d dimensions"
           % (len(ser["dates"]), series_secs, len(dimensions()["dimensions"])))
     unknown = unknown_categories(view)
-    print("View: %d aggregates reconciled, %d components%s"
-          % (len(view.aggregates), len(view.components),
+    print("View: %d aggregates reconciled, %d HTML + %d browser-drawn components%s"
+          % (len(view.aggregates), len(view.static), len(view.components),
              "; NOT IN dimensions.yaml: " + ", ".join(unknown) if unknown else ""))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
     print("Wrote: %s, %s, %s" % (os.path.basename(DIMENSIONS_JSON),

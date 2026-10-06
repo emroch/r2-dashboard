@@ -1,5 +1,6 @@
-"""Tests for the presentation layer's scaffolding (#105): the section registry,
-category CSS and mark contrast, the component frame, and reconciled aggregates.
+"""Tests for the presentation layer (#105): the section and component registries,
+category CSS and mark contrast, the component frame, and the view build.
+Aggregates and the take-rate component are in test_aggregates.py.
 
 Run with `python3 tests/test_view.py` (no pytest needed) or `pytest tests/`.
 """
@@ -7,11 +8,12 @@ import os
 import re
 import sys
 
-import pandas as pd
-
 _SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
+_TESTS = os.path.dirname(os.path.abspath(__file__))
+if _TESTS not in sys.path:
+    sys.path.insert(0, _TESTS)
 
 from config import DIMENSIONS, SECTIONS_CONF, THEME_CSS
 
@@ -27,7 +29,8 @@ def test_every_section_names_known_charts_and_renders_in_order():
         assert title == entry["title"] and desc.strip(), title
         names = [b.__name__ for b in
                  (builders if isinstance(builders, tuple) else (builders,))]
-        assert names == entry["charts"], title
+        assert names == entry.get("charts", []), title
+        assert names or entry.get("components"), "%s draws nothing" % title
         assert all(n in _BUILDERS for n in names), title
 
 
@@ -148,86 +151,28 @@ def test_frame_leaves_out_what_it_was_not_given():
     assert "<details" not in html
 
 
-# --- Aggregates (render/aggregates.py) -----------------------------------------
-
-def _orders(**cols):
-    n = len(next(iter(cols.values())))
-    base = {"vin_present": [False] * n, "price": [None] * n, "lat": [None] * n}
-    base.update(cols)
-    return pd.DataFrame(base)
-
-
-def test_counts_omit_excludes_blanks_and_orders_by_count_then_list():
-    from render.aggregates import counts
-    df = _orders(color=["Midnight", "Launch Green", None, "Midnight", "",
-                        "Catalina Cove", "Launch Green"])
-    a = counts(df, "color")
-    assert [(c["value"], c["n"]) for c in a.cells] == [
-        ("Launch Green", 2), ("Midnight", 2), ("Catalina Cove", 1)]
-    assert a.excluded == {"not reported": 2} and a.counted == 5
-    assert a.cells[0]["ref"] == "color:Launch Green" and a.cells[0]["known"]
-
-
-def test_counts_bucket_and_category_policies_keep_blanks_as_cells():
-    from render.aggregates import counts
-    a = counts(_orders(region=["West", None, "West"]), "region")
-    assert [(c["label"], c["n"]) for c in a.cells] == [("West", 2), ("Unknown", 1)]
-    assert a.excluded == {}
-    b = counts(_orders(delivery_type=["window", None, "explicit"]), "delivery_type")
-    # fixed order, and the blank became the `unknown` category with its label.
-    assert [(c["label"], c["n"]) for c in b.cells] == [
-        ("Firm date", 1), ("Relative window", 1), ("No date given", 1)]
-
-
-def test_counts_keeps_an_unlisted_value_and_marks_it_unknown():
-    from render.aggregates import counts
-    from render.view import View, unknown_categories
-    a = counts(_orders(color=["Launch Green", "Compass Yellow"]), "color")
-    new = [c for c in a.cells if not c["known"]]
-    assert [(c["value"], c["ref"]) for c in new] == [("Compass Yellow", None)]
-    assert unknown_categories(View(aggregates=[a])) == ["color: Compass Yellow"]
-
-
-def test_counts_over_a_cohort_and_boolean_dimensions():
-    from render.aggregates import cohort_sizes, counts
-    df = _orders(delivered_inferred=[True, False, True],
-                 vin_present=[True, True, False])
-    a = counts(df, "delivered", cohort="vin_assigned")
-    assert [(c["label"], c["n"]) for c in a.cells] == [
-        ("Delivered (est.)", 1), ("Awaiting delivery", 1)]
-    assert cohort_sizes(df)["vin_assigned"] == 2
-
-
-def test_reconcile_passes_when_cells_and_exclusions_add_up():
-    from render.aggregates import cohort_sizes, counts, reconcile
-    df = _orders(color=["Midnight", None, "Borealis"], region=["West", None, None])
-    reconcile([counts(df, "color"), counts(df, "region")], cohort_sizes(df))
-
-
-def test_reconcile_fails_on_an_aggregate_that_loses_rows():
-    from render.aggregates import Aggregate, ReconcileError, reconcile
-    lossy = Aggregate("answered only", "orders",
-                      [{"value": "a", "label": "a", "n": 2, "ref": None,
-                        "known": True}])
-    stray = Aggregate("stray", "no such cohort", [])
-    try:
-        reconcile([lossy, stray], {"orders": 3})
-    except ReconcileError as exc:
-        msg = str(exc)
-        assert "answered only: 2 counted + 0 excluded = 2" in msg and "is 3" in msg
-        assert "unknown cohort 'no such cohort'" in msg
-    else:
-        raise AssertionError("a lossy aggregate reconciled")
-
-
-def test_view_build_reconciles_every_dimension_and_publishes_no_components_yet():
+def test_view_build_reconciles_and_renders_every_component():
+    from config import COMPONENTS
     from render.view import build, view_json
+    from test_aggregates import _orders
     cols = {spec["column"]: [None, None] for spec in DIMENSIONS.values()}
     cols["r1_owner_effective"] = cols.pop("r1_owner")
-    cols.update(color=["Midnight", "Midnight"], state=["IL", "WA"])
+    cols.update(color=["Midnight", "Midnight"], state=["IL", "WA"],
+                r1_model=["", ""])
     view = build(_orders(**cols))
-    assert {a.dim for a in view.aggregates} == set(DIMENSIONS)
+    assert {a.dim for a in view.aggregates} >= set(DIMENSIONS)
+    assert set(view.static) == set(COMPONENTS)
+    for cid in view.static:
+        assert view.render(cid).startswith('<figure class="r2c" id="c-%s"' % cid), cid
+    # Static components are HTML in the page; nothing is browser-drawn yet.
     assert view_json(view) == {"version": 1, "components": {}}
+
+
+def test_every_section_component_is_registered():
+    from config import COMPONENTS
+    named = [c for e in SECTIONS_CONF for c in e.get("components", [])]
+    assert named and all(c in COMPONENTS for c in named), named
+    assert len(set(named)) == len(named), "a component placed twice"
 
 
 def _run_all():

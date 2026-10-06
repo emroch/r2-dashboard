@@ -1,0 +1,55 @@
+# R2 Orders — the presentation layer's components (docs/presentation.md).
+#
+# One entry per component, by id. A section lists the ids it shows in
+# sections.yaml (`components:`), in display order. Per entry:
+#   template   how it is drawn: takerate (rows with a stage-split bar; HTML,
+#              render/components.py)
+#   title      its heading
+#   dims       the dimensions it shows (dimensions.yaml). Their caveats and
+#              small-n notes are composed into the component's caveat line.
+#   aggregate  what it counts (render/aggregates.py). Default: the counts of
+#              its first dimension. r1_models: R1 ownership as one list.
+#   summary    the one-sentence finding above it, with placeholders filled from
+#              the counts:
+#                {n}               orders counted (the answered ones)
+#                {top}             the largest row's label
+#                {top_share}       its share of {n}
+#                {share:LABEL}     a row's share of {n}, by label
+#                {count:LABEL}     a row's count
+#                {share_except:LABEL}  everyone else's share
+#              Shares are whole percentages ("<1%" for a sliver).
+#
+# Editing a title, a summary or which panels exist is a data edit here.
+
+components:
+  takerate-color:
+    template: takerate
+    title: Paint
+    dims: [color]
+    summary: "{top} leads, with {top_share} of {n} orders."
+  takerate-wheels:
+    template: takerate
+    title: Wheels
+    dims: [wheels]
+    summary: "{top} leads, with {top_share} of {n} orders."
+  takerate-interior:
+    template: takerate
+    title: Interior
+    dims: [interior]
+    summary: "{top} leads, with {top_share} of {n} orders."
+  takerate-buylease:
+    template: takerate
+    title: Purchase or lease
+    dims: [buylease]
+    summary: "{share:Purchase} of {n} orders are purchases."
+  takerate-spare:
+    template: takerate
+    title: Compact spare tire
+    dims: [opted_spare]
+    summary: "{share:Yes} of {n} orders added the compact spare."
+  takerate-r1:
+    template: takerate
+    title: R1 ownership
+    dims: [r1_owner, r1_model]
+    aggregate: r1_models
+    summary: "{share_except:No R1} of {n} orders are from current R1 owners."

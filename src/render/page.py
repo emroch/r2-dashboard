@@ -18,10 +18,11 @@ from plotly.offline import get_plotlyjs
 
 from .assets import publish_assets
 from .categories import category_css
+from .components import notes_html, shared_caveats, stage_key
 from .charts import (delivery_progress,
                      fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
-                     fig_config_dashboard, fig_delivery_timeline,
+                     fig_delivery_timeline,
                      fig_delivery_latency, fig_delivery_vs_vin,
                      fig_dest_vs_delivery, fig_geo,
                      fig_interior_by_location,
@@ -31,7 +32,7 @@ from .charts import (delivery_progress,
                      fig_vin_cadence,
                      fig_vin_vs_order, fig_wheels_by_location)
 from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
-                    RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF)
+                    RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -54,7 +55,7 @@ def _tpl(name):
 # Each moves to a presentation-layer component as its section migrates
 # (docs/presentation.md, Stages).
 _BUILDERS = {f.__name__: f for f in (
-    fig_config_dashboard, fig_color_wheel_heatmap, fig_color_interior_heatmap,
+    fig_color_wheel_heatmap, fig_color_interior_heatmap,
     fig_price_distribution, fig_price_options, fig_price_by_trim,
     fig_order_timeline, fig_delivery_timeline, fig_delivery_latency,
     fig_certainty_by_vin, fig_vin_vs_order, fig_delivery_vs_vin, fig_vin_cadence,
@@ -64,18 +65,34 @@ _BUILDERS = {f.__name__: f for f in (
 
 def _section(entry):
     """(title, desc_html, builder or tuple of builders) from a sections.yaml entry."""
-    unknown = [n for n in entry["charts"] if n not in _BUILDERS]
+    unknown = [n for n in entry.get("charts", []) if n not in _BUILDERS]
+    unknown += [c for c in entry.get("components", []) if c not in COMPONENTS]
     if unknown:
-        raise LookupError("sections.yaml: %r names unknown charts %s"
+        raise LookupError("sections.yaml: %r names unknown charts/components %s"
                           % (entry["title"], unknown))
-    builders = tuple(_BUILDERS[n] for n in entry["charts"])
+    builders = tuple(_BUILDERS[n] for n in entry.get("charts", []))
     return (entry["title"], entry["desc"],
             builders[0] if len(builders) == 1 else builders)
+
+
+def _components_html(cids, view):
+    """A section's components, in a grid. Take-rates get the stage key once, and
+    the caveats every component in the group carries are said once, under the
+    key (for take-rates that is the delivery-status note the key needs)."""
+    if not cids:
+        return ""
+    key = (stage_key() if any(COMPONENTS[c]["template"] == "takerate" for c in cids)
+           else "")
+    shared = shared_caveats([COMPONENTS[c] for c in cids]) if len(cids) > 1 else []
+    return '<div class="r2c-group">%s%s<div class="r2c-grid">%s</div></div>' % (
+        key, notes_html(shared), "".join(view.render(c, shared) for c in cids))
 
 
 # Display order = list order (src/conf/sections.yaml). Section numbers (chart
 # titles + sidebar links) are assigned from position at render time.
 SECTIONS = [_section(e) for e in SECTIONS_CONF]
+# Each section's presentation-layer component ids (charts.yaml), by position.
+SECTION_COMPONENTS = [list(e.get("components", [])) for e in SECTIONS_CONF]
 
 
 def _css_block(sel, vars_):
@@ -363,7 +380,7 @@ def _quality_section(quality, num, cap=40):
             % (num, num, "".join(blocks), conv_html))
 
 
-def build_dashboard(df, report, resv):
+def build_dashboard(df, report, resv, view):
     # Each chart section wraps one <!--PLOT:n--> comment placeholder per figure;
     # the Plotly fragments are spliced in verbatim after the DOM is serialized
     # (never re-parsed). Plotly.js is emitted as a separate plotly.min.js (not
@@ -395,9 +412,10 @@ def build_dashboard(df, report, resv):
                 default_width="100%", config=PLOTLY_CONFIG)
             frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
+        comps = _components_html(SECTION_COMPONENTS[i], view)
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
-            '%s</section>' % (n, n, _esc(title), desc, "".join(frags)))
+            '%s%s</section>' % (n, n, _esc(title), desc, comps, "".join(frags)))
     sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]

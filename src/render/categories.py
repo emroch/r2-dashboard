@@ -13,7 +13,7 @@ A swatch (the chip that identifies a category) draws var(--paint), the true
 color. A mark (a bar, a point) draws var(--mark): the same hue and chroma, with
 the lightness clamped into the theme's range from theme.yaml, so a pale paint on
 the white card or a dark one on the dark card stays visible. Delivery stages are
-the same mark at the stage opacities (--a-delivered/--a-vin/--a-wait).
+the same mark at the stage opacities (--a-delivered/-scheduled/-vin/-wait).
 
 Browsers without relative color syntax (before Safari 18) get the clamped colors
 precomputed here instead, per theme, in an @supports block.

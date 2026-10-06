@@ -11,13 +11,6 @@
 # category (one color per whole series) — they just tint a bar or histogram —
 # but they live here so every data color is in one place.
 # ---------------------------------------------------------------------------
-take_rate:                    # config take-rate bars (chart 4)
-  wheels: "#4c78a8"
-  buylease: "#f58518"
-  spare: "#e45756"
-  r1_owner: "#54a24b"
-  interior_fallback: "#8899a6"  # interior not found in `interiors` above
-
 timeline:                     # reservation / order timeline (chart 6)
   ordered: "#f58518"          # "reserved & ordered" bars + order-date bars
   reserved_only: "#4c78a8"    # reservation-only (incomplete) bars

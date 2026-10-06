@@ -47,7 +47,8 @@ src/
                       published as r2_dimensions.json
     palette.yaml      chart fills that don't name a category (take-rate, timeline, accents)
     theme.yaml        page & chart chrome for light/dark (CSS variables + chart retint colors)
-    sections.yaml     the page's sections: order, title, prose, charts
+    sections.yaml     the page's sections: order, title, prose, components, charts
+    charts.yaml       the presentation-layer components (template, title, summary)
     schema.yaml       sheet sources, column maps, sanitize bounds, option vocab
     geo.yaml          state/province -> region + coordinates, factory, province aliases
     delivery.yaml     delivery-estimate normalization (tokens, overrides, month names)
@@ -58,7 +59,8 @@ data/
 output/               dashboard HTML output
 tests/
   test_parsing.py     unit tests (run via pytest OR plain python3)
-  test_view.py        presentation-layer tests (sections, category CSS + contrast, aggregates)
+  test_aggregates.py  presentation-layer aggregates + take-rate component
+  test_view.py        presentation-layer registries, category CSS + contrast, view build
   js/                 browser-code unit tests (node --test)
 ```
 
@@ -140,8 +142,7 @@ same token deploys both.
 ## Tests
 
 ```sh
-python3 tests/test_parsing.py     # no pytest required
-python3 tests/test_view.py
+for f in tests/test_*.py; do python3 "$f"; done   # no pytest required
 # or
 pytest tests/
 

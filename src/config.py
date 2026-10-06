@@ -58,6 +58,8 @@ _THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
 _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
 # The page's section registry: order, title, prose, and what each section draws.
 SECTIONS_CONF = _load("sections.yaml")["sections"]
+# The presentation layer's components, by id (what each draws and says).
+COMPONENTS = _load("charts.yaml")["components"]
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
@@ -136,15 +138,11 @@ TYPE_COLOR = {c["value"]: c["color"] for c in _cats("delivery_type")}
 TYPE_OPACITY = {c["value"]: c["opacity"] for c in _cats("delivery_type")}
 TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
               if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
-# Stacked take-rate panels: trim ramp, and which R1 an owner has.
-TRIM_COLORS = {c["value"]: c["color"] for c in _cats("trim")}
-R1_MODEL_COLORS = {c["value"]: c["color"] for c in _cats("r1_model")}
 # A state is drawn on its own only with at least this many orders.
 STATE_MIN_ORDERS = int(DIMENSIONS["state"]["small_n"]["min_orders"])
 
 # --- Chart fills (palette.yaml) --------------------------------------------
 # Single-series chart fills (bars/histograms) + the heatmap colorscale name.
-TAKE_RATE = dict(_PALETTE["take_rate"])
 TIMELINE_COLORS = dict(_PALETTE["timeline"])
 HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
 # Per-state totals bars: VIN-assigned vs. not (stacked to each state's total).
