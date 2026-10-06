@@ -122,7 +122,7 @@ section p.desc a:hover{filter:brightness(1.15);}
 .plot + .plot{margin-top:22px;}
 .statwrap{margin-top:14px;}
 /* Summary readouts (components.readout): a chip per number in a wrapping row.
-   One with entries behind it is a <details> whose ▸ chip opens the list inline.
+   One with entries behind it is a <details> whose ⓘ chip opens the list inline.
    Where ::details-content can be styled, the list drops to a full-width row
    under the chips and the chips stay put; elsewhere the opened chip and its list
    take a row of their own. */
@@ -134,10 +134,7 @@ section p.desc a:hover{filter:brightness(1.15);}
  padding:10px 18px;font-size:12.5px;white-space:nowrap;min-width:96px;
  box-sizing:border-box;}
 .ro-v{font-size:18px;display:block;line-height:1.25;}
-.ro-l{display:inline-flex;align-items:center;gap:5px;}
-.ro-l .mark{display:inline-block;width:14px;height:8px;border-radius:2px;}
-/* On the chip, a stage mark is the chip's ink at the stage's opacity. */
-.ro-chip .tr-neutral{--mark:var(--chip-fg);}
+.ro-i{opacity:.55;font-size:11px;margin-left:3px;}
 .ro-more[open]{flex-basis:100%;}
 .ro-more:not([open]) .ro-rows{display:none;}
 @supports selector(::details-content){
@@ -146,9 +143,10 @@ section p.desc a:hover{filter:brightness(1.15);}
 @supports not selector(::details-content){.ro-rows{margin-top:8px;}}
 .ro-more > summary{cursor:pointer;list-style:none;}
 .ro-more > summary::-webkit-details-marker{display:none;}
-.ro-more > summary .ro-l::after{content:"\25B8";font-size:11px;opacity:.7;}
-.ro-more[open] > summary .ro-l::after{content:"\25BE";}
-.ro-more[open] > summary{box-shadow:inset 0 -3px 0 var(--chip-fg);}
+/* The open chip is ringed in the page's ink (not the chip's), so it reads
+   against the card in either theme. */
+.ro-more[open] > summary{outline:2px solid var(--fg);outline-offset:2px;}
+.ro-more[open] > summary .ro-i{opacity:1;}
 .ro-more > summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;}
 .ro-rows{flex-basis:100%;order:1;box-sizing:border-box;min-width:0;
  background:var(--tip-bg);color:var(--tip-fg);

@@ -446,14 +446,14 @@ def range_strip(cid: str, spec: dict, agg: Aggregate,
 # --- readout: a big number and its label; a list behind a disclosure ------------
 
 def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
-            caption: str = "", mark: str = "") -> str:
+            caption: str = "") -> str:
     """One summary number. With `rows` (the entries behind it: (#, user,
-    detail)) it is a disclosure: the ▸ opens the list inline, under a caption
-    naming the readout and saying what the list holds (the list can land rows
-    below its chip). `mark` is trusted HTML before the label (a stage's
-    swatch)."""
-    chip = ('<b class="ro-v">%s</b><span class="ro-l">%s%s</span>'
-            % (escape(str(value)), mark, escape(label)))
+    detail)) it is a disclosure, marked ⓘ: clicking opens the list inline,
+    under a caption naming the readout and saying what the list holds (the
+    list can land rows below its chip)."""
+    chip = '<b class="ro-v">%s</b><span class="ro-l">%s%s</span>' % (
+        escape(str(value)), escape(label),
+        '<span class="ro-i" aria-hidden="true">&#9432;</span>' if rows else "")
     if not rows:
         return '<div class="ro-chip">%s</div>' % chip
     body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
@@ -477,9 +477,7 @@ def readout_group(title: str, readouts: Sequence[str], note: str = "",
 
 
 def stage_readouts(agg: Aggregate) -> list[str]:
-    """The Delivery progress readouts: one per stage, each with its stage's
-    mark from the take-rate bars, so the two read as one split."""
-    return [readout(format(int(c["n"]), ","), c["label"][:1].upper() + c["label"][1:],
-                    mark='<i class="mark tr-neutral stage-%s" aria-hidden="true">'
-                         '</i>' % c["value"])
+    """The Delivery progress readouts: one per stage, named as in the take-rate
+    bars' stage key."""
+    return [readout(format(int(c["n"]), ","), c["label"][:1].upper() + c["label"][1:])
             for c in agg.cells]

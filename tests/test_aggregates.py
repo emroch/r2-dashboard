@@ -528,12 +528,14 @@ def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
         '</span></div>'
     html = readout(2, "Curated removals", [(310, "a<b", "cancelled")], "Why")
     assert html.startswith('<details class="ro-more"><summary class="ro-chip">')
+    assert ('Curated removals<span class="ro-i" aria-hidden="true">&#9432;</span>'
+            in html)
     assert '<p class="ro-cap"><b>Curated removals</b> — Why</p>' in html
     assert "<td>#310</td><td>a&lt;b</td><td>cancelled</td>" in html
     g = readout_group("Delivery progress", stage_readouts(stage_counts(_orders(
         vin_present=[True], delivered_inferred=[False]))), note="Inferred.")
     assert 'role="group" aria-label="Delivery progress"' in g
-    assert '<i class="mark tr-neutral stage-vin" aria-hidden="true"></i>With a VIN' in g
+    assert '<span class="ro-l">With a VIN</span>' in g, "no stage swatch on a chip"
     assert '<p class="ro-note">Inferred.</p>' in g
 
 

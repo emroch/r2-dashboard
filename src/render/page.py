@@ -486,8 +486,7 @@ def build_dashboard(df, report, resv, view):
                                      for k, v, rows in cards])
               for gtitle, cards in stat_groups]
     # Every order by delivery stage: the split the take-rate bars draw, from the
-    # same aggregate (reconciled with the rest of the view), with the stage key's
-    # marks. Delivered is inferred, not reported, which the caveat says. It
+    # same aggregate (reconciled with the rest of the view). Delivered is inferred, not reported, which the caveat says. It
     # follows the delivery estimates (stat_groups[3]).
     progress = view.readouts["progress"]
     groups.insert(4, readout_group(
@@ -509,8 +508,8 @@ def build_dashboard(df, report, resv, view):
           'R2 order date. Order dates before 2026-06-09 and reservations before '
           '2024-03-07 are treated as invalid; reservations already present in the '
           'orders sheet are dropped as duplicates. &#8220;Last updated&#8221; is '
-          'when a sheet&#8217;s contents last changed between fetches. Open a '
-          'number marked &#9656; for the entries behind it. Charts with '
+          'when a sheet&#8217;s contents last changed between fetches. Click a '
+          'number marked &#9432; to see the entries behind it. Charts with '
           'a legend are interactive &mdash; click an entry to hide that series, '
           'double-click to isolate one; see each chart&#8217;s note for its '
           'paint, region, and wheel filters.</p>')
