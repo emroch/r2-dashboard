@@ -103,12 +103,16 @@ sections:
       to hide it, or double-click to isolate one.
 
   - title: "Delivery date vs. VIN sequence"
-    charts: [fig_delivery_vs_vin, fig_vin_cadence]
+    components: [delivery-vs-vin]
+    charts: [fig_vin_cadence]
     desc: >-
       Each point is an order with both a VIN and a delivery estimate. Color = paint,
       marker shape = wheels; whiskers span the quoted delivery window. Clusters of
       one color across a VIN range hint at same-config cars built in sequence. Click
-      a config in the legend to hide it, or double-click to isolate one. <br><br>The
+      a legend entry to hide it, or double-click to isolate it; pinch (or hold ⌘/Ctrl
+      and scroll) to zoom, drag to pan, and double-click the chart (or Reset view)
+      to return.
+      <br><br>The
       yellow line is the <em>build front</em>: the 90th-percentile VIN delivered
       each finished week, from firm delivery dates only. Delivery stands in for
       build date — the lag between them moves where a VIN appears but not the slope,

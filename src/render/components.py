@@ -69,15 +69,17 @@ def _table(cid: str, table: Table) -> str:
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
           n: int | None = None, dims: Sequence[str] = (),
           notes: Sequence[str] = (), table: Table | None = None,
-          shared: Sequence[str] = ()) -> str:
+          shared: Sequence[str] = (), wide: bool = False) -> str:
     """One component's HTML. `cid` is the element id ("c-..."); `body` is trusted
     HTML (a component renderer's output); every other text is escaped.
-    `shared` caveats are said by the component's group, so they're left out."""
+    `shared` caveats are said by the component's group, so they're left out.
+    `wide` spans the whole component grid (a chart, rather than a panel)."""
     meta = ([] if n is None else ["n = %s" % format(n, ",")]) + [
         '<span class="caveat">%s</span>' % escape(c) for c in caveats(dims, notes)
         if c not in shared]
     return "".join([
-        '<figure class="r2c" id="%s" role="group" aria-labelledby="%s-t">' % (cid, cid),
+        '<figure class="r2c%s" id="%s" role="group" aria-labelledby="%s-t">'
+        % (" r2c-wide" if wide else "", cid, cid),
         '<figcaption id="%s-t">%s</figcaption>' % (cid, escape(title)),
         '<p class="r2c-summary">%s</p>' % escape(summary) if summary else "",
         body,
@@ -200,3 +202,28 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
     return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary,
                  dims=component_dims(spec), table=table, shared=shared)
+
+
+# --- Browser-drawn components: the frame, the mount point and a no-JS table ------
+
+def mount(cid: str, view_id: str, spec: dict, data: dict, agg: Aggregate,
+          shared: Sequence[str] = ()) -> str:
+    """A component the browser draws (src/web/charts/<template>.js): its frame,
+    an empty legend and the mount point main.js fills from r2_view.json, and a
+    data table of every point, which is what a reader without scripts (or with a
+    screen reader) gets instead of the chart."""
+    rows = [[s_["name"], p["tip"][0], format(p["y"], ","), p["x"],
+             "%s – %s" % (p["lo"], p["hi"]) if p.get("lo") else "",
+             "firm" if p.get("firm") else ""]
+            for s_ in data.get("series", []) for p in s_["points"]]
+    table = Table(["Paint · wheels", "Order", "VIN", "Est. delivery",
+                   "Quoted window", "Date"], rows)
+    body = ('<div class="r2c-chart" data-chart="%s" data-template="%s">'
+            '<div class="chart-legend" role="group" aria-label="Series"></div>'
+            '<div class="chart-plot"><p class="chart-loading">The chart draws when '
+            'scripts run; the data table below has every point.</p></div></div>'
+            % (escape(view_id), escape(spec["template"])))
+    summary = (summarize(spec["summary"], agg.cells) if spec.get("summary")
+               and agg.cells else None)
+    return frame(cid, spec["title"], body, summary=summary,
+                 dims=component_dims(spec), table=table, shared=shared, wide=True)

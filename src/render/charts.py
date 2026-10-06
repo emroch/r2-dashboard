@@ -6,16 +6,16 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .colors import COLOR_DISPLAY, REGION_WHISKER, WHISKER_HEX
+from .colors import COLOR_DISPLAY, REGION_WHISKER
 from config import (AS_OF, CADENCE_COLORS, CADENCE_WINDOW_WEEKS, CHART, CHART_UI,
                     COLOR_ORDER, ELEV_BINS, FACTORY, HEATMAP_COLORSCALE,
                     INTERIOR_COLOR, INTERIOR_ORDER, INTERIOR_SHORT, LATENCY_COLORS,
                     PRICE_COLORS, PRICE_TRIMS, REGION_COLOR,
                     STATE_MIN_ORDERS, STATE_TOTALS_COLORS, TEMP_BINS,
-                    TIMELINE_COLORS, TYPE_COLOR, TYPE_OPACITY, TYPE_ORDER,
+                    TIMELINE_COLORS, TYPE_COLOR, TYPE_ORDER,
                     URBAN_BINS, WHEEL_ABBR, WHEEL_COLOR, WHEEL_ORDER, WHEEL_SYMBOL)
 
-from .cadence import projection as cadence_projection, rate_history
+from .cadence import rate_history
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -111,61 +111,6 @@ def _whisker_toggle_menu(whisker_idx, x=0.0):
                               args=[{"visible": False}, idx])])]
 
 
-def _add_build_front(fig, df):
-    """Overlay the observed build front and, when it can be measured, its projection.
-
-    The front is plotted at each delivery week's midpoint (date on x, VIN on y, like
-    the points it summarizes). The projection is a dashed continuation with an
-    asymmetric band from its back-tested misses; it is drawn only when
-    cadence.projection could measure them. Aggregate only — it says where the
-    front is heading, never when a particular order will arrive. Returns the
-    projection dict, or None.
-    """
-    proj = cadence_projection(df)
-    front = proj["front"] if proj else None
-    if front is None or front.empty:
-        return None
-    # Its own legend, so the overlay reads as a separate layer from the paint ·
-    # wheels series rather than three more entries at the bottom of that list.
-    # legendrank fixes the reading order (observed, projected, range) independently
-    # of the trace order, which has to keep the band's polygon under the dashed line.
-    grp, leg = "Build front", "legend2"
-    mid = front.index + pd.Timedelta(days=3)
-    fig.add_trace(go.Scatter(
-        x=np.asarray(mid), y=np.asarray(front.values), mode="lines+markers",
-        name="Observed", legendgroup=grp, legend=leg, legendrank=1,
-        line=dict(color=CADENCE_COLORS["front"], width=3),
-        marker=dict(color=CADENCE_COLORS["front"], size=7,
-                    line=dict(color=CHART["edge"], width=0.8)),
-        hovertemplate="Week of %{x|%b %d}: build front ≈ VIN %{y:,.0f}<extra></extra>"))
-    pmid = [w + pd.Timedelta(days=3) for w in proj["weeks"]]
-    # The band as one closed polygon: lower edge forward in time, upper edge back.
-    # Asymmetric — each side is the typical back-tested miss in that direction.
-    fig.add_trace(go.Scatter(
-        x=pmid + pmid[::-1], y=np.concatenate([proj["lo"], proj["hi"][::-1]]),
-        mode="lines", fill="toself",
-        fillcolor=CADENCE_COLORS["band"], line=dict(width=0),
-        name="Likely range", legendgroup=grp, legend=leg, legendrank=3,
-        hoverinfo="skip"))
-    # The range in VINs, the band's own axis, rounded to the nearest hundred: the
-    # back-test can't support more precision than that, and digits beyond it would
-    # read as if it could. (It used to quote the miss in days, a second unit for the
-    # same band that only made sense after converting through the rate.)
-    def rounded(v):
-        return np.round(np.asarray(v) / 100.0) * 100.0
-    fig.add_trace(go.Scatter(
-        x=pmid, y=np.asarray(proj["center"]), mode="lines",
-        name="Projected · ≈ %.0f VINs/day" % proj["rate"], legendgroup=grp,
-        legend=leg, legendrank=2,
-        line=dict(color=CADENCE_COLORS["projection"], width=2.5, dash="dash"),
-        customdata=np.column_stack([rounded(proj["center"]), rounded(proj["lo"]),
-                                    rounded(proj["hi"])]),
-        hovertemplate=("Week of %{x|%b %d}: front ≈ VIN %{customdata[0]:,.0f}"
-                       "<br>likely VIN %{customdata[1]:,.0f}–%{customdata[2]:,.0f}"
-                       "<extra></extra>")))
-    return proj
-
-
 def fig_vin_cadence(df):
     """Build cadence over time: the rolling robust rate behind the projected front.
 
@@ -193,85 +138,6 @@ def fig_vin_cadence(df):
                            % CADENCE_WINDOW_WEEKS),
         xaxis=dict(title_text="Delivery week", type="date"),
         yaxis=dict(title_text="VINs per day", rangemode="tozero"))
-    return fig
-
-
-def fig_delivery_vs_vin(df):
-    """Estimated delivery date vs VIN sequence, coded by config.
-
-    One legend entry per paint × wheel (marker shape encodes the wheel), each
-    toggling/isolating that series — its markers and whiskers share a
-    legendgroup, so hiding a series takes its whiskers with it (no strays). A
-    whisker on/off button declutters. Window/range estimates get whiskers
-    spanning their min-max delivery span.
-    """
-    d = _reported(df[df["vin_present"] & df["delivery_est"].notna()],
-                  "color", "wheels_short")
-    fig = go.Figure()
-    xs = d["vin_seq"].astype(float)
-    cap = (xs.max() - xs.min()) * 0.006 if len(xs) else 5.0
-    whisk = []
-    for color, wheel, sym, s in _config_wheel_traces(d, _paint_order(df)):
-        grp = "%s · %s" % (color, wheel.split()[0])   # e.g. "Launch Green · 21\""
-        # Whiskers (min-max span + caps) for window/range estimates, in the
-        # series' legendgroup so they toggle/isolate with its markers.
-        # Date on x, VIN on y: the quoted window is a horizontal span at the order's
-        # VIN, capped by short vertical ticks.
-        xw, yw = [], []
-        for v, mn, mx in zip(s["vin_seq"], s["delivery_min"], s["delivery_max"]):
-            if pd.notna(mn) and pd.notna(mx) and mx > mn:
-                a, b = mn.strftime("%Y-%m-%d"), mx.strftime("%Y-%m-%d")
-                xw += [a, b, None, b, b, None, a, a, None]
-                yw += [v, v, None, v - cap, v + cap, None, v - cap, v + cap, None]
-        if xw:
-            whisk.append(len(fig.data))
-            fig.add_trace(go.Scatter(
-                x=xw, y=yw, mode="lines", legendgroup=grp, showlegend=False,
-                hoverinfo="skip", opacity=0.7,
-                line=dict(color=WHISKER_HEX[color], width=1.4)))
-        cd, ht = _config_hover(s)
-        opac = [TYPE_OPACITY.get(t, 0.4) for t in s["delivery_type"]]
-        fig.add_trace(go.Scatter(
-            x=np.asarray(s["delivery_est"]), y=np.asarray(s["vin_seq"]),
-            mode="markers", name=grp, legendgroup=grp,
-            marker=dict(color=_paint_fill(color), size=11,
-                        symbol=sym, opacity=opac,
-                        line=dict(color=CHART["edge"], width=0.8)),
-            customdata=cd, hovertemplate=ht))
-    menu = _whisker_toggle_menu(whisk, x=0.0)
-    # Build front + projection. Appended AFTER every series on purpose: the whisker
-    # toggle above addresses traces by index, so nothing may be inserted before them.
-    proj = _add_build_front(fig, df)
-    # Fixed ranges + pinned axis types so toggling series or zooming never
-    # rescales the view; span the today line and the projection band too. Date on
-    # the bottom, matching §9, so the two read the same way.
-    xax = dict(title_text="Estimated delivery date  (whiskers = quoted window)",
-               type="date")
-    yax = dict(title_text="VIN sequence number  (production order →)", type="linear")
-    x_extra = [pd.Series(proj["weeks"]) + pd.Timedelta(days=6)] if proj else []
-    xr = _date_range([d["delivery_est"], d["delivery_min"], d["delivery_max"]]
-                     + x_extra, include=AS_OF)
-    y_extra = pd.Series(np.concatenate([proj["lo"], proj["hi"]])) if proj else None
-    yr = _num_range(d["vin_seq"] if y_extra is None
-                    else pd.concat([d["vin_seq"].astype(float), y_extra]),
-                    min_pad=cap * 1.5)
-    if xr:
-        xax["range"] = xr
-    if yr:
-        yax["range"] = yr
-    fig.update_layout(
-        template="plotly_white", xaxis=xax, yaxis=yax,
-        legend=dict(title_text="Paint · wheels", groupclick="togglegroup",
-                    tracegroupgap=0, x=1.02, xanchor="left", y=1, yanchor="top"),
-        height=640, hovermode="closest", updatemenus=menu)
-    if proj:
-        # Bottom of the same column, so the two read as one key in two sections.
-        fig.update_layout(legend2=dict(
-            title_text="Build front", x=1.02, xanchor="left", y=0, yanchor="bottom",
-            bgcolor=CHART["legbg"], bordercolor=CHART["legbd"], borderwidth=1))
-    if menu:
-        fig.update_layout(margin=dict(t=54))
-    _add_today_vline(fig)  # vertical — delivery date is the x-axis here
     return fig
 
 

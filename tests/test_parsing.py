@@ -860,44 +860,6 @@ def test_backtest_sign_shows_when_reality_ran_ahead():
     assert not bt.empty and bt["err_days"].mean() > 0, bt["err_days"].mean()
 
 
-def test_vin_scatter_keeps_whisker_indices():
-    # The overlay is appended AFTER the series, because the whisker toggle addresses
-    # traces by index.
-    from render.charts import fig_delivery_vs_vin
-    df = _cadence_input(weeks=13)
-    df["color"], df["wheels_short"] = "Esker Silver", '21" Liquid Tungsten'
-    df["interior"], df["trim"] = "Black Crater Signature", "Performance"
-    df["user"] = "u"
-    for c, v in (("vin_display", ""), ("order_display", ""), ("est_display", ""),
-                 ("buylease", "Purchase"), ("state", "IL")):
-        df[c] = v
-    # A windowed estimate, so whiskers (and the toggle that targets them) exist —
-    # without one the index check below would pass vacuously.
-    win = df.iloc[[5]].copy()
-    win["delivery_type"] = "window"
-    win["delivery_min"] = win["delivery_est"] - pd.Timedelta(days=7)
-    win["delivery_max"] = win["delivery_est"] + pd.Timedelta(days=7)
-    fig = fig_delivery_vs_vin(pd.concat([df, win], ignore_index=True))
-    names = [t.name for t in fig.data]
-    assert names[-3] == "Observed" and names[-1].startswith("Projected · ≈ ")
-    # The overlay sits in its own legend, separate from the paint · wheels series.
-    overlay = [t for t in fig.data if t.legend == "legend2"]
-    assert [t.name for t in overlay] == names[-3:], [t.name for t in overlay]
-    assert fig.layout.legend2.title.text == "Build front"
-    # The projection's hover quotes VINs (its own axis), rounded to the hundred.
-    proj = fig.data[-1]
-    assert "days" not in proj.hovertemplate and "likely VIN" in proj.hovertemplate
-    assert all(v % 100 == 0 for v in np.asarray(proj.customdata, dtype=float).ravel())
-    assert fig.layout.updatemenus, "the fixture must produce whiskers to test against"
-    whisk = set(fig.layout.updatemenus[0].buttons[0].args[1])
-    assert whisk and all(fig.data[i].mode == "lines" and not fig.data[i].fill
-                         for i in whisk), "toggle targets exactly the whisker traces"
-    assert not any(fig.data[i].legend == "legend2" for i in whisk), (
-        "the whisker toggle must not reach the overlay")
-    # Date on x, VIN on y (transposed to match §9).
-    assert fig.layout.xaxis.type == "date" and fig.layout.yaxis.type == "linear"
-
-
 def test_state_totals_segments_partition_each_state():
     # The three segments must sum to each state's order count: a delivery has to be
     # deducted from whichever VIN bucket it came from, or the bar overstates the
@@ -1468,9 +1430,9 @@ def test_every_paint_chart_uses_the_same_order():
     # follow one popularity ranking, or a reader learns an order in §2 that fails
     # them in §3.
     # (The §2 take-rate rows follow it too: test_aggregates.py.)
+    # (§10's delivery-vs-VIN scatter follows it too: test_specs.py.)
     from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_delivery_vs_vin, fig_paint_by_location,
-                               fig_vin_vs_order)
+                               fig_paint_by_location, fig_vin_vs_order)
     df = _paint_rank_frame()
     want = _paint_order(df)
     assert want == _expected_paint_rank()
@@ -1478,8 +1440,8 @@ def test_every_paint_chart_uses_the_same_order():
     # §3 heatmap rows (top-down: the y axis is reversed).
     assert list(fig_color_wheel_heatmap(df).data[0].y) == want
 
-    # §8 / §9 scatter legends: one entry per paint × wheel, paints in rank order.
-    for fig in (fig_vin_vs_order(df), fig_delivery_vs_vin(df)):
+    # §9 scatter legend: one entry per paint × wheel, paints in rank order.
+    for fig in (fig_vin_vs_order(df),):
         seen = []
         for t in fig.data:
             paint = (t.name or "").split(" · ")[0]

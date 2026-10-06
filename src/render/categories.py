@@ -15,6 +15,10 @@ the lightness clamped into the theme's range from theme.yaml, so a pale paint on
 the white card or a dark one on the dark card stays visible. Delivery stages are
 the same mark at the stage opacities (--a-delivered/-scheduled/-vin/-wait).
 
+Accents that don't name a category (the build front's line and band) are CSS
+variables too, --cadence-<name> from palette.yaml; a spec refers to one as
+"var:cadence-front".
+
 Browsers without relative color syntax (before Safari 18) get the clamped colors
 precomputed here instead, per theme, in an @supports block.
 
@@ -27,7 +31,7 @@ from __future__ import annotations
 
 import re
 
-from config import DIMENSIONS, THEME_CSS
+from config import CADENCE_COLORS, DIMENSIONS, THEME_CSS
 
 from .colors import mark_hex
 
@@ -73,5 +77,7 @@ def category_css() -> str:
         ["%s{--mark:%s;}" % (sel[k], mark_hex(h, *light)) for k, h in cats.items()]
         + ['html[data-theme="dark"] %s{--mark:%s;}' % (sel[k], mark_hex(h, *dark))
            for k, h in cats.items()])
-    return "\n%s\n%s\n@supports not %s{\n%s\n}\n" % (
-        paints, marks, _SUPPORTS_RELATIVE, fallback)
+    accents = ":root{%s}" % "".join("--cadence-%s:%s;" % kv
+                                    for kv in CADENCE_COLORS.items())
+    return "\n%s\n%s\n%s\n@supports not %s{\n%s\n}\n" % (
+        accents, paints, marks, _SUPPORTS_RELATIVE, fallback)

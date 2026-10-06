@@ -23,7 +23,8 @@ import pandas as pd
 from config import COMPONENTS, DIMENSIONS
 
 from .aggregates import Aggregate, cohort_sizes, counts, r1_models, reconcile
-from .components import takerate
+from .components import mount, takerate
+from .specs import delivery_vs_vin
 
 VIEW_VERSION = 1
 
@@ -34,12 +35,19 @@ class View:
     components: dict[str, dict[str, Any]] = field(default_factory=dict)
     # component id -> its aggregate (static components, drawn as HTML)
     static: dict[str, Aggregate] = field(default_factory=dict)
+    # component id -> the aggregate behind a browser-drawn component's spec
+    mounted: dict[str, Aggregate] = field(default_factory=dict)
     aggregates: list[Aggregate] = field(default_factory=list)
 
     def render(self, cid: str, shared: Sequence[str] = ()) -> str:
-        """A static component's HTML. `shared` caveats are said once by the
-        component's group (components.shared_caveats), so its frame drops them."""
+        """A component's HTML: a static one drawn here, or a browser-drawn one's
+        frame, mount point and no-JS table. `shared` caveats are said once by
+        the component's group (components.shared_caveats), so its frame drops
+        them."""
         spec = COMPONENTS[cid]
+        if cid in self.mounted:
+            return mount("c-" + cid, cid, spec, self.components[cid],
+                         self.mounted[cid], shared)
         return _STATIC[spec["template"]]("c-" + cid, spec, self.static[cid], shared)
 
 
@@ -49,6 +57,9 @@ _AGGREGATES = {"r1_models": lambda df, spec: r1_models(df, by_stage=True)}
 
 # charts.yaml `template` -> renderer, for the templates drawn as HTML here.
 _STATIC = {"takerate": takerate}
+
+# charts.yaml `aggregate` -> spec builder, for the browser-drawn templates.
+_SPECS = {"delivery_vs_vin": delivery_vs_vin}
 
 
 def _aggregate(df: pd.DataFrame, spec: dict[str, Any]) -> Aggregate:
@@ -64,10 +75,15 @@ def build(df: pd.DataFrame) -> View:
     view = View()
     view.aggregates += [counts(df, dim) for dim in DIMENSIONS]
     for cid, spec in COMPONENTS.items():
-        agg = _aggregate(df, spec)
+        if spec["template"] in _STATIC:
+            agg = _aggregate(df, spec)
+            view.static[cid] = agg
+        else:
+            spec_data, agg = _SPECS[spec["aggregate"]](df)
+            view.components[cid] = spec_data
+            view.mounted[cid] = agg
         agg.name = "%s (%s)" % (cid, agg.name)
         view.aggregates.append(agg)
-        view.static[cid] = agg
     reconcile(view.aggregates, cohort_sizes(df))
     return view
 

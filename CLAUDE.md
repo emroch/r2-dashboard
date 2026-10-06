@@ -34,7 +34,8 @@ src/
     categories.py   category colors as CSS: a .cat-<dim>-<slug> class per colored category (--paint true color, --mark theme-clamped) + fallback
     aggregates.py   counts for components, each reconciled against its cohort (cells + excluded == cohort, or the build stops)
     components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate)
-    view.py         builds + reconciles the page's aggregates, renders the static components; writes r2_view.json (browser-drawn specs; none yet)
+    view.py         builds + reconciles the page's aggregates, renders the components; writes r2_view.json (browser-drawn components' specs)
+    specs.py        house-schema specs for the browser-drawn components (§10's scatter): points, layers, fixed domains; no colors
     charts.py       the ten fig_* chart builders + helpers
     page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
@@ -44,8 +45,12 @@ src/
     head.js         pre-paint theme set (no flash) — inlined, since it must run before first paint
     _headers        Cloudflare Pages cache headers (copied into the deploy)
   web/              the page's browser code, served as static files (docs/presentation.md, "JS layout")
-    main.js         ES module: boots browser-drawn components at [data-chart] mounts (none yet); wires CSV buttons
-    lib/csv.js      a component's data table -> CSV download (pure, unit-tested)
+    main.js         ES module: boots browser-drawn components at [data-chart] mounts, each when it nears the viewport; wires CSV buttons
+    charts/         d3 templates (scatter.js) + registry.js (template -> lazy import)
+    lib/            csv.js (table -> CSV), legend.js (house legend), tooltip.js, load.js (lazy d3)
+    state.js        view state in the URL query (?whiskers=0)
+    data.js         fetches r2_view.json once
+    vendor/         d3 7.9.0, committed; README records version + SHA-256 (a test checks it)
     theme.js        theme toggle; fires r2:themechange, keeps the theme-color meta in step (classic script)
     plotly-theme.js re-tints the Plotly charts' chrome on r2:themechange; goes with Plotly (classic script)
     nav.js          sidebar scroll-spy, report-menu dismissal, local times (classic script)
@@ -63,7 +68,7 @@ src/
 data/raw/           timestamped live caches (auto change-detected)
 data/processed/     cleaned CSV output
 output/             dashboard HTML output
-tests/              unit tests: test_parsing.py, test_aggregates.py, test_view.py (Python); js/*.test.mjs (node --test)
+tests/              unit tests: test_parsing.py, test_aggregates.py, test_specs.py, test_view.py (Python); js/*.test.mjs (node --test)
 tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 

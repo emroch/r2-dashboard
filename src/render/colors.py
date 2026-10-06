@@ -4,7 +4,8 @@ The palette in config (loaded from dimensions.yaml) is the source of truth for t
 on-screen colors. Two kinds of derived color live here:
 
   * for the Plotly charts: the marker/legend palette (COLOR_DISPLAY) and the
-    tinted window whiskers (WHISKER_HEX), in HLS. They go with Plotly (#111).
+    tinted window whiskers per region (REGION_WHISKER), in HLS. They go with
+    Plotly (#111).
   * for the presentation layer's CSS (docs/presentation.md, "Theming"): OKLCH,
     the perceptual space the page's mark rule works in. A category keeps its
     true color for its swatch; its MARK is the same hue and chroma with the
@@ -39,10 +40,9 @@ def _whisker_color(h, light=0.56, sat=0.14):
 
 
 # COLOR_DISPLAY is the palette used for markers/legend (the dimensions.yaml hex
-# values are already tuned for on-screen legibility); WHISKER_HEX / REGION_WHISKER
-# tint the delivery-window whiskers per paint and per region (subtle tinted grey).
+# values are already tuned for on-screen legibility); REGION_WHISKER tints the
+# delivery-window whiskers per region (subtle tinted grey).
 COLOR_DISPLAY = dict(COLOR_HEX)
-WHISKER_HEX = {n: _whisker_color(h) for n, h in COLOR_HEX.items()}
 REGION_WHISKER = {n: _whisker_color(h) for n, h in REGION_COLOR.items()}
 
 
