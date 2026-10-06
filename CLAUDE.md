@@ -17,7 +17,7 @@ src/
   config.py         paths, run timestamps (NOW/AS_OF) + loaders for the conf/ YAML files below
   pipeline.py       main() orchestration + report printing (fetch -> clean -> render)
   ingest/           GET + CLEAN THE DATA
-    fetch.py        live-sheet fetch with caching + change detection
+    fetch.py        live-sheet fetch with caching + change detection (against caches on disk and on origin/main); --offline
     parsing.py      pure parsing / VIN / date / geo helpers
     schema_check.py column location by name + verification against schema.yaml
     outliers.py     likely entry errors (values that contradict the order date or their cohort) — set aside, not corrected
@@ -58,13 +58,14 @@ Run the pipeline from the project root:
 
 ```sh
 ./r2_dashboard          # or: python3 src/pipeline.py
+./r2_dashboard --offline   # no live fetch: build from the newest known cache, write none
 ```
 
 Outputs:
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
 - `data/processed/r2_dimensions.json`, `r2_series.json` — the published data contract (`ingest/contract.py`): `dimensions.yaml` as JSON, and daily counts of what was true by each date (event-dated, from today's data). Aggregates only.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
-- `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. If a live fetch fails, the newest cache is used.
+- `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest known cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. "Known" means on disk **or committed on `origin/main`** (read through git, no network): a branch that hasn't merged `main` lately would otherwise re-write data `main` already has, and the history replay reads the same set, so the newest snapshot it replays is the one being cleaned. If a live fetch fails, or with `--offline` (`R2_OFFLINE=1`), the newest known cache is used and nothing is written.
 
 Shipping a curation edit (`src/conf/*.yaml`, new `data/raw` caches): `./curate "message"` runs `./ci_env check`, then branches, commits, opens a PR, waits for its checks and squash-merges it (one linear data commit, no merge commit; rebase merges are refused because `main` requires signed commits) — `main`'s ruleset blocks direct pushes. It refuses changes outside those paths.
 
@@ -82,7 +83,7 @@ gitignored) from the pinned requirements via `uv` and runs against it:
 ./ci_env check          # lint + types + tests + full pipeline under the CI stack (what CI does)
 ./ci_env lint           # ruff check + mypy (pyproject.toml; lint, not format)
 ./ci_env test --both    # run the suite under BOTH stacks — catches version-dependent behavior
-./ci_env build          # just the pipeline
+./ci_env build          # just the pipeline (add --offline: no live fetch, no new cache)
 ./ci_env python …       # any command under the CI stack
 ```
 

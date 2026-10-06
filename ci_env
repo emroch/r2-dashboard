@@ -12,6 +12,10 @@
 #   ./ci_env test      run the unit tests under the CI stack (default)
 #   ./ci_env build     run the full pipeline (fetch -> clean -> render)
 #   ./ci_env check     lint + types + tests + build, i.e. what CI does on a PR
+#
+# Add --offline to `build` or `check` to skip the live fetch: the pipeline builds
+# from the newest known cache (on disk or committed on origin/main) and writes
+# no new cache, so a local build can't produce a cache to ship.
 #   ./ci_env lint      ruff check + mypy (settings in pyproject.toml)
 #   ./ci_env shell     print the activate line for an interactive session
 #   ./ci_env python …  run any python command under the CI stack
@@ -97,7 +101,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         ;;
     build)
         banner "CI stack" "$PY"
-        "$PY" src/pipeline.py
+        "$PY" src/pipeline.py "$@"
         ;;
     lint)
         "$VENV/bin/ruff" check .
@@ -108,7 +112,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         "$VENV/bin/ruff" check .
         "$VENV/bin/mypy"
         "$PY" tests/test_parsing.py
-        "$PY" src/pipeline.py
+        "$PY" src/pipeline.py "$@"
         ;;
     shell)
         echo "source $VENV/bin/activate"
@@ -117,7 +121,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         exec "$PY" "$@"
         ;;
     *)
-        sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

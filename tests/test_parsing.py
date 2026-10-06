@@ -1985,6 +1985,83 @@ def test_an_unreported_build_is_unpriced_not_priced_at_base():
     assert all("not reported" in i for i in issues), issues
 
 
+# --- Fetch change detection against committed caches -----------------------------
+
+def test_fetch_skips_data_already_committed_on_main():
+    # A branch that hasn't merged main lately has only older caches on disk.
+    # Data identical to main's newest cache must not be written again under a
+    # new timestamp; genuinely new data still is. (Six duplicate caches reached
+    # main in one day before this.) The throwaway repo's commits are unsigned on
+    # purpose: they exist only inside this test's temp directory.
+    import subprocess
+    import tempfile
+
+    import ingest.fetch as fetch
+    with tempfile.TemporaryDirectory() as d:
+        git = ["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@example.test",
+               "-c", "commit.gpgsign=false"]
+        raw = os.path.join(d, "data", "raw")
+        os.makedirs(raw)
+        old, new = "Username,a\nold,1\n", "Username,a\nnew,2\n"
+        with open(os.path.join(raw, "s_live_20260101-000000.csv"), "w") as fh:
+            fh.write(old)
+        subprocess.run(["git", "init", "-q", d], check=True)
+        subprocess.run(git + ["add", "-A"], check=True)
+        subprocess.run(git + ["commit", "-qm", "old"], check=True)
+        with open(os.path.join(raw, "s_live_20260102-000000.csv"), "w") as fh:
+            fh.write(new)
+        subprocess.run(git + ["add", "-A"], check=True)
+        subprocess.run(git + ["commit", "-qm", "new"], check=True)
+        subprocess.run(git + ["update-ref", "refs/remotes/origin/main", "HEAD"],
+                       check=True)
+        subprocess.run(git + ["checkout", "-q", "HEAD~1"], check=True)  # disk: old
+        assert sorted(os.listdir(raw)) == ["s_live_20260101-000000.csv"]
+
+        saved = fetch.DATA_RAW, fetch._http_get
+        try:
+            fetch.DATA_RAW = raw
+            # Offline: main's newest cache, without fetching or writing.
+            text, meta = fetch.fetch_sheet("k", 0, "s_live", "test", offline=True)
+            assert text == new and meta["offline"] and not meta["live"]
+            assert os.listdir(raw) == ["s_live_20260101-000000.csv"]
+
+            # The history replay sees main's newer snapshot too.
+            from ingest.history import snapshot_files
+            replayed = [src for _, src in snapshot_files("s_live")]
+            assert len(replayed) == 2 and replayed[-1].startswith("origin/main:"), \
+                replayed
+
+            fetch._http_get = lambda url: new + "\n\n"     # cosmetic tail only
+            _, meta = fetch.fetch_sheet("k", 0, "s_live", "test")
+            assert os.listdir(raw) == ["s_live_20260101-000000.csv"], os.listdir(raw)
+            assert not meta["changed"] and meta["cache"].startswith("origin/main:")
+            assert meta["updated_at"].day == 2, "dated by main's cache"
+
+            fetch._http_get = lambda url: "Username,a\nnewer,3\n"
+            _, meta = fetch.fetch_sheet("k", 0, "s_live", "test")
+            assert meta["changed"] and len(os.listdir(raw)) == 2
+        finally:
+            fetch.DATA_RAW, fetch._http_get = saved
+
+
+def test_fetch_compares_locally_without_git():
+    # Outside a git checkout (or with no origin/main) it is the old behavior.
+    import tempfile
+
+    import ingest.fetch as fetch
+    with tempfile.TemporaryDirectory() as d:
+        with open(os.path.join(d, "s_live_20260101-000000.csv"), "w") as fh:
+            fh.write("Username,a\nx,1\n")
+        saved = fetch.DATA_RAW, fetch._http_get
+        try:
+            fetch.DATA_RAW = d
+            fetch._http_get = lambda url: "Username,a\nx,1\n"
+            _, meta = fetch.fetch_sheet("k", 0, "s_live", "test")
+            assert not meta["changed"] and len(os.listdir(d)) == 1
+        finally:
+            fetch.DATA_RAW, fetch._http_get = saved
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
