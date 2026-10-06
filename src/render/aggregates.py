@@ -131,6 +131,15 @@ def stages(df: pd.DataFrame) -> pd.Series:
                      index=df.index)
 
 
+def stage_counts(df: pd.DataFrame) -> Aggregate:
+    """Every order by delivery stage (STAGES): the summary's Delivery progress
+    readouts, split exactly as the take-rate bars are."""
+    st = stages(df)
+    cells = [{"value": s, "label": STAGE_LABELS[s], "n": int((st == s).sum()),
+              "known": True, "ref": None} for s in STAGES]
+    return Aggregate("orders by delivery stage", "orders", cells)
+
+
 def counts(df: pd.DataFrame, dim: str, cohort: str = "orders",
            by_stage: bool = False) -> Aggregate:
     """One dimension's category counts over a cohort.

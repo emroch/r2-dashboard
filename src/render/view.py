@@ -23,7 +23,8 @@ import pandas as pd
 from config import COMPONENTS, DIMENSIONS
 
 from .aggregates import (Aggregate, cohort_sizes, counts, crosstab, price_by_trim,
-                         price_distribution, price_options, r1_models, reconcile)
+                         price_distribution, price_options, r1_models, reconcile,
+                         stage_counts)
 from .components import bars, heatmap, mix, mount, range_strip, takerate
 from .specs import delivery_vs_vin
 
@@ -39,6 +40,8 @@ class View:
     # component id -> the aggregate behind a browser-drawn component's spec
     mounted: dict[str, Aggregate] = field(default_factory=dict)
     aggregates: list[Aggregate] = field(default_factory=list)
+    # the summary's readout groups that are counts (Delivery progress)
+    readouts: dict[str, Aggregate] = field(default_factory=dict)
 
     def render(self, cid: str, shared: Sequence[str] = ()) -> str:
         """A component's HTML: a static one drawn here, or a browser-drawn one's
@@ -92,6 +95,9 @@ def build(df: pd.DataFrame) -> View:
             view.mounted[cid] = agg
         agg.name = "%s (%s)" % (cid, agg.name)
         view.aggregates.append(agg)
+    view.readouts["progress"] = stage_counts(df)
+    view.readouts["progress"].name = "summary progress (orders by delivery stage)"
+    view.aggregates.append(view.readouts["progress"])
     reconcile(view.aggregates, cohort_sizes(df))
     return view
 

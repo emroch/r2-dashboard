@@ -18,9 +18,9 @@ from plotly.offline import get_plotlyjs
 
 from .assets import publish_assets
 from .categories import category_css
-from .components import notes_html, shared_caveats, stage_key
-from .charts import (delivery_progress,
-                     fig_delivery_timeline,
+from .components import (notes_html, readout, readout_group, shared_caveats,
+                         stage_key, stage_readouts)
+from .charts import (fig_delivery_timeline,
                      fig_delivery_latency,
                      fig_dest_vs_delivery, fig_geo,
                      fig_interior_by_location,
@@ -28,7 +28,7 @@ from .charts import (delivery_progress,
                      fig_state_totals, fig_vin_by_config,
                      fig_vin_cadence,
                      fig_vin_vs_order, fig_wheels_by_location)
-from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
+from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
                     RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
@@ -176,24 +176,6 @@ def _stamp(dt):
 
 def _esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _stat_card(label, value, rows=None, caption="", cap=60):
-    """A header stat card; with `rows` it gains a hover tooltip listing the
-    affected entries (original #, username, what changed). Long lists are
-    truncated to `cap` rows with a '… and N more' footer."""
-    if not rows:
-        return '<div class="stat"><b>%s</b>%s</div>' % (_esc(value), _esc(label))
-    body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
-                   % (_esc(i), _esc(u), _esc(d)) for i, u, d in rows[:cap])
-    if len(rows) > cap:
-        body += ('<tr><td></td><td></td><td>&hellip; and %d more</td></tr>'
-                 % (len(rows) - cap))
-    tip = ('<div class="tip"><div class="tipcap">%s</div><table>'
-           "<tr><th>#</th><th>user</th><th>detail</th></tr>%s</table></div>"
-           % (_esc(caption), body))
-    return ('<div class="stat has-tip"><b>%s</b>%s<span class="i">&#9432;</span>%s</div>'
-            % (_esc(value), _esc(label), tip))
 
 
 def _money(v):
@@ -490,15 +472,7 @@ def build_dashboard(df, report, resv, view):
              [r for r in san["Likely entry errors set aside"]
               if r[2].startswith("delivery ")]),
         ]),
-        # The same three-way split §12 draws per state, from the same helper, so the
-        # card and that chart's all-states row can't disagree. A strict partition of
-        # every order. "Delivered" is inferred from a passed estimate, not reported —
-        # the group title says so, since these cards carry no caption of their own.
-        ("Delivery progress (inferred, of %d orders)" % len(df), [
-            (label, int(mask.sum()), None)
-            for label, mask in zip(("Delivered", "Awaiting · VIN", "Awaiting · no VIN"),
-                                   delivery_progress(df).values())
-        ]),
+        # Delivery progress goes here, from the view (below).
         # Configured vehicle price (no destination/doc/taxes). "Unpriced" keeps the
         # mean/median honest by showing what they were NOT computed over.
         ("Configured price (of %d priced)" % pz["n_priced"], [
@@ -508,12 +482,18 @@ def build_dashboard(df, report, resv, view):
             ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
         ]),
     ]
-    stat_html = "".join(
-        '<div class="statgroup"><span class="sglabel">%s</span>'
-        '<div class="stats">%s</div></div>'
-        % (_esc(gtitle), "".join(_stat_card(k, v, rows, captions.get(k, ""))
-                                 for k, v, rows in cards))
-        for gtitle, cards in stat_groups)
+    groups = [readout_group(gtitle, [readout(v, k, rows or (), captions.get(k, ""))
+                                     for k, v, rows in cards])
+              for gtitle, cards in stat_groups]
+    # Every order by delivery stage: the split the take-rate bars draw, from the
+    # same aggregate (reconciled with the rest of the view), with the stage key's
+    # marks. Delivered is inferred, not reported, which the caveat says. It
+    # follows the delivery estimates (stat_groups[3]).
+    progress = view.readouts["progress"]
+    groups.insert(4, readout_group(
+        "Delivery progress (of %s orders)" % format(progress.counted, ","),
+        stage_readouts(progress), note=DIMENSIONS["delivered"]["caveat"]))
+    stat_html = "".join(groups)
 
     intro_html = (
         '<h2>1 · Sources &amp; summary</h2>'
@@ -529,8 +509,8 @@ def build_dashboard(df, report, resv, view):
           'R2 order date. Order dates before 2026-06-09 and reservations before '
           '2024-03-07 are treated as invalid; reservations already present in the '
           'orders sheet are dropped as duplicates. &#8220;Last updated&#8221; is '
-          'when a sheet&#8217;s contents last changed between fetches. Hover the '
-          'highlighted stat cards (&#9432;) for the sanitized entries. Charts with '
+          'when a sheet&#8217;s contents last changed between fetches. Open a '
+          'number marked &#9656; for the entries behind it. Charts with '
           'a legend are interactive &mdash; click an entry to hide that series, '
           'double-click to isolate one; see each chart&#8217;s note for its '
           'paint, region, and wheel filters.</p>')

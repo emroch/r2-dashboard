@@ -121,25 +121,45 @@ section p.desc a:hover{filter:brightness(1.15);}
    space them apart so stacked charts don't read as one crowded figure. */
 .plot + .plot{margin-top:22px;}
 .statwrap{margin-top:14px;}
-.statgroup{margin-top:12px;}
-.sglabel{display:block;font-size:10.5px;text-transform:uppercase;
+/* Summary readouts (components.readout): a chip per number in a wrapping row.
+   One with entries behind it is a <details> whose ▸ chip opens the list inline.
+   Where ::details-content can be styled, the list drops to a full-width row
+   under the chips and the chips stay put; elsewhere the opened chip and its list
+   take a row of their own. */
+.ro-group{margin-top:12px;}
+.ro-title{display:block;font-size:10.5px;text-transform:uppercase;
  letter-spacing:.08em;color:var(--desc);margin:0 0 5px 2px;}
-.stats{display:flex;flex-wrap:wrap;gap:12px;}
-.stat{position:relative;background:var(--stat-bg);color:var(--chip-fg);border-radius:8px;
- padding:10px 18px;font-size:12.5px;white-space:nowrap;min-width:96px;}
-.stat b{font-size:18px;display:block;line-height:1.25;}
-.stat.has-tip{cursor:help;}
-.stat .i{opacity:.55;font-size:11px;margin-left:2px;}
-.stat .tip{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;
- background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-bd);
- border-radius:8px;font-weight:400;
- box-shadow:0 6px 20px var(--tip-sh);padding:9px 11px;max-height:300px;overflow:auto;}
-.stat:hover .tip{display:block;}
-.tipcap{font-weight:600;color:var(--tip-cap);margin-bottom:5px;font-size:12px;}
-.tip table{border-collapse:collapse;font-size:11.5px;}
-.tip th,.tip td{text-align:left;padding:2px 12px 2px 0;white-space:nowrap;}
-.tip th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);}
-.tip td:first-child{color:var(--tip-td1);}
+.ro-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;}
+.ro-chip{display:inline-block;background:var(--stat-bg);color:var(--chip-fg);border-radius:8px;
+ padding:10px 18px;font-size:12.5px;white-space:nowrap;min-width:96px;
+ box-sizing:border-box;}
+.ro-v{font-size:18px;display:block;line-height:1.25;}
+.ro-l{display:inline-flex;align-items:center;gap:5px;}
+.ro-l .mark{display:inline-block;width:14px;height:8px;border-radius:2px;}
+/* On the chip, a stage mark is the chip's ink at the stage's opacity. */
+.ro-chip .tr-neutral{--mark:var(--chip-fg);}
+.ro-more[open]{flex-basis:100%;}
+.ro-more:not([open]) .ro-rows{display:none;}
+@supports selector(::details-content){
+ .ro-more,.ro-more::details-content{display:contents;}
+}
+@supports not selector(::details-content){.ro-rows{margin-top:8px;}}
+.ro-more > summary{cursor:pointer;list-style:none;}
+.ro-more > summary::-webkit-details-marker{display:none;}
+.ro-more > summary .ro-l::after{content:"\25B8";font-size:11px;opacity:.7;}
+.ro-more[open] > summary .ro-l::after{content:"\25BE";}
+.ro-more[open] > summary{box-shadow:inset 0 -3px 0 var(--chip-fg);}
+.ro-more > summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;}
+.ro-rows{flex-basis:100%;order:1;box-sizing:border-box;min-width:0;
+ background:var(--tip-bg);color:var(--tip-fg);
+ border:1px solid var(--tip-bd);border-radius:8px;padding:9px 11px;}
+.ro-rows .r2c-scroll{max-height:300px;overflow:auto;}
+.intro .ro-cap,.ro-cap{margin:0 0 5px;font-weight:600;color:var(--tip-cap);font-size:12px;}
+.ro-rows table{border-collapse:collapse;font-size:11.5px;}
+.ro-rows th,.ro-rows td{text-align:left;padding:2px 12px 2px 0;white-space:nowrap;}
+.ro-rows th{border-bottom:1px solid var(--tip-th);color:var(--tip-thc);font-weight:600;}
+.ro-rows td:first-child{color:var(--tip-td1);}
+.intro .ro-note,.ro-note{margin:6px 0 0 2px;font-size:12px;color:var(--desc);}
 .qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
  gap:16px;margin-top:6px;}
 .qa-cat{border:1px solid var(--card-bd);border-radius:8px;padding:10px 12px;}

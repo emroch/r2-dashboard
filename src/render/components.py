@@ -441,3 +441,45 @@ def range_strip(cid: str, spec: dict, agg: Aggregate,
     return frame(cid, spec["title"], key + '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary, dims=component_dims(spec), table=table,
                  shared=shared)
+
+
+# --- readout: a big number and its label; a list behind a disclosure ------------
+
+def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
+            caption: str = "", mark: str = "") -> str:
+    """One summary number. With `rows` (the entries behind it: (#, user,
+    detail)) it is a disclosure: the ▸ opens the list inline, under a caption
+    naming the readout and saying what the list holds (the list can land rows
+    below its chip). `mark` is trusted HTML before the label (a stage's
+    swatch)."""
+    chip = ('<b class="ro-v">%s</b><span class="ro-l">%s%s</span>'
+            % (escape(str(value)), mark, escape(label)))
+    if not rows:
+        return '<div class="ro-chip">%s</div>' % chip
+    body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
+                   % tuple(escape(str(v)) for v in r) for r in rows)
+    return ('<details class="ro-more"><summary class="ro-chip">%s</summary>'
+            '<div class="ro-rows">%s<div class="r2c-scroll"><table><thead><tr>'
+            '<th scope="col">#</th><th scope="col">User</th><th scope="col">Detail'
+            '</th></tr></thead><tbody>%s</tbody></table></div></div></details>'
+            % (chip, '<p class="ro-cap"><b>%s</b>%s</p>'
+               % (escape(label), " — " + escape(caption) if caption else ""), body))
+
+
+def readout_group(title: str, readouts: Sequence[str], note: str = "",
+                  key: str = "") -> str:
+    """A titled row of readouts, with an optional note under them (a caveat
+    they share) and `key`, trusted HTML above them (the stage legend)."""
+    return ('<div class="ro-group" role="group" aria-label="%s"><span class="ro-title">'
+            '%s</span>%s<div class="ro-row">%s</div>%s</div>'
+            % (escape(title), escape(title), key, "".join(readouts),
+               '<p class="ro-note">%s</p>' % escape(note) if note else ""))
+
+
+def stage_readouts(agg: Aggregate) -> list[str]:
+    """The Delivery progress readouts: one per stage, each with its stage's
+    mark from the take-rate bars, so the two read as one split."""
+    return [readout(format(int(c["n"]), ","), c["label"][:1].upper() + c["label"][1:],
+                    mark='<i class="mark tr-neutral stage-%s" aria-hidden="true">'
+                         '</i>' % c["value"])
+            for c in agg.cells]

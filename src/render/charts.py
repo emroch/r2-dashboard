@@ -749,8 +749,10 @@ def fig_geo(df, resv=None):
     return fig
 
 
-# The delivery pipeline's three stages, in stacking order. One definition shared by
-# the §12 chart and the summary-page stat cards, so the two can't disagree.
+# The delivery pipeline's three stages, in stacking order, for the §13 state
+# totals chart. The summary readouts and take-rate bars use the four stages of
+# aggregates.stages() instead; Delivered agrees, and §13 moves onto stages() when
+# it becomes a component (#109).
 DELIVERY_STAGES = ("Delivered (est.)", "Awaiting delivery · VIN",
                    "Awaiting delivery · no VIN")
 

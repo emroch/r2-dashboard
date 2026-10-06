@@ -500,6 +500,43 @@ def test_price_components_render_rows_text_and_tables():
     assert "Median configured price by trim: Performance $59,990." in html
 
 
+# --- Summary readouts --------------------------------------------------------------
+
+def test_stage_counts_partition_every_order_as_the_take_rate_bars_do():
+    from render.aggregates import cohort_sizes, counts, reconcile, stage_counts
+    df = _orders(vin_present=[True, True, False, False, False],
+                 delivered_inferred=[True, False, False, False, False],
+                 delivery_type=["explicit", "explicit", "explicit", None, "window"],
+                 buylease=["Purchase"] * 5)
+    a = stage_counts(df)
+    assert [(c["value"], c["n"]) for c in a.cells] == [
+        ("delivered", 1), ("scheduled", 2), ("vin", 0), ("wait", 2)], \
+        "a scheduled order with no VIN counts as scheduled"
+    reconcile([a], cohort_sizes(df))
+    # The readouts and a take-rate over the same orders split them identically.
+    take = counts(df, "buylease", by_stage=True)
+    split = {c["value"]: sum(t["stages"][c["value"]] for t in take.cells)
+             for c in a.cells}
+    assert split == {c["value"]: c["n"] for c in a.cells}
+
+
+def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
+    from render.components import readout, readout_group, stage_readouts
+    from render.aggregates import stage_counts
+    assert readout(694, "Unique orders") == \
+        '<div class="ro-chip"><b class="ro-v">694</b><span class="ro-l">Unique orders' \
+        '</span></div>'
+    html = readout(2, "Curated removals", [(310, "a<b", "cancelled")], "Why")
+    assert html.startswith('<details class="ro-more"><summary class="ro-chip">')
+    assert '<p class="ro-cap"><b>Curated removals</b> — Why</p>' in html
+    assert "<td>#310</td><td>a&lt;b</td><td>cancelled</td>" in html
+    g = readout_group("Delivery progress", stage_readouts(stage_counts(_orders(
+        vin_present=[True], delivered_inferred=[False]))), note="Inferred.")
+    assert 'role="group" aria-label="Delivery progress"' in g
+    assert '<i class="mark tr-neutral stage-vin" aria-hidden="true"></i>With a VIN' in g
+    assert '<p class="ro-note">Inferred.</p>' in g
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

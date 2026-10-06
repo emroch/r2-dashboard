@@ -893,10 +893,10 @@ def test_state_totals_segments_partition_each_state():
 
 
 def test_state_totals_summary_row_matches_the_shared_split():
-    # #53: the all-states row and the summary-page cards come from ONE helper, so
-    # they can't drift. The row covers orders with a known state (an unmapped order
-    # is excluded from the chart), while the cards cover every order — so the two
-    # agree exactly when every order is located, and differ by the unmapped ones.
+    # #53: the all-states row comes from the shared three-way split. The row
+    # covers orders with a known state (an unmapped order is excluded from the
+    # chart). (The summary readouts now use aggregates.stages(); §13 follows in
+    # #109.)
     import pandas as pd
     from render.charts import DELIVERY_STAGES, delivery_progress, fig_state_totals
     def row(state, vin, delivered, lat=1.0):

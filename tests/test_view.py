@@ -172,6 +172,9 @@ def test_view_build_reconciles_and_renders_every_component():
     cols.update({k: v[:1] + [None] for k, v in _priced([60990.0]).items()})
     view = build(_orders(**cols))
     assert {a.dim for a in view.aggregates} >= set(DIMENSIONS)
+    # The summary's Delivery progress readouts are reconciled with the rest.
+    assert view.readouts["progress"] in view.aggregates
+    assert view.readouts["progress"].counted == 2
     # Everything but the browser-drawn templates is rendered to HTML in Python.
     static = {c for c, sp in COMPONENTS.items() if sp["template"] not in ("scatter",)}
     assert set(view.static) == static
