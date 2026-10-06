@@ -200,3 +200,28 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
     return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary,
                  dims=component_dims(spec), table=table, shared=shared)
+
+
+# --- Browser-drawn components: the frame, the mount point and a no-JS table ------
+
+def mount(cid: str, view_id: str, spec: dict, data: dict, agg: Aggregate,
+          shared: Sequence[str] = ()) -> str:
+    """A component the browser draws (src/web/charts/<template>.js): its frame,
+    an empty legend and the mount point main.js fills from r2_view.json, and a
+    data table of every point, which is what a reader without scripts (or with a
+    screen reader) gets instead of the chart."""
+    rows = [[s_["name"], p["tip"][0], format(p["y"], ","), p["x"],
+             "%s – %s" % (p["lo"], p["hi"]) if p.get("lo") else "",
+             "firm" if p.get("firm") else ""]
+            for s_ in data.get("series", []) for p in s_["points"]]
+    table = Table(["Paint · wheels", "Order", "VIN", "Est. delivery",
+                   "Quoted window", "Date"], rows)
+    body = ('<div class="r2c-chart" data-chart="%s" data-template="%s">'
+            '<div class="chart-legend" role="group" aria-label="Series"></div>'
+            '<div class="chart-plot"><p class="chart-loading">The chart draws when '
+            'scripts run; the data table below has every point.</p></div></div>'
+            % (escape(view_id), escape(spec["template"])))
+    summary = (summarize(spec["summary"], agg.cells) if spec.get("summary")
+               and agg.cells else None)
+    return frame(cid, spec["title"], body, summary=summary,
+                 dims=component_dims(spec), table=table, shared=shared)

@@ -135,7 +135,6 @@ REGION_COLOR = {c["value"]: c["color"] for c in _cats("region")}
 # Delivery-estimate types, firm to vague. TYPE_ORDER leaves out the "no estimate"
 # category, which the charts handle on its own.
 TYPE_COLOR = {c["value"]: c["color"] for c in _cats("delivery_type")}
-TYPE_OPACITY = {c["value"]: c["opacity"] for c in _cats("delivery_type")}
 TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
               if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
 # A state is drawn on its own only with at least this many orders.

@@ -23,7 +23,7 @@ from .charts import (delivery_progress,
                      fig_certainty_by_vin, fig_color_interior_heatmap,
                      fig_color_wheel_heatmap,
                      fig_delivery_timeline,
-                     fig_delivery_latency, fig_delivery_vs_vin,
+                     fig_delivery_latency,
                      fig_dest_vs_delivery, fig_geo,
                      fig_interior_by_location,
                      fig_order_timeline, fig_paint_by_location,
@@ -58,7 +58,7 @@ _BUILDERS = {f.__name__: f for f in (
     fig_color_wheel_heatmap, fig_color_interior_heatmap,
     fig_price_distribution, fig_price_options, fig_price_by_trim,
     fig_order_timeline, fig_delivery_timeline, fig_delivery_latency,
-    fig_certainty_by_vin, fig_vin_vs_order, fig_delivery_vs_vin, fig_vin_cadence,
+    fig_certainty_by_vin, fig_vin_vs_order, fig_vin_cadence,
     fig_vin_by_config, fig_geo, fig_state_totals, fig_paint_by_location,
     fig_wheels_by_location, fig_interior_by_location, fig_dest_vs_delivery)}
 

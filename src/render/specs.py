@@ -9,8 +9,8 @@ Aggregate behind it, so the points it publishes reconcile against their cohort
 like every static component's counts.
 
     scatter   series of points (x, y, optional window lo..hi, tooltip lines),
-              plus layers: line, band and a rule (the "today" line)
-    geo       bubbles at coordinates, sized by count, plus marker points
+              plus layers: line, band and a rule (the "today" line), and fixed
+              axis domains, so hiding a series never rescales the chart
 """
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY
+from config import AS_OF, COLOR_ORDER, DIMENSIONS
 
 from .aggregates import Aggregate
 from .cadence import projection as cadence_projection
@@ -36,6 +36,31 @@ def _iso(ts: Any) -> str | None:
 
 def _blank(v: Any) -> bool:
     return v is None or (isinstance(v, float) and np.isnan(v)) or str(v).strip() == ""
+
+
+def _day(ts: Any) -> str:
+    return pd.Timestamp(ts).strftime("%b %d")
+
+
+def _vins(v: Any, to: int = 1) -> str:
+    return format(int(round(float(v) / to) * to), ",")
+
+
+def _date_domain(xs: list[pd.Timestamp], pad: float = 0.03,
+                 min_days: int = 3) -> list[str | None] | None:
+    if not xs:
+        return None
+    lo, hi = min(xs), max(xs)
+    p = max((hi - lo) * pad, pd.Timedelta(days=min_days))
+    return [_iso(lo - p), _iso(hi + p)]
+
+
+def _num_domain(ys: list[float], pad: float = 0.03) -> list[float] | None:
+    if not ys:
+        return None
+    lo, hi = min(ys), max(ys)
+    p = max((hi - lo) * pad, 1.0)
+    return [lo - p, hi + p]
 
 
 def _paint_order(d: pd.DataFrame) -> list[str]:
@@ -88,52 +113,53 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple[dict[str, Any], Aggregate]:
     layers: list[dict[str, Any]] = []
     proj = cadence_projection(df)
     if proj and proj["front"] is not None and not proj["front"].empty:
+        # Each week's point sits at its midpoint, like the points it summarizes.
         front = proj["front"]
-        layers.append({"type": "line", "name": "Build front (observed)",
-                       "color": "var:cadence-front",
-                       "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
-                                  for w, v in front.items()]})
+        week = [w + pd.Timedelta(days=3) for w in front.index]
+        layers.append({
+            "type": "line", "name": "Build front (observed)",
+            "color": "var:cadence-front",
+            "points": [[_iso(w), float(v)] for w, v in zip(week, front.values)],
+            "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
+                     for w, v in zip(front.index, front.values)]})
         mids = [_iso(w + pd.Timedelta(days=3)) for w in proj["weeks"]]
         layers.append({"type": "band", "name": "Likely range",
                        "color": "var:cadence-band",
                        "points": [[m, float(lo), float(hi)]
                                   for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
-        layers.append({"type": "line", "name": "Projected · ≈ %.0f VINs/day"
-                       % proj["rate"], "color": "var:cadence-front", "dash": True,
-                       "points": [[m, float(c)] for m, c in zip(mids, proj["center"])]})
+        # The projection quotes VINs, its own axis, to the nearest hundred: the
+        # back-test supports no more precision than that.
+        layers.append({
+            "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
+            "color": "var:cadence-front", "dash": True,
+            "points": [[m, float(c)] for m, c in zip(mids, proj["center"])],
+            "tips": [["Projected front",
+                      "Week of %s: ≈ VIN %s" % (_day(w), _vins(c, 100)),
+                      "Likely VIN %s–%s" % (_vins(lo, 100), _vins(hi, 100))]
+                     for w, c, lo, hi in zip(proj["weeks"], proj["center"],
+                                             proj["lo"], proj["hi"])]})
     layers.append({"type": "rule", "axis": "x", "value": _iso(AS_OF),
                    "label": "Today"})
+
+    # Fixed domains over every point, window, layer and today, padded a little,
+    # so neither hiding a series nor zooming out past the data rescales anything.
+    xs = [pd.Timestamp(v) for p in (q for s_ in series for q in s_["points"])
+          for v in (p["x"], p["lo"], p["hi"]) if v]
+    ys = [float(p["y"]) for s_ in series for p in s_["points"]]
+    for layer in layers:
+        if layer["type"] == "rule":
+            xs.append(pd.Timestamp(layer["value"]))
+        else:
+            xs += [pd.Timestamp(pt[0]) for pt in layer["points"]]
+            ys += [float(v) for pt in layer["points"] for v in pt[1:]]
 
     spec = {"template": "scatter",
             "title": "Delivery date vs. VIN sequence",
             "x": {"label": "Estimated delivery date (whiskers = quoted window)",
-                  "type": "date"},
+                  "type": "date", "domain": _date_domain(xs)},
             "y": {"label": "VIN sequence number (production order →)",
-                  "type": "linear"},
+                  "type": "linear", "domain": _num_domain(ys)},
             "legend": "Paint · wheels",
             "series": series, "layers": layers,
             "toggles": {"whiskers": True}}
     return spec, Aggregate("delivery-vs-vin points", "orders", cells, excluded)
-
-
-def geo_orders(df: pd.DataFrame) -> tuple[dict[str, Any], Aggregate]:
-    """§12 (all orders): a bubble per state or province at its coordinates,
-    area = orders, colored by region; and the plant."""
-    located = df[df["lat"].notna()]
-    g = (located.groupby("state")
-         .agg(n=("user", "size"), lat=("lat", "first"), lon=("lon", "first"),
-              region=("region", "first"))
-         .reset_index().sort_values(["n", "state"], ascending=[False, True]))
-    bubbles = [{"name": str(st), "lat": float(la), "lon": float(lo), "n": int(n),
-                "color": "region:%s" % rg, "tip": ["%s: %d orders" % (st, n)]}
-               for st, n, la, lo, rg in zip(g["state"], g["n"], g["lat"], g["lon"],
-                                            g["region"])]
-    cells = [{"value": b["name"], "label": b["name"], "n": b["n"],
-              "ref": b["color"], "known": True} for b in bubbles]
-    spec = {"template": "geo", "title": "All orders by state / province",
-            "scope": "north-america", "legend": "Region",
-            "bubbles": bubbles,
-            "markers": [{"name": "Rivian plant — Normal, IL", "lat": FACTORY[0],
-                         "lon": FACTORY[1], "symbol": "star"}]}
-    return spec, Aggregate("geo-orders bubbles", "orders", cells,
-                           {"location unknown": len(df) - len(located)})

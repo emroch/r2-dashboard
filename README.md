@@ -35,7 +35,9 @@ src/
     styles.css        page stylesheet (its own <style> slot)
     head.js           pre-paint theme set (no flash), inlined
   web/                browser code, served as static files (no build step)
-    main.js           boots browser-drawn components (ES module)
+    main.js           boots browser-drawn components (ES module), lazily
+    charts/           d3 chart templates (scatter.js) + registry.js
+    vendor/           d3 7.9.0 (version + checksum in its README)
     lib/csv.js        data table -> CSV download
     theme.js          light/dark toggle (fires r2:themechange)
     plotly-theme.js   re-tint Plotly chart chrome on theme change
@@ -60,6 +62,7 @@ output/               dashboard HTML output
 tests/
   test_parsing.py     unit tests (run via pytest OR plain python3)
   test_aggregates.py  presentation-layer aggregates + take-rate component
+  test_specs.py       specs for the browser-drawn charts
   test_view.py        presentation-layer registries, category CSS + contrast, view build
   js/                 browser-code unit tests (node --test)
 ```

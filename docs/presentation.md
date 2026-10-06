@@ -226,7 +226,9 @@ src/web/
   lib/format.js        number/date/percent formatting           (pure, unit-tested)
   lib/cube.js          cube marginalization, small-n handling    (pure, unit-tested)
   charts/registry.js   template name -> () => import('./scatter.js')
-  charts/adapter.js    house schema -> library options; the only file that knows the library
+  lib/load.js          lazy loading of the vendored d3
+  lib/legend.js        the house legend (click hides, double-click isolates)
+  lib/tooltip.js       a live-region tooltip for drawn charts
   charts/<template>.js one module per mounted template
   vendor/<lib>-<ver>.min.js   the chart library, committed; version and checksum recorded
 tests/js/*.test.mjs    node --test
@@ -235,22 +237,16 @@ package.json, package-lock.json, eslint.config.js   at the repo root
 
 ## The chart library
 
-The main open decision, made from a spike (stage 4) rather than from this note. The
-candidates, each driven through the same `adapter.js` so the loser costs nothing:
+**Decided: d3 7, on its own (see Decisions).** The spike (#107) drew §10 and §12 in
+Observable Plot, ECharts 6, Plotly's geo bundle and plain d3 from the same specs.
+d3 is vendored (`src/web/vendor/`, version and checksum in its README, checked by a
+test) and loaded by `lib/load.js` only when a chart nears the viewport.
 
-- **Plotly, as a partial bundle.** It already draws everything we have, including
-  scattergeo. But it is the heaviest, its theming stays JS-side, and its partial
-  bundles have to be built (or downloaded per trace set), which runs against "no
-  build step".
-- **ECharts.** Canvas, lazy-loadable, and the library RivianRoamer uses. Maps need
-  GeoJSON for the US and Canada supplied by us.
-- **Observable Plot with d3-geo.** SVG, small, and naturally CSS-themable. Some layers
-  (the build-front band) are ours to compose.
-
-The spike builds §10 (the hardest scatter: whiskers, build front, band, toggle) and §12
-(the map) in each, and judges wire size, CSS theming, accessibility, touch,
-whisker/band expressiveness, and maps. The library is lazy-loaded either way: nothing
-is fetched before a chart nears the viewport.
+The library-agnostic part is the **spec**: Python builds each chart's house-schema
+spec (`render/specs.py`), and a template module (`src/web/charts/<template>.js`) draws
+it with d3. There is no separate adapter: d3 is a toolkit rather than a chart
+configuration format, so the templates are the d3 code, and replacing the library
+would mean rewriting templates, not specs.
 
 ## What replaces `page.py` and `charts.py`
 
@@ -302,7 +298,7 @@ Redesigning means the old figures can't be the reference. Instead:
   parses the built page: every registry id has its component and data table, and every
   category reference resolves to a CSS class.
 - **JS tests.** `node --test` covers formatting, cube marginalization and small-n
-  handling, the adapter's output, and URL-state round trips.
+  handling, the templates' pure helpers, and URL-state round trips.
 - **Spot checks.** Where a redesigned section keeps a quantity the old figure showed,
   its stage PR records a one-off comparison with the old number.
 
@@ -330,10 +326,10 @@ tracked under **#102**. Blockers are also set as issue dependencies.
    - *Acceptance:* the direction decision is recorded here, with evidence on payload,
      VoiceOver and theming.
    - *Acceptance:* `fig_config_dashboard` and its tests are migrated.
-4. **#107 Library spike** (`lib-spike`). §10 and §12 in each candidate library. Blocked by
+4. **#107 Library spike** (`lib-spike`). **Done: d3 alone (see Decisions).** §10 and §12 in each candidate library. Blocked by
    2; can run alongside 3.
    - *Acceptance:* the library decision is recorded here.
-   - *Acceptance:* `adapter.js` and the `scatter` template are merged, and §10 is live
+   - *Acceptance:* the `scatter` template (no adapter, see The chart library) is merged, and §10 is live
      with its whisker toggle in the URL.
    - *Acceptance:* the library is fetched only when a chart nears the viewport.
 5. **#108 Static group A** (`static-a`). §3, §4, §8 and the summary readouts. Blocked by 3.
@@ -383,6 +379,29 @@ Recorded as each stage settles them.
   the grid, instead of in every frame; per-panel "not reported" counts are left to
   `n =` and the summary sentence; the take-rates' trim split moves to the explore view
   (#114), since the bars are split by delivery stage.
+
+- **Chart library: d3 7 alone (2026-10-05, #107 / #125).** The spike drew §10's
+  scatter and §12's map in four candidates from the same specs, with one HTML legend:
+  - **Observable Plot + d3** (161 KB gzipped): the least code, but each view change is a
+    full redraw, and zoom/pan isn't built in.
+  - **ECharts** (368 KB): built-in zoom, but canvas (nothing in the DOM for assistive
+    technology or CSS), and the whiskers and band are the most code.
+  - **Plotly's geo bundle** (467 KB): close to today's charts, but the heaviest, and
+    its colors must be resolved in script.
+  - **d3 alone** (92 KB): SVG colored entirely from CSS (a theme change restyles a
+    chart with no redraw), real pan/zoom (d3-zoom), and full control of axes and
+    labels. The cost is more code of our own, paid once per template.
+
+  Adopted with it: §10's scatter is the first `scatter` template, with axes fixed to
+  the spec's domains (hiding a series never rescales), wheel/pinch zoom, drag to pan,
+  double-click or Reset view to return, and the whiskers in the URL (`?whiskers=0`
+  hides them).
+- **Maps: the US only, for now (2026-10-05).** Canada and Mexico aren't on sale yet
+  and have few reservations, so the §12 maps will show US orders, with a note saying
+  how many are left out. That allows d3's standard US layout (`geoAlbersUsa`, with
+  Alaska and Hawaii inset) on census state shapes. Alternatives to the region-colored
+  bubbles (a choropleth, bubbles sized and colored by two measures, or both) are to be
+  prototyped in #111.
 
 ## Risks and open questions
 

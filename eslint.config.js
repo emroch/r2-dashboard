@@ -23,16 +23,6 @@ export default [
     languageOptions: { sourceType: "script", globals: globals.browser },
   },
   {
-    // The chart-library spike (#107): classic scripts using each library's
-    // global. Temporary, removed with tools/spike/.
-    files: ["tools/spike/*.js"],
-    languageOptions: {
-      sourceType: "script",
-      globals: { ...globals.browser, Plot: "readonly", echarts: "readonly", d3: "readonly",
-                 Plotly: "readonly", topojson: "readonly" },
-    },
-  },
-  {
     files: ["tests/js/**/*.mjs", "eslint.config.js"],
     languageOptions: { sourceType: "module", globals: globals.node },
   },

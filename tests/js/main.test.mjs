@@ -11,8 +11,21 @@ function page(...mounts) {
   return { els, root: { querySelectorAll: () => els } };
 }
 
-test("importing main.js touches no DOM, and no template is registered yet", () => {
-  assert.deepEqual(Object.keys(templates), []);
+test("importing main.js touches no DOM, and the scatter template is registered", () => {
+  assert.deepEqual(Object.keys(templates), ["scatter"]);
+});
+
+test("a mount waits for its schedule before loading anything", async () => {
+  let loads = 0, release;
+  const registry = { scatter: async () => { loads++; return { mount() {} }; } };
+  const { els, root } = page(["a", "scatter"]);
+  const done = boot(root, registry, (el, fn) => { release = fn; });
+  assert.equal(els[0].dataset.chartState, "waiting");
+  assert.equal(loads, 0, "nothing loads before the chart nears the viewport");
+  release();
+  await done;
+  assert.equal(loads, 1);
+  assert.equal(els[0].dataset.chartState, "ready");
 });
 
 test("a page with no mounts boots to nothing", async () => {
