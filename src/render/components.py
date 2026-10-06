@@ -69,15 +69,17 @@ def _table(cid: str, table: Table) -> str:
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
           n: int | None = None, dims: Sequence[str] = (),
           notes: Sequence[str] = (), table: Table | None = None,
-          shared: Sequence[str] = ()) -> str:
+          shared: Sequence[str] = (), wide: bool = False) -> str:
     """One component's HTML. `cid` is the element id ("c-..."); `body` is trusted
     HTML (a component renderer's output); every other text is escaped.
-    `shared` caveats are said by the component's group, so they're left out."""
+    `shared` caveats are said by the component's group, so they're left out.
+    `wide` spans the whole component grid (a chart, rather than a panel)."""
     meta = ([] if n is None else ["n = %s" % format(n, ",")]) + [
         '<span class="caveat">%s</span>' % escape(c) for c in caveats(dims, notes)
         if c not in shared]
     return "".join([
-        '<figure class="r2c" id="%s" role="group" aria-labelledby="%s-t">' % (cid, cid),
+        '<figure class="r2c%s" id="%s" role="group" aria-labelledby="%s-t">'
+        % (" r2c-wide" if wide else "", cid, cid),
         '<figcaption id="%s-t">%s</figcaption>' % (cid, escape(title)),
         '<p class="r2c-summary">%s</p>' % escape(summary) if summary else "",
         body,
@@ -224,4 +226,4 @@ def mount(cid: str, view_id: str, spec: dict, data: dict, agg: Aggregate,
     summary = (summarize(spec["summary"], agg.cells) if spec.get("summary")
                and agg.cells else None)
     return frame(cid, spec["title"], body, summary=summary,
-                 dims=component_dims(spec), table=table, shared=shared)
+                 dims=component_dims(spec), table=table, shared=shared, wide=True)

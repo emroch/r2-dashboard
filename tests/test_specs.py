@@ -119,6 +119,9 @@ def test_build_front_layers_follow_the_series_and_quote_vins_to_the_hundred():
     assert all("day" not in " ".join(t) for t in proj["tips"]), "VINs, not days"
     band = spec["layers"][1]
     assert all(lo <= hi for _, lo, hi in band["points"])
+    # The front, its projection and band are one legend entry, toggled together.
+    assert {layer.get("group") for layer in spec["layers"][:3]} == {"Build front"}
+    assert "group" not in spec["layers"][3]
 
 
 def test_domains_are_fixed_over_everything_drawn():
@@ -156,6 +159,7 @@ def test_the_mounted_component_has_a_no_js_table_of_every_point():
     html = mount("c-delivery-vs-vin", "delivery-vs-vin",
                  COMPONENTS["delivery-vs-vin"], spec, agg)
     assert 'data-chart="delivery-vs-vin" data-template="scatter"' in html
+    assert html.startswith('<figure class="r2c r2c-wide"'), "a chart spans the grid"
     assert html.count("<tr>") == 1 + 3, "a header row and one row per point"
     assert "3 orders with both a VIN and a delivery estimate." in html
 

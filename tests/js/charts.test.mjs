@@ -6,7 +6,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { categoryClass, nearest, SYMBOLS, whiskerPath } from "../../src/web/charts/scatter.js";
+import { categoryClass, layerEntries, nearest, ROTATE, SYMBOLS, whiskerPath, zoomAllowed }
+  from "../../src/web/charts/scatter.js";
 import { isolate, toggle } from "../../src/web/lib/legend.js";
 import { D3_FILE, loadD3 } from "../../src/web/lib/load.js";
 import { get, set, whiskersShown } from "../../src/web/state.js";
@@ -22,6 +23,31 @@ test("every wheel symbol in dimensions.yaml has a d3 symbol", () => {
   const used = [...dims.matchAll(/^\s+symbol: (\S+)/gm)].map((m) => m[1]);
   assert.ok(used.length >= 4);
   for (const s of used) assert.ok(SYMBOLS[s], `no d3 symbol for ${s}`);
+});
+
+test("a diamond is a square turned 45°, so it keeps a 1:1 shape", () => {
+  assert.equal(SYMBOLS.diamond, "symbolSquare");
+  assert.equal(ROTATE.diamond, 45);
+  assert.equal(ROTATE.circle, undefined);
+});
+
+test("the chart zooms only on purpose, so the page keeps scrolling", () => {
+  assert.equal(zoomAllowed({ type: "wheel" }), false, "a plain wheel scrolls the page");
+  assert.equal(zoomAllowed({ type: "wheel", ctrlKey: true }), true, "a trackpad pinch");
+  assert.equal(zoomAllowed({ type: "wheel", metaKey: true }), true, "⌘ + wheel");
+  assert.equal(zoomAllowed({ type: "touchstart", touches: [1] }), false, "one finger scrolls");
+  assert.equal(zoomAllowed({ type: "touchstart", touches: [1, 2] }), true, "two fingers zoom");
+  assert.equal(zoomAllowed({ type: "mousedown", button: 0 }), true, "a mouse drag pans");
+  assert.equal(zoomAllowed({ type: "mousedown", button: 2 }), false);
+});
+
+test("grouped layers are one legend entry, in order", () => {
+  const entries = layerEntries([
+    { type: "line", name: "Front", group: "Build front", color: "var:a" },
+    { type: "band", name: "Range", group: "Build front", color: "var:b" },
+    { type: "line", name: "Other", color: "var:c" },
+    { type: "rule", label: "Today" }]);
+  assert.deepEqual(entries, [{ name: "Build front", accent: "a" }, { name: "Other", accent: "c" }]);
 });
 
 test("a whisker is the window's line plus a cap at each end", () => {

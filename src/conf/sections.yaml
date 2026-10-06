@@ -109,8 +109,9 @@ sections:
       Each point is an order with both a VIN and a delivery estimate. Color = paint,
       marker shape = wheels; whiskers span the quoted delivery window. Clusters of
       one color across a VIN range hint at same-config cars built in sequence. Click
-      a legend entry to hide it, or double-click to isolate it; scroll or pinch to
-      zoom, drag to pan, and double-click the chart (or Reset view) to return.
+      a legend entry to hide it, or double-click to isolate it; pinch (or hold ⌘/Ctrl
+      and scroll) to zoom, drag to pan, and double-click the chart (or Reset view)
+      to return.
       <br><br>The
       yellow line is the <em>build front</em>: the 90th-percentile VIN delivered
       each finished week, from firm delivery dates only. Delivery stands in for

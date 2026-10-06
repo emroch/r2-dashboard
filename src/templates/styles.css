@@ -203,6 +203,8 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
  grid-template-columns:repeat(auto-fill,minmax(max(340px,calc((100% - 40px) / 2)),1fr));
  gap:22px 40px;align-items:start;}
 @media (max-width:900px){.r2c-grid{grid-template-columns:minmax(0,1fr);}}
+/* A drawn chart spans the whole grid rather than one panel's column. */
+.r2c-wide{grid-column:1 / -1;}
 .r2c-grid .r2c{margin:8px 0 0;}
 /* Caveats every component in the group shares, said once under the stage key. */
 .r2c-notes{margin:4px 0 0;font-size:12px;color:var(--desc);}
@@ -238,7 +240,9 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .chart-plot{position:relative;}
 .chart-controls{position:absolute;right:0;top:0;display:flex;gap:6px;z-index:2;}
 .chart-loading{margin:0;padding:40px 0;text-align:center;font-size:12px;color:var(--desc);}
-.chart-svg{display:block;width:100%;height:auto;touch-action:none;cursor:grab;}
+/* One finger scrolls the page (the browser keeps panning); two pinch and pan
+   the chart (charts/scatter.js filters its zoom to match). */
+.chart-svg{display:block;width:100%;height:auto;touch-action:pan-x pan-y;cursor:grab;}
 .chart-svg:active{cursor:grabbing;}
 .chart-svg .axis text{fill:var(--desc);font-size:11px;}
 .chart-svg .axis path,.chart-svg .axis line{stroke:var(--desc);}

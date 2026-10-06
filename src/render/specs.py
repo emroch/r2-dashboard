@@ -10,7 +10,8 @@ like every static component's counts.
 
     scatter   series of points (x, y, optional window lo..hi, tooltip lines),
               plus layers: line, band and a rule (the "today" line), and fixed
-              axis domains, so hiding a series never rescales the chart
+              axis domains, so hiding a series never rescales the chart. Layers
+              sharing a `group` are one legend entry, shown and hidden together.
 """
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
@@ -117,13 +118,13 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple[dict[str, Any], Aggregate]:
         front = proj["front"]
         week = [w + pd.Timedelta(days=3) for w in front.index]
         layers.append({
-            "type": "line", "name": "Build front (observed)",
+            "type": "line", "name": "Build front (observed)", "group": "Build front",
             "color": "var:cadence-front",
             "points": [[_iso(w), float(v)] for w, v in zip(week, front.values)],
             "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
                      for w, v in zip(front.index, front.values)]})
         mids = [_iso(w + pd.Timedelta(days=3)) for w in proj["weeks"]]
-        layers.append({"type": "band", "name": "Likely range",
+        layers.append({"type": "band", "name": "Likely range", "group": "Build front",
                        "color": "var:cadence-band",
                        "points": [[m, float(lo), float(hi)]
                                   for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
@@ -131,7 +132,7 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple[dict[str, Any], Aggregate]:
         # back-test supports no more precision than that.
         layers.append({
             "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
-            "color": "var:cadence-front", "dash": True,
+            "group": "Build front", "color": "var:cadence-front", "dash": True,
             "points": [[m, float(c)] for m, c in zip(mids, proj["center"])],
             "tips": [["Projected front",
                       "Week of %s: ≈ VIN %s" % (_day(w), _vins(c, 100)),

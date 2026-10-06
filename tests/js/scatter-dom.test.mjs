@@ -25,9 +25,10 @@ const spec = {
     { name: "Borealis · 20\"", color: "color:Borealis", symbol: "diamond", points: [
       { x: "2026-09-01", y: 9000, lo: null, hi: null, tip: ["c"] }] }],
   layers: [
-    { type: "line", name: "Front", color: "var:cadence-front", points: [["2026-07-01", 900], ["2026-08-01", 4800]],
-      tips: [["f1"], ["f2"]] },
-    { type: "band", name: "Range", color: "var:cadence-band", points: [["2026-10-01", 10000, 12000], ["2026-11-01", 11000, 15000]] },
+    { type: "line", name: "Front", group: "Build front", color: "var:cadence-front",
+      points: [["2026-07-01", 900], ["2026-08-01", 4800]], tips: [["f1"], ["f2"]] },
+    { type: "band", name: "Range", group: "Build front", color: "var:cadence-band",
+      points: [["2026-10-01", 10000, 12000], ["2026-11-01", 11000, 15000]] },
     { type: "rule", axis: "x", value: "2026-10-05", label: "Today" }],
 };
 
@@ -100,7 +101,33 @@ test("the drawn chart has every point, whisker and layer", { timeout: 5000 }, as
   assert.equal(h.svg.querySelectorAll("path.band").length, 1);
   assert.equal(h.svg.querySelectorAll("g.line").length, 1);
   assert.equal(h.svg.querySelectorAll("g.rule").length, 1);
-  assert.equal(el.querySelectorAll(".chart-legend .lg-item").length, 2 + 2, "series + accent layers");
+  assert.equal(el.querySelectorAll(".chart-legend .lg-item").length, 2 + 1,
+               "the series, then one entry for the grouped build-front layers");
   // Series groups carry their category class, so CSS colors them.
   assert.ok(h.svg.querySelector("g.cat-color-midnight path.pt"));
+  // The layers draw above the points, so the build front stays visible.
+  const order = [...h.svg.querySelectorAll("path.pt, path.band")].map((n) => n.getAttribute("class"));
+  assert.equal(order.at(-1), "band", order.join(" "));
+  // The diamond is turned, the circle isn't.
+  const diamond = h.svg.querySelector("g.cat-color-borealis path.pt").getAttribute("transform");
+  const circle = h.svg.querySelector("g.cat-color-midnight path.pt").getAttribute("transform");
+  assert.match(diamond, /rotate\(45\)$/);
+  assert.doesNotMatch(circle, /rotate/);
+});
+
+test("the grouped layers hide together, and a redraw keeps what is hidden", { timeout: 5000 }, async () => {
+  const { draw } = await import("../../src/web/charts/scatter.js");
+  const el = mountPoint();
+  let h = draw(d3, el, spec);
+  const group = [...el.querySelectorAll(".chart-legend .lg-item")].at(-1);
+  assert.equal(group.textContent, "Build front");
+  const hiddenLayers = () => [...h.svg.querySelectorAll('[data-name="Build front"]')]
+    .filter((n) => n.style.display === "none").length;
+  group.dispatchEvent(new globalThis.window.Event("dblclick"));     // isolate: hide the rest
+  group.dispatchEvent(new globalThis.window.Event("dblclick"));     // show all again
+  assert.equal(hiddenLayers(), 0);
+  // As the resize redraw does: start from the current hidden set.
+  h = draw(d3, el, spec, { hidden: new Set(["Build front"]) });
+  assert.equal(hiddenLayers(), 2, "the front's line and band both stay hidden");
+  assert.equal(h.hidden().has("Build front"), true);
 });
