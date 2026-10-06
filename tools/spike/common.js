@@ -44,7 +44,7 @@
     for (const it of items) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "lg-item"; b.dataset.name = it.name;
-      b.innerHTML = `<i class="swatch ${it.cls || ""}"></i>${it.name}`;
+      b.innerHTML = `<i class="swatch ${it.cls || ""}"${it.style ? ` style="background:var(--${it.style})"` : ""}></i>${it.name}`;
       b.setAttribute("aria-pressed", "true");
       let timer = null;
       b.addEventListener("click", () => {

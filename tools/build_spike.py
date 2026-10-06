@@ -23,7 +23,8 @@ from render.categories import category_css  # noqa: E402
 from render.page import _THEME_VARS_CSS, _tpl  # noqa: E402
 
 SRC = Path(__file__).resolve().parent / "spike"
-LIBS = [("plot", "Observable Plot 0.6 + d3 7 (SVG)"),
+LIBS = [("d3", "d3 7 alone (SVG, colored by CSS; pan/zoom)"),
+        ("plot", "Observable Plot 0.6 + d3 7 (SVG)"),
         ("echarts", "ECharts 6.1 (canvas)"),
         ("plotly", "Plotly 4.1, geo partial bundle (SVG + WebGL-free)")]
 
@@ -41,6 +42,26 @@ body{max-width:1180px;margin:0 auto;padding:16px 24px 60px}
 .lg-item .swatch{width:.75em;height:.75em}
 .scatter{min-height:560px}.map{min-height:300px;margin-top:10px}
 .controls{display:flex;gap:16px;align-items:center;font-size:13px}
+/* d3 card: every color is a custom property, so a theme change restyles it. */
+.d3-chart,.d3-map{width:100%;height:auto;display:block;touch-action:none}
+.d3-chart .axis text{fill:var(--desc);font-size:11px}
+.d3-chart .axis path,.d3-chart .axis line{stroke:var(--desc)}
+.d3-chart .axis .grid{stroke:var(--card-bd);stroke-opacity:.8}
+.d3-chart .axis-label{fill:var(--fg);font-size:12px}
+.d3-chart .pt{fill:var(--mark);stroke:var(--desc);stroke-width:.8}
+.d3-chart .whisker{stroke:var(--mark);stroke-opacity:.55;stroke-width:1.4;fill:none}
+.d3-chart .today{stroke:var(--desc);stroke-dasharray:4,3}
+.d3-chart .today-label{fill:var(--desc);font-size:10px}
+.d3-reset{position:absolute;right:20px;top:4px;z-index:2}
+.d3-tip{position:absolute;pointer-events:none;background:var(--tip-bg);color:var(--tip-fg);
+ border:1px solid var(--tip-bd);border-radius:6px;padding:6px 8px;font-size:12px;
+ box-shadow:0 2px 8px var(--tip-sh);white-space:nowrap;z-index:3}
+.d3-map .land{fill:var(--code-bg);stroke:var(--desc);stroke-width:.5}
+.d3-map .lake{fill:var(--card-bg);stroke:var(--desc);stroke-width:.4}
+.d3-map .border{fill:none;stroke:var(--desc);stroke-width:.4;stroke-opacity:.7}
+.d3-map .inset{fill:var(--card-bg);stroke:var(--card-bd)}
+.d3-map .bubble{fill:var(--mark);fill-opacity:.75;stroke:var(--desc);stroke-width:.5}
+.d3-map .plant{fill:var(--fg)}
 """
 
 
@@ -50,14 +71,15 @@ def main():
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    for f in ("common.js", "plot.js", "echarts.js", "plotly.js", "spike.js"):
+    files = ("common.js", "d3card.js", "plot.js", "echarts.js", "plotly.js", "spike.js")
+    for f in files:
         shutil.copyfile(SRC / f, out / f)
     data = {"components": {k: view["components"][k]
                            for k in ("delivery-vs-vin", "geo-orders")}}
     # Versioned by content, so a changed prototype is never served from cache.
     scripts = "".join('<script src="%s?v=%s"></script>' % (
         f, hashlib.sha256((SRC / f).read_bytes()).hexdigest()[:8])
-        for f in ("common.js", "plot.js", "echarts.js", "plotly.js", "spike.js"))
+        for f in files)
     cards = "".join(
         '<section class="lib" id="lib-%s" data-lib="%s"><h2>%s</h2>'
         '<p class="cost">loads when scrolled near…</p><div class="legend"></div>'

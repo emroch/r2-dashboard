@@ -28,7 +28,7 @@ export default [
     files: ["tools/spike/*.js"],
     languageOptions: {
       sourceType: "script",
-      globals: { ...globals.browser, Plot: "readonly", echarts: "readonly",
+      globals: { ...globals.browser, Plot: "readonly", echarts: "readonly", d3: "readonly",
                  Plotly: "readonly", topojson: "readonly" },
     },
   },

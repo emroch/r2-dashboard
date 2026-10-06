@@ -4,7 +4,8 @@
 (function () {
   "use strict";
   const S = window.Spike;
-  const libs = { plot: window.SpikePlot, echarts: window.SpikeEcharts, plotly: window.SpikePlotly };
+  const libs = { d3: window.SpikeD3, plot: window.SpikePlot, echarts: window.SpikeEcharts,
+                 plotly: window.SpikePlotly };
   const scatterSpec = S.view.components["delivery-vs-vin"], mapSpec = S.view.components["geo-orders"];
   const drawn = [];
   for (const card of document.querySelectorAll(".lib")) {
@@ -12,15 +13,17 @@
     const sc = card.querySelector(".scatter"), mp = card.querySelector(".map");
     let hidden = new Set();
     const draw = () => { lib.scatter(sc, scatterSpec, hidden); return lib.map(mp, mapSpec); };
-    hidden = S.legend(card.querySelector(".legend"),
-      scatterSpec.series.map((s) => ({ name: s.name, cls: S.catClass(s.color) })), () => lib.scatter(sc, scatterSpec, hidden));
+    // The d3 card's legend also toggles the build-front layers.
+    const items = scatterSpec.series.map((s) => ({ name: s.name, cls: S.catClass(s.color) }));
+    if (lib === window.SpikeD3) items.push(...scatterSpec.layers.filter((l) => l.color).map((l) => ({ name: l.name, cls: "lg-accent", style: l.color.slice(4) })));
+    hidden = S.legend(card.querySelector(".legend"), items, () => lib.scatter(sc, scatterSpec, hidden));
     S.whenNear(card, async () => {
       const t0 = performance.now();
       try {
         await lib.ready();
         await draw();
         S.cost(card.querySelector(".cost"), lib.urls, t0);
-        drawn.push(draw);
+        if (lib.themeNeedsRedraw !== false) drawn.push(draw);
       } catch (e) {
         card.querySelector(".cost").textContent = "failed: " + e.message;
         console.error(e);
