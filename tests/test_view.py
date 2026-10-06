@@ -152,20 +152,37 @@ def test_frame_leaves_out_what_it_was_not_given():
 
 
 def test_view_build_reconciles_and_renders_every_component():
+    import pandas as pd
+
     from config import COMPONENTS
     from render.view import build, view_json
     from test_aggregates import _orders
     cols = {spec["column"]: [None, None] for spec in DIMENSIONS.values()}
     cols["r1_owner_effective"] = cols.pop("r1_owner")
     cols.update(color=["Midnight", "Midnight"], state=["IL", "WA"],
-                r1_model=["", ""])
+                r1_model=["", ""], user=["a", "b"], vin_present=[True, False],
+                vin_seq=[1200, None], lat=[40.0, None], lon=[-89.0, None],
+                region=["Midwest", None], delivery_est=[pd.Timestamp("2026-09-01"),
+                                                        pd.NaT],
+                delivery_min=[pd.NaT, pd.NaT], delivery_max=[pd.NaT, pd.NaT],
+                wheels_short=['21" Liquid Tungsten', None],
+                vin_display=["1200", "—"], order_display=["—", "—"],
+                est_display=["Sep 01, 2026", "—"])
     view = build(_orders(**cols))
     assert {a.dim for a in view.aggregates} >= set(DIMENSIONS)
-    assert set(view.static) == set(COMPONENTS)
+    static = {c for c, sp in COMPONENTS.items() if sp["template"] == "takerate"}
+    assert set(view.static) == static
     for cid in view.static:
         assert view.render(cid).startswith('<figure class="r2c" id="c-%s"' % cid), cid
-    # Static components are HTML in the page; nothing is browser-drawn yet.
-    assert view_json(view) == {"version": 1, "components": {}}
+    # Browser-drawn components are published as specs, with no colors in them.
+    out = view_json(view)
+    assert set(out["components"]) == set(COMPONENTS) - static
+    import json
+    assert not re.search(r"#[0-9a-fA-F]{6}\b", json.dumps(out)), \
+        "a spec carries a hex color; it should name a category or a CSS variable"
+    scatter = out["components"]["delivery-vs-vin"]
+    assert [s["name"] for s in scatter["series"]] == ['Midnight · 21"']
+    assert scatter["series"][0]["points"][0]["y"] == 1200
 
 
 def test_every_section_component_is_registered():

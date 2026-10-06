@@ -150,6 +150,13 @@ jobs:
           cp -R output/assets dist/assets
           cp src/templates/_headers dist/_headers
 
+      # TEMPORARY (#107): the chart-library spike page, previews only. Removed
+      # with tools/spike/ once the library is chosen.
+      - name: Build chart-library spike page
+        run: |
+          python3 tools/build_spike.py
+          cp -R output/spike dist/spike
+
       # wrangler is pinned in package.json. Installed before the deploy action,
       # which then finds it and uses it instead of running its own `npm i
       # wrangler` in the checkout (which rewrote package.json and dirtied the tree).

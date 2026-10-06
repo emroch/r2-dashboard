@@ -53,3 +53,17 @@ components:
     dims: [r1_owner, r1_model]
     aggregate: r1_models
     summary: "{share_except:No R1} of {n} orders are from current R1 owners."
+
+  # Browser-drawn (mounted) components: Python builds the spec + data
+  # (render/specs.py, into r2_view.json) and the page's chart library draws it.
+  #   aggregate  the spec builder in render/specs.py
+  delivery-vs-vin:
+    template: scatter
+    title: Delivery date vs. VIN sequence
+    dims: [color, wheels, delivery_type]
+    aggregate: delivery_vs_vin
+  geo-orders:
+    template: geo
+    title: All orders by state / province
+    dims: [region, state]
+    aggregate: geo_orders

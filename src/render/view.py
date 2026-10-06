@@ -24,6 +24,7 @@ from config import COMPONENTS, DIMENSIONS
 
 from .aggregates import Aggregate, cohort_sizes, counts, r1_models, reconcile
 from .components import takerate
+from .specs import delivery_vs_vin, geo_orders
 
 VIEW_VERSION = 1
 
@@ -50,6 +51,9 @@ _AGGREGATES = {"r1_models": lambda df, spec: r1_models(df, by_stage=True)}
 # charts.yaml `template` -> renderer, for the templates drawn as HTML here.
 _STATIC = {"takerate": takerate}
 
+# charts.yaml `aggregate` -> spec builder, for the browser-drawn templates.
+_SPECS = {"delivery_vs_vin": delivery_vs_vin, "geo_orders": geo_orders}
+
 
 def _aggregate(df: pd.DataFrame, spec: dict[str, Any]) -> Aggregate:
     how = spec.get("aggregate")
@@ -64,10 +68,14 @@ def build(df: pd.DataFrame) -> View:
     view = View()
     view.aggregates += [counts(df, dim) for dim in DIMENSIONS]
     for cid, spec in COMPONENTS.items():
-        agg = _aggregate(df, spec)
+        if spec["template"] in _STATIC:
+            agg = _aggregate(df, spec)
+            view.static[cid] = agg
+        else:
+            mounted, agg = _SPECS[spec["aggregate"]](df)
+            view.components[cid] = mounted
         agg.name = "%s (%s)" % (cid, agg.name)
         view.aggregates.append(agg)
-        view.static[cid] = agg
     reconcile(view.aggregates, cohort_sizes(df))
     return view
 
