@@ -203,6 +203,15 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
  grid-template-columns:repeat(auto-fill,minmax(max(340px,calc((100% - 40px) / 2)),1fr));
  gap:22px 40px;align-items:start;}
 @media (max-width:900px){.r2c-grid{grid-template-columns:minmax(0,1fr);}}
+/* sections.yaml layout: fit — side by side at equal widths, each panel at least
+   as wide as its content's minimum (a heatmap with its headings wrapped), so a
+   table drops to its own row instead of scrolling; single — one across. */
+.r2c-grid.r2c-fit{display:flex;flex-wrap:wrap;}
+.r2c-fit > .r2c{flex:1 1 0;min-width:min-content;}
+.r2c-grid.r2c-single{grid-template-columns:minmax(0,1fr);}
+/* One across once the sidebar floats; from there a phone too narrow for the
+   table scrolls it inside its frame rather than widening the page. */
+@media (max-width:900px){.r2c-fit > .r2c{flex-basis:100%;min-width:0;}}
 /* A drawn chart, or a section's only component, spans the whole grid. */
 .r2c-wide,.r2c-grid > .r2c:only-child{grid-column:1 / -1;}
 .r2c-grid .r2c{margin:8px 0 0;}
@@ -263,11 +272,22 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
  font-variant-numeric:tabular-nums;}
 .hm th{font-weight:600;text-align:left;padding:4px 8px;white-space:nowrap;}
 .hm thead th{color:var(--desc);font-size:12px;}
+/* Category columns share one width (--hm-w: the longest heading); a heading
+   wraps when the panel is tight, down to one floor for all (--hm-min: the
+   longest word in any heading). */
+.hm thead th.hm-ch{width:var(--hm-w);min-width:var(--hm-min);white-space:normal;
+ text-align:center;}
 .hm tbody th{display:flex;align-items:center;gap:6px;}
 .hm td{text-align:center;padding:6px 10px;min-width:3.2em;border-radius:3px;}
 .hm-cell{background:color-mix(in oklab,var(--link) calc(var(--hm) * 85%),var(--card-bg));}
 .hm-cell.hm-hi{color:var(--card-bg);}
 .hm-tot{color:var(--desc);}
+/* Phone widths: tighter cells, and paint names may wrap, so a two-column grid
+   fits a ~370px screen with its columns still equal. */
+@media (max-width:480px){.hm{border-spacing:2px;}.hm th{padding:4px;}
+ .hm td{padding:6px 4px;min-width:2.6em;}
+ .hm tbody th,.hm tfoot th{gap:4px;white-space:normal;}
+ .hm thead th.hm-ch{width:var(--hm-min);}.hm .swatch{flex-shrink:0;}}
 /* mix: 100% rows split by a second dimension, with its key above. */
 .mx-key{margin:0 0 4px;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;
  color:var(--desc);}

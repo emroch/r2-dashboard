@@ -355,7 +355,10 @@ def test_heatmap_table_has_counts_shading_totals_and_csv():
     bs, lt = '20" Black Sand', '21" Liquid Tungsten'
     df = _orders(color=["Midnight", "Midnight", "Borealis"], wheels_short=[bs, bs, lt])
     html = heatmap("c-h", COMPONENTS["combo-wheels"], crosstab(df, "color", "wheels"))
-    assert '<table class="hm" id="c-h-data">' in html
+    # Category columns share the longest heading's width, and one floor (the
+    # longest word) when squeezed.
+    assert '<table class="hm" id="c-h-data" style="--hm-w:19ch;--hm-min:8ch">' in html
+    assert html.count('<th scope="col" class="hm-ch">') == 2
     assert 'data-table="c-h-data"' in html
     assert ('<th scope="row" class="cat-color-midnight"><span class="swatch"></span>'
             'Midnight') in html
@@ -423,7 +426,7 @@ def test_price_distribution_counts_exact_prices_and_marks_the_median():
     df.loc[len(df)] = None                          # an unpriced order: not here
     a = price_distribution(df)
     assert [(c["label"], c["n"]) for c in a.cells] == \
-        [("$57,990", 1), ("$59,990", 2), ("$62,745", 1)]
+        [("$62,745", 1), ("$59,990", 2), ("$57,990", 1)], "highest first"
     assert [c["highlight"] for c in a.cells] == [False, True, False]
     assert a.meta == {"median": "$59,990", "mean": "$60,179", "min": "$57,990",
                       "max": "$62,745"}
@@ -432,7 +435,7 @@ def test_price_distribution_counts_exact_prices_and_marks_the_median():
     # still marked, the lower (as the Plotly chart did).
     a = price_distribution(_orders(**_priced([57990.0, 59990.0, 62745.0, 62745.0])))
     assert a.meta["median"] == "$61,368"
-    assert [c["highlight"] for c in a.cells] == [False, True, False]
+    assert [c["label"] for c in a.cells if c["highlight"]] == ["$59,990"]
 
 
 def test_price_options_skip_inapplicable_rows_and_explain_a_zero():
@@ -481,6 +484,7 @@ def test_price_components_render_rows_text_and_tables():
     assert html.count('<li class="tr-row br-row') == 2
     assert ('<li class="tr-row br-row br-hi"><span class="tr-name">$59,990 '
             '<b class="br-tag">median</b>') in html
+    assert html.index("$59,990") < html.index("$57,990"), "highest first"
     assert 'acc-price-accent" style="width:100.00%"' in html
     assert 'acc-price-bar" style="width:50.00%"' in html
     assert "The median configured price is $59,990 and the mean $59,323, across " \

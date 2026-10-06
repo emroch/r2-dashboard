@@ -266,7 +266,14 @@ def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) ->
     rows, cols = agg.meta["rows"], agg.meta["cols"]
     peak = max((int(c["n"]) for c in agg.cells), default=0) or 1
     by = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
-    head = "".join('<th scope="col">%s</th>' % escape(str(c["label"])) for c in cols)
+    # Every category column gets the width of the longest heading, so no option
+    # looks heavier than another. Under pressure the headings wrap (CSS) before
+    # the panel overflows, down to a shared floor of the longest single word, so
+    # the columns stay equal when squeezed too.
+    wide = max((len(str(c["label"])) for c in cols), default=0)
+    word = max((len(w) for c in cols for w in str(c["label"]).split()), default=0)
+    head = "".join('<th scope="col" class="hm-ch">%s</th>' % escape(str(c["label"]))
+                   for c in cols)
     body = []
     for r in rows:
         cls = ' class="%s"' % category_class(r["ref"]) if r["ref"] else ""
@@ -281,11 +288,12 @@ def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) ->
                        format(int(r["n"]), ",")))
     foot = "".join('<td class="hm-tot">%s</td>' % format(int(c["n"]), ",")
                    for c in cols)
-    table = ('<div class="r2c-scroll"><table class="hm" id="%s-data"><thead><tr>'
+    table = ('<div class="r2c-scroll"><table class="hm" id="%s-data" '
+             'style="--hm-w:%dch;--hm-min:%dch"><thead><tr>'
              '<th scope="col">%s</th>%s<th scope="col" class="hm-tot">Total</th>'
              '</tr></thead><tbody>%s</tbody><tfoot><tr><th scope="row">Total</th>%s'
              '<td class="hm-tot">%s</td></tr></tfoot></table></div>%s'
-             % (cid, escape(DIMENSIONS[agg.meta["row_dim"]]["label"]), head,
+             % (cid, wide, word, escape(DIMENSIONS[agg.meta["row_dim"]]["label"]), head,
                 "".join(body), foot, format(agg.counted, ","), csv_button(cid)))
     summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
                if spec.get("summary") and agg.counted else None)

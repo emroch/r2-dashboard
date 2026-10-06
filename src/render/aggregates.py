@@ -283,7 +283,7 @@ def _money(v: float) -> str:
 
 
 def price_distribution(df: pd.DataFrame) -> Aggregate:
-    """Orders per exact configured price, ascending. The cohort lands on a few
+    """Orders per exact configured price, highest first. The cohort lands on a few
     exact totals (options are fixed amounts), so these are exact prices, not
     bins. The cell nearest the median is marked: an even count can put the
     median between two prices."""
@@ -298,7 +298,7 @@ def price_distribution(df: pd.DataFrame) -> Aggregate:
         cells = [{"value": p, "label": _money(p), "n": int(k), "known": True,
                   "ref": None, "highlight": i == mi,
                   "note": "median" if i == mi else ""}
-                 for i, (p, k) in enumerate(zip(prices, counts.values))]
+                 for i, (p, k) in enumerate(zip(prices, counts.values))][::-1]
         meta = {"median": _money(med), "mean": _money(float(d["price"].mean())),
                 "min": _money(float(d["price"].min())),
                 "max": _money(float(d["price"].max()))}

@@ -75,7 +75,11 @@ def _section(entry):
             builders[0] if len(builders) == 1 else builders)
 
 
-def _components_html(cids, view):
+# sections.yaml `layout` -> the component grid's extra class (styles.css).
+_LAYOUTS = {"grid": "", "fit": " r2c-fit", "single": " r2c-single"}
+
+
+def _components_html(cids, view, layout="grid"):
     """A section's components, in a grid. Take-rates get the stage key once, and
     the caveats every component in the group carries are said once, under the
     key (for take-rates that is the delivery-status note the key needs)."""
@@ -84,8 +88,9 @@ def _components_html(cids, view):
     key = (stage_key() if any(COMPONENTS[c]["template"] == "takerate" for c in cids)
            else "")
     shared = shared_caveats([COMPONENTS[c] for c in cids]) if len(cids) > 1 else []
-    return '<div class="r2c-group">%s%s<div class="r2c-grid">%s</div></div>' % (
-        key, notes_html(shared), "".join(view.render(c, shared) for c in cids))
+    return '<div class="r2c-group">%s%s<div class="r2c-grid%s">%s</div></div>' % (
+        key, notes_html(shared), _LAYOUTS[layout],
+        "".join(view.render(c, shared) for c in cids))
 
 
 # Display order = list order (src/conf/sections.yaml). Section numbers (chart
@@ -93,6 +98,11 @@ def _components_html(cids, view):
 SECTIONS = [_section(e) for e in SECTIONS_CONF]
 # Each section's presentation-layer component ids (charts.yaml), by position.
 SECTION_COMPONENTS = [list(e.get("components", [])) for e in SECTIONS_CONF]
+SECTION_LAYOUTS = [e.get("layout", "grid") for e in SECTIONS_CONF]
+_bad = sorted(set(SECTION_LAYOUTS) - set(_LAYOUTS))
+if _bad:
+    raise LookupError("sections.yaml: unknown layout %s (one of %s)"
+                      % (_bad, sorted(_LAYOUTS)))
 
 
 def _css_block(sel, vars_):
@@ -412,7 +422,7 @@ def build_dashboard(df, report, resv, view):
                 default_width="100%", config=PLOTLY_CONFIG)
             frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
         n = i + 2
-        comps = _components_html(SECTION_COMPONENTS[i], view)
+        comps = _components_html(SECTION_COMPONENTS[i], view, SECTION_LAYOUTS[i])
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
             '%s%s</section>' % (n, n, _esc(title), desc, comps, "".join(frags)))

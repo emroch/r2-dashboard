@@ -188,6 +188,13 @@ def test_view_build_reconciles_and_renders_every_component():
     assert scatter["series"][0]["points"][0]["y"] == 1200
 
 
+def test_a_section_layout_sets_the_grid_class():
+    from render.page import SECTION_LAYOUTS, _LAYOUTS
+    assert set(SECTION_LAYOUTS) <= set(_LAYOUTS)
+    assert SECTION_LAYOUTS[[e["title"] for e in SECTIONS_CONF].index(
+        "Configured price")] == "single"
+
+
 def test_every_section_component_is_registered():
     from config import COMPONENTS
     named = [c for e in SECTIONS_CONF for c in e.get("components", [])]

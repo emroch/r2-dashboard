@@ -10,6 +10,10 @@
 #           work and & must be written &amp;. Folded (">-"), so line breaks here
 #           are just spaces in the page.
 #   components  presentation-layer components, by id (charts.yaml), in order
+#   layout  how the components sit: grid (default: two across when there's room),
+#           fit (side by side at equal widths until a panel's content wouldn't
+#           fit, then one across: for tables, which shouldn't scroll), single
+#           (always one across)
 #   charts  Plotly figure builders in render/charts.py, by name, drawn after the
 #           components. Each goes as its section moves to components
 #           (docs/presentation.md).
@@ -34,6 +38,7 @@ sections:
 
   - title: "Configuration combinations"
     components: [combo-wheels, combo-interior]
+    layout: fit
     desc: >-
       Which options people pair together, as counts per pairing: exterior paint
       against wheels, then against interior. Each cell gives its count as well as
@@ -46,20 +51,21 @@ sections:
 
   - title: "Configured price"
     components: [price-distribution, price-options, price-by-trim]
+    layout: single
     desc: >-
       What this cohort is paying, from published trim and option prices — the
       configured vehicle only, with no destination, doc fees, taxes, or incentives.
-      The first panel gives one bar per exact price (the cohort lands on a small
-      set of totals, so binning would hide real structure), with the median's row
-      highlighted. The second covers the option spend alone — the base is a
-      constant per trim, so the choices are the interesting part — with each
-      category's take rate alongside, since a big average means something
-      different when everyone pays a little rather than a few paying a lot. The
-      last is a strip per trim: the whiskers span the cheapest to the dearest
-      order, the box the middle half, with the median and mean marked and every
-      value written out. It fills in as Premium and Standard ship. Orders whose configuration hits a price Rivian hasn't
-      published are excluded rather than counted as zero — see the data-quality
-      panel.
+      The first panel gives one bar per exact price, highest first (the cohort lands
+      on a small set of totals, so binning would hide real structure), with the
+      median's row highlighted. The second covers the option spend alone — the base is
+      a constant per trim, so the choices are the interesting part — with each
+      category's take rate alongside, since a big average means something different
+      when everyone pays a little rather than a few paying a lot. The last is a strip
+      per trim: the whiskers span the cheapest to the dearest order, the box the
+      middle half, with the median and mean marked and every value written out. It
+      fills in as Premium and Standard ship. Orders whose configuration hits a price
+      Rivian hasn't published are excluded rather than counted as zero — see the
+      data-quality panel.
 
   - title: "Reservation & order timeline"
     charts: [fig_order_timeline]
