@@ -73,6 +73,7 @@ From the project root:
 
 ```sh
 ./r2_dashboard          # or: python3 src/pipeline.py
+./r2_dashboard --offline   # skip the live fetch: newest known cache, no new cache written
 ```
 
 It's a run-in-place project (no install step). Dependencies are listed in
@@ -91,8 +92,9 @@ It's a run-in-place project (no install step). Dependencies are listed in
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped
   live caches. A new cache is written only when the fetched content differs from
-  the newest cache (change detection), so a cache's timestamp marks when the data
-  last changed. If a live fetch fails, the newest cache is used. Caches from local
+  the newest known cache, on disk or committed on `origin/main` (change detection),
+  so a cache's timestamp marks when the data last changed. If a live fetch fails,
+  or with `--offline`, the newest known cache is used and nothing is written. Caches from local
   builds are worth committing too: each one can only add a change the scheduled
   deploy missed, and a duplicate is harmless. Why the history is kept as separate
   snapshots and not a single tracked file or a database is recorded in

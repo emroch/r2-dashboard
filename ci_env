@@ -19,6 +19,10 @@
 #   ./ci_env python …  run any python command under the CI stack
 #   ./ci_env sync      (re)create the venv from requirements.txt and exit
 #
+# Add --offline to `build` or `check` to skip the live fetch: the pipeline builds
+# from the newest known cache (on disk or committed on origin/main) and writes
+# no new cache, so a local build can't produce a cache to ship.
+#
 # Add --both to `test` to run the suite under BOTH the CI stack and the system
 # python, which is how you catch version-dependent behavior:
 #
@@ -128,7 +132,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         ;;
     build)
         banner "CI stack" "$PY"
-        "$PY" src/pipeline.py
+        "$PY" src/pipeline.py "$@"
         ;;
     lint)
         "$VENV/bin/ruff" check .
@@ -146,7 +150,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         js_lint
         py_tests "$PY"
         js_test
-        "$PY" src/pipeline.py
+        "$PY" src/pipeline.py "$@"
         ;;
     shell)
         echo "source $VENV/bin/activate"
@@ -155,7 +159,7 @@ print("ready: python %s | pandas %s | numpy %s | plotly %s"
         exec "$PY" "$@"
         ;;
     *)
-        sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac
