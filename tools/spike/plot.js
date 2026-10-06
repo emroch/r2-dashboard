@@ -40,9 +40,12 @@
     if (!geo) {
       await S.load(TOPO);
       const [us, world] = await Promise.all([fetch(STATES).then((r) => r.json()), fetch(WORLD).then((r) => r.json())]);
+      // Canada and Mexico from the world outlines; the US from its states, whose
+      // census boundaries are clipped at the shoreline, so the Great Lakes show.
       const countries = topojson.feature(world, world.objects.countries).features
-        .filter((f) => ["124", "484", "840"].includes(f.id));        // Canada, Mexico, US
-      geo = { countries, states: topojson.mesh(us, us.objects.states, (a, b) => a !== b) };
+        .filter((f) => ["124", "484"].includes(f.id));
+      geo = { countries, us: topojson.feature(us, us.objects.states),
+              states: topojson.mesh(us, us.objects.states, (a, b) => a !== b) };
     }
     const c = S.chrome();
     const b = spec.bubbles;
@@ -53,6 +56,7 @@
       style: { color: c.text, background: "transparent" }, r: { range: [0, 34] },
       marks: [
         Plot.geo(geo.countries, { fill: c.grid, fillOpacity: 0.35, stroke: c.muted, strokeWidth: 0.6 }),
+        Plot.geo(geo.us, { fill: c.grid, fillOpacity: 0.35, stroke: c.muted, strokeWidth: 0.6 }),
         Plot.geo(geo.states, { stroke: c.muted, strokeOpacity: 0.6, strokeWidth: 0.5 }),
         Plot.dot(b, { x: "lon", y: "lat", r: "n", fill: (d) => S.color(d.color), fillOpacity: 0.75, stroke: c.edge, strokeWidth: 0.5 }),
         Plot.dot(spec.markers, { x: "lon", y: "lat", symbol: "star", r: 7, fill: c.text }),

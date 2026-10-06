@@ -9,6 +9,7 @@ with tools/spike/, once the library is chosen.
 
 Run after the pipeline: python3 tools/build_spike.py
 """
+import hashlib
 import json
 import shutil
 import sys
@@ -53,6 +54,10 @@ def main():
         shutil.copyfile(SRC / f, out / f)
     data = {"components": {k: view["components"][k]
                            for k in ("delivery-vs-vin", "geo-orders")}}
+    # Versioned by content, so a changed prototype is never served from cache.
+    scripts = "".join('<script src="%s?v=%s"></script>' % (
+        f, hashlib.sha256((SRC / f).read_bytes()).hexdigest()[:8])
+        for f in ("common.js", "plot.js", "echarts.js", "plotly.js", "spike.js"))
     cards = "".join(
         '<section class="lib" id="lib-%s" data-lib="%s"><h2>%s</h2>'
         '<p class="cost">loads when scrolled near…</p><div class="legend"></div>'
@@ -71,11 +76,9 @@ the line under its name is what that cost.</p>
 <label><input type="checkbox" id="spikeWhiskers"> Whiskers (?whiskers=)</label></p>
 %s
 <script id="spike-data" type="application/json">%s</script>
-<script src="common.js"></script><script src="plot.js"></script>
-<script src="echarts.js"></script><script src="plotly.js"></script>
-<script src="spike.js"></script></body></html>""" % (
+%s</body></html>""" % (
         _THEME_VARS_CSS, _tpl("styles.css"), category_css(), CSS, cards,
-        json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
+        json.dumps(data, separators=(",", ":")).replace("</", "<\\/"), scripts)
     (out / "index.html").write_text(html, encoding="utf-8")
     print("Wrote: %s" % (out / "index.html"))
 

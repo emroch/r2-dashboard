@@ -25,8 +25,12 @@
                            axisLabel: { color: c.muted }, nameTextStyle: { color: c.text }, splitLine: { lineStyle: { color: c.grid } } });
     const series = [];
     for (const l of spec.layers) {
-      if (l.type === "band") series.push({ type: "custom", silent: true, z: 1, data: [0],
-        renderItem: (params, api) => ({ type: "polygon", style: { fill: S.color(l.color) },
+      // The band is one polygon, but its data must be its real points: the axes
+      // take their extent from every series' data (a placeholder 0 here once
+      // stretched the date axis back to 1970).
+      if (l.type === "band") series.push({ type: "custom", silent: true, z: 1,
+        data: l.points.map((d) => [t(d[0]), d[1], d[2]]), encode: { x: 0, y: [1, 2] },
+        renderItem: (params, api) => params.dataIndex !== 0 ? null : ({ type: "polygon", style: { fill: S.color(l.color) },
           shape: { points: [...l.points.map((d) => api.coord([t(d[0]), d[1]])), ...l.points.slice().reverse().map((d) => api.coord([t(d[0]), d[2]]))] } }) });
       if (l.type === "line") series.push({ type: "line", silent: true, z: 2, showSymbol: !l.dash, symbolSize: 6,
         data: l.points.map((d) => [t(d[0]), d[1]]), lineStyle: { color: S.color(l.color), width: l.dash ? 2.5 : 3, type: l.dash ? "dashed" : "solid" },
@@ -37,7 +41,8 @@
     for (const s of spec.series) {
       if (hidden.has(s.name)) continue;
       const fill = S.color(s.color);
-      if (S.whiskersOn()) series.push({ type: "custom", silent: true, z: 3, data: s.points.filter((p) => p.lo).map((p) => [t(p.lo), t(p.hi), p.y]),
+      if (S.whiskersOn()) series.push({ type: "custom", silent: true, z: 3, encode: { x: [0, 1], y: 2 },
+        data: s.points.filter((p) => p.lo).map((p) => [t(p.lo), t(p.hi), p.y]),
         renderItem: (params, api) => {
           const a = api.coord([api.value(0), api.value(2)]), b = api.coord([api.value(1), api.value(2)]);
           const cap = 4;
@@ -51,7 +56,10 @@
         data: s.points.map((p) => ({ value: [t(p.x), p.y], tip: p.tip })) });
     }
     inst(el).setOption({ animation: !matchMedia("(prefers-reduced-motion: reduce)").matches,
-      grid: { left: 70, right: 20, top: 30, bottom: 50 }, tooltip: tip(c),
+      grid: { left: 70, right: 20, top: 30, bottom: 90 }, tooltip: tip(c),
+      // Zoom/pan: wheel or pinch inside the plot, or the sliders under/beside it.
+      dataZoom: [{ type: "inside", xAxisIndex: 0, filterMode: "none" }, { type: "inside", yAxisIndex: 0, filterMode: "none" },
+                 { type: "slider", xAxisIndex: 0, filterMode: "none", bottom: 10, height: 18 }],
       xAxis: axis({ type: "time", name: spec.x.label }), yAxis: axis({ type: "value", name: spec.y.label, scale: true, nameGap: 50 }),
       series }, { notMerge: true });
   }
