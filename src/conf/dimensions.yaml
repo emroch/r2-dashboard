@@ -250,6 +250,15 @@ dimensions:
       - {value: month,    label: Month,           color: "#9467bd", opacity: 1.0}
       - {value: unknown,  label: No date given,   color: "#bbbbbb", opacity: 1.0}
 
+  vin:
+    column: vin_present
+    label: VIN
+    order: fixed
+    note: A VIN is the sequence number of the build slot an order is given.
+    categories:
+      - {value: true,  label: VIN assigned}
+      - {value: false, label: No VIN yet}
+
   delivered:
     column: delivered_inferred
     label: Delivered (est.)

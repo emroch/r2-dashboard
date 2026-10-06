@@ -92,12 +92,12 @@ def test_oklch_round_trips_every_palette_color():
 def test_every_mark_holds_3_to_1_against_the_card_in_both_themes():
     # WCAG 1.4.11: a non-text mark needs 3:1 against what it sits on. The mark
     # bounds in theme.yaml are set so that every category color clears it.
-    from render.categories import bounds, colored
+    from render.categories import bounds, marked
     from render.colors import contrast_ratio, mark_hex
     worst = {}
     for theme in ("light", "dark"):
         card = THEME_CSS[theme]["card-bg"]
-        for (dim, value), hexv in colored().items():
+        for (dim, value), hexv in marked().items():   # categories and accents
             ratio = contrast_ratio(mark_hex(hexv, *bounds(theme)), card)
             assert ratio >= 3.0, "%s %s:%s mark is %.2f:1 on %s" % (
                 theme, dim, value, ratio, card)
@@ -168,9 +168,15 @@ def test_view_build_reconciles_and_renders_every_component():
                 wheels_short=['21" Liquid Tungsten', None],
                 vin_display=["1200", "—"], order_display=["—", "—"],
                 est_display=["Sep 01, 2026", "—"])
+    from test_aggregates import _priced
+    cols.update({k: v[:1] + [None] for k, v in _priced([60990.0]).items()})
     view = build(_orders(**cols))
     assert {a.dim for a in view.aggregates} >= set(DIMENSIONS)
-    static = {c for c, sp in COMPONENTS.items() if sp["template"] == "takerate"}
+    # The summary's Delivery progress readouts are reconciled with the rest.
+    assert view.readouts["progress"] in view.aggregates
+    assert view.readouts["progress"].counted == 2
+    # Everything but the browser-drawn templates is rendered to HTML in Python.
+    static = {c for c, sp in COMPONENTS.items() if sp["template"] not in ("scatter",)}
     assert set(view.static) == static
     for cid in view.static:
         assert view.render(cid).startswith('<figure class="r2c" id="c-%s"' % cid), cid
@@ -183,6 +189,13 @@ def test_view_build_reconciles_and_renders_every_component():
     scatter = out["components"]["delivery-vs-vin"]
     assert [s["name"] for s in scatter["series"]] == ['Midnight · 21"']
     assert scatter["series"][0]["points"][0]["y"] == 1200
+
+
+def test_a_section_layout_sets_the_grid_class():
+    from render.page import SECTION_LAYOUTS, _LAYOUTS
+    assert set(SECTION_LAYOUTS) <= set(_LAYOUTS)
+    assert SECTION_LAYOUTS[[e["title"] for e in SECTIONS_CONF].index(
+        "Configured price")] == "single"
 
 
 def test_every_section_component_is_registered():

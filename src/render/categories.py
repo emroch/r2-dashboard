@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 
-from config import CADENCE_COLORS, DIMENSIONS, THEME_CSS
+from config import CADENCE_COLORS, DIMENSIONS, PRICE_COLORS, THEME_CSS
 
 from .colors import mark_hex
 
@@ -66,10 +66,26 @@ def bounds(theme: str) -> tuple[float, float]:
     return float(css["mark-lmin"]), float(css["mark-lmax"])
 
 
+# Fills that aren't a category but are drawn as data marks (the price bars), as
+# classes .acc-<name> with the same --paint / --mark rule, so they hold the same
+# contrast in both themes. A component uses the class name directly.
+ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"]}
+
+
+def marked() -> dict[tuple[str, str], str]:
+    """Everything with a --paint / --mark class: the colored categories, and the
+    accents (as ("acc", name))."""
+    return {**colored(), **{("acc", name): h for name, h in ACCENTS.items()}}
+
+
+def _selector(key: tuple[str, str]) -> str:
+    return ".acc-" + key[1] if key[0] == "acc" else "." + category_class("%s:%s" % key)
+
+
 def category_css() -> str:
     """The page's category stylesheet: paints, the mark rule, and the fallback."""
-    cats = colored()
-    sel = {k: "." + category_class("%s:%s" % k) for k in cats}
+    cats = marked()
+    sel = {k: _selector(k) for k in cats}
     paints = "\n".join("%s{--paint:%s;}" % (sel[k], h) for k, h in cats.items())
     marks = "%s{--mark:%s;}" % (",".join(sel.values()), _MARK_RULE)
     light, dark = bounds("light"), bounds("dark")

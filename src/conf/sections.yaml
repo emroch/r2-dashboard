@@ -10,6 +10,10 @@
 #           work and & must be written &amp;. Folded (">-"), so line breaks here
 #           are just spaces in the page.
 #   components  presentation-layer components, by id (charts.yaml), in order
+#   layout  how the components sit: grid (default: two across when there's room),
+#           fit (side by side at equal widths until a panel's content wouldn't
+#           fit, then one across: for tables, which shouldn't scroll), single
+#           (always one across)
 #   charts  Plotly figure builders in render/charts.py, by name, drawn after the
 #           components. Each goes as its section moves to components
 #           (docs/presentation.md).
@@ -33,31 +37,35 @@ sections:
       uniform across the cohort, so they have no panel yet.
 
   - title: "Configuration combinations"
-    charts: [fig_color_wheel_heatmap, fig_color_interior_heatmap]
+    components: [combo-wheels, combo-interior]
+    layout: fit
     desc: >-
       Which options people pair together, as counts per pairing: exterior paint
-      against wheels, then against interior. Cells carry the count as well as the
-      shade, since at these volumes a 1 and a 3 look alike by color alone. Only
-      options that have actually been ordered get a column, so the grid fills out as
-      trims and configs open up rather than showing empty rows in advance. A pairing
-      needs both halves, so an order that hasn't reported one of them isn't in this
-      grid.
+      against wheels, then against interior. Each cell gives its count as well as
+      its shade, since at these volumes a 1 and a 3 look alike by color alone, and
+      the totals sit at the edges. Paints run most-ordered first, as everywhere on
+      the page. Only options that have actually been ordered get a column, so the
+      grid fills out as trims and configs open up rather than showing empty rows in
+      advance. A pairing needs both halves, so an order that hasn't reported one of
+      them isn't in that grid.
 
   - title: "Configured price"
-    charts: [fig_price_distribution, fig_price_options, fig_price_by_trim]
+    components: [price-distribution, price-options, price-by-trim]
+    layout: single
     desc: >-
       What this cohort is paying, from published trim and option prices — the
       configured vehicle only, with no destination, doc fees, taxes, or incentives.
-      The top panel gives one bar per exact price (the cohort lands on a small set
-      of totals, so binning would hide real structure), with the median's own label
-      highlighted and the mean shown as a stat. The middle panel covers the option
-      spend alone — the base is a constant per trim, so the choices are the
-      interesting part — with each category's take rate alongside, since a big
-      average means something different when everyone pays a little rather than a
-      few paying a lot. The bottom panel is a box per trim, and fills in as Premium
-      and Standard ship. Orders whose configuration hits a price Rivian hasn't
-      published are excluded rather than counted as zero — see the data-quality
-      panel.
+      The first panel gives one bar per exact price, highest first (the cohort lands
+      on a small set of totals, so binning would hide real structure), with the
+      median's row highlighted. The second covers the option spend alone — the base is
+      a constant per trim, so the choices are the interesting part — with each
+      category's take rate alongside, since a big average means something different
+      when everyone pays a little rather than a few paying a lot. The last is a strip
+      per trim: the whiskers span the cheapest to the dearest order, the box the
+      middle half, with the median and mean marked and every value written out. It
+      fills in as Premium and Standard ship. Orders whose configuration hits a price
+      Rivian hasn't published are excluded rather than counted as zero — see the
+      data-quality panel.
 
   - title: "Reservation & order timeline"
     charts: [fig_order_timeline]
@@ -91,9 +99,12 @@ sections:
       panel.
 
   - title: "Estimate certainty vs. VIN status"
-    charts: [fig_certainty_by_vin]
+    components: [certainty-by-vin]
     desc: >-
-      Share of orders with known delivery dates.
+      How firm each order's delivery estimate is, for orders with a VIN and for
+      those still waiting for one. Each row is 100% of its orders, so the two
+      compare by share even though they differ in size; the counts are on each row.
+      A firm date usually arrives with or after the VIN.
 
   - title: "VIN sequence vs. order date"
     charts: [fig_vin_vs_order]

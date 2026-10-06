@@ -138,6 +138,5 @@ chart_ui:
   annotation_border: "#cdd"
   annotation_text: "#33475a"
   annotation_arrow: "#4c78a8"
-  pie_gap: "#ffffff"                       # donut slice separators (chart 9)
   muted: "#888888"                         # unmapped-category / fallback grey
   key_marker: "#999999"                    # legend-key marker (chart 10)

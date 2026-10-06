@@ -893,10 +893,10 @@ def test_state_totals_segments_partition_each_state():
 
 
 def test_state_totals_summary_row_matches_the_shared_split():
-    # #53: the all-states row and the summary-page cards come from ONE helper, so
-    # they can't drift. The row covers orders with a known state (an unmapped order
-    # is excluded from the chart), while the cards cover every order — so the two
-    # agree exactly when every order is located, and differ by the unmapped ones.
+    # #53: the all-states row comes from the shared three-way split. The row
+    # covers orders with a known state (an unmapped order is excluded from the
+    # chart). (The summary readouts now use aggregates.stages(); §13 follows in
+    # #109.)
     import pandas as pd
     from render.charts import DELIVERY_STAGES, delivery_progress, fig_state_totals
     def row(state, vin, delivered, lat=1.0):
@@ -1326,28 +1326,29 @@ def test_interior_labels_keep_the_two_black_craters_apart():
 
 def test_interior_heatmap_columns_are_distinct_and_present_only():
     # One column per interior that has an order, labelled distinctly, and every
-    # order counted exactly once.
+    # order counted exactly once. (The §3 heatmap, render/aggregates.crosstab.)
     from config import INTERIOR_ORDER, INTERIOR_SHORT
-    from render.charts import fig_color_interior_heatmap
+    from render.aggregates import crosstab
     df = _interior_frame()
-    h = fig_color_interior_heatmap(df).data[0]
-    assert list(h.x) == [INTERIOR_SHORT[i] for i in INTERIOR_ORDER]
-    assert len(set(h.x)) == len(h.x)
-    assert sum(sum(r) for r in h.z) == len(df)
+    a = crosstab(df, "color", "interior")
+    cols = [c["label"] for c in a.meta["cols"]]
+    assert cols == [INTERIOR_SHORT[i] for i in INTERIOR_ORDER], cols
+    assert len(set(cols)) == len(cols)
+    assert a.counted == len(df)
     # An interior nobody ordered gets no column at all.
     one = df[df["interior"] == INTERIOR_ORDER[0]]
-    assert list(fig_color_interior_heatmap(one).data[0].x) == \
+    assert [c["label"] for c in crosstab(one, "color", "interior").meta["cols"]] == \
         [INTERIOR_SHORT[INTERIOR_ORDER[0]]]
 
 
 def test_wheel_heatmap_covers_every_ordered_wheel():
     # This grid used to hardcode the two Performance wheels, so the other two
     # would have gone missing once Premium and Standard shipped.
-    from render.charts import fig_color_wheel_heatmap
+    from render.aggregates import crosstab
     df = _interior_frame()
-    h = fig_color_wheel_heatmap(df).data[0]
-    assert set(h.x) == set(df["wheels_short"].unique())
-    assert sum(sum(r) for r in h.z) == len(df)
+    a = crosstab(df, "color", "wheels")
+    assert {c["value"] for c in a.meta["cols"]} == set(df["wheels_short"].unique())
+    assert a.counted == len(df)
 
 
 def test_vin_by_config_rows_carry_interior_and_stay_ordered():
@@ -1431,14 +1432,14 @@ def test_every_paint_chart_uses_the_same_order():
     # them in §3.
     # (The §2 take-rate rows follow it too: test_aggregates.py.)
     # (§10's delivery-vs-VIN scatter follows it too: test_specs.py.)
-    from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_paint_by_location, fig_vin_vs_order)
+    from render.aggregates import crosstab
+    from render.charts import _paint_order, fig_paint_by_location, fig_vin_vs_order
     df = _paint_rank_frame()
     want = _paint_order(df)
     assert want == _expected_paint_rank()
 
-    # §3 heatmap rows (top-down: the y axis is reversed).
-    assert list(fig_color_wheel_heatmap(df).data[0].y) == want
+    # §3 heatmap rows, top-down.
+    assert [r["value"] for r in crosstab(df, "color", "wheels").meta["rows"]] == want
 
     # §9 scatter legend: one entry per paint × wheel, paints in rank order.
     for fig in (fig_vin_vs_order(df),):
@@ -1829,8 +1830,8 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     # 100%-stacked panels divide by each bar's own total, so the stack would quietly
     # stop adding up to 100.
     # (The §2 take-rate rows: test_aggregates.py.)
-    from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_paint_by_location)
+    from render.aggregates import crosstab
+    from render.charts import _paint_order, fig_paint_by_location
     df = _paint_rank_frame()
     blank = df.iloc[[0]].copy()
     blank["user"] = "unreported"
@@ -1840,9 +1841,10 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     df = pd.concat([df, blank], ignore_index=True)
 
     assert "" not in _paint_order(df), "a blank is not a paint"
-    h = fig_color_wheel_heatmap(df).data[0]
-    assert "" not in list(h.y) and "Unknown" not in list(h.y)
-    assert sum(sum(r) for r in h.z) == len(df) - 1
+    a = crosstab(df, "color", "wheels")
+    rows = [r["value"] for r in a.meta["rows"]]
+    assert "" not in rows and "Unknown" not in rows
+    assert a.counted == len(df) - 1 and a.excluded == {"not reported": 1}
 
     # Every 100%-stacked bar must still reach 100 after the exclusion.
     for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
@@ -2522,7 +2524,8 @@ def test_dimensions_are_the_yaml_published_as_is():
     json.dumps(d)                                   # publishable as-is
     csv_cols = {"state", "region", "buylease", "trim", "color", "wheels_short",
                 "interior", "opted_autonomy", "opted_tow", "opted_spare",
-                "delivery_type", "delivered_inferred", "r1_owner", "r1_model"}
+                "delivery_type", "delivered_inferred", "r1_owner", "r1_model",
+                "vin_present"}
     assert {x["column"] for x in raw.values()} == csv_cols
     for name, dim in raw.items():
         assert dim["label"] and dim["order"] in ("count", "fixed"), name

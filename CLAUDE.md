@@ -36,7 +36,7 @@ src/
     components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate)
     view.py         builds + reconciles the page's aggregates, renders the components; writes r2_view.json (browser-drawn components' specs)
     specs.py        house-schema specs for the browser-drawn components (§10's scatter): points, layers, fixed domains; no colors
-    charts.py       the ten fig_* chart builders + helpers
+    charts.py       the Plotly fig_* chart builders not yet moved to components + helpers
     page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
   templates/        valid standalone page shell, filled at render time

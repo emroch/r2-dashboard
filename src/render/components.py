@@ -54,16 +54,20 @@ def caveats(dims: Sequence[str], extra: Sequence[str] = ()) -> list[str]:
     return out
 
 
+def csv_button(cid: str) -> str:
+    """The CSV download for the table with id "<cid>-data" (main.js reveals it)."""
+    return ('<button type="button" class="r2c-csv" data-table="%s-data" '
+            'data-file="%s.csv" hidden>Download CSV</button>' % (cid, cid))
+
+
 def _table(cid: str, table: Table) -> str:
     head = "".join('<th scope="col">%s</th>' % escape(str(c)) for c in table.columns)
     body = "".join("<tr>%s</tr>" % "".join("<td>%s</td>" % escape(str(v)) for v in r)
                    for r in table.rows)
     return ('<details class="r2c-data"><summary>Data</summary>'
             '<div class="r2c-scroll"><table id="%s-data"><thead><tr>%s</tr></thead>'
-            '<tbody>%s</tbody></table></div>'
-            '<button type="button" class="r2c-csv" data-table="%s-data" '
-            'data-file="%s.csv" hidden>Download CSV</button></details>'
-            % (cid, head, body, cid, cid))
+            '<tbody>%s</tbody></table></div>%s</details>'
+            % (cid, head, body, csv_button(cid)))
 
 
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
@@ -123,7 +127,7 @@ _PLACEHOLDER = re.compile(r"\{(\w+)(?::([^}]*))?\}")
 
 
 def summarize(template: str, cells: Sequence[dict],
-              labels: Sequence[str] = ()) -> str:
+              labels: Sequence[str] = (), meta: dict | None = None) -> str:
     """Fill a charts.yaml summary template from an aggregate's cells (see the
     placeholders documented there). `labels` are the dimension's category
     labels: one with no orders yet counts as 0. An unknown placeholder or label
@@ -138,6 +142,18 @@ def summarize(template: str, cells: Sequence[dict],
         key, arg = m.group(1), m.group(2)
         if key == "n":
             return format(total, ",")
+        if key == "meta" and meta and arg in meta:
+            return str(meta[arg])      # a value the aggregate computed (a median)
+        if key == "share_in" and arg and "|" in arg:
+            # A crosstab's column share within one row: {share_in:ROW|COL}. A
+            # real category with no orders (absent from the grid) reads 0%.
+            row, col = arg.split("|", 1)
+            in_row = [c for c in cells if c.get("row_label") == row]
+            hit = [c for c in in_row if c.get("col_label") == col]
+            if in_row and hit:
+                return share(int(hit[0]["n"]), sum(int(c["n"]) for c in in_row))
+            if row in by_label and col in by_label:
+                return share(0, 1)
         if key in ("top", "top_share") and top is not None:
             return top["label"] if key == "top" else share(int(top["n"]), total)
         if arg is not None and arg in by_label:
@@ -227,3 +243,241 @@ def mount(cid: str, view_id: str, spec: dict, data: dict, agg: Aggregate,
                and agg.cells else None)
     return frame(cid, spec["title"], body, summary=summary,
                  dims=component_dims(spec), table=table, shared=shared, wide=True)
+
+
+def vocabulary(dim: str) -> list[str]:
+    """A dimension's category labels, as cells label them."""
+    return [c.get("label") or c.get("short") or str(c["value"])
+            for c in DIMENSIONS[dim].get("categories") or []]
+
+
+def crosstab_labels(agg: Aggregate) -> list[str]:
+    """Both dimensions' labels, so a summary may name a category with no orders."""
+    return vocabulary(agg.meta["row_dim"]) + vocabulary(agg.meta["col_dim"])
+
+
+# --- heatmap: a crosstab as a table with shaded cells ---------------------------
+
+def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str:
+    """A crosstab as a real table: a row per row category (with its swatch),
+    a column per column category, each cell's count written in it and shaded by
+    count across the grid, and the totals at the edges. The table is the data,
+    so it carries the CSV button itself rather than a second copy below."""
+    rows, cols = agg.meta["rows"], agg.meta["cols"]
+    peak = max((int(c["n"]) for c in agg.cells), default=0) or 1
+    by = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
+    # Every category column gets the width of the longest heading, so no option
+    # looks heavier than another. Under pressure the headings wrap (CSS) before
+    # the panel overflows, down to a shared floor of the longest single word, so
+    # the columns stay equal when squeezed too.
+    wide = max((len(str(c["label"])) for c in cols), default=0)
+    word = max((len(w) for c in cols for w in str(c["label"]).split()), default=0)
+    head = "".join('<th scope="col" class="hm-ch">%s</th>' % escape(str(c["label"]))
+                   for c in cols)
+    body = []
+    for r in rows:
+        cls = ' class="%s"' % category_class(r["ref"]) if r["ref"] else ""
+        sw = '<span class="swatch"></span>' if r["ref"] else ""
+        counts = [by[(r["value"], c["value"])] for c in cols]
+        # Dark cells (over 55% of the peak) switch to light text.
+        cells = "".join('<td class="hm-cell%s" style="--hm:%.3f">%s</td>'
+                        % (" hm-hi" if k / peak > 0.55 else "", k / peak,
+                           format(k, ",")) for k in counts)
+        body.append('<tr><th scope="row"%s>%s%s</th>%s<td class="hm-tot">%s</td></tr>'
+                    % (cls, sw, escape(str(r["label"])), cells,
+                       format(int(r["n"]), ",")))
+    foot = "".join('<td class="hm-tot">%s</td>' % format(int(c["n"]), ",")
+                   for c in cols)
+    table = ('<div class="r2c-scroll"><table class="hm" id="%s-data" '
+             'style="--hm-w:%dch;--hm-min:%dch"><thead><tr>'
+             '<th scope="col">%s</th>%s<th scope="col" class="hm-tot">Total</th>'
+             '</tr></thead><tbody>%s</tbody><tfoot><tr><th scope="row">Total</th>%s'
+             '<td class="hm-tot">%s</td></tr></tfoot></table></div>%s'
+             % (cid, wide, word, escape(DIMENSIONS[agg.meta["row_dim"]]["label"]), head,
+                "".join(body), foot, format(agg.counted, ","), csv_button(cid)))
+    summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
+               if spec.get("summary") and agg.counted else None)
+    return frame(cid, spec["title"], table, summary=summary,
+                 dims=component_dims(spec), shared=shared)
+
+
+# --- mix: 100% rows, each split by a second dimension's categories --------------
+
+def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str:
+    """A crosstab as 100%-stacked rows: one row per row category, its bar split
+    by the column categories (their marks), with the counts written beside it,
+    and a key of the column categories above. Rows of different sizes compare
+    by share; each row's n is on it."""
+    rows, cols = agg.meta["rows"], agg.meta["cols"]
+    by = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
+    key = "".join('<span><i class="swatch %s"></i>%s</span>'
+                  % (category_class(c["ref"]) if c["ref"] else "",
+                     escape(str(c["label"]))) for c in cols)
+    out = []
+    for r in rows:
+        n = int(r["n"]) or 1
+        segs = "".join('<i class="mark %s" style="width:%.2f%%"></i>'
+                       % (category_class(c["ref"]) if c["ref"] else "tr-neutral",
+                          100.0 * by[(r["value"], c["value"])] / n)
+                       for c in cols if by[(r["value"], c["value"])])
+        split = " · ".join("%s %s" % (format(by[(r["value"], c["value"])], ","),
+                                      escape(str(c["label"]).lower()))
+                           for c in cols if by[(r["value"], c["value"])])
+        out.append('<li class="mx-row"><span class="tr-name">%s</span>'
+                   '<span class="tr-n">n = %s</span>'
+                   '<span class="mx-bar" aria-hidden="true">%s</span>'
+                   '<span class="tr-split">%s</span></li>'
+                   % (escape(str(r["label"])), format(int(r["n"]), ","), segs, split))
+    table = Table([DIMENSIONS[agg.meta["row_dim"]]["label"]]
+                  + [c["label"] for c in cols] + ["Total"],
+                  [[r["label"]] + [by[(r["value"], c["value"])] for c in cols]
+                   + [r["n"]] for r in rows])
+    summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
+               if spec.get("summary") and agg.counted else None)
+    body = ('<p class="mx-key" aria-hidden="true">%s</p><ol class="tr mx">%s</ol>'
+            % (key, "".join(out)))
+    return frame(cid, spec["title"], body, summary=summary,
+                 dims=component_dims(spec), table=table, shared=shared)
+
+
+# --- bars: one bar per row, its length a value; an optional highlighted row ------
+
+def bars(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str:
+    """Rows with a single bar each, longest full width: the row label, the value
+    as text (`display`, else the count), an optional note, and the bar. A cell
+    flagged `highlight` (the median price) draws in the accent and carries its
+    note in bold. The bar is decoration; the text and the data table carry it.
+    charts.yaml `amount` names the cell field the bar measures (default: n)."""
+    field = spec.get("amount", "n")
+    cells = agg.cells
+    widest = max((float(c[field]) for c in cells), default=0.0) or 1.0
+    rows = []
+    for c in cells:
+        hi = c.get("highlight")
+        rows.append(
+            '<li class="tr-row br-row%s"><span class="tr-name">%s%s</span>'
+            '<span class="tr-n">%s</span>'
+            '<span class="tr-bar" aria-hidden="true"><i class="mark %s" '
+            'style="width:%.2f%%"></i></span>%s</li>'
+            % (" br-hi" if hi else "", escape(str(c["label"])),
+               ' <b class="br-tag">%s</b>' % escape(c["note"]) if hi and c.get("note")
+               else "",
+               escape(str(c.get("display", format(int(c["n"]), ",")))),
+               "acc-price-accent" if hi or spec.get("accent") else "acc-price-bar",
+               100.0 * float(c[field]) / widest,
+               '<span class="tr-split">%s</span>' % escape(c["note"])
+               if c.get("note") and not hi else ""))
+    columns = spec.get("table", ["Option", "Value", "Note"])
+    table = Table(columns, [[c["label"], c.get("display", c["n"]), c.get("note", "")]
+                            for c in cells])
+    summary = (summarize(spec["summary"], cells, meta=agg.meta)
+               if spec.get("summary") and cells else None)
+    return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
+                 summary=summary, dims=component_dims(spec), table=table,
+                 shared=shared)
+
+
+# --- range: a min..max strip per row, with the middle half, median and mean ------
+
+_STAT_NAMES = (("min", "min"), ("q1", "Q1"), ("median", "median"), ("q3", "Q3"),
+               ("max", "max"))
+
+
+def stat_labels(stats: dict[str, float]) -> list[tuple[str, int]]:
+    """The five-number summary as (name, value) labels, stats that round to the
+    same dollar merged ("Q1 / median") so a clustered cohort reads once."""
+    groups: dict[int, list[str]] = {}
+    for key, name in _STAT_NAMES:
+        groups.setdefault(round(stats[key]), []).append(name)
+    return [(" / ".join(names), val) for val, names in sorted(groups.items())]
+
+
+def range_strip(cid: str, spec: dict, agg: Aggregate,
+                shared: Sequence[str] = ()) -> str:
+    """One row per category (a trim): a whisker from min to max, a box over the
+    middle half, the median as a line and the mean as a diamond, on an axis
+    shared by every row (meta lo..hi), with every value written below. A
+    category with no orders keeps its row and says so."""
+    lo, hi = agg.meta.get("lo", 0.0), agg.meta.get("hi", 1.0)
+    span = (hi - lo) or 1.0
+
+    def at(v: float) -> str:
+        return "%.2f%%" % (100.0 * (v - lo) / span)
+
+    rows = []
+    for c in agg.cells:
+        st = c["stats"]
+        if not st:
+            rows.append('<li class="tr-row rg-row rg-empty"><span class="tr-name">'
+                        '%s</span><span class="tr-n">n = 0</span><span class='
+                        '"tr-split">no orders yet</span></li>'
+                        % escape(str(c["label"])))
+            continue
+        strip = ('<span class="rg-strip" aria-hidden="true">'
+                 '<i class="rg-whisker" style="left:%s;right:calc(100%% - %s)"></i>'
+                 '<i class="rg-box mark acc-price-bar" style="left:%s;'
+                 'right:calc(100%% - %s)"></i><i class="rg-median" style="left:%s"></i>'
+                 '<i class="rg-mean" style="left:%s"></i></span>'
+                 % (at(st["min"]), at(st["max"]), at(st["q1"]), at(st["q3"]),
+                    at(st["median"]), at(st["mean"])))
+        text = " · ".join("%s $%s" % (name, format(val, ","))
+                          for name, val in stat_labels(st))
+        rows.append('<li class="tr-row rg-row"><span class="tr-name">%s</span>'
+                    '<span class="tr-n">n = %s</span>%s<span class="tr-split">%s · '
+                    'mean $%s</span></li>'
+                    % (escape(str(c["label"])), format(int(c["n"]), ","), strip,
+                       escape(text), format(round(st["mean"]), ",")))
+    cols = ("min", "q1", "median", "q3", "max", "mean")
+    table = Table(["Trim", "Orders", "Min", "Q1", "Median", "Q3", "Max", "Mean"],
+                  [[c["label"], c["n"]] + ([round(c["stats"][k]) for k in cols]
+                                           if c["stats"] else [""] * 6)
+                   for c in agg.cells])
+    summary = (summarize(spec["summary"], agg.cells, meta=agg.meta)
+               if spec.get("summary") and agg.counted else None)
+    key = ('<p class="mx-key" aria-hidden="true"><span><i class="rg-key-box '
+           'acc-price-bar"></i>middle half</span><span><i class="rg-key-median">'
+           '</i>median</span><span><i class="rg-key-mean"></i>mean</span>'
+           '<span>whiskers: min–max</span></p>')
+    return frame(cid, spec["title"], key + '<ol class="tr">%s</ol>' % "".join(rows),
+                 summary=summary, dims=component_dims(spec), table=table,
+                 shared=shared)
+
+
+# --- readout: a big number and its label; a list behind a disclosure ------------
+
+def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
+            caption: str = "") -> str:
+    """One summary number. With `rows` (the entries behind it: (#, user,
+    detail)) it is a disclosure, marked ⓘ: clicking opens the list inline,
+    under a caption naming the readout and saying what the list holds (the
+    list can land rows below its chip)."""
+    chip = '<b class="ro-v">%s</b><span class="ro-l">%s%s</span>' % (
+        escape(str(value)), escape(label),
+        '<span class="ro-i" aria-hidden="true">&#9432;</span>' if rows else "")
+    if not rows:
+        return '<div class="ro-chip">%s</div>' % chip
+    body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
+                   % tuple(escape(str(v)) for v in r) for r in rows)
+    return ('<details class="ro-more"><summary class="ro-chip">%s</summary>'
+            '<div class="ro-rows">%s<div class="r2c-scroll"><table><thead><tr>'
+            '<th scope="col">#</th><th scope="col">User</th><th scope="col">Detail'
+            '</th></tr></thead><tbody>%s</tbody></table></div></div></details>'
+            % (chip, '<p class="ro-cap"><b>%s</b>%s</p>'
+               % (escape(label), " — " + escape(caption) if caption else ""), body))
+
+
+def readout_group(title: str, readouts: Sequence[str], note: str = "",
+                  key: str = "") -> str:
+    """A titled row of readouts, with an optional note under them (a caveat
+    they share) and `key`, trusted HTML above them (the stage legend)."""
+    return ('<div class="ro-group" role="group" aria-label="%s"><span class="ro-title">'
+            '%s</span>%s<div class="ro-row">%s</div>%s</div>'
+            % (escape(title), escape(title), key, "".join(readouts),
+               '<p class="ro-note">%s</p>' % escape(note) if note else ""))
+
+
+def stage_readouts(agg: Aggregate) -> list[str]:
+    """The Delivery progress readouts: one per stage, named as in the take-rate
+    bars' stage key."""
+    return [readout(format(int(c["n"]), ","), c["label"][:1].upper() + c["label"][1:])
+            for c in agg.cells]

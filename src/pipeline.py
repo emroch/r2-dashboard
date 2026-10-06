@@ -114,7 +114,8 @@ def main(argv=None):
     # the event-dated daily series, built from this build's cleaned data. Its last
     # point plus what has no date must add up to this build's totals; a mismatch
     # means the series no longer describes the dashboard, which is worth a failed
-    # build rather than a silently wrong file.
+    # build rather than a silently wrong file. Delivered is the summary's
+    # Delivered readout itself, so the series and the readouts can't disagree.
     converted = {str(u).lower() for _, u, _ in resv_report["matched_records"]}
     t0 = time.perf_counter()
     ser = series(df, resv, converted,
@@ -123,7 +124,8 @@ def main(argv=None):
     series_secs = time.perf_counter() - t0
     totals = {"orders": report["n_dedup"],
               "vin_assigned": int(df["vin_present"].sum()),
-              "delivered": int(df["delivered_inferred"].astype(bool).sum())}
+              "delivered": next(int(c["n"]) for c in view.readouts["progress"].cells
+                                if c["value"] == "delivered")}
     for name, total in totals.items():
         got = ser["values"][name][-1] + ser["undated"][name]
         if got != total:
