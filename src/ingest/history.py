@@ -36,10 +36,11 @@ from typing import NamedTuple
 
 import pandas as pd
 
-from config import (CACHE_TS_FMT, DATA_RAW, ORDERS_HEADERS, ORDERS_IGNORED,
+from config import (CACHE_TS_FMT, ORDERS_HEADERS, ORDERS_IGNORED,
                     ORDERS_LABEL, ORDERS_SLUG, RESERVATIONS_COLUMNS,
                     RESV_IGNORED, RESV_LABEL, RESV_SLUG)
 
+from .fetch import known_caches, read_cache
 from .schema_check import read_sheet
 
 # Fields that say which order a row is, weighted by how rarely they change. The
@@ -70,8 +71,16 @@ class History(NamedTuple):
 
 
 def snapshot_files(slug: str, raw_dir: str | None = None) -> list[tuple[datetime, str]]:
-    """(timestamp, path) for every cache of a sheet, oldest first."""
-    raw_dir = str(raw_dir or DATA_RAW)
+    """(timestamp, source) for every cache of a sheet, oldest first.
+
+    By default every cache the fetch knows about (fetch.known_caches): the files
+    in data/raw/ plus any committed on origin/main that aren't on disk yet, so
+    the newest snapshot replayed is the one being cleaned even on a branch that
+    hasn't merged main lately. With an explicit raw_dir, just that directory.
+    """
+    if raw_dir is None:
+        return sorted((datetime.strptime(ts, CACHE_TS_FMT), src)
+                      for ts, src in known_caches(slug))
     pat = re.compile(re.escape(slug) + r"_(\d{8}-\d{6})\.csv$")
     out = [(datetime.strptime(m.group(1), CACHE_TS_FMT), os.path.join(raw_dir, fn))
            for fn in os.listdir(raw_dir) for m in [pat.match(fn)] if m]
@@ -172,9 +181,8 @@ def snapshot_history(slug: str, headers: dict, ignored: list, label: str,
                      kind: str, raw_dir: str | None = None) -> History:
     """Replay every cache of one sheet."""
     def read():
-        for ts, path in snapshot_files(slug, raw_dir):
-            with open(path) as fh:
-                fields, rows = read_sheet(fh.read(), headers, ignored, label)
+        for ts, source in snapshot_files(slug, raw_dir):
+            fields, rows = read_sheet(read_cache(source), headers, ignored, label)
             yield ts, fields, rows
     return replay(read(), kind)
 

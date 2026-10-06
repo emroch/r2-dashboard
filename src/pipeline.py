@@ -1,6 +1,7 @@
 """Pipeline orchestration: fetch both sheets, clean, write the tidy CSV,
 build the dashboard, and print the cleaning report.
 """
+import argparse
 import json
 import os
 import time
@@ -22,11 +23,18 @@ from ingest.milestones import milestones
 from ingest.timeline import timeline_issues
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Build the R2 dashboard.")
+    ap.add_argument("--offline", action="store_true",
+                    default=os.environ.get("R2_OFFLINE") == "1",
+                    help="skip the live fetch: build from the newest known cache "
+                         "(on disk or committed on origin/main) and write no new "
+                         "cache. Also R2_OFFLINE=1.")
+    args = ap.parse_args(argv)
     orders_text, orders_meta = fetch_sheet(ORDERS_KEY, ORDERS_GID, ORDERS_SLUG,
-                                           ORDERS_LABEL)
+                                           ORDERS_LABEL, offline=args.offline)
     resv_text, resv_meta = fetch_sheet(RESV_KEY, RESV_GID, RESV_SLUG,
-                                       RESV_LABEL)
+                                       RESV_LABEL, offline=args.offline)
 
     # Snapshot replay (ingest/history.py), after both fetches so the newest cache
     # is the text being cleaned. It gives the cleaning its order keys (for
@@ -120,7 +128,8 @@ def main():
     def _fmt(meta):
         f = meta["fetched_at"].strftime("%Y-%m-%d %H:%M")
         u = meta["updated_at"].strftime("%Y-%m-%d %H:%M") if meta["updated_at"] else "—"
-        tag = "" if meta["live"] else " [offline: cached]"
+        tag = ("" if meta["live"] else " [--offline: cached]" if meta.get("offline")
+               else " [offline: cached]")
         chg = "  <-- CHANGED THIS FETCH" if meta["changed"] else ""
         return "fetched %s%s | last updated %s%s" % (f, tag, u, chg)
 
