@@ -141,9 +141,8 @@ TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
 STATE_MIN_ORDERS = int(DIMENSIONS["state"]["small_n"]["min_orders"])
 
 # --- Chart fills (palette.yaml) --------------------------------------------
-# Single-series chart fills (bars/histograms) + the heatmap colorscale name.
+# Single-series chart fills (bars/histograms).
 TIMELINE_COLORS = dict(_PALETTE["timeline"])
-HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
 # Per-state totals bars: VIN-assigned vs. not (stacked to each state's total).
 STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
 # Configured-price charts: neutral bar + Compass Yellow accent.

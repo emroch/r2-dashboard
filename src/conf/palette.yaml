@@ -1,7 +1,7 @@
 # R2 Orders — chart fills.
 #
-# Colors that don't name a category: the single-series bar and histogram tints,
-# accents, and the heatmap scale. Every CATEGORY color (paints, wheels,
+# Colors that don't name a category: the single-series bar and histogram tints
+# and accents. Every CATEGORY color (paints, wheels,
 # interiors, regions, trims, delivery types, R1 models) lives with its category
 # in dimensions.yaml, which is also what the presentation layer reads.
 # Loaded by config.py at import via yaml.safe_load.
@@ -14,8 +14,6 @@
 timeline:                     # reservation / order timeline (chart 6)
   ordered: "#f58518"          # "reserved & ordered" bars + order-date bars
   reserved_only: "#4c78a8"    # reservation-only (incomplete) bars
-
-heatmap_colorscale: Blues     # color x wheels combo heatmap (chart 5)
 
 # ---------------------------------------------------------------------------
 # Per-state totals bars: a delivery pipeline that stacks to each state's order
