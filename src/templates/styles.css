@@ -202,11 +202,15 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
  border:1px solid var(--card-bd);border-radius:4px;padding:2px 8px;cursor:pointer;}
 /* Category colors (render/categories.py). A swatch identifies a category, so it
    shows the true color (--paint), ringed so white and black chips read on either
-   card. A mark encodes data, so it uses the theme-clamped --mark. Delivery
-   stages are the same mark at the stage opacities. */
+   card. A mark encodes data, so it uses the theme-clamped --mark, except for a
+   mix bar of a true-color dimension (paints, cabins: .mark-true), where
+   categories are compared and the true color is the point; the bar's mark-edge
+   border separates them from the card. Delivery stages are the same mark at the
+   stage opacities. */
 .swatch{display:inline-block;width:.8em;height:.8em;border-radius:50%;
  background:var(--paint);box-shadow:0 0 0 1px var(--card-bd);vertical-align:-.05em;}
 .mark{background:var(--mark);}
+.mark.mark-true{background:var(--paint);}
 .stage-delivered{opacity:var(--a-delivered);}
 .stage-scheduled{opacity:var(--a-scheduled);}
 .stage-vin{opacity:var(--a-vin);}
@@ -247,8 +251,11 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .tr-name{display:flex;align-items:center;gap:6px;min-width:0;}
 .tr-n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
 .tr-pct{color:var(--desc);margin-left:4px;}
-.tr-bar{grid-column:1 / -1;display:flex;height:8px;margin-top:3px;
- border-radius:2px;overflow:hidden;}
+/* A bar's track is outlined in mark-edge (3:1 on the card), so its full extent
+   shows, and a true-color mark (.mark-true) like white on the white card still
+   has an outline. */
+.tr-bar{grid-column:1 / -1;display:flex;height:10px;margin-top:3px;box-sizing:border-box;
+ border:1px solid var(--mark-edge);border-radius:2px;overflow:hidden;}
 .tr-bar i{display:block;height:100%;}
 .tr-split{grid-column:1 / -1;font-size:11px;color:var(--desc);margin-top:2px;}
 /* Rows whose category has no color of its own (purchase/lease, yes/no) get a
@@ -312,8 +319,8 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .mx-key span{display:inline-flex;align-items:center;gap:5px;}
 .mx-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;
  padding:6px 0;font-size:13px;}
-.mx-bar{grid-column:1 / -1;display:flex;height:14px;margin-top:3px;
- border-radius:2px;overflow:hidden;gap:1px;}
+.mx-bar{grid-column:1 / -1;display:flex;height:14px;margin-top:3px;box-sizing:border-box;
+ border:1px solid var(--mark-edge);border-radius:2px;overflow:hidden;}
 .mx-bar i{display:block;height:100%;}
 /* A summary row set apart from the rows it sums (takerate `total`) or the rows
    read against it (mix `baseline`). */

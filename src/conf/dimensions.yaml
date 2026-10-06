@@ -29,6 +29,12 @@
 #                 bucket    shown as its own category, named by `label`
 #                 category  already one of the categories (`value`)
 #   small_n     a minimum count for a category to be drawn on its own
+#   true_color  true: where its categories are compared side by side (a mix
+#               bar's segments), they draw in their true color instead of the
+#               theme-clamped mark color; the bar's border (the theme's mark-edge)
+#               separates them from the card. A take-rate bar, whose segments are
+#               delivery stages of one category, keeps the clamped mark. For colors that ARE the data (paints,
+#               cabins), where clamping makes silver, grey and white alike.
 #   categories  value (exactly as it appears in the CSV) + label, color, ...
 
 dimensions:
@@ -45,6 +51,7 @@ dimensions:
     column: color
     label: Paint
     order: count
+    true_color: true
     note: Most-ordered first.
     missing: {policy: omit}
     categories:
@@ -133,6 +140,7 @@ dimensions:
     column: interior
     label: Interior
     order: fixed
+    true_color: true
     note: Plainest first.
     missing: {policy: omit}
     categories:

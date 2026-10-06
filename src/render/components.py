@@ -339,9 +339,14 @@ def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str
     keyed = cols + [c for c in base or () if c["value"] not in
                     {k["value"] for k in cols}]
 
+    # Paints and cabins compare in their true colors here (dimensions.yaml
+    # true_color); the bar's border keeps white and black legible on the card.
+    true = " mark-true" if DIMENSIONS[agg.meta["col_dim"]].get("true_color") else ""
+
     def row(label: str, n: int, parts: Sequence[tuple[dict, int]], cls: str) -> str:
-        segs = "".join('<i class="mark %s" style="width:%.2f%%"></i>'
-                       % (category_class(c["ref"]) if c["ref"] else "tr-neutral",
+        segs = "".join('<i class="mark%s %s" style="width:%.2f%%"></i>'
+                       % (true if c["ref"] else "",
+                          category_class(c["ref"]) if c["ref"] else "tr-neutral",
                           100.0 * k / (n or 1)) for c, k in parts if k)
         split = " · ".join("%s %s" % (format(k, ","), escape(str(c["label"])))
                            for c, k in parts if k)

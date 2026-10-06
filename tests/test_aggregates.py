@@ -524,6 +524,26 @@ def test_small_n_rows_are_excluded_with_their_reason_and_note():
     assert DIMENSIONS["state"]["small_n"]["note"] in html
 
 
+def test_mix_draws_paints_true_and_take_rates_clamped():
+    # A mix bar compares paints, so its segments are the true colors; a take-rate
+    # bar's segments are stages of one paint, so they keep the clamped mark.
+    from config import COMPONENTS
+    from render.aggregates import counts, crosstab
+    from render.components import mix, takerate
+    df = _orders(region=["West"] * 2, color=["Glacier White", "Midnight"],
+                 lat=[40.0] * 2, delivery_type=["window"] * 2,
+                 wheels_short=['20" Black Sand'] * 2)
+    paint = mix("c-p", COMPONENTS["paint-by-region"],
+                crosstab(df, "region", "color", "located"))
+    assert paint.count('class="mark mark-true cat-color-') == 4    # baseline + West
+    wheels = mix("c-w", COMPONENTS["wheels-by-region"],
+                 crosstab(df, "region", "wheels", "located"))
+    assert "mark-true" not in wheels, "wheels are not true_color"
+    rate = takerate("c-t", COMPONENTS["takerate-color"],
+                    counts(df, "color", by_stage=True))
+    assert "mark-true" not in rate
+
+
 def test_mix_baseline_row_comes_first_and_the_lean_names_the_biggest_gap():
     from config import COMPONENTS
     from render.aggregates import LEAN_MIN_ORDERS, crosstab
