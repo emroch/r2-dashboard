@@ -52,7 +52,10 @@ export async function mount(el) {
   draw(d3, el, spec);
 }
 
-function draw(d3, el, spec) {
+// Draw `spec` into the mount `el`. Returns a handle for tests: zoomTo(k) zooms
+// like the wheel does (about the plot's center), panBy(dx, dy) drags, redraw()
+// re-places everything at the current view, reset() returns to the full view.
+export function draw(d3, el, spec) {
   const plotEl = el.querySelector(".chart-plot");
   plotEl.replaceChildren();
   const W = Math.max(320, plotEl.clientWidth), H = W < 600 ? 420 : 560;
@@ -66,6 +69,11 @@ function draw(d3, el, spec) {
   const clip = `${el.dataset.chart}-clip`;
   svg.append("clipPath").attr("id", clip).append("rect")
     .attr("x", m.l).attr("y", m.t).attr("width", W - m.l - m.r).attr("height", H - m.t - m.b);
+  // Gridlines are axes of their own (full-length ticks, no labels), so d3 updates
+  // them in place on every redraw. Cloning the tick lines instead re-cloned the
+  // previous clones each time and doubled them per zoom event, which hung the page.
+  const gridX = svg.append("g").attr("class", "grid").attr("transform", `translate(0,${H - m.b})`);
+  const gridY = svg.append("g").attr("class", "grid").attr("transform", `translate(${m.l},0)`);
   const gx = svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`);
   const gy = svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`);
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
@@ -101,10 +109,11 @@ function draw(d3, el, spec) {
 
   let hidden = new Set(), showWhiskers = whiskersShown();
   function place() {
-    gx.call(d3.axisBottom(x).ticks(Math.max(3, W / 120)))
-      .call((g) => g.selectAll(".tick line").clone().attr("class", "grid").attr("y2", -(H - m.t - m.b)));
-    gy.call(d3.axisLeft(y).ticks(8, "~s"))
-      .call((g) => g.selectAll(".tick line").clone().attr("class", "grid").attr("x2", W - m.l - m.r));
+    const xt = Math.max(3, W / 120);
+    gridX.call(d3.axisBottom(x).ticks(xt).tickSize(-(H - m.t - m.b)).tickFormat(""));
+    gridY.call(d3.axisLeft(y).ticks(8).tickSize(-(W - m.l - m.r)).tickFormat(""));
+    gx.call(d3.axisBottom(x).ticks(xt));
+    gy.call(d3.axisLeft(y).ticks(8, "~s"));
     bandSel.attr("d", (l) => d3.area().x((d) => x(date(d[0]))).y0((d) => y(d[1])).y1((d) => y(d[2]))(l.points));
     lineSel.select("path").attr("d", (l) => d3.line().x((d) => x(date(d[0]))).y((d) => y(d[1]))(l.points));
     lineSel.selectAll("circle").attr("cx", (o) => x(date(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
@@ -156,4 +165,11 @@ function draw(d3, el, spec) {
   const home = () => svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
   svg.call(zoom).on("dblclick.zoom", home);
   reset.addEventListener("click", home);
+  return {
+    svg: svg.node(),
+    zoomTo: (k) => svg.call(zoom.scaleTo, k),
+    panBy: (dx, dy) => svg.call(zoom.translateBy, dx, dy),
+    redraw: place,                                 // what a whisker toggle does
+    reset: () => svg.call(zoom.transform, d3.zoomIdentity),
+  };
 }
