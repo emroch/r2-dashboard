@@ -23,11 +23,9 @@ from .components import (notes_html, readout, readout_group, shared_caveats,
 from .charts import (fig_delivery_timeline,
                      fig_delivery_latency,
                      fig_dest_vs_delivery, fig_geo,
-                     fig_interior_by_location,
-                     fig_order_timeline, fig_paint_by_location,
-                     fig_state_totals, fig_vin_by_config,
+                     fig_order_timeline, fig_vin_by_config,
                      fig_vin_cadence,
-                     fig_vin_vs_order, fig_wheels_by_location)
+                     fig_vin_vs_order)
 from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
                     RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
 
@@ -54,8 +52,7 @@ def _tpl(name):
 _BUILDERS = {f.__name__: f for f in (
     fig_order_timeline, fig_delivery_timeline, fig_delivery_latency,
     fig_vin_vs_order, fig_vin_cadence,
-    fig_vin_by_config, fig_geo, fig_state_totals, fig_paint_by_location,
-    fig_wheels_by_location, fig_interior_by_location, fig_dest_vs_delivery)}
+    fig_vin_by_config, fig_geo, fig_dest_vs_delivery)}
 
 
 def _section(entry):

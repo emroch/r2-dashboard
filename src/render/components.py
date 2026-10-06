@@ -39,15 +39,18 @@ class Table:
     rows: Sequence[Sequence[object]]
 
 
-def caveats(dims: Sequence[str], extra: Sequence[str] = ()) -> list[str]:
+def caveats(dims: Sequence[str], extra: Sequence[str] = (),
+            small_n: Sequence[str] = ()) -> list[str]:
     """The caveat texts for a component showing these dimensions, in order and
-    without repeats: each dimension's `caveat`, then its `small_n` note, then
-    any component-specific `extra`. A group of components says the caveats they
+    without repeats: each dimension's `caveat`, then its `small_n` note where
+    the component applies that rule (`small_n`: those dimensions), then any
+    component-specific `extra`. A group of components says the caveats they
     all share once (shared_caveats), so each frame drops those."""
     out: list[str] = []
     for d in dims:
         spec = DIMENSIONS[d]
-        for text in (spec.get("caveat"), (spec.get("small_n") or {}).get("note")):
+        note = (spec.get("small_n") or {}).get("note") if d in small_n else None
+        for text in (spec.get("caveat"), note):
             if text and text not in out:
                 out.append(text)
     out += [t for t in extra if t not in out]
@@ -73,13 +76,16 @@ def _table(cid: str, table: Table) -> str:
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
           n: int | None = None, dims: Sequence[str] = (),
           notes: Sequence[str] = (), table: Table | None = None,
-          shared: Sequence[str] = (), wide: bool = False) -> str:
+          shared: Sequence[str] = (), wide: bool = False,
+          small_n: Sequence[str] = ()) -> str:
     """One component's HTML. `cid` is the element id ("c-..."); `body` is trusted
     HTML (a component renderer's output); every other text is escaped.
     `shared` caveats are said by the component's group, so they're left out.
-    `wide` spans the whole component grid (a chart, rather than a panel)."""
+    `wide` spans the whole component grid (a chart, rather than a panel).
+    `small_n`: the dimensions whose small-n rule it applies (caveats())."""
     meta = ([] if n is None else ["n = %s" % format(n, ",")]) + [
-        '<span class="caveat">%s</span>' % escape(c) for c in caveats(dims, notes)
+        '<span class="caveat">%s</span>' % escape(c)
+        for c in caveats(dims, notes, small_n)
         if c not in shared]
     return "".join([
         '<figure class="r2c%s" id="%s" role="group" aria-labelledby="%s-t">'
@@ -99,12 +105,19 @@ def component_dims(spec: dict) -> list[str]:
         ["delivered"] if spec.get("template") == "takerate" else [])
 
 
+def component_small_n(spec: dict) -> list[str]:
+    """The dimension whose small-n rule a component applies (charts.yaml
+    `small_n: true`: its row dimension), for its caveats."""
+    return list(spec["dims"][:1]) if spec.get("small_n") else []
+
+
 def shared_caveats(specs: Sequence[dict]) -> list[str]:
     """The caveats every one of these components carries, in order: said once
     for the group instead of in each frame."""
     if not specs:
         return []
-    each = [caveats(component_dims(sp)) for sp in specs]
+    each = [caveats(component_dims(sp), small_n=component_small_n(sp))
+            for sp in specs]
     return [c for c in each[0] if all(c in e for e in each[1:])]
 
 
@@ -186,12 +199,20 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
     cells = agg.cells
     total = agg.counted
     widest = max((int(c["n"]) for c in cells), default=0) or 1
+    # charts.yaml `total`: a first row summing every row, on its own scale (at
+    # the shared one it would flatten the rest), for a long list (§13's states).
+    tot = ([{"label": spec["total"], "n": total, "ref": None, "total": True,
+             "stages": {st: sum(c["stages"][st] for c in cells) for st in STAGES}}]
+           if spec.get("total") and cells else [])
     rows = []
-    for c in cells:
+    for c in tot + cells:
         cls = category_class(c["ref"]) if c["ref"] else "tr-neutral"
+        if c.get("total"):
+            cls += " tr-total"
+        scale = (int(c["n"]) or 1) if c.get("total") else widest
         segs = "".join(
             '<i class="mark stage-%s" style="width:%.2f%%"></i>'
-            % (st, 100.0 * c["stages"][st] / widest)
+            % (st, 100.0 * c["stages"][st] / scale)
             for st in STAGES if c["stages"][st])
         split = " · ".join("%s %s" % (format(c["stages"][st], ","), STAGE_LABELS[st])
                            for st in STAGES if c["stages"][st])
@@ -205,11 +226,10 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
                escape(str(c["label"])), format(int(c["n"]), ","),
                share(int(c["n"]), total), segs, escape(split)))
     # Only the first letter is raised: str.capitalize() would lower "VIN".
-    table = Table(["Option", "Orders", "Share"] + [STAGE_LABELS[s][:1].upper()
-                                                   + STAGE_LABELS[s][1:]
-                                                   for s in STAGES],
+    table = Table([spec.get("row_label", "Option"), "Orders", "Share"]
+                  + [STAGE_LABELS[s][:1].upper() + STAGE_LABELS[s][1:] for s in STAGES],
                   [[c["label"], c["n"], share(int(c["n"]), total)]
-                   + [c["stages"][s] for s in STAGES] for c in cells])
+                   + [c["stages"][s] for s in STAGES] for c in tot + cells])
     # No "n =" line: the summary sentence already gives the cohort size.
     labels = [c.get("label") or c.get("short") or str(c["value"])
               for c in DIMENSIONS[agg.dim]["categories"]] if agg.dim else []
@@ -253,7 +273,9 @@ def vocabulary(dim: str) -> list[str]:
 
 def crosstab_labels(agg: Aggregate) -> list[str]:
     """Both dimensions' labels, so a summary may name a category with no orders."""
-    return vocabulary(agg.meta["row_dim"]) + vocabulary(agg.meta["col_dim"])
+    rows = vocabulary(agg.meta["row_dim"]) if agg.meta["row_dim"] else [
+        r["label"] for r in agg.meta["rows"]]          # binned rows: their labels
+    return rows + vocabulary(agg.meta["col_dim"])
 
 
 # --- heatmap: a crosstab as a table with shaded cells ---------------------------
@@ -307,37 +329,49 @@ def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str
     """A crosstab as 100%-stacked rows: one row per row category, its bar split
     by the column categories (their marks), with the counts written beside it,
     and a key of the column categories above. Rows of different sizes compare
-    by share; each row's n is on it."""
+    by share; each row's n is on it. charts.yaml `baseline` (its label) puts
+    the column mix of every cohort order that reported the column first, set
+    apart, as the row the others are read against."""
     rows, cols = agg.meta["rows"], agg.meta["cols"]
     by = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
-    key = "".join('<span><i class="swatch %s"></i>%s</span>'
-                  % (category_class(c["ref"]) if c["ref"] else "",
-                     escape(str(c["label"]))) for c in cols)
-    out = []
-    for r in rows:
-        n = int(r["n"]) or 1
+    base = agg.meta.get("baseline") if spec.get("baseline") else None
+    # The key lists every column category drawn, the baseline's included.
+    keyed = cols + [c for c in base or () if c["value"] not in
+                    {k["value"] for k in cols}]
+
+    def row(label: str, n: int, parts: Sequence[tuple[dict, int]], cls: str) -> str:
         segs = "".join('<i class="mark %s" style="width:%.2f%%"></i>'
                        % (category_class(c["ref"]) if c["ref"] else "tr-neutral",
-                          100.0 * by[(r["value"], c["value"])] / n)
-                       for c in cols if by[(r["value"], c["value"])])
-        split = " · ".join("%s %s" % (format(by[(r["value"], c["value"])], ","),
-                                      escape(str(c["label"]).lower()))
-                           for c in cols if by[(r["value"], c["value"])])
-        out.append('<li class="mx-row"><span class="tr-name">%s</span>'
-                   '<span class="tr-n">n = %s</span>'
-                   '<span class="mx-bar" aria-hidden="true">%s</span>'
-                   '<span class="tr-split">%s</span></li>'
-                   % (escape(str(r["label"])), format(int(r["n"]), ","), segs, split))
-    table = Table([DIMENSIONS[agg.meta["row_dim"]]["label"]]
-                  + [c["label"] for c in cols] + ["Total"],
-                  [[r["label"]] + [by[(r["value"], c["value"])] for c in cols]
-                   + [r["n"]] for r in rows])
-    summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
+                          100.0 * k / (n or 1)) for c, k in parts if k)
+        split = " · ".join("%s %s" % (format(k, ","), escape(str(c["label"])))
+                           for c, k in parts if k)
+        return ('<li class="%s"><span class="tr-name">%s</span>'
+                '<span class="tr-n">n = %s</span>'
+                '<span class="mx-bar" aria-hidden="true">%s</span>'
+                '<span class="tr-split">%s</span></li>'
+                % (cls, escape(label), format(n, ","), segs, split))
+    out = ([row(spec["baseline"], sum(int(c["n"]) for c in base),
+                [(c, int(c["n"])) for c in base], "mx-row mx-base")] if base else [])
+    out += [row(str(r["label"]), int(r["n"]),
+                [(c, by[(r["value"], c["value"])]) for c in cols], "mx-row")
+            for r in rows]
+    key = "".join('<span><i class="swatch %s"></i>%s</span>'
+                  % (category_class(c["ref"]) if c["ref"] else "",
+                     escape(str(c["label"]))) for c in keyed)
+    head = spec.get("row_label") or DIMENSIONS[agg.meta["row_dim"]]["label"]
+    bv = {c["value"]: int(c["n"]) for c in base or ()}
+    table = Table([head] + [c["label"] for c in keyed] + ["Total"],
+                  ([[spec["baseline"]] + [bv.get(c["value"], 0) for c in keyed]
+                    + [sum(bv.values())]] if base else [])
+                  + [[r["label"]] + [by.get((r["value"], c["value"]), 0) for c in keyed]
+                     + [r["n"]] for r in rows])
+    summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg), agg.meta)
                if spec.get("summary") and agg.counted else None)
     body = ('<p class="mx-key" aria-hidden="true">%s</p><ol class="tr mx">%s</ol>'
             % (key, "".join(out)))
     return frame(cid, spec["title"], body, summary=summary,
-                 dims=component_dims(spec), table=table, shared=shared)
+                 dims=component_dims(spec), table=table, shared=shared,
+                 small_n=component_small_n(spec))
 
 
 # --- bars: one bar per row, its length a value; an optional highlighted row ------

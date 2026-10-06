@@ -315,6 +315,11 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .mx-bar{grid-column:1 / -1;display:flex;height:14px;margin-top:3px;
  border-radius:2px;overflow:hidden;gap:1px;}
 .mx-bar i{display:block;height:100%;}
+/* A summary row set apart from the rows it sums (takerate `total`) or the rows
+   read against it (mix `baseline`). */
+.tr-total,.mx-base{font-weight:600;border-bottom:1px solid var(--card-bd);
+ padding-bottom:9px;margin-bottom:4px;}
+.tr-total .tr-split,.mx-base .tr-split{font-weight:400;}
 /* bars: one bar per row, longest full width. The highlighted row (the median
    price) is bold, its tag in the accent's true color. */
 .br-hi{font-weight:600;}

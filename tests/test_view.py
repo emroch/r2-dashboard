@@ -130,16 +130,19 @@ def test_frame_carries_title_summary_n_caveats_and_table():
     from render.components import Table, frame
     html = frame("c-test", "Paint <mix>", "<div class='body'></div>",
                  summary="Launch Green & co.", n=1234, dims=["region", "state"],
-                 notes=["Extra note."],
+                 notes=["Extra note."], small_n=["state"],
                  table=Table(["Paint", "Orders"], [["Midnight", 18]]))
     assert html.startswith('<figure class="r2c" id="c-test" role="group" '
                            'aria-labelledby="c-test-t">')
     assert '<figcaption id="c-test-t">Paint &lt;mix&gt;</figcaption>' in html
     assert "Launch Green &amp; co." in html and "<div class='body'></div>" in html
     assert "n = 1,234" in html
-    # region and state share a caveat: shown once, then state's small-n note.
+    # region and state share a caveat: shown once, then state's small-n note
+    # (the frame applies that rule; one that doesn't leaves the note out).
     assert html.count("Location is self-reported.") == 1
     assert DIMENSIONS["state"]["small_n"]["note"] in html and "Extra note." in html
+    assert DIMENSIONS["state"]["small_n"]["note"] not in frame(
+        "c-x", "All states", "", dims=["state"]), "§13 lists every state"
     assert '<table id="c-test-data">' in html and "<td>Midnight</td>" in html
     assert 'data-table="c-test-data" data-file="c-test.csv" hidden' in html
 
@@ -167,7 +170,8 @@ def test_view_build_reconciles_and_renders_every_component():
                 delivery_min=[pd.NaT, pd.NaT], delivery_max=[pd.NaT, pd.NaT],
                 wheels_short=['21" Liquid Tungsten', None],
                 vin_display=["1200", "—"], order_display=["—", "—"],
-                est_display=["Sep 01, 2026", "—"])
+                est_display=["Sep 01, 2026", "—"], elev_ft=[600.0, None],
+                temp_f=[51.0, None], urban_pct=[88.0, None])
     from test_aggregates import _priced
     cols.update({k: v[:1] + [None] for k, v in _priced([60990.0]).items()})
     view = build(_orders(**cols))

@@ -116,11 +116,9 @@ COLOR_ORDER = [c["value"] for c in _cats("color")]
 # Interiors, keyed by the exact sheet value: two of them share the "Black
 # Crater" base name and differ only by the Signature suffix, so nothing may
 # derive one label from the other. INTERIOR_ORDER is plainest-first, which the
-# charts display in. Each color sits close to one of the two chart surfaces, so
-# those charts draw a CHART.edge border to delineate it — see dimensions.yaml.
+# charts display in.
 INTERIOR_ORDER = [c["value"] for c in _cats("interior")]
 INTERIOR_SHORT = {c["value"]: c["short"] for c in _cats("interior")}
-INTERIOR_COLOR = {c["value"]: c["color"] for c in _cats("interior")}
 # Wheels. Each is identified by its exact sheet value; WHEEL_SHORT maps that to
 # the display label, and every other table is keyed BY that label, since it's the
 # label the DataFrame carries (wheels_short). WHEEL_ORDER is ascending size, the
@@ -130,21 +128,16 @@ WHEEL_SHORT = {c["sheet"]: c["value"] for c in _cats("wheels")}
 WHEEL_ORDER = [c["value"] for c in _cats("wheels")]
 WHEEL_ABBR = {c["value"]: c["abbr"] for c in _cats("wheels")}
 WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in _cats("wheels")}
-WHEEL_COLOR = {c["value"]: c["color"] for c in _cats("wheels")}
 REGION_COLOR = {c["value"]: c["color"] for c in _cats("region")}
 # Delivery-estimate types, firm to vague. TYPE_ORDER leaves out the "no estimate"
 # category, which the charts handle on its own.
 TYPE_COLOR = {c["value"]: c["color"] for c in _cats("delivery_type")}
 TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
               if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
-# A state is drawn on its own only with at least this many orders.
-STATE_MIN_ORDERS = int(DIMENSIONS["state"]["small_n"]["min_orders"])
 
 # --- Chart fills (palette.yaml) --------------------------------------------
 # Single-series chart fills (bars/histograms).
 TIMELINE_COLORS = dict(_PALETTE["timeline"])
-# Per-state totals bars: VIN-assigned vs. not (stacked to each state's total).
-STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
 # Configured-price charts: neutral bar + Compass Yellow accent.
 PRICE_COLORS = dict(_PALETTE["price"])
 # Order-to-delivery time: order markers, weekly median, coverage bars.
@@ -250,9 +243,8 @@ CA_PROVINCES = dict(_GEO["provinces"])
 STATE_REFERENCE = {k: tuple(v)
                    for k, v in (_GEO.get("state_reference") or {}).items()}
 _REF_BINS = _GEO.get("state_reference_bins") or {}
-ELEV_BINS = [float(x) for x in (_REF_BINS.get("elevation_ft") or [])]
-TEMP_BINS = [float(x) for x in (_REF_BINS.get("temperature_f") or [])]
-URBAN_BINS = [float(x) for x in (_REF_BINS.get("urban_pct") or [])]
+# Bin edges by name, for a component that bins by one (charts.yaml `bins`).
+REF_BINS = {k: [float(x) for x in (v or [])] for k, v in _REF_BINS.items()}
 
 # --- Delivery-estimate normalization (delivery.yaml) ----------------------
 UNKNOWN_TOKENS = set(_DELIV["unknown_tokens"])

@@ -20,9 +20,10 @@ from typing import Any
 
 import pandas as pd
 
-from config import COMPONENTS, DIMENSIONS
+from config import COMPONENTS, DIMENSIONS, REF_BINS
 
-from .aggregates import (Aggregate, cohort_sizes, counts, crosstab, price_by_trim,
+from .aggregates import (Aggregate, binned, cohort_sizes, counts, crosstab,
+                         price_by_trim,
                          price_distribution, price_options, r1_models, reconcile,
                          stage_counts)
 from .components import bars, heatmap, mix, mount, range_strip, takerate
@@ -59,7 +60,7 @@ class View:
 # dimension's counts.
 _AGGREGATES = {
     "r1_models": lambda df, spec: r1_models(df, by_stage=True),
-    "crosstab": lambda df, spec: crosstab(df, spec["dims"][0], spec["dims"][1]),
+    "crosstab": lambda df, spec: _crosstab(df, spec),
     "price_distribution": lambda df, spec: price_distribution(df),
     "price_options": lambda df, spec: price_options(df),
     "price_by_trim": lambda df, spec: price_by_trim(df),
@@ -73,10 +74,24 @@ _STATIC = {"takerate": takerate, "heatmap": heatmap, "mix": mix, "bars": bars,
 _SPECS = {"delivery_vs_vin": delivery_vs_vin}
 
 
+def _crosstab(df: pd.DataFrame, spec: dict[str, Any]) -> Aggregate:
+    """charts.yaml crosstab: dims [row, column] over `cohort` (default orders),
+    with `small_n` (the row dimension's rule); or dims [column] grouped by
+    `bins` {column, edges (geo.yaml state_reference_bins), unit} instead."""
+    cohort = spec.get("cohort", "orders")
+    b = spec.get("bins")
+    if b:
+        rows = binned(df[b["column"]], REF_BINS[b["edges"]], b["unit"])
+        return crosstab(df, None, spec["dims"][0], cohort, rows=rows)
+    return crosstab(df, spec["dims"][0], spec["dims"][1], cohort,
+                    small_n=bool(spec.get("small_n")))
+
+
 def _aggregate(df: pd.DataFrame, spec: dict[str, Any]) -> Aggregate:
     how = spec.get("aggregate")
     if how is None:
-        return counts(df, spec["dims"][0], by_stage=spec["template"] == "takerate")
+        return counts(df, spec["dims"][0], cohort=spec.get("cohort", "orders"),
+                      by_stage=spec["template"] == "takerate")
     return _AGGREGATES[how](df, spec)
 
 

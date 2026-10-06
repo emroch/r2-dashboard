@@ -81,6 +81,91 @@ components:
     summary: "{share_in:VIN assigned|Firm date} of orders with a VIN have a firm
       delivery date, against {share_in:No VIN yet|Firm date} of those without."
 
+  # Location (§13–16), over the orders with a known location (cohort: located).
+  #   cohort    the aggregate's cohort (aggregates.COHORTS; default orders)
+  #   total     takerate: a first row summing every row, on its own scale
+  #   row_label the row heading in the data table (default: the dimension's label)
+  #   baseline  mix: a first row with the column mix over every cohort order that
+  #             reported the column, labelled with this text
+  #   small_n   apply the row dimension's small_n rule (dimensions.yaml): rows
+  #             under its min_orders are left out, and its note is shown
+  #   bins      mix with dims [column]: rows are bins of a per-state reference
+  #             figure instead of a dimension: {column, edges (geo.yaml
+  #             state_reference_bins), unit}
+  # Mix summaries may use {meta:lean}: the row and column furthest from the
+  # baseline, among rows of 20+ orders.
+  state-totals:
+    template: takerate
+    title: Orders by state
+    dims: [state]
+    cohort: located
+    total: All states
+    row_label: State / province
+    summary: "{top} leads, with {top_share} of {n} orders with a known state."
+  paint-by-region:
+    template: mix
+    title: Paint by region
+    dims: [region, color]
+    aggregate: crosstab
+    cohort: located
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  paint-by-state:
+    template: mix
+    title: Paint by state
+    dims: [state, color]
+    aggregate: crosstab
+    cohort: located
+    baseline: All orders
+    small_n: true
+    summary: "The biggest lean: {meta:lean}."
+  wheels-by-region:
+    template: mix
+    title: Wheels by region
+    dims: [region, wheels]
+    aggregate: crosstab
+    cohort: located
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  wheels-by-elevation:
+    template: mix
+    title: Wheels by the state's mean elevation
+    dims: [wheels]
+    aggregate: crosstab
+    cohort: located
+    bins: {column: elev_ft, edges: elevation_ft, unit: " ft"}
+    row_label: Mean elevation
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  wheels-by-temperature:
+    template: mix
+    title: Wheels by the state's average temperature
+    dims: [wheels]
+    aggregate: crosstab
+    cohort: located
+    bins: {column: temp_f, edges: temperature_f, unit: " °F"}
+    row_label: Average annual temperature
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  wheels-by-urban:
+    template: mix
+    title: Wheels by the state's urban share
+    dims: [wheels]
+    aggregate: crosstab
+    cohort: located
+    bins: {column: urban_pct, edges: urban_pct, unit: "% urban"}
+    row_label: Urban share of population
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  interior-by-region:
+    template: mix
+    title: Interior by region
+    dims: [region, interior]
+    aggregate: crosstab
+    cohort: located
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+
   # Configured price, over the orders with a computable price (the "priced"
   # cohort). Placeholders as above, plus {meta:KEY}: a statistic the aggregate
   # computed (price_distribution: median, mean, min, max; price_options:

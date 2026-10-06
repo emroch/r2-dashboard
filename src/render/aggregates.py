@@ -20,7 +20,7 @@ dimensions.yaml says, with its blank handling applied.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -236,19 +236,42 @@ def _count(values: pd.Series, stage: pd.Series | None, dim: str, cohort: str,
 
 def _resolved(values: pd.Series, dim: str) -> pd.Series:
     """Each value as the category it counts as under the dimension's blank
-    policy: a blank becomes the named category (`category`) or None, meaning
-    "not reported" (`omit`, or no policy). Bucket policies aren't supported
-    here: a crosstab cell needs a real category on both sides."""
+    policy: a blank becomes the named category (`category`), its bucket's label
+    (`bucket`: a row of its own, "No state data"), or None, meaning "not
+    reported" (`omit`, or no policy)."""
     missing = DIMENSIONS[dim].get("missing") or {"policy": "omit"}
-    if missing["policy"] == "bucket":
-        raise NotImplementedError("crosstab of a bucketed dimension (%s)" % dim)
-    fill = missing.get("value") if missing["policy"] == "category" else None
+    fill = {"category": missing.get("value"),
+            "bucket": missing.get("label")}.get(missing["policy"])
     return pd.Series([fill if _blank(v) else v for v in values], index=values.index,
                      dtype=object)
 
 
-def crosstab(df: pd.DataFrame, row_dim: str, col_dim: str,
-             cohort: str = "orders") -> Aggregate:
+def binned(values: pd.Series, edges: Sequence[float], unit: str,
+           missing: str = "No state data") -> tuple[pd.Series, list[str]]:
+    """A numeric column as ordered bin labels ("< 500 ft", "500–1,000 ft",
+    "≥ 3,000 ft"); a missing value gets `missing`. `unit` carries its own leading
+    space where one is wanted. Returns (labels, keys): keys in NUMERIC order,
+    never by volume, since a binned panel asks whether the mix shifts as the
+    value rises; empty bins are dropped, so widening an edge leaves no gap."""
+    def fmt(v: float) -> str:
+        # int(): round() of a numpy float can stay a float on older numpy.
+        return format(int(round(v)), ",")  # noqa: RUF046
+    names = ["< %s%s" % (fmt(edges[0]), unit)]
+    names += ["%s–%s%s" % (fmt(lo), fmt(hi), unit) for lo, hi in zip(edges, edges[1:])]
+    names.append("\u2265 %s%s" % (fmt(edges[-1]), unit))
+
+    def label(v: Any) -> str:
+        if pd.isna(v):
+            return missing
+        return next((n for n, e in zip(names, edges) if v < e), names[-1])
+    out = pd.Series([label(v) for v in values], index=values.index, dtype=object)
+    keys = [n for n in names if (out == n).any()]
+    return out, keys + ([missing] if (out == missing).any() else [])
+
+
+def crosstab(df: pd.DataFrame, row_dim: str | None, col_dim: str,
+             cohort: str = "orders", rows: tuple[pd.Series, list[str]] | None = None,
+             small_n: bool = False) -> Aggregate:
     """Counts of every (row, column) pairing of two dimensions.
 
     An order that hasn't reported either dimension (after its blank policy)
@@ -256,16 +279,50 @@ def crosstab(df: pd.DataFrame, row_dim: str, col_dim: str,
     both. Rows and columns are each dimension's categories present among those
     orders, in its own order (counts()). Every row × column cell is listed,
     zeros included, row by row. meta["rows"] and meta["cols"] are the ordered
-    categories with their totals (the grid's margins).
+    categories with their totals (the grid's margins), and meta["baseline"] the
+    column categories over every cohort order that reported the column, the
+    row a panel's rows are read against.
+
+    `rows` groups by something that isn't a dimension instead: (a label per
+    order, the labels in display order), from binned(). `small_n` applies the
+    row dimension's small_n rule: a row category under its min_orders is
+    excluded with that reason (dimensions.yaml says where it is summarized).
     """
-    rows = df[COHORTS[cohort](df)]
-    rspec, cspec = DIMENSIONS[row_dim], DIMENSIONS[col_dim]
-    r = _resolved(rows[_FRAME_COLUMN.get(rspec["column"], rspec["column"])], row_dim)
-    c = _resolved(rows[_FRAME_COLUMN.get(cspec["column"], cspec["column"])], col_dim)
+    d = df[COHORTS[cohort](df)]
+    cspec = DIMENSIONS[col_dim]
+    c = _resolved(d[_FRAME_COLUMN.get(cspec["column"], cspec["column"])], col_dim)
+    bin_keys: list[str] = []
+    if rows is None:
+        assert row_dim is not None
+        rspec = DIMENSIONS[row_dim]
+        r = _resolved(d[_FRAME_COLUMN.get(rspec["column"], rspec["column"])], row_dim)
+    else:
+        r, bin_keys = rows[0].reindex(d.index), rows[1]
     both = r.notna() & c.notna()
+    excluded = {NOT_REPORTED: int((~both).sum())} if (~both).any() else {}
     # Blanks are already resolved above, so nothing is left for _count to drop.
-    row_cells = _count(r[both], None, row_dim, cohort, {"policy": "omit"}).cells
+    baseline = _count(c[c.notna()], None, col_dim, cohort, {"policy": "omit"}).cells
+    if row_dim is not None:
+        row_cells = _count(r[both], None, row_dim, cohort, {"policy": "omit"}).cells
+    else:
+        sizes = r[both].value_counts()
+        row_cells = [{"value": k, "label": k, "n": int(sizes[k]), "known": True,
+                      "ref": None} for k in bin_keys if k in sizes.index]
+    if small_n:
+        assert row_dim is not None
+        least = int(DIMENSIONS[row_dim]["small_n"]["min_orders"])
+        thin = [rc for rc in row_cells if rc["n"] < least]
+        if thin:
+            excluded["fewer than %d orders" % least] = sum(rc["n"] for rc in thin)
+            row_cells = [rc for rc in row_cells if rc["n"] >= least]
+            both &= r.isin([rc["value"] for rc in row_cells])
     col_cells = _count(c[both], None, col_dim, cohort, {"policy": "omit"}).cells
+    # Columns (and the baseline) keep the whole cohort's order of the column
+    # dimension, so a paint sits in the same place here as in every other paint
+    # component (#58), whatever subset this grid counts.
+    rank = {cc["value"]: i for i, cc in enumerate(counts(df, col_dim).cells)}
+    for lst in (col_cells, baseline):
+        lst.sort(key=lambda cc: rank.get(cc["value"], len(rank)))
     pairs = Counter(zip(r[both], c[both]))
     cells = []
     for rc in row_cells:
@@ -276,10 +333,40 @@ def crosstab(df: pd.DataFrame, row_dim: str, col_dim: str,
                           "row_label": rc["label"], "col_label": cc["label"],
                           "row_ref": rc["ref"], "col_ref": cc["ref"],
                           "ref": rc["ref"], "known": rc["known"] and cc["known"]})
-    excluded = {NOT_REPORTED: int((~both).sum())} if (~both).any() else {}
-    return Aggregate("%s by %s × %s" % (cohort, row_dim, col_dim), cohort, cells,
-                     excluded, meta={"rows": row_cells, "cols": col_cells,
-                                     "row_dim": row_dim, "col_dim": col_dim})
+    return Aggregate("%s by %s × %s" % (cohort, row_dim or "bin", col_dim), cohort,
+                     cells, excluded,
+                     meta={"rows": row_cells, "cols": col_cells, "baseline": baseline,
+                           "row_dim": row_dim, "col_dim": col_dim,
+                           "lean": lean(row_cells, cells, baseline)})
+
+
+# A row needs this many orders before its share can headline a summary: below
+# it, one order moves a share by 5+ points.
+LEAN_MIN_ORDERS = 20
+
+
+def lean(rows: list[dict], cells: list[dict], baseline: list[dict]) -> str:
+    """The biggest departure from the baseline in a crosstab, as a sentence
+    fragment ("Launch Green at 31% of Midwest orders (24% across all orders)"),
+    among rows with LEAN_MIN_ORDERS or more."""
+    total = sum(int(b["n"]) for b in baseline)
+    base = {b["value"]: int(b["n"]) / total for b in baseline} if total else {}
+    size = {r["value"]: int(r["n"]) for r in rows}
+    best = None
+    for c in cells:
+        n = size[c["row"]]
+        if n < LEAN_MIN_ORDERS or c["col"] not in base:
+            continue
+        gap = int(c["n"]) / n - base[c["col"]]
+        if best is None or abs(gap) > abs(best[0]):
+            best = (gap, c)
+    if best is None:
+        return "no group has %d orders yet" % LEAN_MIN_ORDERS
+    gap, c = best
+    return "%s at %s of %s orders (%s across all orders)" % (
+        c["col_label"], "%.0f%%" % (100.0 * int(c["n"]) / size[c["row"]]),
+        c["row_label"],
+        "%.0f%%" % (100.0 * base[c["col"]]))
 
 
 # --- Configured price (§4) --------------------------------------------------------
