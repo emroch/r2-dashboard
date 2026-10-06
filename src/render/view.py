@@ -22,8 +22,9 @@ import pandas as pd
 
 from config import COMPONENTS, DIMENSIONS
 
-from .aggregates import Aggregate, cohort_sizes, counts, r1_models, reconcile
-from .components import mount, takerate
+from .aggregates import (Aggregate, cohort_sizes, counts, crosstab, r1_models,
+                         reconcile)
+from .components import heatmap, mix, mount, takerate
 from .specs import delivery_vs_vin
 
 VIEW_VERSION = 1
@@ -53,10 +54,13 @@ class View:
 
 # charts.yaml `aggregate` -> how to count it. The default is the first
 # dimension's counts.
-_AGGREGATES = {"r1_models": lambda df, spec: r1_models(df, by_stage=True)}
+_AGGREGATES = {
+    "r1_models": lambda df, spec: r1_models(df, by_stage=True),
+    "crosstab": lambda df, spec: crosstab(df, spec["dims"][0], spec["dims"][1]),
+}
 
 # charts.yaml `template` -> renderer, for the templates drawn as HTML here.
-_STATIC = {"takerate": takerate}
+_STATIC = {"takerate": takerate, "heatmap": heatmap, "mix": mix}
 
 # charts.yaml `aggregate` -> spec builder, for the browser-drawn templates.
 _SPECS = {"delivery_vs_vin": delivery_vs_vin}

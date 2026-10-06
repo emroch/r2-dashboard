@@ -2,8 +2,9 @@
 #
 # One entry per component, by id. A section lists the ids it shows in
 # sections.yaml (`components:`), in display order. Per entry:
-#   template   how it is drawn: takerate (rows with a stage-split bar; HTML,
-#              render/components.py)
+#   template   how it is drawn: takerate (rows with a stage-split bar), heatmap
+#              (a table with shaded cells), mix (100% rows) — HTML, drawn by
+#              render/components.py; scatter — d3, in the browser
 #   title      its heading
 #   dims       the dimensions it shows (dimensions.yaml). Their caveats and
 #              small-n notes are composed into the component's caveat line.
@@ -53,6 +54,31 @@ components:
     dims: [r1_owner, r1_model]
     aggregate: r1_models
     summary: "{share_except:No R1} of {n} orders are from current R1 owners."
+
+  # Crosstabs (aggregate: crosstab, over dims [row, column]): every pairing of
+  # two dimensions, for the orders that reported both. `heatmap` draws it as a
+  # table with shaded cells and totals; `mix` as 100% rows. Placeholders as above,
+  # where a cell's label is "<row> · <column>", plus {share_in:ROW|COLUMN}: that
+  # column's share within that row.
+  combo-wheels:
+    template: heatmap
+    title: Exterior paint × wheels
+    dims: [color, wheels]
+    aggregate: crosstab
+    summary: "{top} is the most common pairing, at {top_share} of {n} orders."
+  combo-interior:
+    template: heatmap
+    title: Exterior paint × interior
+    dims: [color, interior]
+    aggregate: crosstab
+    summary: "{top} is the most common pairing, at {top_share} of {n} orders."
+  certainty-by-vin:
+    template: mix
+    title: Delivery estimate by VIN status
+    dims: [vin, delivery_type]
+    aggregate: crosstab
+    summary: "{share_in:VIN assigned|Firm date} of orders with a VIN have a firm
+      delivery date, against {share_in:No VIN yet|Firm date} of those without."
 
   # Browser-drawn (mounted) components: Python builds the spec + data
   # (render/specs.py, into r2_view.json) and the page draws it with d3

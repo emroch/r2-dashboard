@@ -33,15 +33,16 @@ sections:
       uniform across the cohort, so they have no panel yet.
 
   - title: "Configuration combinations"
-    charts: [fig_color_wheel_heatmap, fig_color_interior_heatmap]
+    components: [combo-wheels, combo-interior]
     desc: >-
       Which options people pair together, as counts per pairing: exterior paint
-      against wheels, then against interior. Cells carry the count as well as the
-      shade, since at these volumes a 1 and a 3 look alike by color alone. Only
-      options that have actually been ordered get a column, so the grid fills out as
-      trims and configs open up rather than showing empty rows in advance. A pairing
-      needs both halves, so an order that hasn't reported one of them isn't in this
-      grid.
+      against wheels, then against interior. Each cell gives its count as well as
+      its shade, since at these volumes a 1 and a 3 look alike by color alone, and
+      the totals sit at the edges. Paints run most-ordered first, as everywhere on
+      the page. Only options that have actually been ordered get a column, so the
+      grid fills out as trims and configs open up rather than showing empty rows in
+      advance. A pairing needs both halves, so an order that hasn't reported one of
+      them isn't in that grid.
 
   - title: "Configured price"
     charts: [fig_price_distribution, fig_price_options, fig_price_by_trim]
@@ -91,9 +92,12 @@ sections:
       panel.
 
   - title: "Estimate certainty vs. VIN status"
-    charts: [fig_certainty_by_vin]
+    components: [certainty-by-vin]
     desc: >-
-      Share of orders with known delivery dates.
+      How firm each order's delivery estimate is, for orders with a VIN and for
+      those still waiting for one. Each row is 100% of its orders, so the two
+      compare by share even though they differ in size; the counts are on each row.
+      A firm date usually arrives with or after the VIN.
 
   - title: "VIN sequence vs. order date"
     charts: [fig_vin_vs_order]

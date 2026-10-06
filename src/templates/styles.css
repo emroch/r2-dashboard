@@ -203,8 +203,8 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
  grid-template-columns:repeat(auto-fill,minmax(max(340px,calc((100% - 40px) / 2)),1fr));
  gap:22px 40px;align-items:start;}
 @media (max-width:900px){.r2c-grid{grid-template-columns:minmax(0,1fr);}}
-/* A drawn chart spans the whole grid rather than one panel's column. */
-.r2c-wide{grid-column:1 / -1;}
+/* A drawn chart, or a section's only component, spans the whole grid. */
+.r2c-wide,.r2c-grid > .r2c:only-child{grid-column:1 / -1;}
 .r2c-grid .r2c{margin:8px 0 0;}
 /* Caveats every component in the group shares, said once under the stage key. */
 .r2c-notes{margin:4px 0 0;font-size:12px;color:var(--desc);}
@@ -256,3 +256,24 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .chart-tip{position:absolute;pointer-events:none;background:var(--tip-bg);color:var(--tip-fg);
  border:1px solid var(--tip-bd);border-radius:6px;padding:6px 8px;font-size:12px;
  box-shadow:0 2px 8px var(--tip-sh);white-space:nowrap;z-index:3;}
+/* heatmap (render/components.py): a crosstab as a table. Each cell's shade is
+   its count's share of the grid's peak (--hm), mixed into the card; dark cells
+   switch to light text. Totals sit at the edges, unshaded. */
+.hm{border-collapse:separate;border-spacing:3px;font-size:13px;
+ font-variant-numeric:tabular-nums;}
+.hm th{font-weight:600;text-align:left;padding:4px 8px;white-space:nowrap;}
+.hm thead th{color:var(--desc);font-size:12px;}
+.hm tbody th{display:flex;align-items:center;gap:6px;}
+.hm td{text-align:center;padding:6px 10px;min-width:3.2em;border-radius:3px;}
+.hm-cell{background:color-mix(in oklab,var(--link) calc(var(--hm) * 85%),var(--card-bg));}
+.hm-cell.hm-hi{color:var(--card-bg);}
+.hm-tot{color:var(--desc);}
+/* mix: 100% rows split by a second dimension, with its key above. */
+.mx-key{margin:0 0 4px;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;
+ color:var(--desc);}
+.mx-key span{display:inline-flex;align-items:center;gap:5px;}
+.mx-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;
+ padding:6px 0;font-size:13px;}
+.mx-bar{grid-column:1 / -1;display:flex;height:14px;margin-top:3px;
+ border-radius:2px;overflow:hidden;gap:1px;}
+.mx-bar i{display:block;height:100%;}

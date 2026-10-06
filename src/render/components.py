@@ -54,16 +54,20 @@ def caveats(dims: Sequence[str], extra: Sequence[str] = ()) -> list[str]:
     return out
 
 
+def csv_button(cid: str) -> str:
+    """The CSV download for the table with id "<cid>-data" (main.js reveals it)."""
+    return ('<button type="button" class="r2c-csv" data-table="%s-data" '
+            'data-file="%s.csv" hidden>Download CSV</button>' % (cid, cid))
+
+
 def _table(cid: str, table: Table) -> str:
     head = "".join('<th scope="col">%s</th>' % escape(str(c)) for c in table.columns)
     body = "".join("<tr>%s</tr>" % "".join("<td>%s</td>" % escape(str(v)) for v in r)
                    for r in table.rows)
     return ('<details class="r2c-data"><summary>Data</summary>'
             '<div class="r2c-scroll"><table id="%s-data"><thead><tr>%s</tr></thead>'
-            '<tbody>%s</tbody></table></div>'
-            '<button type="button" class="r2c-csv" data-table="%s-data" '
-            'data-file="%s.csv" hidden>Download CSV</button></details>'
-            % (cid, head, body, cid, cid))
+            '<tbody>%s</tbody></table></div>%s</details>'
+            % (cid, head, body, csv_button(cid)))
 
 
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
@@ -138,6 +142,16 @@ def summarize(template: str, cells: Sequence[dict],
         key, arg = m.group(1), m.group(2)
         if key == "n":
             return format(total, ",")
+        if key == "share_in" and arg and "|" in arg:
+            # A crosstab's column share within one row: {share_in:ROW|COL}. A
+            # real category with no orders (absent from the grid) reads 0%.
+            row, col = arg.split("|", 1)
+            in_row = [c for c in cells if c.get("row_label") == row]
+            hit = [c for c in in_row if c.get("col_label") == col]
+            if in_row and hit:
+                return share(int(hit[0]["n"]), sum(int(c["n"]) for c in in_row))
+            if row in by_label and col in by_label:
+                return share(0, 1)
         if key in ("top", "top_share") and top is not None:
             return top["label"] if key == "top" else share(int(top["n"]), total)
         if arg is not None and arg in by_label:
@@ -227,3 +241,90 @@ def mount(cid: str, view_id: str, spec: dict, data: dict, agg: Aggregate,
                and agg.cells else None)
     return frame(cid, spec["title"], body, summary=summary,
                  dims=component_dims(spec), table=table, shared=shared, wide=True)
+
+
+def vocabulary(dim: str) -> list[str]:
+    """A dimension's category labels, as cells label them."""
+    return [c.get("label") or c.get("short") or str(c["value"])
+            for c in DIMENSIONS[dim].get("categories") or []]
+
+
+def crosstab_labels(agg: Aggregate) -> list[str]:
+    """Both dimensions' labels, so a summary may name a category with no orders."""
+    return vocabulary(agg.meta["row_dim"]) + vocabulary(agg.meta["col_dim"])
+
+
+# --- heatmap: a crosstab as a table with shaded cells ---------------------------
+
+def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str:
+    """A crosstab as a real table: a row per row category (with its swatch),
+    a column per column category, each cell's count written in it and shaded by
+    count across the grid, and the totals at the edges. The table is the data,
+    so it carries the CSV button itself rather than a second copy below."""
+    rows, cols = agg.meta["rows"], agg.meta["cols"]
+    peak = max((int(c["n"]) for c in agg.cells), default=0) or 1
+    by = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
+    head = "".join('<th scope="col">%s</th>' % escape(str(c["label"])) for c in cols)
+    body = []
+    for r in rows:
+        cls = ' class="%s"' % category_class(r["ref"]) if r["ref"] else ""
+        sw = '<span class="swatch"></span>' if r["ref"] else ""
+        counts = [by[(r["value"], c["value"])] for c in cols]
+        # Dark cells (over 55% of the peak) switch to light text.
+        cells = "".join('<td class="hm-cell%s" style="--hm:%.3f">%s</td>'
+                        % (" hm-hi" if k / peak > 0.55 else "", k / peak,
+                           format(k, ",")) for k in counts)
+        body.append('<tr><th scope="row"%s>%s%s</th>%s<td class="hm-tot">%s</td></tr>'
+                    % (cls, sw, escape(str(r["label"])), cells,
+                       format(int(r["n"]), ",")))
+    foot = "".join('<td class="hm-tot">%s</td>' % format(int(c["n"]), ",")
+                   for c in cols)
+    table = ('<div class="r2c-scroll"><table class="hm" id="%s-data"><thead><tr>'
+             '<th scope="col">%s</th>%s<th scope="col" class="hm-tot">Total</th>'
+             '</tr></thead><tbody>%s</tbody><tfoot><tr><th scope="row">Total</th>%s'
+             '<td class="hm-tot">%s</td></tr></tfoot></table></div>%s'
+             % (cid, escape(DIMENSIONS[agg.meta["row_dim"]]["label"]), head,
+                "".join(body), foot, format(agg.counted, ","), csv_button(cid)))
+    summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
+               if spec.get("summary") and agg.counted else None)
+    return frame(cid, spec["title"], table, summary=summary,
+                 dims=component_dims(spec), shared=shared)
+
+
+# --- mix: 100% rows, each split by a second dimension's categories --------------
+
+def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str:
+    """A crosstab as 100%-stacked rows: one row per row category, its bar split
+    by the column categories (their marks), with the counts written beside it,
+    and a key of the column categories above. Rows of different sizes compare
+    by share; each row's n is on it."""
+    rows, cols = agg.meta["rows"], agg.meta["cols"]
+    by = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
+    key = "".join('<span><i class="swatch %s"></i>%s</span>'
+                  % (category_class(c["ref"]) if c["ref"] else "",
+                     escape(str(c["label"]))) for c in cols)
+    out = []
+    for r in rows:
+        n = int(r["n"]) or 1
+        segs = "".join('<i class="mark %s" style="width:%.2f%%"></i>'
+                       % (category_class(c["ref"]) if c["ref"] else "tr-neutral",
+                          100.0 * by[(r["value"], c["value"])] / n)
+                       for c in cols if by[(r["value"], c["value"])])
+        split = " · ".join("%s %s" % (format(by[(r["value"], c["value"])], ","),
+                                      escape(str(c["label"]).lower()))
+                           for c in cols if by[(r["value"], c["value"])])
+        out.append('<li class="mx-row"><span class="tr-name">%s</span>'
+                   '<span class="tr-n">n = %s</span>'
+                   '<span class="mx-bar" aria-hidden="true">%s</span>'
+                   '<span class="tr-split">%s</span></li>'
+                   % (escape(str(r["label"])), format(int(r["n"]), ","), segs, split))
+    table = Table([DIMENSIONS[agg.meta["row_dim"]]["label"]]
+                  + [c["label"] for c in cols] + ["Total"],
+                  [[r["label"]] + [by[(r["value"], c["value"])] for c in cols]
+                   + [r["n"]] for r in rows])
+    summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
+               if spec.get("summary") and agg.counted else None)
+    body = ('<p class="mx-key" aria-hidden="true">%s</p><ol class="tr mx">%s</ol>'
+            % (key, "".join(out)))
+    return frame(cid, spec["title"], body, summary=summary,
+                 dims=component_dims(spec), table=table, shared=shared)

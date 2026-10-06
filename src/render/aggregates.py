@@ -19,6 +19,7 @@ dimensions.yaml says, with its blank handling applied.
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -53,15 +54,24 @@ class Aggregate:
               counted, but with no color or label of its own yet.
     excluded  {reason: n}: cohort members deliberately left out.
     dim       the dimension counted, when it is one dimension's counts.
+    meta      anything else a template needs (a crosstab's row and column
+              order and totals, a summary's statistics).
+    basis     for an aggregate whose cells aren't counts that add up (averages
+              over the cohort), how many cohort members it is computed over;
+              that is what reconciles.
     """
     name: str
     cohort: str
     cells: list[dict[str, Any]]
     excluded: dict[str, int] = field(default_factory=dict)
     dim: str | None = None
+    meta: dict[str, Any] = field(default_factory=dict)
+    basis: int | None = None
 
     @property
     def counted(self) -> int:
+        if self.basis is not None:
+            return self.basis
         return sum(int(c["n"]) for c in self.cells)
 
 
@@ -213,3 +223,51 @@ def _count(values: pd.Series, stage: pd.Series | None, dim: str, cohort: str,
     if blanks and missing["policy"] == "bucket":
         cells.append(cell(None, blank_stages, label=missing["label"]))
     return Aggregate("%s by %s" % (cohort, dim), cohort, cells, excluded, dim)
+
+
+def _resolved(values: pd.Series, dim: str) -> pd.Series:
+    """Each value as the category it counts as under the dimension's blank
+    policy: a blank becomes the named category (`category`) or None, meaning
+    "not reported" (`omit`, or no policy). Bucket policies aren't supported
+    here: a crosstab cell needs a real category on both sides."""
+    missing = DIMENSIONS[dim].get("missing") or {"policy": "omit"}
+    if missing["policy"] == "bucket":
+        raise NotImplementedError("crosstab of a bucketed dimension (%s)" % dim)
+    fill = missing.get("value") if missing["policy"] == "category" else None
+    return pd.Series([fill if _blank(v) else v for v in values], index=values.index,
+                     dtype=object)
+
+
+def crosstab(df: pd.DataFrame, row_dim: str, col_dim: str,
+             cohort: str = "orders") -> Aggregate:
+    """Counts of every (row, column) pairing of two dimensions.
+
+    An order that hasn't reported either dimension (after its blank policy)
+    is excluded as not reported, so the grid covers the orders that reported
+    both. Rows and columns are each dimension's categories present among those
+    orders, in its own order (counts()). Every row × column cell is listed,
+    zeros included, row by row. meta["rows"] and meta["cols"] are the ordered
+    categories with their totals (the grid's margins).
+    """
+    rows = df[COHORTS[cohort](df)]
+    rspec, cspec = DIMENSIONS[row_dim], DIMENSIONS[col_dim]
+    r = _resolved(rows[_FRAME_COLUMN.get(rspec["column"], rspec["column"])], row_dim)
+    c = _resolved(rows[_FRAME_COLUMN.get(cspec["column"], cspec["column"])], col_dim)
+    both = r.notna() & c.notna()
+    # Blanks are already resolved above, so nothing is left for _count to drop.
+    row_cells = _count(r[both], None, row_dim, cohort, {"policy": "omit"}).cells
+    col_cells = _count(c[both], None, col_dim, cohort, {"policy": "omit"}).cells
+    pairs = Counter(zip(r[both], c[both]))
+    cells = []
+    for rc in row_cells:
+        for cc in col_cells:
+            n = pairs.get((rc["value"], cc["value"]), 0)
+            cells.append({"row": rc["value"], "col": cc["value"], "n": n,
+                          "label": "%s · %s" % (rc["label"], cc["label"]),
+                          "row_label": rc["label"], "col_label": cc["label"],
+                          "row_ref": rc["ref"], "col_ref": cc["ref"],
+                          "ref": rc["ref"], "known": rc["known"] and cc["known"]})
+    excluded = {NOT_REPORTED: int((~both).sum())} if (~both).any() else {}
+    return Aggregate("%s by %s × %s" % (cohort, row_dim, col_dim), cohort, cells,
+                     excluded, meta={"rows": row_cells, "cols": col_cells,
+                                     "row_dim": row_dim, "col_dim": col_dim})

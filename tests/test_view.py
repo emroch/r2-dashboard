@@ -170,7 +170,8 @@ def test_view_build_reconciles_and_renders_every_component():
                 est_display=["Sep 01, 2026", "—"])
     view = build(_orders(**cols))
     assert {a.dim for a in view.aggregates} >= set(DIMENSIONS)
-    static = {c for c, sp in COMPONENTS.items() if sp["template"] == "takerate"}
+    # Everything but the browser-drawn templates is rendered to HTML in Python.
+    static = {c for c, sp in COMPONENTS.items() if sp["template"] not in ("scatter",)}
     assert set(view.static) == static
     for cid in view.static:
         assert view.render(cid).startswith('<figure class="r2c" id="c-%s"' % cid), cid

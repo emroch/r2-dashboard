@@ -2522,7 +2522,8 @@ def test_dimensions_are_the_yaml_published_as_is():
     json.dumps(d)                                   # publishable as-is
     csv_cols = {"state", "region", "buylease", "trim", "color", "wheels_short",
                 "interior", "opted_autonomy", "opted_tow", "opted_spare",
-                "delivery_type", "delivered_inferred", "r1_owner", "r1_model"}
+                "delivery_type", "delivered_inferred", "r1_owner", "r1_model",
+                "vin_present"}
     assert {x["column"] for x in raw.values()} == csv_cols
     for name, dim in raw.items():
         assert dim["label"] and dim["order"] in ("count", "fixed"), name

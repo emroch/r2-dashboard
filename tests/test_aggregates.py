@@ -219,13 +219,24 @@ def test_every_registered_summary_fills_on_real_categories():
     # build; catch it here with the vocabulary's own labels.
     from render.components import summarize
     from config import DIMENSIONS
+
+    def labels(dim):
+        return [c.get("label") or c.get("short") or str(c["value"])
+                for c in DIMENSIONS[dim]["categories"]]
     for spec in COMPONENTS.values():
         if not spec.get("summary"):
             continue
+        if spec.get("aggregate") == "crosstab":
+            # Every pairing of the two vocabularies, as a crosstab's cells are.
+            rows, cols = labels(spec["dims"][0]), labels(spec["dims"][1])
+            cells = [{"row_label": r, "col_label": c, "label": "%s · %s" % (r, c),
+                      "n": 1} for r in rows for c in cols]
+            summarize(spec["summary"], cells)
+            continue
         dim = "r1_model" if spec.get("aggregate") == "r1_models" else spec["dims"][0]
-        labels = [c.get("label") or c.get("short") or str(c["value"])
-                  for c in DIMENSIONS[dim]["categories"]]
-        summarize(spec["summary"], [{"label": labels[0], "n": 1}], labels)
+        if spec.get("template") == "takerate" or dim in DIMENSIONS:
+            names = labels(dim)
+            summarize(spec["summary"], [{"label": names[0], "n": 1}], names)
 
 
 def test_every_takerate_summary_states_its_cohort_size():
@@ -285,6 +296,102 @@ def test_rows_without_a_category_color_are_neutral():
                            by_stage=True))
     assert html.count('class="tr-row tr-neutral"') == 2
     assert "swatch" not in html
+
+
+# --- Crosstabs, heatmap and mix (#108) -------------------------------------------
+
+def test_crosstab_counts_every_pairing_of_the_orders_that_reported_both():
+    from render.aggregates import cohort_sizes, crosstab, reconcile
+    df = _orders(color=["Midnight", "Midnight", "Borealis", "", "Midnight"],
+                 wheels_short=['21" Liquid Tungsten', '20" Black Sand',
+                               '20" Black Sand', '20" Black Sand', None])
+    a = crosstab(df, "color", "wheels")
+    # Rows in the page-wide paint order, columns in wheel (size) order, present only.
+    assert [r["value"] for r in a.meta["rows"]] == ["Midnight", "Borealis"]
+    assert [c["value"] for c in a.meta["cols"]] == ['20" Black Sand',
+                                                  '21" Liquid Tungsten']
+    grid = {(c["row"], c["col"]): c["n"] for c in a.cells}
+    bs, lt = '20" Black Sand', '21" Liquid Tungsten'
+    assert grid == {("Midnight", bs): 1, ("Midnight", lt): 1,
+                    ("Borealis", bs): 1, ("Borealis", lt): 0}
+    assert a.excluded == {"not reported": 2}, "a blank on either side sits out"
+    reconcile([a], cohort_sizes(df))
+    # The margins are the counts of each dimension over the same orders.
+    assert [r["n"] for r in a.meta["rows"]] == [2, 1]
+    assert [c["n"] for c in a.meta["cols"]] == [2, 1]
+
+
+def test_crosstab_follows_a_category_blank_policy():
+    # delivery_type maps a blank to `unknown`, so those orders stay in the grid.
+    from render.aggregates import crosstab
+    df = _orders(vin_present=[True, False, False],
+                 delivery_type=["explicit", None, "window"])
+    a = crosstab(df, "vin", "delivery_type")
+    assert a.excluded == {}
+    grid = {(c["row_label"], c["col_label"]): c["n"] for c in a.cells if c["n"]}
+    assert grid == {("VIN assigned", "Firm date"): 1,
+                    ("No VIN yet", "Relative window"): 1,
+                    ("No VIN yet", "No date given"): 1}
+
+
+def test_heatmap_marginals_equal_the_take_rate_counts_over_the_same_orders():
+    # The cross-check #108 asks for: a heatmap's row totals are the paint
+    # take-rate over the orders that reported both halves of the pairing.
+    from render.aggregates import counts, crosstab
+    df = _paint_rank_frame()
+    df["wheels_short"] = ['21" Liquid Tungsten', '20" Black Sand'] * 5
+    a = crosstab(df, "color", "wheels")
+    take = {c["value"]: c["n"] for c in counts(df, "color").cells}
+    assert {r["value"]: r["n"] for r in a.meta["rows"]} == take
+    assert sum(take.values()) == a.counted
+
+
+def test_heatmap_table_has_counts_shading_totals_and_csv():
+    from render.aggregates import crosstab
+    from render.components import heatmap
+    bs, lt = '20" Black Sand', '21" Liquid Tungsten'
+    df = _orders(color=["Midnight", "Midnight", "Borealis"], wheels_short=[bs, bs, lt])
+    html = heatmap("c-h", COMPONENTS["combo-wheels"], crosstab(df, "color", "wheels"))
+    assert '<table class="hm" id="c-h-data">' in html
+    assert 'data-table="c-h-data"' in html
+    assert ('<th scope="row" class="cat-color-midnight"><span class="swatch"></span>'
+            'Midnight') in html
+    assert 'class="hm-cell hm-hi" style="--hm:1.000">2</td>' in html, "the peak cell"
+    assert 'style="--hm:0.000">0</td>' in html, "an empty pairing still has its cell"
+    assert '<td class="hm-tot">3</td></tr></tfoot>' in html, "the grand total"
+    assert "is the most common pairing, at 67% of 3 orders." in html
+
+
+def test_mix_rows_split_each_row_by_the_column_categories():
+    from render.aggregates import crosstab
+    from render.components import mix
+    df = _orders(vin_present=[True, True, False],
+                 delivery_type=["explicit", "window", "window"])
+    html = mix("c-m", COMPONENTS["certainty-by-vin"],
+               crosstab(df, "vin", "delivery_type"))
+    assert html.count('<li class="mx-row">') == 2
+    assert 'class="mark cat-delivery_type-explicit" style="width:50.00%"' in html
+    assert 'class="mark cat-delivery_type-window" style="width:100.00%"' in html
+    assert "1 firm date · 1 relative window" in html
+    assert "50% of orders with a VIN have a firm" in html
+    assert "against 0% of those" in html
+
+
+def test_share_in_reads_a_column_share_within_a_row():
+    from render.components import summarize
+    cells = [{"row_label": "A", "col_label": "x", "label": "A · x", "n": 3},
+             {"row_label": "A", "col_label": "y", "label": "A · y", "n": 1},
+             {"row_label": "B", "col_label": "x", "label": "B · x", "n": 0}]
+    assert summarize("{share_in:A|x}", cells) == "75%"
+    assert summarize("{share_in:B|x}", cells) == "0%"
+    # A category with no orders yet (no cells at all) reads 0% when it's real.
+    assert summarize("{share_in:A|z}", cells, ["A", "B", "x", "y", "z"]) == "0%"
+    try:
+        summarize("{share_in:C|x}", cells)
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("an unknown row filled")
 
 
 def _run_all():
