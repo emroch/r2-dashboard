@@ -4,11 +4,18 @@
 # main's ruleset requires the ruff/mypy checks, which also blocks direct pushes,
 # so even a one-line overrides.yaml fix needs a PR. This does the whole round
 # trip: check locally, branch, commit, push, open the PR, wait for its checks
-# (including the preview build), rebase-merge it, and fast-forward local main.
+# (including the preview build), squash-merge it, and fast-forward local main.
 #
-# Rebase, not a merge commit: a curation edit is one small data commit, and a
+# Squash, not a merge commit: a curation edit is one small data commit, and a
 # "Merge pull request" wrapper around each one would double main's history for
-# no information. Code PRs keep merge commits; only this script rebases.
+# no information. Code PRs keep merge commits; only this script squashes.
+#
+# Squash rather than rebase because main requires signed commits. A rebase merge
+# re-commits the change as GitHub without a signature, so GitHub refuses it; a
+# squash commit is signed by GitHub. For the single commit this script makes,
+# already based on main, the two land the same tree as one linear commit. The
+# squash keeps the commit's own message (plus the PR number) instead of GitHub's
+# default, so a trailer like Co-Authored-By survives.
 #
 #   ./curate "Correct GTodd's delivery window"        the usual case
 #   ./curate --no-wait "…"                             open the PR and stop there
@@ -31,7 +38,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --no-wait)  wait=0; shift ;;
         --no-check) check=0; shift ;;
-        -h|--help)  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)  sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         --)         shift; break ;;
         -*)         echo "error: unknown option $1" >&2; exit 2 ;;
         *)          break ;;
@@ -91,7 +98,7 @@ echo "$url"
 git switch -q main
 
 if [ "$wait" = 0 ]; then
-    say "Not waiting (--no-wait): rebase-merge it from the PR page once checks pass"
+    say "Not waiting (--no-wait): squash-merge it from the PR page once checks pass"
     exit 0
 fi
 
@@ -107,7 +114,11 @@ gh pr checks "$url" --watch --fail-fast --interval 10 >/dev/null \
     || die "a check failed — see $url"
 
 say "Merging"
-if ! out="$(gh pr merge "$url" --rebase --delete-branch 2>&1)"; then
+# The commit's own subject and body, not GitHub's squash default.
+subject="$(git log -1 --format=%s "$branch") (#${url##*/})"
+body="$(git log -1 --format=%b "$branch")"
+if ! out="$(gh pr merge "$url" --squash --subject "$subject" --body "$body" \
+              --delete-branch 2>&1)"; then
     # gh can report a failed local sync after a merge that did go through.
     [ "$(gh pr view "$url" --json state -q .state)" = MERGED ] \
         || die "merge failed — see $url
