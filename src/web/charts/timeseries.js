@@ -127,7 +127,10 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
 
-  const series = spec.series.map((s) => ({ s, cls: categoryClass(s.color) }));
+  // A series with `stage` draws at that delivery stage's opacity (styles.css
+  // .stage-*): Pending orders are the fulfilled color, fainter.
+  const series = spec.series.map((s) => ({
+    s, cls: categoryClass(s.color) + (s.stage ? ` stage-${s.stage}` : "") }));
   const weeks = spec.series.length ? spec.series[0].values.map((v) => date(v[0])) : [];
   const colG = svg.append("g"), lineG = svg.append("g"), markG = svg.append("g");
   const groups = colG.selectAll("g").data(series).join("g")

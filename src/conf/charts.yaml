@@ -209,10 +209,10 @@ components:
   orders-by-week:
     template: timeseries
     title: Orders by week
-    dims: []
+    dims: [delivered]
     aggregate: orders_by_week
-    summary: "{n} orders by the week they were placed; the busiest was the week
-      of {meta:peak}."
+    summary: "{n} orders by the week they were placed, {count:Fulfilled} of them
+      fulfilled so far; the busiest was the week of {meta:peak}."
   deliveries-by-week:
     template: timeseries
     title: Estimated deliveries by week

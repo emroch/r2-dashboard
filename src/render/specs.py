@@ -273,20 +273,28 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
 
 
 def orders_by_week(df: pd.DataFrame) -> tuple:
-    """§5, bottom: orders by the week the configuration was finalized."""
-    cols = _columns([("Orders", "acc:timeline-ordered", _weekly(df["order_date"]))],
-                    cumulative=True)
+    """§5, bottom: orders by the week the configuration was finalized,
+    stacked: pending on top of fulfilled (delivery inferred, as the delivery
+    stages count it). Pending is the same color at the waiting stage's
+    opacity (`stage`), the page's "fainter = not yet"."""
+    done = df["delivered_inferred"].fillna(False).astype(bool)
+    cols = _columns(
+        [("Fulfilled", "acc:timeline-ordered", _weekly(df.loc[done, "order_date"])),
+         ("Pending", "acc:timeline-ordered", _weekly(df.loc[~done, "order_date"]))],
+        cumulative=True)
+    cols["series"][1]["stage"] = "wait"
     spec = {"template": "timeseries", "title": "Orders by week",
             "x": {"label": "Week ordered", "type": "date",
                   "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None},
-            "y": {**cols["y"], "label": "Orders"}, "legend": None,
+            "y": {**cols["y"], "label": "Orders"}, "legend": "Orders",
             "series": cols["series"], "lines": [], "rules": [],
             "toggles": {"cumulative": True}}
     heads, rows = _column_table("Week of", cols)
     n = int(df["order_date"].notna().sum())
-    agg = Aggregate("orders by week", "orders",
-                    [{"value": "orders", "label": "Orders", "n": n, "known": True,
-                      "ref": None}],
+    cells = [{"value": s["name"], "label": s["name"],
+              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
+             for s in cols["series"]]
+    agg = Aggregate("orders by week", "orders", cells,
                     {"no order date": len(df) - n} if len(df) - n else {})
     if cols["weeks"]:
         i = int(np.argmax(cols["totals"]))

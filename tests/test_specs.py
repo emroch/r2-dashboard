@@ -32,6 +32,7 @@ def _orders(n=0, **cols):
                 wheels_short=['21" Liquid Tungsten'] * n,
                 interior=["Black Crater Signature"] * n, buylease=["Purchase"] * n,
                 state=["IL"] * n, vin_present=[True] * n,
+                delivered_inferred=[False] * n,
                 vin_seq=[1000.0 + 100 * i for i in range(n)],
                 delivery_type=["explicit"] * n,
                 delivery_est=[pd.Timestamp("2026-07-01") + pd.Timedelta(days=7 * i)
@@ -201,6 +202,20 @@ def test_reservations_by_week_stack_on_monday_weeks_and_clip_the_spike():
     reconcile([agg], _sizes(df, resv))
     assert agg.excluded == {"order without a reservation date": 1,
                             "reservation without a date": 1}
+
+
+def test_orders_by_week_stack_pending_on_fulfilled():
+    from render.aggregates import reconcile
+    from render.specs import orders_by_week
+    df = _orders(4, order_date=[pd.Timestamp("2026-06-15")] * 3 + [pd.NaT],
+                 delivered_inferred=[True, False, None, True])
+    spec, agg, (heads, _) = orders_by_week(df)
+    assert [(s["name"], s.get("stage")) for s in spec["series"]] == [
+        ("Fulfilled", None), ("Pending", "wait")], "pending: the same color, fainter"
+    assert [v[1] for s in spec["series"] for v in s["values"]] == [1, 2]
+    assert heads == ["Week of", "Fulfilled", "Pending", "Total", "Running total"]
+    reconcile([agg], _sizes(df, pd.DataFrame({"resv_date": []})))
+    assert agg.excluded == {"no order date": 1}
 
 
 def test_deliveries_by_week_stack_firm_first_and_leave_out_no_estimate():
