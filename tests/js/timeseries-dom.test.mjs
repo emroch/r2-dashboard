@@ -142,8 +142,8 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
   // In the neutral grey, a stage is the stage key's opacity instead.
   const grey = mountPoint();
   draw(d3, grey, { ...pipe, series: pipe.series.map((s) => ({ ...s, color: "neutral" })) });
-  assert.ok(grey.querySelector("g.tr-neutral.stage-wait rect.bar"));
-  assert.ok(grey.querySelector(".chart-legend .swatch.tr-neutral.stage-delivered"));
+  assert.ok(grey.querySelector("g.tr-neutral.tone-grey.tone-wait rect.bar"));
+  assert.ok(grey.querySelector(".chart-legend .swatch.tone-grey.tone-delivered"));
   // Levels are drawn as given, not summed: week 3 stacks 5 + 4.
   assert.deepEqual(stackAt(pipe.series, 2, new Set(), true), [[0, 5], [5, 9]]);
   const shownLines = () => [...el.querySelectorAll("g.line")].filter((g) => g.style.display !== "none").length;

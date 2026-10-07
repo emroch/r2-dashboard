@@ -304,22 +304,37 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .tone-scheduled{--tone:75%;}
 .tone-vin{--tone:52%;}
 .tone-wait{--tone:30%;}
-.chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),white);}
-.lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),white);}
+.chart-svg [class*="tone-"]:not(.tone-grey) .bar{fill:color-mix(in oklab,var(--mark) var(--tone),white);}
+.lg-item .swatch[class*="tone-"]:not(.tone-grey){background:color-mix(in oklab,var(--paint) var(--tone),white);}
 /* On the dark card the stages step darker instead, duller like the take-rate
    stages, rather than paler; in gentler steps, so the last (waiting, usually
    the largest band) stays clear of the near-black card. */
 html[data-theme="dark"] .tone-scheduled{--tone:78%;}
 html[data-theme="dark"] .tone-vin{--tone:58%;}
 html[data-theme="dark"] .tone-wait{--tone:42%;}
-html[data-theme="dark"] .chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),black);}
-html[data-theme="dark"] .lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),black);}
+html[data-theme="dark"] .chart-svg [class*="tone-"]:not(.tone-grey) .bar{fill:color-mix(in oklab,var(--mark) var(--tone),black);}
+html[data-theme="dark"] .lg-item .swatch[class*="tone-"]:not(.tone-grey){background:color-mix(in oklab,var(--paint) var(--tone),black);}
 /* The current week, still under way (timeseries x.partial), crosshatched in the
    weekly view. */
 .chart-svg .hatch{stroke:var(--card-bg);stroke-width:1.5;}
 .chart-svg .bar-partial{pointer-events:none;}
-/* A neutral series' legend swatch is the grey mark, as in the stage key. */
-.lg-item .swatch.tr-neutral{background:var(--desc);}
+/* Stages in the neutral grey (.tone-grey): the stage key's look, the grey mixed
+   into the card by each stage's opacity (theme.yaml a-*), as fills rather than
+   group opacity, so a highlighted column isn't faded with them. */
+.tone-delivered{--a:var(--a-delivered);}
+.tone-scheduled{--a:var(--a-scheduled);}
+.tone-vin{--a:var(--a-vin);}
+.tone-wait{--a:var(--a-wait);}
+.chart-svg .tone-grey .bar{
+ fill:color-mix(in oklab,var(--desc) calc(var(--a) * 100%),var(--card-bg));}
+.lg-item .swatch.tone-grey{
+ background:color-mix(in oklab,var(--desc) calc(var(--a) * 100%),var(--card-bg));}
+/* The hovered week (timeseries .active) in Compass Yellow, stepped by stage
+   toward white, or black on the dark card. */
+.chart-svg [class*="tone-"] .bar.active{
+ fill:color-mix(in oklab,var(--stat-bg) var(--tone),white);}
+html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active{
+ fill:color-mix(in oklab,var(--stat-bg) var(--tone),black);}
 /* A rule between a tooltip's values and its totals. */
 .chart-tip .tip-rule{border:0;border-top:1px solid var(--tip-bd);margin:4px 0;}
 .chart-svg .clipped{fill:var(--desc);font-size:11px;}

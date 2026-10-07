@@ -144,11 +144,12 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
 
-  // A series with `stage` draws at that delivery stage's look: in the neutral
-  // grey, the stage key's opacities (.stage-*); in a color, its tone (.tone-*:
-  // the color stepped toward white, or black on the dark card), since a faded
-  // color turns muddy where a faded grey doesn't.
-  const stageCls = (s) => (s.color === "neutral" ? ` stage-${s.stage}` : ` tone-${s.stage}`);
+  // A series with `stage` draws at that delivery stage's tone (.tone-*). In the
+  // neutral grey (.tone-grey) that is the stage key's look, the grey mixed into
+  // the card by the stage's opacity; in a color, the color stepped toward white
+  // (or black on the dark card), since a faded color turns muddy. The hovered
+  // week (.active) lights up in Compass Yellow at the same steps.
+  const stageCls = (s) => ` tone-${s.stage}${s.color === "neutral" ? " tone-grey" : ""}`;
   const series = spec.series.map((s) => ({
     s, cls: categoryClass(s.color) + (s.stage ? stageCls(s) : "") }));
   const weeks = spec.series.length ? spec.series[0].values.map((v) => date(v[0])) : [];
@@ -288,6 +289,13 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
 
   // Tooltips: the week under the pointer (columns), or the nearest line point.
   const tip = tooltip(plotEl);
+  // The hovered week's column is highlighted (.active), the rest left as they are.
+  let active = -1;
+  const activate = (i) => {
+    if (i === active) return;
+    active = i;
+    groups.selectAll("rect.bar").classed("active", (d) => d.i === i);
+  };
   svg.on("pointermove", (ev) => {
     const [px] = d3.pointer(ev);
     const [hx, hy] = d3.pointer(ev, plotEl);
@@ -301,13 +309,14 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
         return tip.show([weekTip(spec.series, i, new Set(spec.series.map((s) => s.name)), false, false, partial)[0],
           ...weekLines.map((l) => `${l.name}: ${fmt(l.points[i][1])}`)], hx, hy);
       }
+      activate(i);
       if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative, partial), hx, hy);
     }
     const pts = spec.lines.filter((l) => !hidden.has(l.name) && l.tips)
       .flatMap((l) => l.points.map((pt, i) => ({ d: Math.abs(x(date(pt[0])) - px), tip: l.tips[i] })));
     const hit = pts.sort((a, b) => a.d - b.d)[0];
     if (hit && hit.d < 24) tip.show(hit.tip, hx, hy); else tip.hide();
-  }).on("pointerleave", () => tip.hide());
+  }).on("pointerleave", () => { tip.hide(); activate(-1); });
 
   return { svg: svg.node(), hidden: () => new Set(hidden), redraw: () => place(),
            setView: (cum, animate = false) => setView(cum, animate), cumulative: () => cumulative };
