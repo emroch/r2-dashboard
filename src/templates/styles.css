@@ -307,7 +307,11 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),white);}
 .lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),white);}
 /* On the dark card the stages step darker instead, duller like the take-rate
-   stages, rather than paler. */
+   stages, rather than paler; in gentler steps, so the last (waiting, usually
+   the largest band) stays clear of the near-black card. */
+html[data-theme="dark"] .tone-scheduled{--tone:78%;}
+html[data-theme="dark"] .tone-vin{--tone:58%;}
+html[data-theme="dark"] .tone-wait{--tone:42%;}
 html[data-theme="dark"] .chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),black);}
 html[data-theme="dark"] .lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),black);}
 /* The current week, still under way (timeseries x.partial), crosshatched in the
