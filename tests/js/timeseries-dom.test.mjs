@@ -41,7 +41,7 @@ test("a week's stack and tooltip follow what the legend hides", () => {
   assert.deepEqual(stackAt(columns.series, 1, none), [[0, 5], [5, 15]]);
   assert.deepEqual(stackAt(columns.series, 1, new Set(["Ordered"])), [null, [0, 10]]);
   assert.deepEqual(weekTip(columns.series, 1, none),
-    ["Week of Mar 11, 2024", "Ordered: 5", "Only: 10", "Total: 15"]);
+    ["Week of Mar 11, 2024", "Only: 10", "Ordered: 5", null, "Total: 15"], "top of the stack first");
   assert.deepEqual(weekTip(columns.series, 1, new Set(["Only"])),
     ["Week of Mar 11, 2024", "Ordered: 5"]);
 });
@@ -81,7 +81,7 @@ test("running totals stack and describe a week in either view", () => {
   assert.equal(weekTip(columns.series, 2, none, true).at(-1), "Running total: 1,684");
   // Cumulative: what the column shows, with the week's change beside it.
   assert.deepEqual(weekTip(columns.series, 1, none, true, true),
-    ["Week of Mar 11, 2024", "Ordered: 405 (+5)", "Only: 1,276 (+10)", "Total: 1,681 (+15)"]);
+    ["Week of Mar 11, 2024", "Only: 1,276 (+10)", "Ordered: 405 (+5)", null, "Total: 1,681 (+15)"]);
   assert.deepEqual(weekTip(columns.series, 1, new Set(["Only"]), true, true),
     ["Week of Mar 11, 2024", "Ordered: 405 (+5)"]);
 });
@@ -132,7 +132,7 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
   assert.deepEqual(legendNames(), ["Delivered", "Waiting"]);
   // A level's change is from the week before, and can fall.
   assert.deepEqual(weekTip(pipe.series, 2, new Set(), true, true, "2026-06-15"),
-    ["Week of Jun 15, 2026 (so far)", "Delivered: 5 (+3)", "Waiting: 4 (+1)", "Total: 9 (+4)"]);
+    ["Week of Jun 15, 2026 (so far)", "Waiting: 4 (+1)", "Delivered: 5 (+3)", null, "Total: 9 (+4)"]);
   assert.deepEqual(weekTip(pipe.series, 1, new Set(["Delivered"]), true, true).slice(1), ["Waiting: 3 (+0)"]);
   pipe.series[1].values[2][1] = 2;
   assert.equal(weekTip(pipe.series, 2, new Set(["Delivered"]), true, true)[1], "Waiting: 2 (−1)");

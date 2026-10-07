@@ -306,8 +306,16 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .tone-wait{--tone:30%;}
 .chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),white);}
 .lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),white);}
-/* The current week, still under way (timeseries x.partial). */
-.chart-svg .bar-partial{stroke:var(--fg);stroke-width:1;stroke-dasharray:3,2;}
+/* On the dark card the stages step darker instead, duller like the take-rate
+   stages, rather than paler. */
+html[data-theme="dark"] .chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),black);}
+html[data-theme="dark"] .lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),black);}
+/* The current week, still under way (timeseries x.partial), crosshatched in the
+   weekly view. */
+.chart-svg .hatch{stroke:var(--card-bg);stroke-width:1.5;}
+.chart-svg .bar-partial{pointer-events:none;}
+/* A rule between a tooltip's values and its totals. */
+.chart-tip .tip-rule{border:0;border-top:1px solid var(--tip-bd);margin:4px 0;}
 .chart-svg .clipped{fill:var(--desc);font-size:11px;}
 .chart-svg .whisker{stroke:var(--mark);stroke-opacity:.55;stroke-width:1.4;fill:none;}
 .chart-svg .rule line{stroke:var(--desc);stroke-dasharray:4,3;}

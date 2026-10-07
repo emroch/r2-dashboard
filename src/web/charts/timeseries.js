@@ -71,13 +71,16 @@ export function weekTip(series, i, hidden, running = false, cumulative = false, 
     // A cumulative-view series is already a level (§6's pipeline), so its change
     // is from the week before, and can fall (waiting shrinks as orders move on).
     const delta = (s) => (s.view === "cumulative" ? s.values[i][1] - (i ? s.values[i - 1][1] : 0) : week_(s));
-    for (const s of shown) lines.push(`${s.name}: ${fmt(run(s))} (${signed(delta(s))})`);
-    if (shown.length > 1) lines.push(`Total: ${fmt(sum(run))} (${signed(sum(delta))})`);
+    // Listed as the column stacks, top first; the total below a rule.
+    for (const s of [...shown].reverse()) lines.push(`${s.name}: ${fmt(run(s))} (${signed(delta(s))})`);
+    if (shown.length > 1) lines.push(null, `Total: ${fmt(sum(run))} (${signed(sum(delta))})`);
     return lines;
   }
-  for (const s of shown) lines.push(s.tips ? s.tips[i] : `${s.name}: ${fmt(week_(s))}`);
-  if (shown.length > 1) lines.push(`Total: ${fmt(sum(week_))}`);
-  if (running) lines.push(`Running total: ${fmt(sum(run))}`);
+  for (const s of [...shown].reverse()) lines.push(s.tips ? s.tips[i] : `${s.name}: ${fmt(week_(s))}`);
+  const totals = [];
+  if (shown.length > 1) totals.push(`Total: ${fmt(sum(week_))}`);
+  if (running) totals.push(`Running total: ${fmt(sum(run))}`);
+  if (totals.length) lines.push(null, ...totals);
   return lines;
 }
 
@@ -151,7 +154,15 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const groups = colG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
   groups.selectAll("rect").data((o) => o.s.values.map((v, i) => ({ o, i }))).join("rect")
-    .attr("class", (d) => (spec.x.partial && d.o.s.values[d.i][0] === spec.x.partial ? "bar bar-partial" : "bar"));
+    .attr("class", "bar");
+  // The current week's column, in the weekly view, is crosshatched over: a week
+  // so far reads short. (A running total so far isn't misleading, so it isn't.)
+  const hatchId = `${el.dataset.chart}-hatch`;
+  const hatch = svg.append("defs").append("pattern").attr("id", hatchId)
+    .attr("patternUnits", "userSpaceOnUse").attr("width", 6).attr("height", 6);
+  hatch.append("path").attr("class", "hatch").attr("d", "M0,6 L6,0 M-1,1 L1,-1 M5,7 L7,5");
+  const pi = spec.x.partial ? (spec.series[0]?.values || []).findIndex((v) => v[0] === spec.x.partial) : -1;
+  const hatchRect = colG.append("rect").attr("class", "bar-partial").style("fill", `url(#${hatchId})`);
 
   const accent = (l) => `var(--${l.color.slice(4)})`;
   const lineSel = lineG.selectAll("g.line").data(spec.lines).join("g")
@@ -161,17 +172,29 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   // hollow.
   const partial = spec.x.partial || null;
   const inWeek = (iso) => partial && date(iso) >= date(partial);
+  // One smooth path per line, drawn twice: solid up to the last complete week's
+  // point, dashed after it, split by two clips, so the dashed part continues the
+  // very same curve rather than a curve of its own.
   const curve = d3.line().curve(d3.curveMonotoneX).x((d) => x(date(d[0]))).y((d) => y(d[1]));
-  const done = (l) => l.points.filter((pt) => !inWeek(pt[0]));
-  const tail = (l) => (done(l).length && done(l).length < l.points.length ? l.points.slice(done(l).length - 1) : []);
+  const cut = () => {
+    const pts = (spec.lines[0] || { points: [] }).points.filter((pt) => !inWeek(pt[0]));
+    return partial && pts.length ? x(date(pts[pts.length - 1][0])) : W;
+  };
+  const clipId = `${el.dataset.chart}-done`;
+  const defs = svg.append("defs");
+  const doneClip = defs.append("clipPath").attr("id", clipId).append("rect");
+  const tailClip = defs.append("clipPath").attr("id", `${clipId}-tail`).append("rect");
   const drawLines = () => {
-    lineSel.select("path.done").attr("d", (l) => curve(done(l)));
-    lineSel.select("path.partial").attr("d", (l) => (tail(l).length ? curve(tail(l)) : null));
+    const c = cut();
+    doneClip.attr("x", 0).attr("y", 0).attr("width", c).attr("height", H);
+    tailClip.attr("x", c).attr("y", 0).attr("width", Math.max(0, W - c)).attr("height", H);
+    lineSel.selectAll("path").attr("d", (l) => curve(l.points));
     lineSel.selectAll("circle").attr("cx", (o) => x(date(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
   };
-  lineSel.append("path").attr("class", "done").attr("fill", "none").style("stroke", accent).attr("stroke-width", 2.5);
+  lineSel.append("path").attr("class", "done").attr("fill", "none").style("stroke", accent)
+    .attr("stroke-width", 2.5).attr("clip-path", `url(#${clipId})`);
   lineSel.append("path").attr("class", "partial").attr("fill", "none").style("stroke", accent)
-    .attr("stroke-width", 2.5).attr("stroke-dasharray", "5,4");
+    .attr("stroke-width", 2.5).attr("stroke-dasharray", "5,4").attr("clip-path", `url(#${clipId}-tail)`);
   lineSel.selectAll("circle").data((l) => l.points.map((pt) => ({ pt, l }))).join("circle")
     .attr("r", 3).attr("class", (o) => (inWeek(o.pt[0]) ? "pt-partial" : null))
     .style("fill", (o) => (inWeek(o.pt[0]) ? "var(--card-bg)" : accent(o.l)))
@@ -195,6 +218,12 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
         .attr("y", seg ? y(Math.min(seg[1], cap)) : y(0))
         .attr("height", seg ? Math.max(0, y(Math.min(seg[0], cap)) - y(Math.min(seg[1], cap))) : 0);
     });
+    if (pi >= 0 && !cumulative) {
+      const x0 = x(weeks[pi]), x1 = x(new Date(weeks[pi].getTime() + 7 * DAY));
+      const tot = stackAt(spec.series, pi, omitted(), false).filter(Boolean).reduce((a, s) => Math.max(a, s[1]), 0);
+      hatchRect.attr("display", null).attr("x", x0 + 0.5).attr("width", Math.max(1, x1 - x0 - 1))
+        .attr("y", y(Math.min(tot, cap))).attr("height", Math.max(0, y(0) - y(Math.min(tot, cap))));
+    } else hatchRect.attr("display", "none");
     // A column cut off by the clipped axis says how tall it really is.
     const total = (i) => spec.series.reduce((a, s) => a + (hidden.has(s.name) ? 0 : s.values[i][1]), 0);
     const over = cap === Infinity ? []
