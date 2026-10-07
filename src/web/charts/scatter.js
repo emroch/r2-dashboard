@@ -178,7 +178,8 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
 
   // Legend: every series, then one entry per layer group.
   legend(el.querySelector(".chart-legend"),
-    [...series.map((o) => ({ name: o.s.name, cls: o.cls })), ...layerEntries(spec.layers)],
+    [...series.map((o) => ({ name: o.s.name, cls: o.s.open ? `${o.cls} swatch-open` : o.cls })),
+     ...layerEntries(spec.layers)],
     (h) => { hidden = h; visibility(); }, hidden);
 
   // Controls: the whisker toggle (kept in the URL), when the spec has whiskers,

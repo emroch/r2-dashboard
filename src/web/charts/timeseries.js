@@ -76,11 +76,15 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
 
   const svg = d3.select(plotEl).append("svg").attr("class", "chart-svg")
     .attr("viewBox", [0, 0, W, H]).attr("aria-hidden", "true");
+  // Ticks on Mondays, where the columns start, while the span is short enough
+  // to label weeks; past half a year, d3's months and years read better.
   const xt = Math.max(3, W / 120);
+  const span = (x.domain()[1] - x.domain()[0]) / (7 * DAY);
+  const xTicks = span <= 27 ? d3.utcMonday.every(Math.max(1, Math.ceil(span / xt))) : xt;
   svg.append("g").attr("class", "grid").attr("transform", `translate(${m.l},0)`)
     .call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat(""));
   svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`)
-    .call(d3.axisBottom(x).ticks(xt));
+    .call(d3.axisBottom(x).ticks(xTicks).tickFormat(span <= 27 ? d3.utcFormat("%b %d") : null));
   svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`)
     .call(d3.axisLeft(y).ticks(5, spec.y.format === "pct" ? null : "~s")
       .tickFormat(spec.y.format === "pct" ? (v) => `${v}%` : null));
