@@ -79,6 +79,11 @@ test("running totals stack and describe a week in either view", () => {
   assert.equal(valueAt(columns.series[0], 2, true), 408);
   assert.deepEqual(stackAt(columns.series, 1, none, true), [[0, 405], [405, 1681]]);
   assert.equal(weekTip(columns.series, 2, none, true).at(-1), "Running total: 1,684");
+  // Cumulative: what the column shows, with the week's change beside it.
+  assert.deepEqual(weekTip(columns.series, 1, none, true, true),
+    ["Week of Mar 11, 2024", "Ordered: 405 (+5)", "Only: 1,276 (+10)", "Total: 1,681 (+15)"]);
+  assert.deepEqual(weekTip(columns.series, 1, new Set(["Only"]), true, true),
+    ["Week of Mar 11, 2024", "Ordered: 405 (+5)"]);
 });
 
 test("the Weekly / Cumulative switch redraws in place, unclipped when cumulative", () => {

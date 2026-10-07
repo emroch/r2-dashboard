@@ -50,16 +50,25 @@ export function stackAt(series, i, hidden, cumulative = false) {
   });
 }
 
-// What a week's tooltip says: its label, each visible series (a series' own tip
-// when it has one), the total when more than one is stacked, and with `running`
-// the running total through that week (in either view).
-export function weekTip(series, i, hidden, running = false) {
+// What a week's tooltip says, after its label. Weekly: each visible series'
+// count (or its own tip), the total when more than one is stacked, and with
+// `running` the running total through that week. Cumulative: what the column
+// shows, each series' running total with the week's change ("Converted: 1,276
+// (+10)"), then the same for the total.
+export function weekTip(series, i, hidden, running = false, cumulative = false) {
   const shown = series.filter((s) => !hidden.has(s.name));
   const week = new Date(date(series[0].values[i][0]).getTime());
   const lines = [`Week of ${week.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`];
-  for (const s of shown) lines.push(s.tips ? s.tips[i] : `${s.name}: ${fmt(s.values[i][1])}`);
-  if (shown.length > 1) lines.push(`Total: ${fmt(shown.reduce((a, s) => a + s.values[i][1], 0))}`);
-  if (running) lines.push(`Running total: ${fmt(shown.reduce((a, s) => a + valueAt(s, i, true), 0))}`);
+  const sum = (f) => shown.reduce((a, s) => a + f(s), 0);
+  const week_ = (s) => s.values[i][1], run = (s) => valueAt(s, i, true);
+  if (cumulative) {
+    for (const s of shown) lines.push(`${s.name}: ${fmt(run(s))} (+${fmt(week_(s))})`);
+    if (shown.length > 1) lines.push(`Total: ${fmt(sum(run))} (+${fmt(sum(week_))})`);
+    return lines;
+  }
+  for (const s of shown) lines.push(s.tips ? s.tips[i] : `${s.name}: ${fmt(week_(s))}`);
+  if (shown.length > 1) lines.push(`Total: ${fmt(sum(week_))}`);
+  if (running) lines.push(`Running total: ${fmt(sum(run))}`);
   return lines;
 }
 
@@ -209,7 +218,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     if (weeks.length) {
       const t = x.invert(px).getTime();
       const i = weeks.findIndex((w) => t >= w.getTime() && t < w.getTime() + 7 * DAY);
-      if (i >= 0) return tip.show(weekTip(spec.series, i, hidden, toggled), hx, hy);
+      if (i >= 0) return tip.show(weekTip(spec.series, i, hidden, toggled, cumulative), hx, hy);
     }
     const pts = spec.lines.filter((l) => !hidden.has(l.name) && l.tips)
       .flatMap((l) => l.points.map((pt, i) => ({ d: Math.abs(x(date(pt[0])) - px), tip: l.tips[i] })));
