@@ -156,3 +156,15 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
     "the levels drop away in the weekly view");
   assert.equal(el.querySelectorAll("rect.bar").length, rects, "and nothing is added");
 });
+
+test("a line view's hover rule follows the pointer and snaps to a week's points", () => {
+  const el = mountPoint();
+  const spec = { ...columns, series: [], rules: [], toggles: {},
+    y: { label: "n", type: "linear", domain: [0, 60] },
+    lines: [{ name: "Cadence", color: "var:cadence-front",
+              points: [["2024-03-07", 20], ["2024-03-14", 40]], tips: [["a"], ["b"]] }] };
+  draw(d3, el, spec);
+  const rule = el.querySelector("line.hover-rule");
+  assert.equal(rule.getAttribute("display"), "none", "hidden until the pointer is over it");
+  assert.equal(el.querySelectorAll("line.hover-rule").length, 1, "one element, moved, not added");
+});

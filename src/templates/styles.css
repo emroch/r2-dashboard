@@ -335,6 +335,8 @@ html[data-theme="dark"] .lg-item .swatch[class*="tone-"]:not(.tone-grey){backgro
  fill:color-mix(in oklab,var(--stat-bg) var(--tone),white);}
 html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active{
  fill:color-mix(in oklab,var(--stat-bg) var(--tone),black);}
+/* The hover rule over a line chart (timeseries). */
+.chart-svg .hover-rule{stroke:var(--desc);stroke-width:1;stroke-dasharray:3,3;pointer-events:none;}
 /* A rule between a tooltip's values and its totals. */
 .chart-tip .tip-rule{border:0;border-top:1px solid var(--tip-bd);margin:4px 0;}
 .chart-svg .clipped{fill:var(--desc);font-size:11px;}

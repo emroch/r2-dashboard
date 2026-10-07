@@ -296,27 +296,40 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     active = i;
     groups.selectAll("rect.bar").classed("active", (d) => d.i === i);
   };
+  // Over a view drawn as lines, a vertical rule marks where the pointer is: one
+  // element, made once and moved, hidden unless lines are showing. It follows
+  // the pointer and snaps to a set of points while their tooltip is up.
+  const rule = lineG.append("line").attr("class", "hover-rule").attr("y1", m.t).attr("y2", H - m.b)
+    .attr("display", "none");
+  const ruleAt = (px) => (px == null ? rule.attr("display", "none")
+    : rule.attr("display", null).attr("x1", px).attr("x2", px));
   svg.on("pointermove", (ev) => {
     const [px] = d3.pointer(ev);
     const [hx, hy] = d3.pointer(ev, plotEl);
+    const off = omitted();
+    const shownLines = spec.lines.filter((l) => !off.has(l.name));
+    const inPlot = px >= m.l && px <= W - m.r;
     if (weeks.length) {
       const t = x.invert(px).getTime();
       const i = weeks.findIndex((w) => t >= w.getTime() && t < w.getTime() + 7 * DAY);
       // A view drawn as weekly lines (§6's events) lists each line's week.
-      const off = omitted();
-      const weekLines = spec.lines.filter((l) => l.view && !off.has(l.name));
-      if (i >= 0 && weekLines.length) {
+      const weekLines = shownLines.filter((l) => l.view);
+      if (weekLines.length) {
+        if (i < 0) { tip.hide(); return ruleAt(inPlot ? px : null); }
+        ruleAt(x(date(weekLines[0].points[i][0])));
         return tip.show([weekTip(spec.series, i, new Set(spec.series.map((s) => s.name)), false, false, partial)[0],
           ...weekLines.map((l) => `${l.name}: ${fmt(l.points[i][1])}`)], hx, hy);
       }
+      ruleAt(null);
       activate(i);
       if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative, partial), hx, hy);
     }
-    const pts = spec.lines.filter((l) => !hidden.has(l.name) && l.tips)
-      .flatMap((l) => l.points.map((pt, i) => ({ d: Math.abs(x(date(pt[0])) - px), tip: l.tips[i] })));
-    const hit = pts.sort((a, b) => a.d - b.d)[0];
-    if (hit && hit.d < 24) tip.show(hit.tip, hx, hy); else tip.hide();
-  }).on("pointerleave", () => { tip.hide(); activate(-1); });
+    const pts = shownLines.filter((l) => l.tips)
+      .flatMap((l) => l.points.map((pt, i) => ({ px: x(date(pt[0])), tip: l.tips[i] })));
+    const hit = pts.sort((a, b) => Math.abs(a.px - px) - Math.abs(b.px - px))[0];
+    if (hit && Math.abs(hit.px - px) < 24) { ruleAt(hit.px); tip.show(hit.tip, hx, hy); }
+    else { ruleAt(pts.length && inPlot ? px : null); tip.hide(); }
+  }).on("pointerleave", () => { tip.hide(); activate(-1); ruleAt(null); });
 
   return { svg: svg.node(), hidden: () => new Set(hidden), redraw: () => place(),
            setView: (cum, animate = false) => setView(cum, animate), cumulative: () => cumulative };
