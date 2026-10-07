@@ -189,7 +189,7 @@ def test_reservations_by_week_stack_on_monday_weeks_and_clip_the_spike():
                                                     "Reserved only (incomplete)"]
     weeks = [v[0] for v in spec["series"][0]["values"]]
     assert weeks == ["2024-03-04", "2024-03-11", "2024-03-18", "2024-03-25",
-                     "2024-04-01", "2024-04-08"], "every Monday week, for running totals"
+                     "2024-04-01", "2024-04-08"], "every Monday week (running totals)"
     assert [v[1] for v in spec["series"][1]["values"]] == [100, 0, 0, 0, 0, 9]
     # The cumulative view has its own fixed domain: every dated reservation.
     assert spec["toggles"] == {"cumulative": True}
