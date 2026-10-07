@@ -109,8 +109,8 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const gy = svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`);
   const yAxes = (t) => {
     gridY.call((g) => (t ? g.transition(t) : g).call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat("")));
-    gy.call((g) => (t ? g.transition(t) : g).call(d3.axisLeft(y).ticks(5, spec.y.format === "pct" ? null : "~s")
-      .tickFormat(spec.y.format === "pct" ? (v) => `${v}%` : null)));
+    gy.call((g) => (t ? g.transition(t) : g).call(d3.axisLeft(y).ticks(5)
+      .tickFormat(spec.y.format === "pct" ? (v) => `${v}%` : d3.format(",~f"))));
   };
   yAxes(null);
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
@@ -182,7 +182,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   }
   if (toggled) {
     const controls = el.ownerDocument.createElement("div");
-    controls.className = "chart-controls";
+    controls.className = "chart-controls chart-switch";
     controls.setAttribute("role", "group");
     controls.setAttribute("aria-label", "View");
     for (const [view_, label] of [["weekly", "Weekly"], ["cumulative", "Cumulative"]]) {
