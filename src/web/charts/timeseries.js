@@ -144,11 +144,13 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
 
-  // A series with `stage` draws at that delivery stage's tone (styles.css
-  // .tone-*): the same color stepped paler toward white, not faded, so the
-  // stages stay apart on the dark card as well as the light one.
+  // A series with `stage` draws at that delivery stage's look: in the neutral
+  // grey, the stage key's opacities (.stage-*); in a color, its tone (.tone-*:
+  // the color stepped toward white, or black on the dark card), since a faded
+  // color turns muddy where a faded grey doesn't.
+  const stageCls = (s) => (s.color === "neutral" ? ` stage-${s.stage}` : ` tone-${s.stage}`);
   const series = spec.series.map((s) => ({
-    s, cls: categoryClass(s.color) + (s.stage ? ` tone-${s.stage}` : "") }));
+    s, cls: categoryClass(s.color) + (s.stage ? stageCls(s) : "") }));
   const weeks = spec.series.length ? spec.series[0].values.map((v) => date(v[0])) : [];
   const colG = svg.append("g"), lineG = svg.append("g"), markG = svg.append("g");
   const groups = colG.selectAll("g").data(series).join("g")

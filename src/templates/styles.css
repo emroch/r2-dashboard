@@ -318,6 +318,8 @@ html[data-theme="dark"] .lg-item .swatch[class*="tone-"]{background:color-mix(in
    weekly view. */
 .chart-svg .hatch{stroke:var(--card-bg);stroke-width:1.5;}
 .chart-svg .bar-partial{pointer-events:none;}
+/* A neutral series' legend swatch is the grey mark, as in the stage key. */
+.lg-item .swatch.tr-neutral{background:var(--desc);}
 /* A rule between a tooltip's values and its totals. */
 .chart-tip .tip-rule{border:0;border-top:1px solid var(--tip-bd);margin:4px 0;}
 .chart-svg .clipped{fill:var(--desc);font-size:11px;}

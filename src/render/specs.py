@@ -290,10 +290,10 @@ def _stage_names() -> list[tuple[str, str]]:
 def orders_by_week(df: pd.DataFrame) -> tuple:
     """§5, bottom: orders by the week the configuration was finalized, each
     split by how far it has got today (the four delivery stages, delivered at
-    the bottom): how each week's cohort is doing. One color at the stages'
-    opacities (`stage`), as the take-rate bars draw them."""
+    the bottom): how each week's cohort is doing. The neutral grey at the
+    stages' opacities (`stage`), as the take-rate stage key draws them."""
     st = stages(df)
-    cols = _columns([(label, "acc:timeline-ordered",
+    cols = _columns([(label, "neutral",
                       _weekly(df.loc[st == stage, "order_date"]))
                      for stage, label in _stage_names()], cumulative=True)
     for s_, (stage, _) in zip(cols["series"], _stage_names()):
@@ -405,7 +405,7 @@ def fulfilment_by_week(df: pd.DataFrame) -> tuple:
             levels[st].append(int(mask.sum()))
     events = {key: _weekly(ev[key]) for key, _, _ in _EVENTS}
     iso = [_iso(w) for w in weeks]
-    series = [{"name": label, "color": "acc:timeline-ordered", "stage": st,
+    series = [{"name": label, "color": "neutral", "stage": st,
                "view": "cumulative",
                "values": [[x, v] for x, v in zip(iso, levels[st])]}
               for st, label in _stage_names()]
