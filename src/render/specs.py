@@ -194,6 +194,15 @@ def _weekly(dates: pd.Series) -> dict[pd.Timestamp, int]:
     return {pd.Timestamp(k): int(v) for k, v in counts.items()}
 
 
+def _partial(weeks: Sequence[pd.Timestamp]) -> str | None:
+    """The last week, when it's the current one and so still under way (the
+    chart marks it as so far)."""
+    if not weeks:
+        return None
+    last, now = pd.Timestamp(weeks[-1]), pd.Timestamp(AS_OF)
+    return _iso(last) if last <= now < last + pd.Timedelta(days=7) else None
+
+
 def _week_label(w: pd.Timestamp) -> str:
     return "Week of %s" % pd.Timestamp(w).strftime("%b %d, %Y")
 
@@ -253,7 +262,8 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
                      ("Outstanding", "acc:timeline-reserved", only)],
                     cumulative=True)
     x = {"label": "Week reserved", "type": "date",
-         "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None}
+         "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None,
+         "partial": _partial(cols["weeks"])}
     spec = {"template": "timeseries", "title": "Reservations by week",
             "x": x, "y": {**cols["y"], "label": "Reservations"},
             "legend": "Reservation", "series": cols["series"], "lines": [],
@@ -290,7 +300,8 @@ def orders_by_week(df: pd.DataFrame) -> tuple:
         s_["stage"] = stage
     spec = {"template": "timeseries", "title": "Orders by week",
             "x": {"label": "Week ordered", "type": "date",
-                  "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None},
+                  "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None,
+                  "partial": _partial(cols["weeks"])},
             "y": {**cols["y"], "label": "Orders"}, "legend": "Status today",
             "series": cols["series"], "lines": [], "rules": [],
             "toggles": {"cumulative": True}}
@@ -407,7 +418,8 @@ def fulfilment_by_week(df: pd.DataFrame) -> tuple:
     today = now.normalize()
     spec = {"template": "timeseries", "title": "Fulfilment over time",
             "x": {"label": "Week", "type": "date",
-                  "domain": _weeks_domain(weeks, [today]) if weeks else None},
+                  "domain": _weeks_domain(weeks, [today]) if weeks else None,
+                  "partial": _partial(weeks)},
             "y": {"type": "linear", "label": "Orders",
                   "domain": [0, peak * 1.1],
                   "cumulative": {"domain": [0, max(totals or [1]) * 1.05]}},

@@ -130,6 +130,15 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
   assert.equal(h.cumulative(), true, "toggles.default picks the first view");
   const legendNames = () => [...el.querySelectorAll(".chart-legend .lg-item")].map((b) => b.textContent);
   assert.deepEqual(legendNames(), ["Delivered", "Waiting"]);
+  // A level's change is from the week before, and can fall.
+  assert.deepEqual(weekTip(pipe.series, 2, new Set(), true, true, "2026-06-15"),
+    ["Week of Jun 15, 2026 (so far)", "Delivered: 5 (+3)", "Waiting: 4 (+1)", "Total: 9 (+4)"]);
+  assert.deepEqual(weekTip(pipe.series, 1, new Set(["Delivered"]), true, true).slice(1), ["Waiting: 3 (+0)"]);
+  pipe.series[1].values[2][1] = 2;
+  assert.equal(weekTip(pipe.series, 2, new Set(["Delivered"]), true, true)[1], "Waiting: 2 (−1)");
+  pipe.series[1].values[2][1] = 4;
+  // Stage series step in tone, not opacity.
+  assert.ok(el.querySelector("g.tone-wait rect.bar"), "a stage series carries its tone class");
   // Levels are drawn as given, not summed: week 3 stacks 5 + 4.
   assert.deepEqual(stackAt(pipe.series, 2, new Set(), true), [[0, 5], [5, 9]]);
   const shownLines = () => [...el.querySelectorAll("g.line")].filter((g) => g.style.display !== "none").length;

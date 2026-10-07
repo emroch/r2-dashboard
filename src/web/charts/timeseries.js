@@ -28,6 +28,7 @@ import { categoryClass } from "./scatter.js";
 const DAY = 864e5;
 const date = (iso) => new Date(`${iso}T00:00:00Z`);
 const fmt = (n) => n.toLocaleString("en-US");
+const signed = (n) => (n < 0 ? `−${fmt(-n)}` : `+${fmt(n)}`);
 
 // A series' value at week i: the week's count, or with `cumulative` its running
 // total through that week.
@@ -59,15 +60,19 @@ export function stackAt(series, i, hidden, cumulative = false) {
 // `running` the running total through that week. Cumulative: what the column
 // shows, each series' running total with the week's change ("Converted: 1,276
 // (+10)"), then the same for the total.
-export function weekTip(series, i, hidden, running = false, cumulative = false) {
+export function weekTip(series, i, hidden, running = false, cumulative = false, partial = null) {
   const shown = series.filter((s) => !hidden.has(s.name));
-  const week = new Date(date(series[0].values[i][0]).getTime());
-  const lines = [`Week of ${week.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`];
+  const iso = series[0].values[i][0];
+  const week = date(iso);
+  const lines = [`Week of ${week.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}${iso === partial ? " (so far)" : ""}`];
   const sum = (f) => shown.reduce((a, s) => a + f(s), 0);
   const week_ = (s) => s.values[i][1], run = (s) => valueAt(s, i, true);
   if (cumulative) {
-    for (const s of shown) lines.push(`${s.name}: ${fmt(run(s))} (+${fmt(week_(s))})`);
-    if (shown.length > 1) lines.push(`Total: ${fmt(sum(run))} (+${fmt(sum(week_))})`);
+    // A cumulative-view series is already a level (§6's pipeline), so its change
+    // is from the week before, and can fall (waiting shrinks as orders move on).
+    const delta = (s) => (s.view === "cumulative" ? s.values[i][1] - (i ? s.values[i - 1][1] : 0) : week_(s));
+    for (const s of shown) lines.push(`${s.name}: ${fmt(run(s))} (${signed(delta(s))})`);
+    if (shown.length > 1) lines.push(`Total: ${fmt(sum(run))} (${signed(sum(delta))})`);
     return lines;
   }
   for (const s of shown) lines.push(s.tips ? s.tips[i] : `${s.name}: ${fmt(week_(s))}`);
@@ -136,25 +141,42 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
 
-  // A series with `stage` draws at that delivery stage's opacity (styles.css
-  // .stage-*): Pending orders are the fulfilled color, fainter.
+  // A series with `stage` draws at that delivery stage's tone (styles.css
+  // .tone-*): the same color stepped paler toward white, not faded, so the
+  // stages stay apart on the dark card as well as the light one.
   const series = spec.series.map((s) => ({
-    s, cls: categoryClass(s.color) + (s.stage ? ` stage-${s.stage}` : "") }));
+    s, cls: categoryClass(s.color) + (s.stage ? ` tone-${s.stage}` : "") }));
   const weeks = spec.series.length ? spec.series[0].values.map((v) => date(v[0])) : [];
   const colG = svg.append("g"), lineG = svg.append("g"), markG = svg.append("g");
   const groups = colG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
   groups.selectAll("rect").data((o) => o.s.values.map((v, i) => ({ o, i }))).join("rect")
-    .attr("class", "bar");
+    .attr("class", (d) => (spec.x.partial && d.o.s.values[d.i][0] === spec.x.partial ? "bar bar-partial" : "bar"));
 
   const accent = (l) => `var(--${l.color.slice(4)})`;
   const lineSel = lineG.selectAll("g.line").data(spec.lines).join("g")
     .attr("class", "line").attr("data-name", (l) => l.name);
-  lineSel.append("path").attr("fill", "none").style("stroke", accent).attr("stroke-width", 2.5)
-    .attr("d", (l) => d3.line().x((d) => x(date(d[0]))).y((d) => y(d[1]))(l.points));
+  // Smooth (monotone, so a line never overshoots a week's value). The current
+  // week (x.partial) is still under way: its segment is dashed and its point
+  // hollow.
+  const partial = spec.x.partial || null;
+  const inWeek = (iso) => partial && date(iso) >= date(partial);
+  const curve = d3.line().curve(d3.curveMonotoneX).x((d) => x(date(d[0]))).y((d) => y(d[1]));
+  const done = (l) => l.points.filter((pt) => !inWeek(pt[0]));
+  const tail = (l) => (done(l).length && done(l).length < l.points.length ? l.points.slice(done(l).length - 1) : []);
+  const drawLines = () => {
+    lineSel.select("path.done").attr("d", (l) => curve(done(l)));
+    lineSel.select("path.partial").attr("d", (l) => (tail(l).length ? curve(tail(l)) : null));
+    lineSel.selectAll("circle").attr("cx", (o) => x(date(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
+  };
+  lineSel.append("path").attr("class", "done").attr("fill", "none").style("stroke", accent).attr("stroke-width", 2.5);
+  lineSel.append("path").attr("class", "partial").attr("fill", "none").style("stroke", accent)
+    .attr("stroke-width", 2.5).attr("stroke-dasharray", "5,4");
   lineSel.selectAll("circle").data((l) => l.points.map((pt) => ({ pt, l }))).join("circle")
-    .attr("r", 3).style("fill", (o) => accent(o.l))
-    .attr("cx", (o) => x(date(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
+    .attr("r", 3).attr("class", (o) => (inWeek(o.pt[0]) ? "pt-partial" : null))
+    .style("fill", (o) => (inWeek(o.pt[0]) ? "var(--card-bg)" : accent(o.l)))
+    .style("stroke", (o) => accent(o.l));
+  drawLines();
   const ruleSel = lineG.selectAll("g.rule").data(spec.rules).join("g").attr("class", "rule");
   ruleSel.append("line").attr("x1", (r) => x(date(r.value))).attr("x2", (r) => x(date(r.value)))
     .attr("y1", m.t).attr("y2", H - m.b);
@@ -181,11 +203,11 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
       .attr("text-anchor", "start").attr("x", (d) => x(d.w) + 4).attr("y", m.t + 2)
       .text((d) => `${fmt(d.total)} ↑ (axis cut at ${fmt(cap)})`);
   }
-  function visibility() {
+  function visibility(t = null) {
     const off = omitted();
     lineSel.style("display", (l) => (off.has(l.name) ? "none" : null));
     groups.style("display", (o) => (hidden.has(o.s.name) ? "none" : null));
-    place();
+    place(t);
   }
 
   // The legend lists the current view's series and lines.
@@ -208,10 +230,8 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     y.domain(domainOf(cum));
     const t = animate ? svg.transition().duration(600) : null;
     yAxes(t);
-    lineSel.select("path").attr("d", (l) => d3.line().x((d) => x(date(d[0]))).y((d) => y(d[1]))(l.points));
-    lineSel.selectAll("circle").attr("cy", (o) => y(o.pt[1]));
-    visibility();
-    place(t);
+    drawLines();
+    visibility(t);
     legendFor();
   }
   if (toggled) {
@@ -247,10 +267,10 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
       const off = omitted();
       const weekLines = spec.lines.filter((l) => l.view && !off.has(l.name));
       if (i >= 0 && weekLines.length) {
-        return tip.show([weekTip(spec.series, i, new Set(spec.series.map((s) => s.name)))[0],
+        return tip.show([weekTip(spec.series, i, new Set(spec.series.map((s) => s.name)), false, false, partial)[0],
           ...weekLines.map((l) => `${l.name}: ${fmt(l.points[i][1])}`)], hx, hy);
       }
-      if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative), hx, hy);
+      if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative, partial), hx, hy);
     }
     const pts = spec.lines.filter((l) => !hidden.has(l.name) && l.tips)
       .flatMap((l) => l.points.map((pt, i) => ({ d: Math.abs(x(date(pt[0])) - px), tip: l.tips[i] })));
@@ -259,5 +279,5 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   }).on("pointerleave", () => tip.hide());
 
   return { svg: svg.node(), hidden: () => new Set(hidden), redraw: () => place(),
-           setView: (cum) => setView(cum, false), cumulative: () => cumulative };
+           setView: (cum, animate = false) => setView(cum, animate), cumulative: () => cumulative };
 }

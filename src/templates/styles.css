@@ -297,6 +297,17 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .chart-svg .pt-open .pt{fill:none;stroke:var(--mark);stroke-width:1.6;}
 /* timeseries columns; a column cut off by a clipped axis is labelled. */
 .chart-svg .bar{fill:var(--mark);}
+/* Delivery stages in a chart's columns (timeseries `stage`): the color stepped
+   paler toward white rather than faded by opacity, which on the dark card turns
+   every stage brown. Legend swatches step the same way. */
+.tone-delivered{--tone:100%;}
+.tone-scheduled{--tone:75%;}
+.tone-vin{--tone:52%;}
+.tone-wait{--tone:30%;}
+.chart-svg [class*="tone-"] .bar{fill:color-mix(in oklab,var(--mark) var(--tone),white);}
+.lg-item .swatch[class*="tone-"]{background:color-mix(in oklab,var(--paint) var(--tone),white);}
+/* The current week, still under way (timeseries x.partial). */
+.chart-svg .bar-partial{stroke:var(--fg);stroke-width:1;stroke-dasharray:3,2;}
 .chart-svg .clipped{fill:var(--desc);font-size:11px;}
 .chart-svg .whisker{stroke:var(--mark);stroke-opacity:.55;stroke-width:1.4;fill:none;}
 .chart-svg .rule line{stroke:var(--desc);stroke-dasharray:4,3;}
