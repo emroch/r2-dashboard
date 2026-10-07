@@ -227,8 +227,8 @@ def test_every_registered_summary_fills_on_real_categories():
     for spec in COMPONENTS.values():
         if not spec.get("summary"):
             continue
-        if str(spec.get("aggregate")).startswith("price_"):
-            continue        # filled from the aggregate's meta: the price tests
+        if "{meta:" in spec["summary"]:
+            continue        # filled from the aggregate's meta: their own tests
         if spec.get("aggregate") == "crosstab":
             # Every pairing of the two vocabularies, as a crosstab's cells are.
             rows, cols = labels(spec["dims"][0]), labels(spec["dims"][1])
@@ -238,7 +238,7 @@ def test_every_registered_summary_fills_on_real_categories():
             continue
         dim = "r1_model" if spec.get("aggregate") == "r1_models" else spec["dims"][0]
         if spec.get("template") == "takerate" or dim in DIMENSIONS:
-            names = labels(dim)
+            names = labels(dim) or ["CA"]    # state: the states present
             summarize(spec["summary"], [{"label": names[0], "n": 1}], names)
 
 
@@ -378,7 +378,7 @@ def test_mix_rows_split_each_row_by_the_column_categories():
     assert html.count('<li class="mx-row">') == 2
     assert 'class="mark cat-delivery_type-explicit" style="width:50.00%"' in html
     assert 'class="mark cat-delivery_type-window" style="width:100.00%"' in html
-    assert "1 firm date · 1 relative window" in html
+    assert "1 Firm date · 1 Relative window" in html
     assert "50% of orders with a VIN have a firm" in html
     assert "against 0% of those" in html
 
@@ -498,6 +498,88 @@ def test_price_components_render_rows_text_and_tables():
         in html
     assert html.count("no orders yet") == len(price_by_trim(df).cells) - 1
     assert "Median configured price by trim: Performance $59,990." in html
+
+
+# --- Location mixes (§13–16) -------------------------------------------------------
+
+def _located(states, colors):
+    return _orders(state=states, color=colors, lat=[40.0] * len(states),
+                   region=["West"] * len(states))
+
+
+def test_small_n_rows_are_excluded_with_their_reason_and_note():
+    from config import COMPONENTS, DIMENSIONS
+    from render.aggregates import cohort_sizes, crosstab, reconcile
+    from render.components import mix
+    least = DIMENSIONS["state"]["small_n"]["min_orders"]
+    states = ["CA"] * 6 + ["NV"] * (least - 1) + ["OR"]
+    df = _located(states, ["Midnight"] * len(states))
+    a = crosstab(df, "state", "color", "located", small_n=True)
+    assert [r["value"] for r in a.meta["rows"]] == ["CA"]
+    assert a.excluded == {"fewer than 5 orders": 5}
+    reconcile([a], cohort_sizes(df))
+    # The baseline still counts every located order that reported a paint.
+    assert sum(b["n"] for b in a.meta["baseline"]) == len(states)
+    html = mix("c-p", COMPONENTS["paint-by-state"], a)
+    assert DIMENSIONS["state"]["small_n"]["note"] in html
+
+
+def test_mix_draws_paints_true_and_take_rates_clamped():
+    # A mix bar compares paints, so its segments are the true colors; a take-rate
+    # bar's segments are stages of one paint, so they keep the clamped mark.
+    from config import COMPONENTS
+    from render.aggregates import counts, crosstab
+    from render.components import mix, takerate
+    df = _orders(region=["West"] * 2, color=["Glacier White", "Midnight"],
+                 lat=[40.0] * 2, delivery_type=["window"] * 2,
+                 wheels_short=['20" Black Sand'] * 2)
+    paint = mix("c-p", COMPONENTS["paint-by-region"],
+                crosstab(df, "region", "color", "located"))
+    assert paint.count('class="mark mark-true cat-color-') == 4    # baseline + West
+    wheels = mix("c-w", COMPONENTS["wheels-by-region"],
+                 crosstab(df, "region", "wheels", "located"))
+    assert "mark-true" not in wheels, "wheels are not true_color"
+    rate = takerate("c-t", COMPONENTS["takerate-color"],
+                    counts(df, "color", by_stage=True))
+    assert "mark-true" not in rate
+
+
+def test_mix_baseline_row_comes_first_and_the_lean_names_the_biggest_gap():
+    from config import COMPONENTS
+    from render.aggregates import LEAN_MIN_ORDERS, crosstab
+    from render.components import mix
+    n = LEAN_MIN_ORDERS
+    df = _orders(region=["West"] * n + ["South"] * n,
+                 color=["Midnight"] * n + ["Midnight"] * (n // 2)
+                 + ["Borealis"] * (n - n // 2), lat=[40.0] * (2 * n))
+    a = crosstab(df, "region", "color", "located")
+    assert a.meta["lean"] == ("Midnight at 100% of West orders "
+                              "(75% across all orders)"), a.meta["lean"]
+    html = mix("c-r", COMPONENTS["paint-by-region"], a)
+    assert html.index('<li class="mx-row mx-base">') < html.index('<li class="mx-row">')
+    assert "The biggest lean: Midnight at 100% of West orders" in html
+    small = crosstab(df.iloc[[0, n]], "region", "color", "located")
+    assert small.meta["lean"] == "no group has %d orders yet" % n
+
+
+def test_state_take_rate_carries_an_all_states_row_on_its_own_scale():
+    from config import COMPONENTS
+    from render.aggregates import counts
+    from render.components import takerate
+    df = _orders(state=["CA"] * 3 + ["TX"], lat=[40.0] * 4,
+                 delivered_inferred=[True, False, False, False])
+    html = takerate("c-s", COMPONENTS["state-totals"],
+                    counts(df, "state", cohort="located", by_stage=True))
+    assert html.count('<li class="tr-row tr-neutral tr-total">') == 1
+    assert html.index("All states") < html.index(">CA<")
+    # Its bar is full width at its own total: 1 delivered of 4 is 25%.
+    tot = html[html.index("tr-total"):html.index("</li>")]
+    assert 'stage-delivered" style="width:25.00%"' in tot
+    # A state's fill (the outlined part) is its share of the widest row; the
+    # track itself is not outlined, so TX (1 of CA's 3) ends a third of the way.
+    assert html.count('<span class="tr-fill" style="width:100.00%">') == 2
+    assert '<span class="tr-fill" style="width:33.33%">' in html
+    assert "<th scope=\"col\">State / province</th>" in html
 
 
 # --- Summary readouts --------------------------------------------------------------

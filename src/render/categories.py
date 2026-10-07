@@ -72,6 +72,15 @@ def bounds(theme: str) -> tuple[float, float]:
 ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"]}
 
 
+def true_color() -> set[tuple[str, str]]:
+    """The colored categories drawn in their true color where categories are
+    compared side by side (a mix bar's segments; dimensions.yaml `true_color`),
+    instead of the clamped --mark; the bar's mark-edge border separates them from
+    the card. A take-rate bar, whose segments are stages of one category, keeps
+    --mark, so its stage fades stay visible."""
+    return {k for k in colored() if DIMENSIONS[k[0]].get("true_color")}
+
+
 def marked() -> dict[tuple[str, str], str]:
     """Everything with a --paint / --mark class: the colored categories, and the
     accents (as ("acc", name))."""

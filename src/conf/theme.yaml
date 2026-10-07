@@ -44,6 +44,10 @@ css:
     # the true color and ignore this.
     mark-lmin: "0"
     mark-lmax: "0.65"
+    # The border around a bar track: 3:1 against the card, so a bar's full extent
+    # shows and a true-color mark (dimensions.yaml true_color) like a white paint
+    # on the white card still has an outline.
+    mark-edge: "#808080"
   dark:
     bg: "#15171c"
     fg: "#dfe4ea"
@@ -72,6 +76,7 @@ css:
     # Dark card: marks lifted to at least 0.70, and pale ones capped at 0.92.
     mark-lmin: "0.70"
     mark-lmax: "0.92"
+    mark-edge: "#8a909b"
   fixed:                        # header / sidebar / disclaimer chrome (same in both themes)
     topbar-fg: "#ffffff"
     topbar-sh: "rgba(0,0,0,.22)"

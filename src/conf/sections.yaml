@@ -164,43 +164,44 @@ sections:
       per-region total.
 
   - title: "Orders by state"
-    charts: [fig_state_totals]
+    components: [state-totals]
     desc: >-
-      Every state that has ordered, sorted by total, as a delivery pipeline: assumed
-      delivered, then awaiting delivery with a VIN known, then no VIN yet. The three
-      stack to the state's full count, so bar length is the state total. Deliveries
-      are <em>inferred</em>, not reported — an order whose whole delivery estimate
-      has passed is assumed to have arrived, on the theory that people rarely come
-      back to update the sheet afterwards. That is rough and errs both ways: a
-      delayed car still looks delivered, and one that arrived early against a vague
-      estimate does not. Any estimate with a known end date counts, including a
-      relative window that finished a while ago; orders with no estimate never do.
-      Deliveries count whether or not a VIN is known, since some people post about
-      taking delivery without ever updating their VIN. The top row sums every state
-      on its own scale — at the shared one it would flatten every other bar. It is
-      the same split as the summary's delivery-progress cards, counted over the
-      orders with a known state.
+      Every state that has ordered, largest first, each bar split by how far its
+      orders have got: delivered, delivery scheduled, assigned a VIN, or still waiting
+      for one, the same four stages as the take-rate bars and the summary. Bar length
+      is the state's order count. Deliveries are <em>inferred</em>, not reported — an
+      order whose whole delivery estimate has passed is assumed to have arrived, on
+      the theory that people rarely come back to update the sheet afterwards. That is
+      rough and errs both ways: a delayed car still looks delivered, and one that
+      arrived early against a vague estimate does not. Any estimate with a known end
+      date counts, including a relative window that finished a while ago; orders with
+      no estimate never do. Deliveries count whether or not a VIN is known, since some
+      people post about taking delivery without ever updating their VIN. The top row
+      sums every state on its own scale — at the shared one it would flatten every
+      other bar — and equals the summary's delivery progress, counted over the orders
+      with a known state.
 
   - title: "Paint preference by location"
-    charts: [fig_paint_by_location]
+    components: [paint-by-region, paint-by-state]
     desc: >-
-      Does color taste vary geographically? All three panels are 100% stacked, so
-      each row's paint mix is comparable regardless of order volume — the West has
-      ~70x Canada's. The overall row on top is the baseline: read a region against
-      it to see which paints it over- or under-indexes on. Bar labels carry the
-      sample size (n=), and hover gives the underlying counts. The state panel is
-      limited to states with enough orders to be meaningful; below that a single
-      order swings the mix by 100 points, so the rest stay summarized in the region
-      panel.
+      Does color taste vary geographically? Each row is 100% of its orders, so a
+      region's or state's paint mix compares regardless of order volume — the West has
+      ~70x Canada's. The <em>All orders</em> row on top is the baseline: read a row
+      against it to see which paints that group over- or under-indexes on, and the
+      summary names the biggest lean among groups of 20 or more orders. Every row
+      gives its n and its counts. The state panel is limited to states with enough
+      orders to be meaningful; below that a single order swings the mix by 100 points,
+      so the rest stay summarized in the region panel.
 
   - title: "Wheel preference by location"
-    charts: [fig_wheels_by_location]
+    components: [wheels-by-region, wheels-by-elevation, wheels-by-temperature,
+                 wheels-by-urban]
     desc: >-
-      Wheel choice for every order with a known state, as a 100% stacked mix per
-      group so rows stay comparable regardless of order volume; the top row is the
-      whole cohort, a baseline to read the others against, and each bar label
-      carries its sample size (n=). The lower three panels order their bars by
-      <em>value</em> rather than by volume. Sources, all per-state published
+      Wheel choice for every order with a known state, as 100% rows per group so
+      rows compare regardless of order volume; each panel's <em>All orders</em> row
+      is the whole cohort, a baseline to read the others against, and every row
+      gives its n and its counts. The elevation, temperature and urban-share panels
+      order their rows by <em>value</em> rather than by volume. Sources, all per-state published
       figures: <a href="https://pubs.usgs.gov/pp/1200us/report.pdf" target="_blank"
       rel="noopener">USGS</a> mean state elevation (area-weighted), <a
       href="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/"
@@ -219,18 +220,14 @@ sections:
       separate.
 
   - title: "Interior preference by location"
-    charts: [fig_interior_by_location]
+    components: [interior-by-region]
     desc: >-
-      Interior mix overall and by region, read the same way as the paint and wheel
-      panels above: each row is 100% stacked so a region's mix is comparable
-      regardless of order volume, the overall row on top is the baseline, and every
-      bar carries its sample size (n=). Region only, no per-state row &mdash; the
-      newer cabins are a small share of orders, and split by state most rows would
-      hold one or two of them, where a single order swings the mix by 100 points.
-      Segment fills are sampled from Rivian's own configurator renders, so a bar
-      shows roughly the real cabin color; since charcoal and smoke each come close
-      to one of the two page themes, the segments carry a border that follows the
-      theme rather than the data.
+      Interior mix by region, read the same way as the paint and wheel panels above:
+      each row is 100% of its orders so a region's mix compares regardless of order
+      volume, the <em>All orders</em> row on top is the baseline, and every row gives
+      its n and its counts. Region only, no per-state row &mdash; the newer cabins are
+      a small share of orders, and split by state most rows would hold one or two of
+      them, where a single order swings the mix by 100 points.
 
   - title: "Destination vs. delivery date"
     charts: [fig_dest_vs_delivery]

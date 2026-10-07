@@ -17,6 +17,9 @@ if _TESTS not in sys.path:
 
 from config import DIMENSIONS, SECTIONS_CONF, THEME_CSS
 
+with open(os.path.join(_SRC, "templates", "styles.css")) as _fh:
+    CSS_TEXT = _fh.read()
+
 # --- The section registry (src/conf/sections.yaml) -----------------------------
 
 
@@ -52,9 +55,14 @@ def _colored_refs():
 
 
 def test_every_colored_category_has_a_class_with_its_true_paint():
-    from render.categories import category_class, category_css
+    from render.categories import category_class, category_css, true_color
     css = category_css()
     refs = _colored_refs()
+    true = {"%s:%s" % k for k in true_color()}
+    assert "color:Midnight" in true and "wheels:20\" Black Sand" not in true
+    # Every category keeps a clamped mark (take-rate stages fade it); a mix bar
+    # draws a true-color one from --paint (.mark-true).
+    assert ".mark.mark-true{background:var(--paint);}" in CSS_TEXT
     assert len(refs) > 20
     for ref in refs:
         dim, _, value = ref.partition(":")
@@ -91,12 +99,16 @@ def test_oklch_round_trips_every_palette_color():
 
 def test_every_mark_holds_3_to_1_against_the_card_in_both_themes():
     # WCAG 1.4.11: a non-text mark needs 3:1 against what it sits on. The mark
-    # bounds in theme.yaml are set so that every category color clears it.
+    # bounds in theme.yaml are set so that every category color clears it; a
+    # true-color mix segment (paints, cabins) sits in a bar outlined in
+    # mark-edge, which must.
     from render.categories import bounds, marked
     from render.colors import contrast_ratio, mark_hex
     worst = {}
     for theme in ("light", "dark"):
         card = THEME_CSS[theme]["card-bg"]
+        edge = contrast_ratio(THEME_CSS[theme]["mark-edge"], card)
+        assert edge >= 3.0, "%s mark-edge is %.2f:1 on %s" % (theme, edge, card)
         for (dim, value), hexv in marked().items():   # categories and accents
             ratio = contrast_ratio(mark_hex(hexv, *bounds(theme)), card)
             assert ratio >= 3.0, "%s %s:%s mark is %.2f:1 on %s" % (
@@ -114,14 +126,19 @@ def test_glacier_white_and_midnight_stay_visible_and_true_as_swatches():
     # As swatches (the true color), each nearly vanishes on its own card...
     assert contrast_ratio(white, light) < 1.2
     assert contrast_ratio(black, dark) < 1.5
-    # ...as marks, both clear 3:1 on both cards.
-    for hexv in (white, black):
-        assert contrast_ratio(mark_hex(hexv, *bounds("light")), light) >= 3
-        assert contrast_ratio(mark_hex(hexv, *bounds("dark")), dark) >= 3
-    # The clamp only moves lightness: Midnight keeps its hint of blue.
-    _, c0, h0 = hex_to_oklch(black)
-    _, c1, h1 = hex_to_oklch(mark_hex(black, *bounds("dark")))
-    assert abs(h1 - h0) < 3 and c1 > 0.5 * c0
+    # ...and in a mix bar they stay true too (paint is true_color), so what
+    # keeps them visible there is the bar's mark-edge border, 3:1 on both cards.
+    for theme, card in (("light", light), ("dark", dark)):
+        assert contrast_ratio(THEME_CSS[theme]["mark-edge"], card) >= 3
+    # Clamped, silver, grey and white would land within a hair of each other on
+    # the dark card, and Midnight would lift to a blue-grey: why a mix bar draws
+    # paints true.
+    silver = paints[("color", "Esker Silver")]
+    grey = paints[("color", "Half Moon Grey")]
+    lifted = [hex_to_oklch(mark_hex(h, *bounds("dark")))[0]
+              for h in (silver, grey, white)]
+    assert max(lifted) - min(lifted) < 0.25
+    assert hex_to_oklch(mark_hex(black, *bounds("dark")))[0] >= 0.7
 
 
 # --- The component frame (render/components.py) --------------------------------
@@ -130,16 +147,19 @@ def test_frame_carries_title_summary_n_caveats_and_table():
     from render.components import Table, frame
     html = frame("c-test", "Paint <mix>", "<div class='body'></div>",
                  summary="Launch Green & co.", n=1234, dims=["region", "state"],
-                 notes=["Extra note."],
+                 notes=["Extra note."], small_n=["state"],
                  table=Table(["Paint", "Orders"], [["Midnight", 18]]))
     assert html.startswith('<figure class="r2c" id="c-test" role="group" '
                            'aria-labelledby="c-test-t">')
     assert '<figcaption id="c-test-t">Paint &lt;mix&gt;</figcaption>' in html
     assert "Launch Green &amp; co." in html and "<div class='body'></div>" in html
     assert "n = 1,234" in html
-    # region and state share a caveat: shown once, then state's small-n note.
+    # region and state share a caveat: shown once, then state's small-n note
+    # (the frame applies that rule; one that doesn't leaves the note out).
     assert html.count("Location is self-reported.") == 1
     assert DIMENSIONS["state"]["small_n"]["note"] in html and "Extra note." in html
+    assert DIMENSIONS["state"]["small_n"]["note"] not in frame(
+        "c-x", "All states", "", dims=["state"]), "§13 lists every state"
     assert '<table id="c-test-data">' in html and "<td>Midnight</td>" in html
     assert 'data-table="c-test-data" data-file="c-test.csv" hidden' in html
 
@@ -167,7 +187,8 @@ def test_view_build_reconciles_and_renders_every_component():
                 delivery_min=[pd.NaT, pd.NaT], delivery_max=[pd.NaT, pd.NaT],
                 wheels_short=['21" Liquid Tungsten', None],
                 vin_display=["1200", "—"], order_display=["—", "—"],
-                est_display=["Sep 01, 2026", "—"])
+                est_display=["Sep 01, 2026", "—"], elev_ft=[600.0, None],
+                temp_f=[51.0, None], urban_pct=[88.0, None])
     from test_aggregates import _priced
     cols.update({k: v[:1] + [None] for k, v in _priced([60990.0]).items()})
     view = build(_orders(**cols))

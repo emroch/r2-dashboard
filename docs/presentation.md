@@ -113,7 +113,7 @@ A starting point, not a spec: each section may be redesigned in its stage.
 | §10 Delivery vs. VIN | scatter, whiskers, build front, cadence | `scatter` with `whisker`, `line`, `band` |
 | §11 VIN by configuration | scatter, one row per configuration | `scatter` |
 | §12 Geographic demand | scattergeo maps + region bars | `geo`, with the bars as `mix` |
-| §13 Orders by state | stacked bars | `mix` |
+| §13 Orders by state | stacked bars | `takerate` rows with an all-states total |
 | §14–16 Preference by location | 100%-stacked bars | `mix` |
 | §17 Destination vs. delivery | jittered scatter + whiskers | `scatter` |
 | Data quality | HTML panel | stays as it is |
