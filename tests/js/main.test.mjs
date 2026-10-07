@@ -11,8 +11,8 @@ function page(...mounts) {
   return { els, root: { querySelectorAll: () => els } };
 }
 
-test("importing main.js touches no DOM, and the scatter template is registered", () => {
-  assert.deepEqual(Object.keys(templates), ["scatter"]);
+test("importing main.js touches no DOM, and the chart templates are registered", () => {
+  assert.deepEqual(Object.keys(templates), ["scatter", "timeseries"]);
 });
 
 test("a mount waits for its schedule before loading anything", async () => {

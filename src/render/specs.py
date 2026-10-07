@@ -16,6 +16,7 @@ like every static component's counts.
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -71,7 +72,7 @@ def _paint_order(d: pd.DataFrame) -> list[str]:
     return sorted(counts.index, key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
 
 
-def delivery_vs_vin(df: pd.DataFrame) -> tuple[dict[str, Any], Aggregate]:
+def delivery_vs_vin(df: pd.DataFrame) -> tuple:
     """§10: each order with a VIN and a delivery estimate, at (estimated
     delivery date, VIN), one series per paint × wheel, with the quoted window
     as a whisker; the build front, its projection and band; and today."""
@@ -163,4 +164,278 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple[dict[str, Any], Aggregate]:
             "legend": "Paint · wheels",
             "series": series, "layers": layers,
             "toggles": {"whiskers": True}}
-    return spec, Aggregate("delivery-vs-vin points", "orders", cells, excluded)
+    rows = [[s_["name"], p["tip"][0], format(p["y"], ","), p["x"],
+             "%s – %s" % (p["lo"], p["hi"]) if p.get("lo") else "",
+             "firm" if p.get("firm") else ""]
+            for s_ in series for p in s_["points"]]
+    table = (["Paint · wheels", "Order", "VIN", "Est. delivery", "Quoted window",
+              "Date"], rows)
+    return spec, Aggregate("delivery-vs-vin points", "orders", cells, excluded), table
+
+
+# --- timeseries: weekly columns (stacked) and lines over dates ---------------------
+#
+#   timeseries  x: Monday weeks; `series`: stacked columns, each
+#               {name, color, values: [[week, n], ...]}; `lines`: {name, color,
+#               points: [[iso, y]], tips}; `rules` (today); y may carry `clip`
+#               (the domain stops there, and a taller column is marked with its
+#               total) and `format` ("pct": values are percentages).
+# Every week is Monday-to-Sunday, the same weeks the latency median and the
+# cadence use.
+
+def _week(s: pd.Series) -> pd.Series:
+    return s.dt.to_period("W-SUN").dt.start_time
+
+
+def _weekly(dates: pd.Series) -> dict[pd.Timestamp, int]:
+    counts: Any = _week(dates.dropna()).value_counts()
+    return {pd.Timestamp(k): int(v) for k, v in counts.items()}
+
+
+def _week_label(w: pd.Timestamp) -> str:
+    return "Week of %s" % pd.Timestamp(w).strftime("%b %d, %Y")
+
+
+def _columns(stack: list[tuple[str, str, dict[pd.Timestamp, int]]],
+             clip_over: float = 3.0) -> dict[str, Any]:
+    """The weeks, series and y axis of a stacked weekly column chart. When the
+    tallest week is more than `clip_over` times the next, the axis clips just
+    above the rest (a nice round number) and that week is marked with its total,
+    so one spike doesn't flatten every other week."""
+    weeks = sorted({w for _, _, by in stack for w in by})
+    totals = [sum(by.get(w, 0) for _, _, by in stack) for w in weeks]
+    series = [{"name": name, "color": color,
+               "values": [[_iso(w), by.get(w, 0)] for w in weeks]}
+              for name, color, by in stack]
+    y: dict[str, Any] = {"type": "linear", "domain": [0, max(totals or [1]) * 1.05]}
+    ranked = sorted(totals, reverse=True)
+    if len(ranked) > 1 and ranked[0] > clip_over * max(ranked[1], 1):
+        top = ranked[1] * 1.15
+        step = 10 ** max(int(np.floor(np.log10(top))), 0)
+        y["clip"] = y["domain"][1] = float(np.ceil(top / step) * step)
+    return {"weeks": weeks, "totals": totals, "series": series, "y": y}
+
+
+def _weeks_domain(weeks: list[pd.Timestamp],
+                  extra: Sequence[pd.Timestamp] = ()) -> list:
+    """Monday of the first week to the Monday after the last (each column spans
+    its week), widened to `extra` dates (today)."""
+    lo = min(list(weeks) + list(extra))
+    hi = max([w + pd.Timedelta(days=7) for w in weeks] + list(extra))
+    return [_iso(lo), _iso(hi)]
+
+
+def _column_table(first: str, cols: dict[str, Any]) -> tuple[list[str], list[list]]:
+    names = [s["name"] for s in cols["series"]]
+    rows = [[_iso(w)] + [s["values"][i][1] for s in cols["series"]]
+            + ([cols["totals"][i]] if len(names) > 1 else [])
+            for i, w in enumerate(cols["weeks"])]
+    return [first] + names + (["Total"] if len(names) > 1 else []), rows
+
+
+def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
+    """§5, top: reservations by the week they were made, stacked: the holders
+    still waiting to order (the reservations sheet) on top of those who have
+    since ordered (every order with a reservation date)."""
+    ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
+    cols = _columns([("Reserved & ordered", "acc:timeline-ordered", ordered),
+                     ("Reserved only (incomplete)", "acc:timeline-reserved", only)])
+    x = {"label": "Week reserved", "type": "date",
+         "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None}
+    spec = {"template": "timeseries", "title": "Reservations by week",
+            "x": x, "y": {**cols["y"], "label": "Reservations"},
+            "legend": "Reservation", "series": cols["series"], "lines": [],
+            "rules": []}
+    heads, rows = _column_table("Week of", cols)
+    cells = [{"value": s["name"], "label": s["name"],
+              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
+             for s in cols["series"]]
+    excluded = {"order without a reservation date": int(df["resv_date"].isna().sum()),
+                "reservation without a date": int(resv["resv_date"].isna().sum())}
+    # The summary's count is every outstanding reservation, dated or not, so it
+    # matches the summary readout; the chart can only place the dated ones.
+    agg = Aggregate("reservations by week", "orders+reservations", cells,
+                    {k: v for k, v in excluded.items() if v},
+                    meta={"outstanding": format(len(resv), ",")})
+    return spec, agg, (heads, rows)
+
+
+def orders_by_week(df: pd.DataFrame) -> tuple:
+    """§5, bottom: orders by the week the configuration was finalized."""
+    cols = _columns([("Orders", "acc:timeline-ordered", _weekly(df["order_date"]))])
+    spec = {"template": "timeseries", "title": "Orders by week",
+            "x": {"label": "Week ordered", "type": "date",
+                  "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None},
+            "y": {**cols["y"], "label": "Orders"}, "legend": None,
+            "series": cols["series"], "lines": [], "rules": []}
+    heads, rows = _column_table("Week of", cols)
+    n = int(df["order_date"].notna().sum())
+    agg = Aggregate("orders by week", "orders",
+                    [{"value": "orders", "label": "Orders", "n": n, "known": True,
+                      "ref": None}],
+                    {"no order date": len(df) - n} if len(df) - n else {})
+    if cols["weeks"]:
+        i = int(np.argmax(cols["totals"]))
+        agg.meta["peak"] = "%s (%d orders)" % (
+            pd.Timestamp(cols["weeks"][i]).strftime("%b %d, %Y"), cols["totals"][i])
+    return spec, agg, (heads, rows)
+
+
+def deliveries_by_week(df: pd.DataFrame) -> tuple:
+    """§6: estimated deliveries by week, stacked by how firm the estimate is
+    (dimensions.yaml delivery_type, firm first), with today."""
+    unknown = DIMENSIONS["delivery_type"]["missing"]["value"]
+    types = [c for c in DIMENSIONS["delivery_type"]["categories"]
+             if c["value"] != unknown]
+    d = df[df["delivery_est"].notna() & df["delivery_type"].isin(
+        [c["value"] for c in types])]
+    stack = [(c.get("label") or c["value"], "delivery_type:%s" % c["value"],
+              _weekly(d.loc[d["delivery_type"] == c["value"], "delivery_est"]))
+             for c in types]
+    cols = _columns([s for s in stack if s[2]])
+    today = pd.Timestamp(AS_OF).normalize()
+    spec = {"template": "timeseries", "title": "Estimated deliveries by week",
+            "x": {"label": "Estimated delivery week", "type": "date",
+                  "domain": _weeks_domain(cols["weeks"], [today])
+                  if cols["weeks"] else None},
+            "y": {**cols["y"], "label": "Orders"}, "legend": "Estimate",
+            "series": cols["series"], "lines": [],
+            "rules": [{"axis": "x", "value": _iso(today), "label": "Today"}]}
+    heads, rows = _column_table("Week of", cols)
+    cells = [{"value": s["name"], "label": s["name"],
+              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
+             for s in cols["series"]]
+    agg = Aggregate("deliveries by week", "orders", cells,
+                    {"no delivery estimate": len(df) - len(d)} if len(df) - len(d)
+                    else {})
+    return spec, agg, (heads, rows)
+
+
+# §7: a weekly median is only drawn for weeks with at least this many firm
+# dates; below it, one fast or slow delivery swings the line by weeks.
+LATENCY_MIN_WEEK_N = 3
+
+
+def latency_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Orders whose wait from order to delivery can be measured, with `days`.
+
+    Firm ("explicit") delivery dates only: a range or window is a guess at when
+    the car will come, so its midpoint would plot a precision the data doesn't
+    have. An estimate that contradicts the order date never gets here: cleaning
+    sets it aside as unknown and lists it (ingest/outliers.py)."""
+    d = df[(df["delivery_type"] == "explicit") & df["order_date"].notna()
+           & df["delivery_est"].notna()].copy()
+    d["days"] = (d["delivery_est"] - d["order_date"]).dt.days
+    # The Monday-start week the order was placed in, for the median and coverage.
+    d["order_week"] = _week(d["order_date"])
+    return d
+
+
+def delivery_latency(df: pd.DataFrame) -> tuple:
+    """§7: each order with a firm delivery date at (order date, days to
+    delivery), filled once the date has passed and open while it's still
+    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more."""
+    d = latency_frame(df)
+    passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
+    series: list[dict[str, Any]] = []
+    cells: list[dict[str, Any]] = []
+    for name, mask, open_ in (("Delivery date passed", passed, False),
+                              ("Scheduled (future date)", ~passed, True)):
+        s = d[mask].sort_values("order_date")
+        if s.empty:
+            continue
+        series.append({"name": name, "color": "acc:latency-order", "open": open_,
+                       "points": [{"x": _iso(o), "y": int(n),
+                                   "tip": [str(u), "Ordered %s" % _day(o),
+                                           "Delivery %s" % _day(e), "%d days" % n]}
+                                  for u, o, e, n in zip(s["user"], s["order_date"],
+                                                        s["delivery_est"], s["days"])]})
+        cells.append({"value": name, "label": name, "n": len(s), "known": True,
+                      "ref": None})
+    g: Any = d.groupby("order_week")["days"]
+    med: Any = g.median()[g.size() >= LATENCY_MIN_WEEK_N]
+    layers: list[dict[str, Any]] = []
+    if len(med):
+        layers.append({
+            "type": "line", "name": "Weekly median (%d+ orders)" % LATENCY_MIN_WEEK_N,
+            "color": "var:latency-median",
+            "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
+                       for w, v in med.items()],
+            "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),
+                      "%d orders" % g.size()[w]] for w, v in med.items()]})
+    xs = [pd.Timestamp(p["x"]) for s_ in series for p in s_["points"]]
+    ys = [0.0] + [float(p["y"]) for s_ in series for p in s_["points"]]
+    spec = {"template": "scatter", "title": "Order-to-delivery time",
+            "x": {"label": "Order date", "type": "date", "domain": _date_domain(xs)},
+            "y": {"label": "Days from order to delivery", "type": "linear",
+                  "domain": [0.0, (_num_domain(ys) or [0, 1])[1]]},
+            "legend": "Orders", "series": series, "layers": layers, "toggles": {}}
+    rows = [[s_["name"], p["tip"][0], p["x"], p["tip"][2][len("Delivery "):], p["y"]]
+            for s_ in series for p in s_["points"]]
+    excluded = {"no order date": int(df["order_date"].isna().sum())}
+    rest = len(df) - excluded["no order date"] - len(d)
+    excluded["no firm delivery date"] = rest
+    agg = Aggregate("order-to-delivery points", "orders", cells,
+                    {k: v for k, v in excluded.items() if v},
+                    meta={"median": "%.0f" % d["days"].median()} if len(d) else {})
+    return spec, agg, (["Status", "Order", "Ordered", "Delivery", "Days"], rows)
+
+
+def latency_coverage(df: pd.DataFrame) -> tuple:
+    """§7, beneath: what share of each order week's orders have a firm delivery
+    date, i.e. how much of the week the points above cover. Every order with an
+    order date counts in its week's denominator, whatever its estimate."""
+    have = df[df["order_date"].notna()]
+    den = _week(have["order_date"]).value_counts().sort_index()
+    num = latency_frame(df)["order_week"].value_counts()
+    weeks = [pd.Timestamp(w) for w in den.index]
+    pct = [100.0 * int(num.get(w, 0)) / int(den[w]) for w in den.index]
+    spec = {"template": "timeseries", "title": "Firm-date coverage by order week",
+            "x": {"label": "Week ordered", "type": "date",
+                  "domain": _weeks_domain(weeks) if weeks else None},
+            "y": {"label": "Orders with a firm date", "type": "linear",
+                  "domain": [0, 100], "format": "pct"},
+            "legend": None, "lines": [], "rules": [],
+            "series": [{"name": "Coverage", "color": "acc:latency-coverage",
+                        "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
+                        "tips": ["%d of %d orders have a firm date"
+                                 % (int(num.get(w, 0)), int(den[w]))
+                                 for w in den.index]}]}
+    rows = [[_iso(w), int(num.get(w, 0)), int(den[w]), "%.0f%%" % p]
+            for w, p in zip(weeks, pct)]
+    agg = Aggregate("firm-date coverage", "orders",
+                    [{"value": "with an order date", "label": "Orders", "n": len(have),
+                      "known": True, "ref": None}],
+                    {"no order date": len(df) - len(have)} if len(df) - len(have)
+                    else {})
+    return spec, agg, (["Week of", "Firm dates", "Orders", "Coverage"], rows)
+
+
+def build_cadence(df: pd.DataFrame) -> tuple:
+    """§10, beneath: the build front's rate over time, VINs per day, as of each
+    front week (render/cadence.py rate_history), at the week's middle."""
+    from config import CADENCE_WINDOW_WEEKS
+    from .cadence import cadence_frame, rate_history
+    hist = rate_history(df)
+    pts = [[_iso(w + pd.Timedelta(days=3)), float(r)] for w, r in hist.items()]
+    weeks = [pd.Timestamp(w) for w in hist.index]
+    spec = {"template": "timeseries",
+            "title": "Build cadence (rate over the previous %d weeks of front)"
+                     % CADENCE_WINDOW_WEEKS,
+            "x": {"label": "Delivery week", "type": "date",
+                  "domain": _weeks_domain(weeks) if weeks else None},
+            "y": {"label": "VINs per day", "type": "linear",
+                  "domain": [0, max([float(r) for r in hist] or [1.0]) * 1.1]},
+            "legend": None, "series": [], "rules": [],
+            "lines": [{"name": "Build cadence", "color": "var:cadence-front",
+                       "points": pts,
+                       "tips": [["%s: ≈ %.0f VINs/day" % (_week_label(w), r)]
+                                for w, r in hist.items()]}]}
+    used = len(cadence_frame(df))
+    vins = int(df["vin_present"].astype(bool).sum())
+    agg = Aggregate("build cadence", "vin_assigned", [], basis=used,
+                    excluded={"no firm delivery date": vins - used},
+                    meta={"rate": "%.0f" % hist.iloc[-1],
+                          "window": str(CADENCE_WINDOW_WEEKS)} if len(hist) else {})
+    rows = [[_iso(w), "%.1f" % r] for w, r in hist.items()]
+    return spec, agg, (["Week of", "VINs per day"], rows)

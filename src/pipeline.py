@@ -105,7 +105,7 @@ def main(argv=None):
     # aggregate must add back up to the cohort it counts, or the build stops,
     # the same rule as the series check below.
     try:
-        view = build_view(df)
+        view = build_view(df, resv)
     except ReconcileError as exc:
         raise SystemExit(str(exc)) from exc
     build_dashboard(df, report, resv, view)

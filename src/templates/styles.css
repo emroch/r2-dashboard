@@ -286,6 +286,10 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .chart-svg .grid path{display:none;}
 .chart-svg .axis-label{fill:var(--fg);font-size:12px;}
 .chart-svg .pt{fill:var(--mark);stroke:var(--desc);stroke-width:.8;}
+.chart-svg .pt-open .pt{fill:none;stroke:var(--mark);stroke-width:1.6;}
+/* timeseries columns; a column cut off by a clipped axis is labelled. */
+.chart-svg .bar{fill:var(--mark);}
+.chart-svg .clipped{fill:var(--desc);font-size:11px;}
 .chart-svg .whisker{stroke:var(--mark);stroke-opacity:.55;stroke-width:1.4;fill:none;}
 .chart-svg .rule line{stroke:var(--desc);stroke-dasharray:4,3;}
 .chart-svg .rule text{fill:var(--desc);font-size:10px;}

@@ -20,11 +20,8 @@ from .assets import publish_assets
 from .categories import category_css
 from .components import (notes_html, readout, readout_group, shared_caveats,
                          stage_key, stage_readouts)
-from .charts import (fig_delivery_timeline,
-                     fig_delivery_latency,
-                     fig_dest_vs_delivery, fig_geo,
-                     fig_order_timeline, fig_vin_by_config,
-                     fig_vin_cadence,
+from .charts import (fig_dest_vs_delivery, fig_geo,
+                     fig_vin_by_config,
                      fig_vin_vs_order)
 from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
                     RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
@@ -50,9 +47,7 @@ def _tpl(name):
 # Each moves to a presentation-layer component as its section migrates
 # (docs/presentation.md, Stages).
 _BUILDERS = {f.__name__: f for f in (
-    fig_order_timeline, fig_delivery_timeline, fig_delivery_latency,
-    fig_vin_vs_order, fig_vin_cadence,
-    fig_vin_by_config, fig_geo, fig_dest_vs_delivery)}
+    fig_vin_vs_order, fig_vin_by_config, fig_geo, fig_dest_vs_delivery)}
 
 
 def _section(entry):
@@ -381,7 +376,7 @@ def build_dashboard(df, report, resv, view):
         builders = builder if isinstance(builder, tuple) else (builder,)
         frags = []
         for b in builders:
-            fig = (b(df, resv) if b in (fig_geo, fig_order_timeline) else b(df))
+            fig = b(df, resv) if b is fig_geo else b(df)
             # Transparent backgrounds let the themed section card show through, so
             # the charts adapt to light/dark (chrome is re-tinted by plotly-theme.js).
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",

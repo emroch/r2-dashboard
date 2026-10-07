@@ -8,14 +8,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .colors import COLOR_DISPLAY, REGION_WHISKER
-from config import (AS_OF, CADENCE_COLORS, CADENCE_WINDOW_WEEKS, CHART, CHART_UI,
-                    COLOR_ORDER, FACTORY,
-                    INTERIOR_ORDER, INTERIOR_SHORT, LATENCY_COLORS,
-                    REGION_COLOR,
-                    TIMELINE_COLORS, TYPE_COLOR, TYPE_ORDER,
+from config import (AS_OF, CHART, CHART_UI, COLOR_ORDER, FACTORY,
+                    INTERIOR_ORDER, INTERIOR_SHORT, REGION_COLOR,
                     WHEEL_ABBR, WHEEL_ORDER, WHEEL_SYMBOL)
-
-from .cadence import rate_history
 
 # Theme-aware "today" reference line at the run date (AS_OF). Baked in the
 # light-theme grey; the dashboard's theme toggle re-tints managed greys — in
@@ -27,10 +22,6 @@ _TODAY = dict(line_width=1.5, line_dash="dash", line_color=CHART["edge"],
 
 def _add_today_vline(fig, **kw):
     fig.add_vline(x=AS_OF, annotation_position="top", **_TODAY, **kw)
-
-
-def _add_today_hline(fig, **kw):
-    fig.add_hline(y=AS_OF, annotation_position="top right", **_TODAY, **kw)
 
 
 def _num_range(vals, pad_frac=0.03, min_pad=1.0):
@@ -109,36 +100,6 @@ def _whisker_toggle_menu(whisker_idx, x=0.0):
                               args=[{"visible": True}, idx]),
                           dict(label="No whiskers", method="restyle",
                               args=[{"visible": False}, idx])])]
-
-
-def fig_vin_cadence(df):
-    """Build cadence over time: the rolling robust rate behind the projected front.
-
-    Each point is the VINs/day rate as it would have been fitted at the end of that
-    week, over the preceding window of front weeks. Shows that cadence is ramping,
-    which is why a single rate through all of history understates the current one.
-    """
-    hist = rate_history(df)
-    fig = go.Figure()
-    if hist.empty:
-        fig.update_layout(template="plotly_white", height=300)
-        return fig
-    mid = hist.index + pd.Timedelta(days=3)
-    fig.add_trace(go.Scatter(
-        x=np.asarray(mid), y=np.asarray(hist.values), mode="lines+markers",
-        name="VINs per day", showlegend=False,
-        line=dict(color=CADENCE_COLORS["front"], width=2.5),
-        marker=dict(color=CADENCE_COLORS["front"], size=7,
-                    line=dict(color=CHART["edge"], width=0.8)),
-        hovertemplate=("Week of %{x|%b %d}: ≈ %{y:.0f} VINs/day"
-                       "<extra></extra>")))
-    fig.update_layout(
-        template="plotly_white", height=300, margin=dict(t=40),
-        title=_chart_title("Build cadence (rate over the previous %d weeks of front)"
-                           % CADENCE_WINDOW_WEEKS),
-        xaxis=dict(title_text="Delivery week", type="date"),
-        yaxis=dict(title_text="VINs per day", rangemode="tozero"))
-    return fig
 
 
 def fig_dest_vs_delivery(df):
@@ -315,89 +276,6 @@ def _stable_counts(counts):
     return counts.sort_index().sort_values(ascending=True, kind="mergesort")
 
 
-def _chart_title(text):
-    """Layout title for a chart that shares a section with others, so each plot
-    keeps its own heading. No explicit font color — it inherits layout.font, which
-    THEME_JS re-tints, so the title follows the light/dark toggle."""
-    return dict(text=text, x=0, xanchor="left", y=0.99, yanchor="top",
-                font=dict(size=14))
-
-
-def fig_order_timeline(df, resv=None):
-    """Reservation vs. order timeline. The reservation panel stacks two
-    series: holders who have since ordered vs. reservation-only (incomplete)."""
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=("Reservation dates — ordered vs. still incomplete",
-                        "R2 order (config-lock) dates"))
-    week = 86400000 * 7  # ms
-    fig.add_trace(go.Histogram(
-        x=np.asarray(df["resv_date"].dropna()), name="Reserved & ordered",
-        legendgroup="r", marker_color=TIMELINE_COLORS["ordered"],
-        xbins=dict(size=week)), 1, 1)
-    if resv is not None and len(resv):
-        fig.add_trace(go.Histogram(
-            x=np.asarray(resv["resv_date"].dropna()),
-            name="Reserved only (incomplete)", legendgroup="r",
-            marker_color=TIMELINE_COLORS["reserved_only"], xbins=dict(size=week)), 1, 1)
-    fig.add_trace(go.Histogram(x=np.asarray(df["order_date"].dropna()),
-                               marker_color=TIMELINE_COLORS["ordered"],
-                               showlegend=False,
-                               xbins=dict(size=86400000 * 3)), 2, 1)  # 3-day bins
-
-    # The 3/7/2024 reveal week (~20x the next-biggest week) flattens everything
-    # else, so clip the reservation panel's y-axis just above the tail and
-    # annotate the reveal bar with its true height.
-    dated = df["resv_date"].dropna()
-    if resv is not None and len(resv):
-        dated = pd.concat([dated, resv["resv_date"].dropna()])
-    if len(dated):
-        wk = dated.dt.to_period("W-SUN").value_counts()
-        spike = int(wk.max())
-        spike_start = wk.idxmax().start_time
-        cap = 50  # clip the reveal week (and its immediate aftermath) so the tail reads
-        if spike > cap:
-            fig.update_yaxes(range=[0, cap], row=1, col=1)
-            fig.add_annotation(
-                x=spike_start + pd.Timedelta(days=3), y=cap, xref="x", yref="y",
-                text=("Reveal week (Mar 2024): %s reservations —<br>"
-                      "y-axis clipped at %d to show the tail"
-                      % (format(spike, ","), cap)),
-                showarrow=True, arrowhead=2, arrowwidth=1.3,
-                arrowcolor=CHART_UI["annotation_arrow"],
-                ax=120, ay=-6, align="left",
-                font=dict(size=11, color=CHART_UI["annotation_text"]),
-                bgcolor=CHART_UI["annotation_bg"],
-                bordercolor=CHART_UI["annotation_border"], borderwidth=1)
-
-    fig.update_layout(template="plotly_white", height=720, bargap=0.05,
-                      barmode="stack",
-                      legend=dict(orientation="h", yanchor="bottom", y=1.10,
-                                  xanchor="left", x=0, groupclick="toggleitem"),
-                      margin=dict(t=90))
-    fig.update_yaxes(title_text="Reservations", row=1, col=1)
-    fig.update_yaxes(title_text="Orders", row=2, col=1)
-    return fig
-
-
-def fig_delivery_timeline(df):
-    """Estimated delivery timeline, stacked by estimate certainty."""
-    fig = go.Figure()
-    for t in TYPE_ORDER:
-        s = df[(df["delivery_type"] == t) & df["delivery_est"].notna()]
-        if s.empty:
-            continue
-        fig.add_trace(go.Histogram(
-            x=np.asarray(s["delivery_est"]), name=t, marker_color=TYPE_COLOR[t],
-            xbins=dict(size=86400000 * 7)))  # weekly bins
-    fig.update_layout(template="plotly_white", barmode="stack", height=560,
-                      xaxis_title="Estimated delivery date",
-                      yaxis_title="Orders", legend_title="Estimate type",
-                      bargap=0.05)
-    _add_today_vline(fig)
-    return fig
-
-
 def _geo_counts(frame):
     """Per-state bubble rows (count, lat, lon, region); drops unmapped states."""
     return (frame.groupby("state").agg(n=("user", "size"), lat=("lat", "first"),
@@ -503,118 +381,6 @@ def fig_geo(df, resv=None):
     fig.update_layout(template="plotly_white", height=380 * n, bargap=0.35,
                       dragmode="pan",
                       margin=dict(l=0, r=140, t=30, b=0), **legends)
-    return fig
-
-
-# A weekly median is only drawn for weeks with at least this many firm dates; below
-# it, one fast or slow delivery would swing the line by weeks.
-_LATENCY_MIN_WEEK_N = 3
-
-
-def latency_frame(df):
-    """Orders whose wait from order to delivery can be measured, with `days`.
-
-    Firm ("explicit") delivery dates only: a range or window is a guess at when the
-    car will come, so its midpoint would plot a precision the data doesn't have.
-    An estimate that contradicts the order date never gets here: cleaning sets it
-    aside as unknown and lists it (ingest/outliers.py).
-    """
-    d = df[(df["delivery_type"] == "explicit") & df["order_date"].notna()
-           & df["delivery_est"].notna()].copy()
-    d["days"] = (d["delivery_est"] - d["order_date"]).dt.days
-    # Monday-start week the order was placed in, for the median and coverage.
-    d["order_week"] = d["order_date"].dt.to_period("W-SUN").dt.start_time
-    return d
-
-
-def fig_delivery_latency(df):
-    """Days from order to firm delivery date, by order date, with the weekly median
-    and how much of each week's cohort is visible at all.
-
-    Y is the WAIT in days rather than the delivery date: days stay on one scale, so
-    a trend reads as a slope, where a delivery-date axis climbs up and to the right
-    regardless and hides it. Filled markers are dates that have passed (presumed
-    delivered); open ones are scheduled in the future.
-
-    The bottom panel is the point of the chart as much as the top one. A firm date
-    only appears once a delivery is close, so the most recent order weeks are
-    represented mainly by their FAST deliveries — their slow orders haven't been
-    scheduled yet. The weekly median therefore drifts down toward the present partly
-    as an artifact. Showing the share of each week's orders that appear above makes
-    that visible instead of leaving it to be mistaken for a trend.
-    """
-    d = latency_frame(df)
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
-                        row_heights=[0.74, 0.26])
-    if d.empty:
-        fig.update_layout(template="plotly_white", height=560)
-        return fig
-
-    passed = d["delivery_est"] <= AS_OF
-    # An open symbol is drawn as an outline in marker.color at the marker's opacity,
-    # so the translucency that keeps the filled points from clumping made the open
-    # ones (and their legend icon) all but vanish on the dark card. They get a full-
-    # opacity, heavier outline instead; they are few, so overlap isn't a concern.
-    styles = (("Delivery date passed", passed,
-               dict(symbol="circle", opacity=0.65,
-                    line=dict(color=CHART["edge"], width=0.6))),
-              ("Scheduled (future date)", ~passed,
-               dict(symbol="circle-open", opacity=1.0, line=dict(width=1.8))))
-    for label, mask, style in styles:
-        sub = d[mask]
-        if sub.empty:
-            continue
-        fig.add_trace(go.Scatter(
-            x=np.asarray(sub["order_date"]), y=np.asarray(sub["days"]), mode="markers",
-            name=label, legendgroup=label,
-            marker=dict(color=LATENCY_COLORS["order"], size=8, **style),
-            customdata=np.column_stack(
-                [sub["user"], sub["delivery_est"].dt.strftime("%b %d, %Y")]),
-            hovertemplate=("%{customdata[0]}<br>ordered %{x|%b %d, %Y}"
-                           "<br>delivery %{customdata[1]}<br>%{y} days"
-                           "<extra></extra>")),
-            1, 1)
-
-    weeks = d.groupby("order_week")["days"].agg(["median", "count"])
-    weeks = weeks[weeks["count"] >= _LATENCY_MIN_WEEK_N]
-    if not weeks.empty:
-        # Plotted at mid-week so the line sits among the points it summarizes.
-        mid = weeks.index + pd.Timedelta(days=3)
-        fig.add_trace(go.Scatter(
-            x=np.asarray(mid), y=np.asarray(weeks["median"]), mode="lines+markers",
-            name="Weekly median (%d+ orders)" % _LATENCY_MIN_WEEK_N,
-            line=dict(color=LATENCY_COLORS["median"], width=2.5),
-            marker=dict(color=LATENCY_COLORS["median"], size=7,
-                        line=dict(color=CHART["edge"], width=0.6)),
-            customdata=np.column_stack([weeks.index.strftime("%b %d"), weeks["count"]]),
-            hovertemplate=("Week of %{customdata[0]}: median %{y:.0f} days"
-                           "<br>%{customdata[1]} orders<extra></extra>")), 1, 1)
-
-    # Coverage: of all orders placed each week, how many appear in the top panel.
-    placed = df[df["order_date"].notna()].copy()
-    placed["order_week"] = placed["order_date"].dt.to_period("W-SUN").dt.start_time
-    denom = placed.groupby("order_week").size()
-    numer = d.groupby("order_week").size().reindex(denom.index, fill_value=0)
-    share = 100.0 * numer / denom
-    fig.add_trace(go.Bar(
-        x=np.asarray(denom.index + pd.Timedelta(days=3)), y=np.asarray(share),
-        name="Orders with a firm date", showlegend=False,
-        marker=dict(color=LATENCY_COLORS["coverage"],
-                    line=dict(color=CHART["edge"], width=0.5)),
-        customdata=np.column_stack([denom.index.strftime("%b %d"), numer, denom]),
-        hovertemplate=("Week of %{customdata[0]}: %{customdata[1]} of %{customdata[2]} "
-                       "orders have a firm date (%{y:.0f}%)<extra></extra>")), 2, 1)
-
-    fig.update_yaxes(title_text="Days from order to delivery", rangemode="tozero",
-                     row=1, col=1)
-    fig.update_yaxes(title_text="With a firm date", range=[0, 100], ticksuffix="%",
-                     row=2, col=1)
-    fig.update_xaxes(title_text="R2 order date", type="date", row=2, col=1)
-    fig.update_layout(
-        template="plotly_white", height=620, hovermode="closest", bargap=0.15,
-        margin=dict(t=40),
-        legend=dict(orientation="h", x=0, y=1.06, xanchor="left", yanchor="bottom",
-                    bgcolor=CHART["legbg"], bordercolor=CHART["legbd"], borderwidth=1))
     return fig
 
 

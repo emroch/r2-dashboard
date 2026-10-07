@@ -188,7 +188,9 @@ def test_view_build_reconciles_and_renders_every_component():
                 wheels_short=['21" Liquid Tungsten', None],
                 vin_display=["1200", "—"], order_display=["—", "—"],
                 est_display=["Sep 01, 2026", "—"], elev_ft=[600.0, None],
-                temp_f=[51.0, None], urban_pct=[88.0, None])
+                temp_f=[51.0, None], urban_pct=[88.0, None],
+                resv_date=[pd.Timestamp("2024-03-08"), pd.NaT],
+                order_date=[pd.Timestamp("2026-06-15"), pd.NaT])
     from test_aggregates import _priced
     cols.update({k: v[:1] + [None] for k, v in _priced([60990.0]).items()})
     view = build(_orders(**cols))
@@ -197,7 +199,8 @@ def test_view_build_reconciles_and_renders_every_component():
     assert view.readouts["progress"] in view.aggregates
     assert view.readouts["progress"].counted == 2
     # Everything but the browser-drawn templates is rendered to HTML in Python.
-    static = {c for c, sp in COMPONENTS.items() if sp["template"] not in ("scatter",)}
+    drawn = ("scatter", "timeseries")
+    static = {c for c, sp in COMPONENTS.items() if sp["template"] not in drawn}
     assert set(view.static) == static
     for cid in view.static:
         assert view.render(cid).startswith('<figure class="r2c" id="c-%s"' % cid), cid

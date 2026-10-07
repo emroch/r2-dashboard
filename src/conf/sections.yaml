@@ -68,35 +68,38 @@ sections:
       data-quality panel.
 
   - title: "Reservation & order timeline"
-    charts: [fig_order_timeline]
+    components: [reservations-by-week, orders-by-week]
     desc: >-
-      The top panel stacks reservation-only holders (incomplete orders, from the
-      separate reservations sheet) above those who have since locked an order. The
-      3/7/2024 reveal week is ~20x the next-biggest week, so the y-axis is clipped
-      just above the tail to keep the 2-year trickle readable. The bottom shows when
-      orders were finalized.
+      Reservations by the week they were made: holders who haven't ordered yet
+      (incomplete, from the separate reservations sheet) stacked on those who have
+      since locked an order. The 3/7/2024 reveal week is many times the next-biggest
+      week, so the axis is cut just above the rest to keep the two-year trickle
+      readable, and that week's column is labelled with its true total. Below, orders
+      by the week the configuration was finalized. Weeks run Monday to Sunday; hover a
+      week for its counts.
 
   - title: "Estimated delivery timeline"
-    charts: [fig_delivery_timeline]
+    components: [deliveries-by-week]
     desc: >-
-      When the cohort expects delivery, stacked by how firm the estimate is.
+      When the cohort expects delivery, by week, stacked by how firm the estimate is:
+      firm dates at the bottom, then relative windows, ranges and months. An order
+      with no usable estimate isn't drawn. Hover a week for its counts.
 
   - title: "Order-to-delivery time"
-    charts: [fig_delivery_latency]
+    components: [delivery-latency, latency-coverage]
     desc: >-
       How long people wait between placing an order and delivery, for orders with a
       firm delivery date — a range or window is a guess, so its midpoint would claim
       precision it doesn't have. Each point is one order, at its order date; filled
       points are dates that have passed (presumed delivered) and open points are
       scheduled in the future. The line is the weekly median, drawn only for weeks
-      with at least three firm dates. <strong>Read the recent end with
-      care.</strong> A firm date usually only appears once delivery is close, so the
-      latest order weeks are represented mainly by their <em>fast</em> deliveries —
-      their slower orders haven't been scheduled yet. The bottom panel shows how
-      much of each week's orders the points above actually cover; where it is low,
-      the median is biased short and will likely rise as the rest report. Estimates
-      that contradict the order date are left out and listed in the data-quality
-      panel.
+      with at least three firm dates. <strong>Read the recent end with care.</strong>
+      A firm date usually only appears once delivery is close, so the latest order
+      weeks are represented mainly by their <em>fast</em> deliveries — their slower
+      orders haven't been scheduled yet. The coverage chart below shows how much of
+      each week's orders the points above actually cover; where it is low, the median
+      is biased short and will likely rise as the rest report. Estimates that
+      contradict the order date are left out and listed in the data-quality panel.
 
   - title: "Estimate certainty vs. VIN status"
     components: [certainty-by-vin]
@@ -114,8 +117,7 @@ sections:
       to hide it, or double-click to isolate one.
 
   - title: "Delivery date vs. VIN sequence"
-    components: [delivery-vs-vin]
-    charts: [fig_vin_cadence]
+    components: [delivery-vs-vin, build-cadence]
     desc: >-
       Each point is an order with both a VIN and a delivery estimate. Color = paint,
       marker shape = wheels; whiskers span the quoted delivery window. Clusters of

@@ -31,7 +31,8 @@ from __future__ import annotations
 
 import re
 
-from config import CADENCE_COLORS, DIMENSIONS, PRICE_COLORS, THEME_CSS
+from config import (CADENCE_COLORS, DIMENSIONS, LATENCY_COLORS, PRICE_COLORS,
+                    THEME_CSS, TIMELINE_COLORS)
 
 from .colors import mark_hex
 
@@ -69,7 +70,13 @@ def bounds(theme: str) -> tuple[float, float]:
 # Fills that aren't a category but are drawn as data marks (the price bars), as
 # classes .acc-<name> with the same --paint / --mark rule, so they hold the same
 # contrast in both themes. A component uses the class name directly.
-ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"]}
+# The timeline and latency charts' fills are accents too (a spec names one as
+# "acc:<name>").
+ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"],
+           "timeline-ordered": TIMELINE_COLORS["ordered"],
+           "timeline-reserved": TIMELINE_COLORS["reserved_only"],
+           "latency-order": LATENCY_COLORS["order"],
+           "latency-coverage": LATENCY_COLORS["coverage"]}
 
 
 def true_color() -> set[tuple[str, str]]:
@@ -102,7 +109,9 @@ def category_css() -> str:
         ["%s{--mark:%s;}" % (sel[k], mark_hex(h, *light)) for k, h in cats.items()]
         + ['html[data-theme="dark"] %s{--mark:%s;}' % (sel[k], mark_hex(h, *dark))
            for k, h in cats.items()])
-    accents = ":root{%s}" % "".join("--cadence-%s:%s;" % kv
-                                    for kv in CADENCE_COLORS.items())
+    # Line accents a spec names as "var:<name>" (raw palette values).
+    accents = ":root{%s}" % "".join(
+        ["--cadence-%s:%s;" % kv for kv in CADENCE_COLORS.items()]
+        + ["--latency-median:%s;" % LATENCY_COLORS["median"]])
     return "\n%s\n%s\n%s\n@supports not %s{\n%s\n}\n" % (
         accents, paints, marks, _SUPPORTS_RELATIVE, fallback)
