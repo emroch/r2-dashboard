@@ -188,12 +188,18 @@ def test_reservations_by_week_stack_on_monday_weeks_and_clip_the_spike():
     assert [s["name"] for s in spec["series"]] == ["Reserved & ordered",
                                                     "Reserved only (incomplete)"]
     weeks = [v[0] for v in spec["series"][0]["values"]]
-    assert weeks == ["2024-03-04", "2024-04-08"], "Monday weeks, empty ones absent"
-    assert [v[1] for v in spec["series"][1]["values"]] == [100, 9]
+    assert weeks == ["2024-03-04", "2024-03-11", "2024-03-18", "2024-03-25",
+                     "2024-04-01", "2024-04-08"], "every Monday week, for running totals"
+    assert [v[1] for v in spec["series"][1]["values"]] == [100, 0, 0, 0, 0, 9]
+    # The cumulative view has its own fixed domain: every dated reservation.
+    assert spec["toggles"] == {"cumulative": True}
+    assert spec["y"]["cumulative"]["domain"][1] == 511 * 1.05
     # 500 in the spike week against 11 in the next: the axis clips just above it.
     assert spec["y"]["clip"] == spec["y"]["domain"][1] == 20
     assert heads == ["Week of", "Reserved & ordered", "Reserved only (incomplete)",
-                     "Total"] and rows[0] == ["2024-03-04", 400, 100, 500]
+                     "Total", "Running total"]
+    assert rows[0] == ["2024-03-04", 400, 100, 500, 500]
+    assert rows[-1] == ["2024-04-08", 2, 9, 11, 511]
     reconcile([agg], _sizes(df, resv))
     assert agg.excluded == {"order without a reservation date": 1,
                             "reservation without a date": 1}

@@ -179,7 +179,9 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
 #               {name, color, values: [[week, n], ...]}; `lines`: {name, color,
 #               points: [[iso, y]], tips}; `rules` (today); y may carry `clip`
 #               (the domain stops there, and a taller column is marked with its
-#               total) and `format` ("pct": values are percentages).
+#               total) and `format` ("pct": values are percentages). With
+#               `toggles.cumulative`, the reader can switch the columns to running
+#               totals; y.cumulative is that view's fixed domain.
 # Every week is Monday-to-Sunday, the same weeks the latency median and the
 # cadence use.
 
@@ -197,17 +199,23 @@ def _week_label(w: pd.Timestamp) -> str:
 
 
 def _columns(stack: list[tuple[str, str, dict[pd.Timestamp, int]]],
-             clip_over: float = 3.0) -> dict[str, Any]:
+             clip_over: float = 3.0, cumulative: bool = False) -> dict[str, Any]:
     """The weeks, series and y axis of a stacked weekly column chart. When the
     tallest week is more than `clip_over` times the next, the axis clips just
     above the rest (a nice round number) and that week is marked with its total,
-    so one spike doesn't flatten every other week."""
+    so one spike doesn't flatten every other week. `cumulative` lists every
+    week from the first to the last (a running total has no gaps) and adds the
+    running-total view's domain."""
     weeks = sorted({w for _, _, by in stack for w in by})
+    if cumulative and weeks:
+        weeks = list(pd.date_range(weeks[0], weeks[-1], freq="7D"))
     totals = [sum(by.get(w, 0) for _, _, by in stack) for w in weeks]
     series = [{"name": name, "color": color,
                "values": [[_iso(w), by.get(w, 0)] for w in weeks]}
               for name, color, by in stack]
     y: dict[str, Any] = {"type": "linear", "domain": [0, max(totals or [1]) * 1.05]}
+    if cumulative:
+        y["cumulative"] = {"domain": [0, max(sum(totals), 1) * 1.05]}
     ranked = sorted(totals, reverse=True)
     if len(ranked) > 1 and ranked[0] > clip_over * max(ranked[1], 1):
         top = ranked[1] * 1.15
@@ -227,10 +235,13 @@ def _weeks_domain(weeks: list[pd.Timestamp],
 
 def _column_table(first: str, cols: dict[str, Any]) -> tuple[list[str], list[list]]:
     names = [s["name"] for s in cols["series"]]
+    run = np.cumsum(cols["totals"]).tolist() if "cumulative" in cols["y"] else None
     rows = [[_iso(w)] + [s["values"][i][1] for s in cols["series"]]
             + ([cols["totals"][i]] if len(names) > 1 else [])
+            + ([int(run[i])] if run else [])
             for i, w in enumerate(cols["weeks"])]
-    return [first] + names + (["Total"] if len(names) > 1 else []), rows
+    return ([first] + names + (["Total"] if len(names) > 1 else [])
+            + (["Running total"] if run else [])), rows
 
 
 def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
@@ -239,13 +250,14 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
     since ordered (every order with a reservation date)."""
     ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
     cols = _columns([("Reserved & ordered", "acc:timeline-ordered", ordered),
-                     ("Reserved only (incomplete)", "acc:timeline-reserved", only)])
+                     ("Reserved only (incomplete)", "acc:timeline-reserved", only)],
+                    cumulative=True)
     x = {"label": "Week reserved", "type": "date",
          "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None}
     spec = {"template": "timeseries", "title": "Reservations by week",
             "x": x, "y": {**cols["y"], "label": "Reservations"},
             "legend": "Reservation", "series": cols["series"], "lines": [],
-            "rules": []}
+            "rules": [], "toggles": {"cumulative": True}}
     heads, rows = _column_table("Week of", cols)
     cells = [{"value": s["name"], "label": s["name"],
               "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
@@ -262,12 +274,14 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
 
 def orders_by_week(df: pd.DataFrame) -> tuple:
     """§5, bottom: orders by the week the configuration was finalized."""
-    cols = _columns([("Orders", "acc:timeline-ordered", _weekly(df["order_date"]))])
+    cols = _columns([("Orders", "acc:timeline-ordered", _weekly(df["order_date"]))],
+                    cumulative=True)
     spec = {"template": "timeseries", "title": "Orders by week",
             "x": {"label": "Week ordered", "type": "date",
                   "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None},
             "y": {**cols["y"], "label": "Orders"}, "legend": None,
-            "series": cols["series"], "lines": [], "rules": []}
+            "series": cols["series"], "lines": [], "rules": [],
+            "toggles": {"cumulative": True}}
     heads, rows = _column_table("Week of", cols)
     n = int(df["order_date"].notna().sum())
     agg = Aggregate("orders by week", "orders",
