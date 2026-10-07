@@ -24,7 +24,7 @@ import pandas as pd
 
 from config import AS_OF, COLOR_ORDER, DIMENSIONS
 
-from .aggregates import Aggregate
+from .aggregates import STAGE_LABELS, STAGES, Aggregate, stages
 from .cadence import projection as cadence_projection
 
 # wheels value -> its marker shape (dimensions.yaml `symbol`; the Plotly names,
@@ -272,28 +272,33 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
     return spec, agg, (heads, rows)
 
 
+def _stage_names() -> list[tuple[str, str]]:
+    """(stage, label) bottom to top, labelled as the take-rate stage key."""
+    return [(st, STAGE_LABELS[st][:1].upper() + STAGE_LABELS[st][1:]) for st in STAGES]
+
+
 def orders_by_week(df: pd.DataFrame) -> tuple:
-    """§5, bottom: orders by the week the configuration was finalized,
-    stacked: pending on top of fulfilled (delivery inferred, as the delivery
-    stages count it). Pending is the same color at the waiting stage's
-    opacity (`stage`), the page's "fainter = not yet"."""
-    done = df["delivered_inferred"].fillna(False).astype(bool)
-    cols = _columns(
-        [("Fulfilled", "acc:timeline-ordered", _weekly(df.loc[done, "order_date"])),
-         ("Pending", "acc:timeline-ordered", _weekly(df.loc[~done, "order_date"]))],
-        cumulative=True)
-    cols["series"][1]["stage"] = "wait"
+    """§5, bottom: orders by the week the configuration was finalized, each
+    split by how far it has got today (the four delivery stages, delivered at
+    the bottom): how each week's cohort is doing. One color at the stages'
+    opacities (`stage`), as the take-rate bars draw them."""
+    st = stages(df)
+    cols = _columns([(label, "acc:timeline-ordered",
+                      _weekly(df.loc[st == stage, "order_date"]))
+                     for stage, label in _stage_names()], cumulative=True)
+    for s_, (stage, _) in zip(cols["series"], _stage_names()):
+        s_["stage"] = stage
     spec = {"template": "timeseries", "title": "Orders by week",
             "x": {"label": "Week ordered", "type": "date",
                   "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None},
-            "y": {**cols["y"], "label": "Orders"}, "legend": "Orders",
+            "y": {**cols["y"], "label": "Orders"}, "legend": "Status today",
             "series": cols["series"], "lines": [], "rules": [],
             "toggles": {"cumulative": True}}
     heads, rows = _column_table("Week of", cols)
     n = int(df["order_date"].notna().sum())
-    cells = [{"value": s["name"], "label": s["name"],
-              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
-             for s in cols["series"]]
+    cells = [{"value": s_["name"], "label": s_["name"],
+              "n": sum(v for _, v in s_["values"]), "known": True, "ref": None}
+             for s_ in cols["series"]]
     agg = Aggregate("orders by week", "orders", cells,
                     {"no order date": len(df) - n} if len(df) - n else {})
     if cols["weeks"]:
@@ -330,6 +335,93 @@ def deliveries_by_week(df: pd.DataFrame) -> tuple:
     agg = Aggregate("deliveries by week", "orders", cells,
                     {"no delivery estimate": len(df) - len(d)} if len(df) - len(d)
                     else {})
+    return spec, agg, (heads, rows)
+
+
+# The pipeline's events, in reading order: (key, label, line accent). Each is an
+# order's own date (ingest/milestones.py), the dates r2_series.json counts.
+_EVENTS = (("placed", "Orders placed", "fulfil-placed"),
+           ("vin", "VINs assigned", "fulfil-vin"),
+           ("scheduled", "Deliveries scheduled", "fulfil-scheduled"),
+           ("delivered", "Deliveries made", "fulfil-delivered"))
+
+
+def _event_dates(df: pd.DataFrame) -> dict[str, pd.Series]:
+    """Each order's date for each pipeline event, NaT where it hasn't happened
+    (or happened with no date we know; see fulfilment_by_week)."""
+    nat = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
+    def col(name: str) -> pd.Series:
+        return pd.to_datetime(df[name]) if name in df else nat
+    vin = df["vin_present"].fillna(False).astype(bool)
+    firm = df["delivery_type"] == "explicit"
+    done = df["delivered_inferred"].fillna(False).astype(bool)
+    return {"placed": pd.to_datetime(df["order_date"]),
+            "vin": col("vin_assigned").where(vin),
+            "scheduled": col("delivery_scheduled").where(firm),
+            "delivered": pd.to_datetime(df["delivery_est"]).where(done)}
+
+
+def fulfilment_by_week(df: pd.DataFrame) -> tuple:
+    """§6: the whole pipeline over time, from each order's event dates.
+
+    Cumulative (the default view): each week's column is every order placed by
+    the week's end, split by the stage it had reached by then, stacked
+    (delivered at the bottom), so the last column is today's Delivery progress.
+    Weekly: what happened that week, as lines: orders placed, VINs assigned,
+    deliveries scheduled, deliveries made. The last week is each order's stage
+    today (aggregates.stages(), as the readouts count it), so an event with no
+    known date (a VIN with no recorded date) shows from then on."""
+    d = df[df["order_date"].notna()]
+    ev = _event_dates(d)
+    now = pd.Timestamp(AS_OF)
+    first = _week(pd.Series([ev["placed"].min()])).iloc[0] if len(d) else None
+    weeks = (list(pd.date_range(first, _week(pd.Series([now])).iloc[0], freq="7D"))
+             if first is not None else [])
+    levels: dict[str, list[int]] = {st: [] for st in STAGES}
+    for i, w in enumerate(weeks):
+        if i == len(weeks) - 1:
+            now_stage = stages(d)
+            for st in STAGES:
+                levels[st].append(int((now_stage == st).sum()))
+            continue
+        end = w + pd.Timedelta(days=7) - pd.Timedelta(seconds=1)
+        placed = ev["placed"] <= end
+        dl = placed & (ev["delivered"] <= end)
+        sc = placed & ~dl & (ev["scheduled"] <= end)
+        vn = placed & ~dl & ~sc & (ev["vin"] <= end)
+        for st, mask in (("delivered", dl), ("scheduled", sc), ("vin", vn),
+                         ("wait", placed & ~dl & ~sc & ~vn)):
+            levels[st].append(int(mask.sum()))
+    events = {key: _weekly(ev[key]) for key, _, _ in _EVENTS}
+    iso = [_iso(w) for w in weeks]
+    series = [{"name": label, "color": "acc:timeline-ordered", "stage": st,
+               "view": "cumulative",
+               "values": [[x, v] for x, v in zip(iso, levels[st])]}
+              for st, label in _stage_names()]
+    lines = [{"name": label, "color": "var:" + accent, "view": "weekly",
+              "points": [[_iso(w + pd.Timedelta(days=3)), events[key].get(w, 0)]
+                         for w in weeks]}
+             for key, label, accent in _EVENTS]
+    totals = [sum(levels[st][i] for st in STAGES) for i in range(len(weeks))]
+    peak = max([int(c) for by in events.values() for c in by.values()] or [1])
+    today = now.normalize()
+    spec = {"template": "timeseries", "title": "Fulfilment over time",
+            "x": {"label": "Week", "type": "date",
+                  "domain": _weeks_domain(weeks, [today]) if weeks else None},
+            "y": {"type": "linear", "label": "Orders",
+                  "domain": [0, peak * 1.1],
+                  "cumulative": {"domain": [0, max(totals or [1]) * 1.05]}},
+            "legend": "Orders", "series": series, "lines": lines, "rules": [],
+            "toggles": {"cumulative": True, "default": "cumulative"}}
+    heads = (["Week of"] + [label for _, label in _stage_names()]
+             + ["Orders placed by then"] + [label for _, label, _ in _EVENTS])
+    rows = [[iso[i]] + [levels[st][i] for st in STAGES] + [totals[i]]
+            + [events[key].get(w, 0) for key, _, _ in _EVENTS]
+            for i, w in enumerate(weeks)]
+    cells = [{"value": st, "label": label, "n": levels[st][-1] if weeks else 0,
+              "known": True, "ref": None} for st, label in _stage_names()]
+    agg = Aggregate("fulfilment over time", "orders", cells,
+                    {"no order date": len(df) - len(d)} if len(df) - len(d) else {})
     return spec, agg, (heads, rows)
 
 

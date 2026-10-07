@@ -76,14 +76,23 @@ sections:
       reveal week is many times the next-biggest week, so the axis is cut just above
       the rest to keep the two-year trickle readable, and that week's column is
       labelled with its true total. Below, orders by the week the configuration was
-      finalized. Weeks run Monday to Sunday; hover a week for its counts.
+      finalized, each week split by how far its orders have got today, so it shows how
+      each week's cohort is doing (§6 has the pipeline over time). Weeks run Monday to
+      Sunday; hover a week for its counts.
 
   - title: "Estimated delivery timeline"
-    components: [deliveries-by-week]
+    components: [fulfilment-by-week, deliveries-by-week]
     desc: >-
-      When the cohort expects delivery, by week, stacked by how firm the estimate is:
-      firm dates at the bottom, then relative windows, ranges and months. An order
-      with no usable estimate isn't drawn. Hover a week for its counts.
+      First, the whole pipeline over time, from each order's own dates.
+      <em>Cumulative</em> (the default) stacks every order placed by each week's end
+      by how far it had got by then — delivered, delivery scheduled, assigned a VIN,
+      or still waiting for one — so the last column is today's delivery progress;
+      <em>Weekly</em> shows what happened that week instead: orders placed, VINs
+      assigned, deliveries scheduled and deliveries made. A VIN or date reported
+      without a date of its own shows from the last week on. Then, when the cohort
+      expects delivery, by week, stacked by how firm the estimate is: firm dates at
+      the bottom, then relative windows, ranges and months; an order with no usable
+      estimate isn't drawn. Hover a week for its counts.
 
   - title: "Order-to-delivery time"
     components: [delivery-latency, latency-coverage]

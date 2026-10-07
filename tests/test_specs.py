@@ -204,16 +204,54 @@ def test_reservations_by_week_stack_on_monday_weeks_and_clip_the_spike():
                             "reservation without a date": 1}
 
 
-def test_orders_by_week_stack_pending_on_fulfilled():
+def test_orders_by_week_split_each_cohort_by_its_stage_today():
     from render.aggregates import reconcile
     from render.specs import orders_by_week
     df = _orders(4, order_date=[pd.Timestamp("2026-06-15")] * 3 + [pd.NaT],
-                 delivered_inferred=[True, False, None, True])
+                 delivered_inferred=[True, False, None, True],
+                 delivery_type=["explicit", "explicit", "window", "window"],
+                 vin_present=[True, True, False, True])
     spec, agg, (heads, _) = orders_by_week(df)
-    assert [(s["name"], s.get("stage")) for s in spec["series"]] == [
-        ("Fulfilled", None), ("Pending", "wait")], "pending: the same color, fainter"
-    assert [v[1] for s in spec["series"] for v in s["values"]] == [1, 2]
-    assert heads == ["Week of", "Fulfilled", "Pending", "Total", "Running total"]
+    assert [(s["name"], s["stage"]) for s in spec["series"]] == [
+        ("Delivered", "delivered"), ("Delivery scheduled", "scheduled"),
+        ("With a VIN", "vin"), ("Waiting for a VIN", "wait")], "one color, by stage"
+    assert [v[1] for s in spec["series"] for v in s["values"]] == [1, 1, 0, 1]
+    assert heads[:5] == ["Week of", "Delivered", "Delivery scheduled", "With a VIN",
+                         "Waiting for a VIN"]
+    reconcile([agg], _sizes(df, pd.DataFrame({"resv_date": []})))
+    assert agg.excluded == {"no order date": 1}
+
+
+def test_fulfilment_over_time_ends_at_the_readouts_and_counts_dated_events():
+    from render.aggregates import reconcile, stage_counts
+    from render.specs import fulfilment_by_week
+    d = pd.Timestamp
+    # a: ordered wk1, VIN wk2, scheduled wk3, delivered wk4. b: ordered wk2, VIN
+    # with no recorded date. c: ordered wk3, nothing yet. z: no order date.
+    df = _orders(4, user=["a", "b", "c", "z"],
+                 order_date=[d("2026-06-01"), d("2026-06-08"), d("2026-06-15"), pd.NaT],
+                 vin_present=[True, True, False, True],
+                 vin_assigned=[d("2026-06-09"), pd.NaT, pd.NaT, d("2026-06-10")],
+                 delivery_type=["explicit", "window", "unknown", "explicit"],
+                 delivery_scheduled=[d("2026-06-16"), pd.NaT, pd.NaT, pd.NaT],
+                 delivery_est=[d("2026-06-23"), d("2026-12-01"), pd.NaT,
+                               d("2026-06-25")],
+                 delivered_inferred=[True, False, False, True])
+    spec, agg, _ = fulfilment_by_week(df)
+    level = {s["stage"]: [v[1] for v in s["values"]] for s in spec["series"]}
+    assert all(s["view"] == "cumulative" for s in spec["series"])
+    assert all(line["view"] == "weekly" for line in spec["lines"])
+    assert spec["toggles"] == {"cumulative": True, "default": "cumulative"}
+    # Week by week, a moves up the stages; b's undated VIN shows on the last week.
+    assert level["wait"][:4] == [1, 1, 2, 2] and level["vin"][:4] == [0, 1, 0, 0]
+    assert level["scheduled"][:4] == [0, 0, 1, 0]
+    assert level["delivered"][:4] == [0, 0, 0, 1]
+    dated = df[df["order_date"].notna()]
+    today = {c["value"]: c["n"] for c in stage_counts(dated).cells}
+    assert {st: v[-1] for st, v in level.items()} == today, "the last column is today"
+    events = {line["name"]: sum(p[1] for p in line["points"]) for line in spec["lines"]}
+    assert events == {"Orders placed": 3, "VINs assigned": 1, "Deliveries scheduled": 1,
+                      "Deliveries made": 1}, "dated events of dated orders only"
     reconcile([agg], _sizes(df, pd.DataFrame({"resv_date": []})))
     assert agg.excluded == {"no order date": 1}
 

@@ -107,3 +107,38 @@ test("the Weekly / Cumulative switch redraws in place, unclipped when cumulative
   h.setView(false);
   assert.equal(count(), before, "switching back adds nothing and restores the clip label");
 });
+
+test("a view's own series and lines: levels when cumulative, event lines weekly", () => {
+  const el = mountPoint();
+  const pipe = {
+    template: "timeseries", title: "f",
+    x: { label: "week", type: "date", domain: ["2026-06-01", "2026-06-22"] },
+    y: { label: "n", type: "linear", domain: [0, 5], cumulative: { domain: [0, 10] } },
+    series: [
+      { name: "Delivered", color: "acc:timeline-ordered", stage: "delivered", view: "cumulative",
+        values: [["2026-06-01", 0], ["2026-06-08", 2], ["2026-06-15", 5]] },
+      { name: "Waiting", color: "acc:timeline-ordered", stage: "wait", view: "cumulative",
+        values: [["2026-06-01", 3], ["2026-06-08", 3], ["2026-06-15", 4]] }],
+    lines: [
+      { name: "Placed", color: "var:fulfil-placed", view: "weekly",
+        points: [["2026-06-04", 3], ["2026-06-11", 2], ["2026-06-18", 4]] },
+      { name: "Delivered events", color: "var:fulfil-delivered", view: "weekly",
+        points: [["2026-06-04", 0], ["2026-06-11", 2], ["2026-06-18", 3]] }],
+    rules: [], toggles: { cumulative: true, default: "cumulative" },
+  };
+  const h = draw(d3, el, pipe);
+  assert.equal(h.cumulative(), true, "toggles.default picks the first view");
+  const legendNames = () => [...el.querySelectorAll(".chart-legend .lg-item")].map((b) => b.textContent);
+  assert.deepEqual(legendNames(), ["Delivered", "Waiting"]);
+  // Levels are drawn as given, not summed: week 3 stacks 5 + 4.
+  assert.deepEqual(stackAt(pipe.series, 2, new Set(), true), [[0, 5], [5, 9]]);
+  const shownLines = () => [...el.querySelectorAll("g.line")].filter((g) => g.style.display !== "none").length;
+  assert.equal(shownLines(), 0, "no event lines in the cumulative view");
+  const rects = el.querySelectorAll("rect.bar").length;
+  h.setView(false);
+  assert.deepEqual(legendNames(), ["Placed", "Delivered events"]);
+  assert.equal(shownLines(), 2);
+  assert.ok([...el.querySelectorAll("rect.bar")].every((r) => Number(r.getAttribute("height")) === 0),
+    "the levels drop away in the weekly view");
+  assert.equal(el.querySelectorAll("rect.bar").length, rects, "and nothing is added");
+});

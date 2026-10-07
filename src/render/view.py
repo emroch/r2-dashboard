@@ -28,8 +28,8 @@ from .aggregates import (Aggregate, binned, cohort_sizes, counts, crosstab,
                          stage_counts)
 from .components import bars, heatmap, mix, mount, range_strip, takerate
 from .specs import (build_cadence, deliveries_by_week, delivery_latency,
-                    delivery_vs_vin, latency_coverage, orders_by_week,
-                    reservations_by_week)
+                    delivery_vs_vin, fulfilment_by_week, latency_coverage,
+                    orders_by_week, reservations_by_week)
 
 VIEW_VERSION = 1
 
@@ -84,6 +84,7 @@ _SPECS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], tuple]] = {
     "delivery_latency": lambda df, resv: delivery_latency(df),
     "latency_coverage": lambda df, resv: latency_coverage(df),
     "build_cadence": lambda df, resv: build_cadence(df),
+    "fulfilment_by_week": lambda df, resv: fulfilment_by_week(df),
 }
 
 

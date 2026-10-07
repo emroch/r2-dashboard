@@ -211,14 +211,21 @@ components:
     title: Orders by week
     dims: [delivered]
     aggregate: orders_by_week
-    summary: "{n} orders by the week they were placed, {count:Fulfilled} of them
-      fulfilled so far; the busiest was the week of {meta:peak}."
+    summary: "{n} orders by the week they were placed, {count:Delivered} of them
+      delivered so far; the busiest was the week of {meta:peak}."
   deliveries-by-week:
     template: timeseries
     title: Estimated deliveries by week
     dims: [delivery_type]
     aggregate: deliveries_by_week
     summary: "{share:Firm date} of {n} delivery estimates are firm dates."
+  fulfilment-by-week:
+    template: timeseries
+    title: Fulfilment over time
+    dims: [delivered]
+    aggregate: fulfilment_by_week
+    summary: "Of {n} orders placed so far, {count:Delivered} are delivered and
+      {count:Waiting for a VIN} are still waiting for a VIN."
   delivery-latency:
     template: scatter
     title: Order-to-delivery time

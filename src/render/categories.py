@@ -31,8 +31,8 @@ from __future__ import annotations
 
 import re
 
-from config import (CADENCE_COLORS, DIMENSIONS, LATENCY_COLORS, PRICE_COLORS,
-                    THEME_CSS, TIMELINE_COLORS)
+from config import (CADENCE_COLORS, DIMENSIONS, FULFILMENT_COLORS, LATENCY_COLORS,
+                    PRICE_COLORS, THEME_CSS, TIMELINE_COLORS)
 
 from .colors import mark_hex
 
@@ -112,6 +112,7 @@ def category_css() -> str:
     # Line accents a spec names as "var:<name>" (raw palette values).
     accents = ":root{%s}" % "".join(
         ["--cadence-%s:%s;" % kv for kv in CADENCE_COLORS.items()]
-        + ["--latency-median:%s;" % LATENCY_COLORS["median"]])
+        + ["--latency-median:%s;" % LATENCY_COLORS["median"]]
+        + ["--fulfil-%s:%s;" % kv for kv in FULFILMENT_COLORS.items()])
     return "\n%s\n%s\n%s\n@supports not %s{\n%s\n}\n" % (
         accents, paints, marks, _SUPPORTS_RELATIVE, fallback)

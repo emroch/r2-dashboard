@@ -11,8 +11,12 @@
 // grain there is. Hovering a week lists its counts. With `toggles.cumulative`,
 // Weekly / Cumulative buttons switch the columns to running totals, animating to
 // the other view's fixed domain (y.cumulative), kept in the URL as
-// ?<chart>=cumulative. The chart redraws when its width changes, keeping what the
-// legend hides and the view.
+// ?<chart>=cumulative. A series or line with `view` belongs to that view only
+// (§6: the pipeline's stacked levels when cumulative, its event lines weekly);
+// a series in the cumulative view is already levels, not summed; the legend
+// lists the current view's entries; toggles.default picks the first view. The
+// chart redraws when its width changes, keeping what the legend hides and the
+// view.
 
 import { view } from "../data.js";
 import { legend } from "../lib/legend.js";
@@ -29,7 +33,7 @@ const fmt = (n) => n.toLocaleString("en-US");
 // total through that week.
 const runs = new WeakMap();
 export function valueAt(s, i, cumulative = false) {
-  if (!cumulative) return s.values[i][1];
+  if (!cumulative || s.view === "cumulative") return s.values[i][1];
   if (!runs.has(s)) {
     let t = 0;
     runs.set(s, s.values.map((v) => (t += v[1])));
@@ -99,7 +103,12 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const m = { t: 22, r: 16, b: 48, l: 56 };
   const x = d3.scaleUtc().domain(spec.x.domain.map(date)).range([m.l, W - m.r]);
   const toggled = Boolean(spec.toggles?.cumulative);
-  let cumulative = toggled && getState(el.dataset.chart) === "cumulative";
+  const initial = spec.toggles?.default || "weekly";
+  let cumulative = toggled && (getState(el.dataset.chart) || initial) === "cumulative";
+  // What the current view leaves out: series and lines that belong to the other.
+  const offView = () => new Set([...spec.series, ...spec.lines]
+    .filter((s) => s.view && s.view !== (cumulative ? "cumulative" : "weekly")).map((s) => s.name));
+  const omitted = () => new Set([...hidden, ...offView()]);
   const domainOf = (cum) => (cum ? spec.y.cumulative.domain : spec.y.domain);
   const y = d3.scaleLinear().domain(domainOf(cumulative)).range([H - m.b, m.t]);
   // The clip is the weekly view's; a running total is drawn whole.
@@ -157,7 +166,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   function place(t = null) {
     const cap = top();
     groups.selectAll("rect.bar").each(function ({ o, i }) {
-      const seg = stackAt(spec.series, i, hidden, cumulative)[spec.series.indexOf(o.s)];
+      const seg = stackAt(spec.series, i, omitted(), cumulative)[spec.series.indexOf(o.s)];
       const x0 = x(weeks[i]), x1 = x(new Date(weeks[i].getTime() + 7 * DAY));
       const r = d3.select(this).attr("x", x0 + 0.5).attr("width", Math.max(1, x1 - x0 - 1));
       (t ? r.transition(t) : r)
@@ -173,14 +182,23 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
       .text((d) => `${fmt(d.total)} ↑ (axis cut at ${fmt(cap)})`);
   }
   function visibility() {
-    svg.selectAll("[data-name]").style("display", function () { return hidden.has(this.dataset.name) ? "none" : null; });
+    const off = omitted();
+    lineSel.style("display", (l) => (off.has(l.name) ? "none" : null));
+    groups.style("display", (o) => (hidden.has(o.s.name) ? "none" : null));
     place();
   }
-  visibility();
 
-  const items = [...series.map((o) => ({ name: o.s.name, cls: o.cls })),
-                 ...spec.lines.map((l) => ({ name: l.name, accent: l.color.slice(4) }))];
-  if (items.length > 1) legend(el.querySelector(".chart-legend"), items, (hs) => { hidden = hs; visibility(); }, hidden);
+  // The legend lists the current view's series and lines.
+  function legendFor() {
+    const off = offView();
+    const items = [...series.filter((o) => !off.has(o.s.name)).map((o) => ({ name: o.s.name, cls: o.cls })),
+                   ...spec.lines.filter((l) => !off.has(l.name)).map((l) => ({ name: l.name, accent: l.color.slice(4) }))];
+    const host = el.querySelector(".chart-legend");
+    if (items.length > 1) legend(host, items, (hs) => { hidden = hs; visibility(); }, hidden);
+    else host.replaceChildren();
+  }
+  visibility();
+  legendFor();
 
   // Weekly / Cumulative: switch the view, animating the columns and the axis.
   const buttons = [];
@@ -190,7 +208,11 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     y.domain(domainOf(cum));
     const t = animate ? svg.transition().duration(600) : null;
     yAxes(t);
+    lineSel.select("path").attr("d", (l) => d3.line().x((d) => x(date(d[0]))).y((d) => y(d[1]))(l.points));
+    lineSel.selectAll("circle").attr("cy", (o) => y(o.pt[1]));
+    visibility();
     place(t);
+    legendFor();
   }
   if (toggled) {
     const controls = el.ownerDocument.createElement("div");
@@ -204,7 +226,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
       b.setAttribute("aria-pressed", String((view_ === "cumulative") === cumulative));
       b.addEventListener("click", () => {
         if ((view_ === "cumulative") === cumulative) return;
-        setState(el.dataset.chart, view_ === "cumulative" ? "cumulative" : null);
+        setState(el.dataset.chart, view_ === initial ? null : view_);
         setView(view_ === "cumulative");
       });
       buttons.push(b);
@@ -221,7 +243,14 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     if (weeks.length) {
       const t = x.invert(px).getTime();
       const i = weeks.findIndex((w) => t >= w.getTime() && t < w.getTime() + 7 * DAY);
-      if (i >= 0) return tip.show(weekTip(spec.series, i, hidden, toggled, cumulative), hx, hy);
+      // A view drawn as weekly lines (§6's events) lists each line's week.
+      const off = omitted();
+      const weekLines = spec.lines.filter((l) => l.view && !off.has(l.name));
+      if (i >= 0 && weekLines.length) {
+        return tip.show([weekTip(spec.series, i, new Set(spec.series.map((s) => s.name)))[0],
+          ...weekLines.map((l) => `${l.name}: ${fmt(l.points[i][1])}`)], hx, hy);
+      }
+      if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative), hx, hy);
     }
     const pts = spec.lines.filter((l) => !hidden.has(l.name) && l.tips)
       .flatMap((l) => l.points.map((pt, i) => ({ d: Math.abs(x(date(pt[0])) - px), tip: l.tips[i] })));

@@ -143,6 +143,8 @@ PRICE_COLORS = dict(_PALETTE["price"])
 LATENCY_COLORS = dict(_PALETTE["latency"])
 # Build front / projection overlay and the cadence companion chart.
 CADENCE_COLORS = dict(_PALETTE["cadence"])
+# Fulfilment over time: the weekly view's event lines.
+FULFILMENT_COLORS = dict(_PALETTE["fulfilment"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Both maps are field -> exact sheet header text, and both sheets are read the

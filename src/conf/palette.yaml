@@ -16,6 +16,16 @@ timeline:                     # reservation / order timeline (chart 6)
   reserved_only: "#4c78a8"    # outstanding reservations
 
 # ---------------------------------------------------------------------------
+# Fulfilment over time (§6), its weekly view: one line per pipeline event. Order
+# placed is the timeline orange; the rest step toward delivery.
+# ---------------------------------------------------------------------------
+fulfilment:
+  placed: "#f58518"
+  vin: "#4c78a8"
+  scheduled: "#72b7b2"
+  delivered: "#54a24b"
+
+# ---------------------------------------------------------------------------
 # Order-to-delivery time (latency chart). The same three hues the page already
 # uses: the shared chart blue for individual orders, Compass Yellow for the
 # emphasized summary (the weekly median), and the neutral grey for the coverage
