@@ -737,7 +737,7 @@ def _latency_frame_input():
 
 
 def test_latency_frame_keeps_only_measurable_firm_dates():
-    from render.charts import latency_frame
+    from render.specs import latency_frame
     d = latency_frame(_latency_frame_input())
     assert sorted(d["user"]) == ["a", "b", "c", "e", "f"], sorted(d["user"])
     assert dict(zip(d["user"], d["days"]))["a"] == 30
@@ -747,20 +747,20 @@ def test_latency_frame_keeps_only_measurable_firm_dates():
 
 
 def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
-    from render.charts import fig_delivery_latency
-    fig = fig_delivery_latency(_latency_frame_input())
-    med = [t for t in fig.data if (t.name or "").startswith("Weekly median")]
+    from render.specs import delivery_latency, latency_coverage
+    spec, _, _ = delivery_latency(_latency_frame_input())
+    med = [lay for lay in spec["layers"] if lay["name"].startswith("Weekly median")]
     assert len(med) == 1
     # Only the week with 3 firm dates gets a point, at its median (30 days).
-    assert list(med[0].y) == [30.0], list(med[0].y)
-    cov = next(t for t in fig.data if t.type == "bar")
+    assert [pt[1] for pt in med[0]["points"]] == [30.0], med[0]["points"]
+    cov = latency_coverage(_latency_frame_input())[0]["series"][0]
     # Coverage = shown / ALL orders placed that week, so the unknown-estimate,
     # windowed and impossible orders count against it rather than vanishing.
     # Week of 8/3: a,b,c of a,b,c,d = 75%. Week of 8/10: e,f of e,f,g = 67% (the
     # window doesn't count as shown). Week of 8/17: h's impossible estimate leaves
     # it 0 of 1 — not in the scatter, but still counted as an order placed.
-    assert [round(v) for v in cov.y] == [75, 67, 0], list(cov.y)
-    assert [int(n) for n in cov.customdata[:, 2]] == [4, 3, 1]
+    assert [round(v) for _, v in cov["values"]] == [75, 67, 0], cov["values"]
+    assert [t.split(" of ")[1].split()[0] for t in cov["tips"]] == ["4", "3", "1"]
 
 
 # --- Build cadence (#33) ----------------------------------------------------

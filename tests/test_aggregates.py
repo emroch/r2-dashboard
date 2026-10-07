@@ -236,6 +236,8 @@ def test_every_registered_summary_fills_on_real_categories():
                       "n": 1} for r in rows for c in cols]
             summarize(spec["summary"], cells)
             continue
+        if not spec.get("dims") or spec["template"] in ("scatter", "timeseries"):
+            continue        # a chart's own counts: the build test renders it
         dim = "r1_model" if spec.get("aggregate") == "r1_models" else spec["dims"][0]
         if spec.get("template") == "takerate" or dim in DIMENSIONS:
             names = labels(dim) or ["CA"]    # state: the states present

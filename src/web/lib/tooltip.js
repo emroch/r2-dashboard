@@ -1,5 +1,6 @@
 // A tooltip for drawn charts: a live region (role="status"), so its text is
-// announced, positioned beside the pointer inside the chart's box.
+// announced, positioned beside the pointer inside the chart's box. The first
+// line is its heading; a null line is a rule between groups of lines.
 export function tooltip(host) {
   const doc = host.ownerDocument;
   const tip = doc.createElement("div");
@@ -10,6 +11,7 @@ export function tooltip(host) {
   return {
     show(lines, x, y) {
       tip.replaceChildren(...lines.map((l, i) => {
+        if (l === null) return Object.assign(doc.createElement("hr"), { className: "tip-rule" });
         const d = doc.createElement(i ? "div" : "b");
         d.textContent = l;
         return d;

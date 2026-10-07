@@ -131,7 +131,6 @@ WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in _cats("wheels")}
 REGION_COLOR = {c["value"]: c["color"] for c in _cats("region")}
 # Delivery-estimate types, firm to vague. TYPE_ORDER leaves out the "no estimate"
 # category, which the charts handle on its own.
-TYPE_COLOR = {c["value"]: c["color"] for c in _cats("delivery_type")}
 TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
               if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
 
@@ -144,6 +143,8 @@ PRICE_COLORS = dict(_PALETTE["price"])
 LATENCY_COLORS = dict(_PALETTE["latency"])
 # Build front / projection overlay and the cadence companion chart.
 CADENCE_COLORS = dict(_PALETTE["cadence"])
+# Fulfilment over time: the weekly view's event lines.
+FULFILMENT_COLORS = dict(_PALETTE["fulfilment"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Both maps are field -> exact sheet header text, and both sheets are read the

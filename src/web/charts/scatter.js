@@ -51,6 +51,10 @@ const slug = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 // "color:Launch Green" -> "cat-color-launch-green" (render/categories.py's rule).
 export function categoryClass(ref) {
   const i = ref.indexOf(":");
+  // "acc:<name>" is an accent fill (render/categories.py ACCENTS): .acc-<name>;
+  // "neutral" is the uncategorized grey (styles.css .tr-neutral).
+  if (ref === "neutral") return "tr-neutral";
+  if (ref.slice(0, i) === "acc") return `acc-${ref.slice(i + 1)}`;
   return `cat-${ref.slice(0, i)}-${slug(ref.slice(i + 1))}`;
 }
 
@@ -144,8 +148,9 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const whisk = whiskG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
   whisk.selectAll("path").data((o) => o.s.points.filter((p) => p.lo)).join("path").attr("class", "whisker");
+  // A series with `open` draws hollow points (§7: a delivery still scheduled).
   const dots = dotG.selectAll("g").data(series).join("g")
-    .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
+    .attr("class", (o) => (o.s.open ? `${o.cls} pt-open` : o.cls)).attr("data-name", (o) => o.s.name);
   const turn = (d) => (ROTATE[d.o.s.symbol] ? ` rotate(${ROTATE[d.o.s.symbol]})` : "");
   dots.selectAll("path").data((o) => o.s.points.map((p) => ({ p, o }))).join("path").attr("class", "pt")
     .attr("d", (d) => d3.symbol(d3[SYMBOLS[d.o.s.symbol] || "symbolCircle"], ROTATE[d.o.s.symbol] ? 64 : 80)());
@@ -175,18 +180,23 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
 
   // Legend: every series, then one entry per layer group.
   legend(el.querySelector(".chart-legend"),
-    [...series.map((o) => ({ name: o.s.name, cls: o.cls })), ...layerEntries(spec.layers)],
+    [...series.map((o) => ({ name: o.s.name, cls: o.s.open ? `${o.cls} swatch-open` : o.cls })),
+     ...layerEntries(spec.layers)],
     (h) => { hidden = h; visibility(); }, hidden);
 
-  // Controls: the whisker toggle (kept in the URL) and Reset view.
+  // Controls: the whisker toggle (kept in the URL), when the spec has whiskers,
+  // and Reset view.
   const controls = el.ownerDocument.createElement("div");
   controls.className = "chart-controls";
-  const wb = Object.assign(el.ownerDocument.createElement("button"), { type: "button", className: "lg-item" });
-  const syncW = () => { wb.textContent = showWhiskers ? "Hide whiskers" : "Show whiskers"; wb.setAttribute("aria-pressed", String(showWhiskers)); };
-  wb.addEventListener("click", () => { showWhiskers = !showWhiskers; setState("whiskers", showWhiskers ? null : "0"); syncW(); place(); });
-  syncW();
+  if (spec.toggles?.whiskers) {
+    const wb = Object.assign(el.ownerDocument.createElement("button"), { type: "button", className: "lg-item" });
+    const syncW = () => { wb.textContent = showWhiskers ? "Hide whiskers" : "Show whiskers"; wb.setAttribute("aria-pressed", String(showWhiskers)); };
+    wb.addEventListener("click", () => { showWhiskers = !showWhiskers; setState("whiskers", showWhiskers ? null : "0"); syncW(); place(); });
+    syncW();
+    controls.append(wb);
+  }
   const reset = Object.assign(el.ownerDocument.createElement("button"), { type: "button", className: "lg-item", textContent: "Reset view" });
-  controls.append(wb, reset);
+  controls.append(reset);
   plotEl.prepend(controls);
 
   // Tooltips: the nearest visible point, or week of the build front.

@@ -2,4 +2,5 @@
 // mount(el) and is imported only when one of its charts nears the viewport.
 export const templates = {
   scatter: () => import("./scatter.js"),
+  timeseries: () => import("./timeseries.js"),
 };

@@ -198,6 +198,56 @@ components:
   # (render/specs.py, into r2_view.json) and the page draws it with d3
   # (src/web/charts/<template>.js), lazily, when it nears the viewport.
   #   aggregate  the spec builder in render/specs.py
+  # Time (§5–7, §10's cadence): weekly columns and lines, Monday weeks.
+  reservations-by-week:
+    template: timeseries
+    title: Reservations by week
+    dims: []
+    aggregate: reservations_by_week
+    summary: "{meta:outstanding} reservations are outstanding, and {count:Converted}
+      have converted to an order."
+  orders-by-week:
+    template: timeseries
+    title: Orders by week
+    dims: [delivered]
+    aggregate: orders_by_week
+    summary: "{n} orders by the week they were placed, {count:Delivered} of them
+      delivered so far; the busiest was the week of {meta:peak}."
+  deliveries-by-week:
+    template: timeseries
+    title: Estimated deliveries by week
+    dims: [delivery_type]
+    aggregate: deliveries_by_week
+    summary: "{share:Firm date} of {n} delivery estimates are firm dates."
+  fulfilment-by-week:
+    template: timeseries
+    title: Fulfilment over time
+    dims: [delivered]
+    aggregate: fulfilment_by_week
+    summary: "Of {n} orders placed so far, {count:Delivered} are delivered and
+      {count:Waiting for a VIN} are still waiting for a VIN."
+  delivery-latency:
+    template: scatter
+    title: Order-to-delivery time
+    dims: []
+    aggregate: delivery_latency
+    summary: "Half of the {n} orders with a firm delivery date wait {meta:median}
+      days or less from order to delivery."
+  latency-coverage:
+    template: timeseries
+    title: Firm-date coverage by order week
+    dims: []
+    aggregate: latency_coverage
+    summary: "How much of each order week the points above cover: where it is
+      low, the median is biased short."
+  build-cadence:
+    template: timeseries
+    title: Build cadence
+    dims: []
+    aggregate: build_cadence
+    summary: "The build front is moving at about {meta:rate} VINs a day, over its
+      last {meta:window} weeks."
+
   delivery-vs-vin:
     template: scatter
     title: Delivery date vs. VIN sequence

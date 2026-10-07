@@ -30,6 +30,7 @@ const spec = {
     { type: "band", name: "Range", group: "Build front", color: "var:cadence-band",
       points: [["2026-10-01", 10000, 12000], ["2026-11-01", 11000, 15000]] },
     { type: "rule", axis: "x", value: "2026-10-05", label: "Today" }],
+  toggles: { whiskers: true },
 };
 
 function mountPoint() {
