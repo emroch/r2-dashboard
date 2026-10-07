@@ -209,11 +209,16 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
         cls = category_class(c["ref"]) if c["ref"] else "tr-neutral"
         if c.get("total"):
             cls += " tr-total"
-        scale = (int(c["n"]) or 1) if c.get("total") else widest
-        segs = "".join(
-            '<i class="mark stage-%s" style="width:%.2f%%"></i>'
-            % (st, 100.0 * c["stages"][st] / scale)
-            for st in STAGES if c["stages"][st])
+        # The fill is the row's length (its share of the widest row; the total
+        # row is full width) and carries the outline, so an outline never
+        # suggests a 100% the row isn't out of; its stage segments split it.
+        n = int(c["n"])
+        reach = 100.0 if c.get("total") else 100.0 * n / widest
+        parts = "".join('<i class="mark stage-%s" style="width:%.2f%%"></i>'
+                        % (st, 100.0 * c["stages"][st] / n)
+                        for st in STAGES if c["stages"][st])
+        segs = ('<span class="tr-fill" style="width:%.2f%%">%s</span>' % (reach, parts)
+                if n else "")
         split = " · ".join("%s %s" % (format(c["stages"][st], ","), STAGE_LABELS[st])
                            for st in STAGES if c["stages"][st])
         rows.append(
@@ -396,7 +401,7 @@ def bars(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> st
         rows.append(
             '<li class="tr-row br-row%s"><span class="tr-name">%s%s</span>'
             '<span class="tr-n">%s</span>'
-            '<span class="tr-bar" aria-hidden="true"><i class="mark %s" '
+            '<span class="tr-bar" aria-hidden="true"><i class="mark tr-fill %s" '
             'style="width:%.2f%%"></i></span>%s</li>'
             % (" br-hi" if hi else "", escape(str(c["label"])),
                ' <b class="br-tag">%s</b>' % escape(c["note"]) if hi and c.get("note")

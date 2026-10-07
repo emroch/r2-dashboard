@@ -575,6 +575,10 @@ def test_state_take_rate_carries_an_all_states_row_on_its_own_scale():
     # Its bar is full width at its own total: 1 delivered of 4 is 25%.
     tot = html[html.index("tr-total"):html.index("</li>")]
     assert 'stage-delivered" style="width:25.00%"' in tot
+    # A state's fill (the outlined part) is its share of the widest row; the
+    # track itself is not outlined, so TX (1 of CA's 3) ends a third of the way.
+    assert html.count('<span class="tr-fill" style="width:100.00%">') == 2
+    assert '<span class="tr-fill" style="width:33.33%">' in html
     assert "<th scope=\"col\">State / province</th>" in html
 
 

@@ -251,11 +251,13 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .tr-name{display:flex;align-items:center;gap:6px;min-width:0;}
 .tr-n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
 .tr-pct{color:var(--desc);margin-left:4px;}
-/* A bar's track is outlined in mark-edge (3:1 on the card), so its full extent
-   shows, and a true-color mark (.mark-true) like white on the white card still
-   has an outline. */
-.tr-bar{grid-column:1 / -1;display:flex;height:10px;margin-top:3px;box-sizing:border-box;
- border:1px solid var(--mark-edge);border-radius:2px;overflow:hidden;}
+/* A take-rate bar's length is relative to the widest row, so only its filled
+   part (.tr-fill) is outlined in mark-edge (3:1 on the card), never the track:
+   a full-width outline would read as a share of 100%. */
+.tr-bar{grid-column:1 / -1;display:flex;height:10px;margin-top:3px;}
+.tr-fill{display:flex;height:100%;box-sizing:border-box;border:1px solid var(--mark-edge);
+ border-radius:2px;overflow:hidden;}
+.tr-fill[style="width:0.00%"]{border:0;}
 .tr-bar i{display:block;height:100%;}
 .tr-split{grid-column:1 / -1;font-size:11px;color:var(--desc);margin-top:2px;}
 /* Rows whose category has no color of its own (purchase/lease, yes/no) get a
@@ -319,6 +321,8 @@ footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;borde
 .mx-key span{display:inline-flex;align-items:center;gap:5px;}
 .mx-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;
  padding:6px 0;font-size:13px;}
+/* A mix bar is 100% of its row, so its whole track is outlined, which also keeps
+   a true-color segment (.mark-true: white on the white card) legible. */
 .mx-bar{grid-column:1 / -1;display:flex;height:14px;margin-top:3px;box-sizing:border-box;
  border:1px solid var(--mark-edge);border-radius:2px;overflow:hidden;}
 .mx-bar i{display:block;height:100%;}
