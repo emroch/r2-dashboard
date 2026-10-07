@@ -70,13 +70,13 @@ sections:
   - title: "Reservation & order timeline"
     components: [reservations-by-week, orders-by-week]
     desc: >-
-      Reservations by the week they were made: holders who haven't ordered yet
-      (incomplete, from the separate reservations sheet) stacked on those who have
-      since locked an order. The 3/7/2024 reveal week is many times the next-biggest
-      week, so the axis is cut just above the rest to keep the two-year trickle
-      readable, and that week's column is labelled with its true total. Below, orders
-      by the week the configuration was finalized. Weeks run Monday to Sunday; hover a
-      week for its counts.
+      Reservations by the week they were made: <em>outstanding</em> ones, whose
+      holders haven't ordered yet (from the separate reservations sheet), stacked on
+      <em>converted</em> ones, whose holders have since locked an order. The 3/7/2024
+      reveal week is many times the next-biggest week, so the axis is cut just above
+      the rest to keep the two-year trickle readable, and that week's column is
+      labelled with its true total. Below, orders by the week the configuration was
+      finalized. Weeks run Monday to Sunday; hover a week for its counts.
 
   - title: "Estimated delivery timeline"
     components: [deliveries-by-week]

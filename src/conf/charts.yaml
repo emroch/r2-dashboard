@@ -204,8 +204,8 @@ components:
     title: Reservations by week
     dims: []
     aggregate: reservations_by_week
-    summary: "{meta:outstanding} reservation holders haven't ordered yet;
-      {count:Reserved & ordered} orders came with a reservation date."
+    summary: "{meta:outstanding} reservations are outstanding, and {count:Converted}
+      have converted to an order."
   orders-by-week:
     template: timeseries
     title: Orders by week

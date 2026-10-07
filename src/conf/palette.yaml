@@ -12,8 +12,8 @@
 # but they live here so every data color is in one place.
 # ---------------------------------------------------------------------------
 timeline:                     # reservation / order timeline (chart 6)
-  ordered: "#f58518"          # "reserved & ordered" bars + order-date bars
-  reserved_only: "#4c78a8"    # reservation-only (incomplete) bars
+  ordered: "#f58518"          # converted reservations + orders by week
+  reserved_only: "#4c78a8"    # outstanding reservations
 
 # ---------------------------------------------------------------------------
 # Order-to-delivery time (latency chart). The same three hues the page already

@@ -185,8 +185,7 @@ def test_reservations_by_week_stack_on_monday_weeks_and_clip_the_spike():
                          + [pd.Timestamp("2024-04-11")] * 9 + [pd.NaT]})
     spec, agg, (heads, rows) = reservations_by_week(df, resv)
     assert spec["template"] == "timeseries"
-    assert [s["name"] for s in spec["series"]] == ["Reserved & ordered",
-                                                    "Reserved only (incomplete)"]
+    assert [s["name"] for s in spec["series"]] == ["Converted", "Outstanding"]
     weeks = [v[0] for v in spec["series"][0]["values"]]
     assert weeks == ["2024-03-04", "2024-03-11", "2024-03-18", "2024-03-25",
                      "2024-04-01", "2024-04-08"], "every Monday week (running totals)"
@@ -196,8 +195,7 @@ def test_reservations_by_week_stack_on_monday_weeks_and_clip_the_spike():
     assert spec["y"]["cumulative"]["domain"][1] == 511 * 1.05
     # 500 in the spike week against 11 in the next: the axis clips just above it.
     assert spec["y"]["clip"] == spec["y"]["domain"][1] == 20
-    assert heads == ["Week of", "Reserved & ordered", "Reserved only (incomplete)",
-                     "Total", "Running total"]
+    assert heads == ["Week of", "Converted", "Outstanding", "Total", "Running total"]
     assert rows[0] == ["2024-03-04", 400, 100, 500, 500]
     assert rows[-1] == ["2024-04-08", 2, 9, 11, 511]
     reconcile([agg], _sizes(df, resv))

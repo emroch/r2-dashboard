@@ -245,12 +245,12 @@ def _column_table(first: str, cols: dict[str, Any]) -> tuple[list[str], list[lis
 
 
 def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
-    """§5, top: reservations by the week they were made, stacked: the holders
-    still waiting to order (the reservations sheet) on top of those who have
-    since ordered (every order with a reservation date)."""
+    """§5, top: reservations by the week they were made, stacked: outstanding
+    (holders still waiting to order, from the reservations sheet) on top of
+    converted (every order with a reservation date)."""
     ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
-    cols = _columns([("Reserved & ordered", "acc:timeline-ordered", ordered),
-                     ("Reserved only (incomplete)", "acc:timeline-reserved", only)],
+    cols = _columns([("Converted", "acc:timeline-ordered", ordered),
+                     ("Outstanding", "acc:timeline-reserved", only)],
                     cumulative=True)
     x = {"label": "Week reserved", "type": "date",
          "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None}
