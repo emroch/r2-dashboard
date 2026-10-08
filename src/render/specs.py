@@ -253,8 +253,14 @@ def dest_vs_delivery(df: pd.DataFrame) -> tuple:
 #         the US only, for now (docs/presentation.md): Canada isn't on sale yet,
 #         so its orders and reservations are left out, counted in `excluded`.
 
-_MEASURES = (("orders", "All orders"), ("vin", "VIN assigned"),
-             ("demand", "Orders + reservations"))
+# The map's measures, most inclusive first: each is a subset of the one before
+# (the delivery stages count cumulatively, so "with a VIN" includes scheduled and
+# delivered orders, as an order past a stage has passed the ones before it).
+_MEASURES = (("demand", "Orders + reservations"), ("orders", "Orders"),
+             ("vin", "With a VIN"), ("scheduled", "Scheduled"),
+             ("delivered", "Delivered"))
+_PAST = {"vin": ("vin", "scheduled", "delivered"),
+         "scheduled": ("scheduled", "delivered"), "delivered": ("delivered",)}
 
 
 def _count(n: int, noun: str) -> str:
@@ -267,8 +273,9 @@ def _us(frame: pd.DataFrame) -> pd.Series:
 
 
 def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
-    """§12: orders, orders with a VIN, and total demand (orders + outstanding
-    reservations) per US state; each state's tooltip adds its delivered share."""
+    """§12: per US state, total demand (orders + outstanding reservations), orders,
+    and the orders that have reached each delivery stage, cumulatively: with a
+    VIN (or further), scheduled (or delivered), delivered."""
     if resv is None or "state" not in resv:
         resv = pd.DataFrame({"state": pd.Series([], dtype=object)})
     us, rus = _us(df), _us(resv)
@@ -279,33 +286,33 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
     st = stages(d)
     resv_n = resv[rus].groupby("state").size()
     states, cells = {}, []
+
+    def _state(code: str, n: int, r: int, past: dict[str, int]) -> dict[str, Any]:
+        tip = ["%s + %s" % (_count(n, "order"), _count(r, "reservation"))]
+        if n:
+            tip += ["%s: %s (%.0f%%)" % (label, format(past[k], ","), 100 * past[k] / n)
+                    for k, label in _MEASURES[2:]]
+        return {"region": STATE_INFO[code][0], "demand": n + r, "orders": n, **past,
+                "tip": tip}
+
     for code, g in sorted(d.groupby("state"), key=lambda kv: (-len(kv[1]), kv[0])):
-        n, vin = len(g), int(g["vin_present"].astype(bool).sum())
-        delivered = int((st[g.index] == "delivered").sum())
-        r = int(resv_n.get(code, 0))
-        states[code] = {
-            "region": STATE_INFO[code][0], "orders": n, "vin": vin, "demand": n + r,
-            "tip": ["%s · %s with a VIN" % (_count(n, "order"), format(vin, ",")),
-                    "%s outstanding" % _count(r, "reservation"),
-                    "Delivered: %d of %d (%.0f%%)" % (delivered, n,
-                                                       100 * delivered / n)]}
+        n, at = len(g), st[g.index]
+        past = {k: int(at.isin(v).sum()) for k, v in _PAST.items()}
+        states[str(code)] = _state(str(code), n, int(resv_n.get(code, 0)), past)
         cells.append({"value": code, "label": code, "n": n,
                       "ref": None, "known": True})
     # A state with reservations but no orders yet is still demand on the map.
     for where, r in resv_n.items():
         key = str(where)
         if key not in states:
-            states[key] = {"region": STATE_INFO[key][0], "orders": 0, "vin": 0,
-                           "demand": int(r),
-                           "tip": ["No orders yet",
-                                   "%s outstanding" % _count(int(r), "reservation")]}
+            states[key] = _state(key, 0, int(r), dict.fromkeys(_PAST, 0))
     left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
     spec = {"template": "geo", "title": "Geographic demand",
             "measures": [{"key": k, "label": lbl} for k, lbl in _MEASURES],
             "default": "orders",
             "factory": list(FACTORY), "states": states}
-    table = (["State", "Region", "Orders", "VIN assigned", "Orders + reservations"],
-             [[c, v["region"], v["orders"], v["vin"], v["demand"]]
+    table = (["State", "Region"] + [lbl for _, lbl in _MEASURES],
+             [[c, v["region"]] + [v[k] for k, _ in _MEASURES]
               for c, v in states.items()])
     agg = Aggregate("orders by US state", "orders", cells, excluded, "state",
                     meta={"states": sum(1 for v in states.values() if v["orders"]),

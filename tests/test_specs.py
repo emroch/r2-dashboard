@@ -364,15 +364,22 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     from render.aggregates import cohort_sizes, reconcile
     from render.specs import geo_demand
     df = _orders(4, state=["CA", "CA", "BC", "ZZ"], price=[None] * 4, lat=[None] * 4,
-                 delivered_inferred=[True, False, False, False])
+                 delivered_inferred=[True, False, False, False],
+                 delivery_type=["explicit", "window", "explicit", "explicit"])
     resv = pd.DataFrame({"state": ["CA", "WA", "BC"]})
     spec, agg, _ = geo_demand(df, resv)
     reconcile([agg], cohort_sizes(df))
     assert agg.excluded == {"outside the US (not mapped)": 1, "no known state": 1}
     assert agg.meta["left"] == "1 order and 1 reservation"
     ca = spec["states"]["CA"]
-    assert (ca["orders"], ca["vin"], ca["demand"]) == (2, 2, 3)
-    assert ca["tip"][-1] == "Delivered: 1 of 2 (50%)"
+    assert (ca["demand"], ca["orders"], ca["vin"], ca["scheduled"], ca["delivered"]) \
+        == (3, 2, 2, 1, 1)
+    assert ca["tip"][-1] == "Delivered: 1 (50%)"
+    # Each measure is a subset of the one before, state by state.
+    keys = [m["key"] for m in spec["measures"]]
+    assert keys == ["demand", "orders", "vin", "scheduled", "delivered"]
+    for v in spec["states"].values():
+        assert all(v[a] >= v[b] for a, b in zip(keys, keys[1:])), v
     # Reservations alone still put a state on the demand map, with no orders.
     assert spec["states"]["WA"]["orders"] == 0 and spec["states"]["WA"]["demand"] == 1
     assert "BC" not in spec["states"]

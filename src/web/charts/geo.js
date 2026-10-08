@@ -3,8 +3,9 @@
 // layout (geoAlbersUsa: Alaska and Hawaii inset at the bottom left).
 //
 // The spec counts each state (render/specs.py geo_demand); the reader picks the
-// measure (all orders, VIN assigned, orders + reservations), kept in the URL, and
-// each state is filled by it on a square-root scale: a choropleth. Fills are CSS:
+// measure on a slider, from total demand (orders + reservations) down through
+// orders, with a VIN, scheduled and delivered, and each state is filled by it on
+// a square-root scale: a choropleth. Fills are CSS:
 // a state's share of the scale is --v, which styles.css mixes into the land, as
 // the heatmap does, so a theme change needs no redraw. A state with none of the
 // measure is hatched rather than filled, so "none" never reads as "a few". Every
@@ -133,24 +134,42 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
       { bubbles: true, detail: { code: selected } }));
   }
 
-  // The measure switch, kept in the URL.
+  // The measure, a stepped slider: the measures nest (each a subset of the one
+  // before), so their order is a continuum, and the thumb's place says how far
+  // down it the map is. A native range input, so keys and assistive tech work;
+  // a label under each stop picks it too. Kept in the URL.
+  const keyAt = (i) => spec.measures[i].key;
   const controls = doc.createElement("div");
-  controls.className = "chart-controls chart-switch";
-  controls.setAttribute("role", "group");
-  controls.setAttribute("aria-label", "Measure");
-  const buttons = spec.measures.map((m) => {
-    const b = Object.assign(doc.createElement("button"), { type: "button", className: "lg-item", textContent: m.label });
+  controls.className = "map-stage";
+  controls.style.setProperty("--stops", spec.measures.length);
+  const slider = Object.assign(doc.createElement("input"), { type: "range", min: "0", step: "1",
+    max: String(spec.measures.length - 1), className: "map-slider" });
+  slider.setAttribute("aria-label", "Orders to map");
+  const stops = doc.createElement("div");
+  stops.className = "map-stops";
+  const labels = spec.measures.map((m, i) => {
+    const b = Object.assign(doc.createElement("button"), { type: "button", textContent: m.label });
     b.dataset.key = m.key;
-    b.setAttribute("aria-pressed", String(m.key === measure));
-    b.addEventListener("click", () => {
-      measure = m.key;
-      setState(`${id}-m`, m.key === spec.default ? null : m.key);
-      for (const o of buttons) o.setAttribute("aria-pressed", String(o === b));
-      paint();
-    });
+    b.addEventListener("click", () => pick(i));
     return b;
   });
-  controls.append(...buttons);
+  stops.append(...labels);
+  controls.append(slider, stops);
+  function sync() {
+    const i = keys.indexOf(measure);
+    slider.value = String(i);
+    slider.setAttribute("aria-valuetext", spec.measures[i].label);
+    labels.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+  }
+  function pick(i) {
+    if (keyAt(i) === measure) return;
+    measure = keyAt(i);
+    setState(`${id}-m`, measure === spec.default ? null : measure);
+    sync();
+    paint();
+  }
+  slider.addEventListener("input", () => pick(Number(slider.value)));
+  sync();
   plotEl.prepend(controls);
 
   // Hover: the state under the pointer, named and counted.
@@ -180,6 +199,6 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
     svg: svg.node(),
     select,
     selected: () => selected,
-    setMeasure: (k) => { measure = k; paint(); },
+    setMeasure: (k) => pick(keys.indexOf(k)),
   };
 }

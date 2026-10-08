@@ -17,8 +17,9 @@ const atlas = { topojson: globalThis.topojson,
 
 const spec = {
   template: "geo", title: "t", default: "orders", factory: [40.51, -88.99],
-  measures: [{ key: "orders", label: "All orders" }, { key: "vin", label: "VIN assigned" },
-             { key: "demand", label: "Orders + reservations" }],
+  measures: [{ key: "demand", label: "Orders + reservations" }, { key: "orders", label: "Orders" },
+             { key: "vin", label: "With a VIN" }, { key: "scheduled", label: "Scheduled" },
+             { key: "delivered", label: "Delivered" }],
   states: {
     CA: { region: "West", orders: 100, vin: 40, demand: 400, tip: ["100 orders"] },
     TX: { region: "South", orders: 25, vin: 50, demand: 90, tip: ["25 orders"] },
@@ -64,9 +65,15 @@ test("the measure switch refills in place", { timeout: 5000 }, async () => {
   const h = draw(d3, atlas, el, spec);
   const count = () => h.svg.querySelectorAll("*").length;
   const before = count();
-  el.querySelector('.chart-switch [data-key="vin"]').dispatchEvent(new globalThis.window.Event("click"));
+  const slider = el.querySelector("input.map-slider");
+  assert.equal(slider.value, "1", "orders, the default, is the second stop");
+  slider.value = "2";
+  slider.dispatchEvent(new globalThis.window.Event("input"));
   assert.equal(state(h, "TX").style.getPropertyValue("--v"), "1.000", "TX leads on VINs");
-  assert.equal(el.querySelector('[data-key="vin"]').getAttribute("aria-pressed"), "true");
+  assert.equal(el.querySelector('.map-stops [data-key="vin"]').getAttribute("aria-pressed"), "true");
+  assert.equal(slider.getAttribute("aria-valuetext"), "With a VIN");
+  el.querySelector('.map-stops [data-key="delivered"]').dispatchEvent(new globalThis.window.Event("click"));
+  assert.equal(slider.value, "4", "a stop's label moves the slider");
   assert.ok(state(h, "VT").classList.contains("map-none"), "VT has no VINs");
   h.setMeasure("demand");
   assert.ok(state(h, "VT").classList.contains("map-filled"));

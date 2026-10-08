@@ -165,8 +165,10 @@ sections:
   - title: "Geographic demand"
     components: [geo-demand]
     desc: >-
-      Demand by state around the Normal, IL plant (★): all orders, orders with an
-      assigned VIN, or total demand (orders plus outstanding reservations). Colors
+      Demand by state around the Normal, IL plant (★). The slider steps down the
+      pipeline, each stop a subset of the one before: total demand (orders plus
+      outstanding reservations), orders, orders with a VIN (or further along),
+      orders with a delivery scheduled (or delivered), and deliveries. Colors
       run on a square-root scale, so a state with a quarter of the leader's count
       reads half as strong; a state with none is hatched. Select a state to outline
       it. Only US orders are mapped for now, since the R2
