@@ -247,9 +247,10 @@ def dest_vs_delivery(df: pd.DataFrame) -> tuple:
 
 # --- geo: the US states map ----------------------------------------------------
 #
-#   geo   states: {postal code: {region, orders, vin, demand, tip}}, keyed as the
-#         map's paths are; measures: the counts the reader
-#         can map ({key, label}), and `default`; factory: [lat, lon]. The map is
+#   geo   states: {postal code: {region, demand, orders, vin, scheduled, delivered,
+#         tip: the orders by stage now}}, keyed as the map's paths are;
+#         measures: the counts the reader can map ({key, label, tip: how the
+#         tooltip names the value}), and `default`; factory: [lat, lon]. The map is
 #         the US only, for now (docs/presentation.md): Canada isn't on sale yet,
 #         so its orders and reservations are left out, counted in `excluded`.
 
@@ -259,6 +260,10 @@ def dest_vs_delivery(df: pd.DataFrame) -> tuple:
 _MEASURES = (("demand", "Orders + reservations"), ("orders", "Orders"),
              ("vin", "With a VIN"), ("scheduled", "Scheduled"),
              ("delivered", "Delivered"))
+# How a state's tooltip names the mapped value, saying the stages are cumulative.
+_MEASURE_TIPS = {"demand": "Orders + reservations", "orders": "Orders",
+                 "vin": "With a VIN or further", "scheduled": "Scheduled or delivered",
+                 "delivered": "Delivered"}
 _PAST = {"vin": ("vin", "scheduled", "delivered"),
          "scheduled": ("scheduled", "delivered"), "delivered": ("delivered",)}
 
@@ -287,16 +292,15 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
     resv_n = resv[rus].groupby("state").size()
     states, cells = {}, []
 
-    # The map counts each stage cumulatively; the tooltip splits a state's orders
-    # by the stage each is at now, so the shares add up to 100%.
+    # The map counts each stage cumulatively; the tooltip (under the mapped value,
+    # which the page adds) splits a state's orders by the stage each is at now,
+    # earliest first, so the shares add up to 100%.
     def _state(code: str, n: int, r: int, at: pd.Series) -> dict[str, Any]:
         past = {k: int(at.isin(v).sum()) for k, v in _PAST.items()}
-        tip: list[str | None] = ["%s + %s" % (_count(n, "order"),
-                                             _count(r, "reservation"))]
+        tip: list[str | None] = []
         if n:
             now = at.value_counts()
-            tip.append(None)
-            for k in STAGES:
+            for k in reversed(STAGES):
                 label = STAGE_LABELS[k][0].upper() + STAGE_LABELS[k][1:]
                 tip.append("%s: %s (%.0f%%)" % (label, format(int(now.get(k, 0)), ","),
                                                 100 * now.get(k, 0) / n))
@@ -315,7 +319,8 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
             states[key] = _state(key, 0, int(r), pd.Series([], dtype=object))
     left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
     spec = {"template": "geo", "title": "Geographic demand",
-            "measures": [{"key": k, "label": lbl} for k, lbl in _MEASURES],
+            "measures": [{"key": k, "label": lbl, "tip": _MEASURE_TIPS[k]}
+                         for k, lbl in _MEASURES],
             "default": "orders",
             "factory": list(FACTORY), "states": states}
     table = (["State", "Region"] + [lbl for _, lbl in _MEASURES],

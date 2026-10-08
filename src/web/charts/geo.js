@@ -183,6 +183,15 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
   // Hover: the state under the pointer, named and counted.
   const tip = tooltip(plotEl);
   const name = Object.fromEntries(features.map((o) => [o.code, o.f.properties.name]));
+  // The state, the value its shading shows, then its orders by stage now.
+  const tipFor = (code) => {
+    const m = spec.measures.find((x) => x.key === measure);
+    const st = spec.states[code];
+    const head = `${name[code]} (${code})`;
+    if (!st) return [head, "No orders or reservations"];
+    const lines = st.tip.length ? [null, ...st.tip] : [];
+    return [head, `${m.tip}: ${d3.format(",")(st[measure])}`, ...lines];
+  };
   let hovered = null;
   const hover = (code) => {
     if (code === hovered) return;
@@ -194,7 +203,7 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
     if (!code) { hover(null); tip.hide(); return; }
     hover(code);
     const [hx, hy] = d3.pointer(ev, plotEl);
-    tip.show([`${name[code]} (${code})`, ...(spec.states[code]?.tip ?? ["No orders or reservations"])], hx, hy);
+    tip.show(tipFor(code), hx, hy);
   }).on("pointerleave", () => { hover(null); tip.hide(); })
     .on("click", (ev) => { const code = ev.target?.dataset?.state; if (code) select(code); });
   // One Escape listener per mount, replaced on each redraw.
