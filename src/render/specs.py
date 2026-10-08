@@ -287,25 +287,32 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
     resv_n = resv[rus].groupby("state").size()
     states, cells = {}, []
 
-    def _state(code: str, n: int, r: int, past: dict[str, int]) -> dict[str, Any]:
-        tip = ["%s + %s" % (_count(n, "order"), _count(r, "reservation"))]
+    # The map counts each stage cumulatively; the tooltip splits a state's orders
+    # by the stage each is at now, so the shares add up to 100%.
+    def _state(code: str, n: int, r: int, at: pd.Series) -> dict[str, Any]:
+        past = {k: int(at.isin(v).sum()) for k, v in _PAST.items()}
+        tip: list[str | None] = ["%s + %s" % (_count(n, "order"),
+                                             _count(r, "reservation"))]
         if n:
-            tip += ["%s: %s (%.0f%%)" % (label, format(past[k], ","), 100 * past[k] / n)
-                    for k, label in _MEASURES[2:]]
+            now = at.value_counts()
+            tip.append(None)
+            for k in STAGES:
+                label = STAGE_LABELS[k][0].upper() + STAGE_LABELS[k][1:]
+                tip.append("%s: %s (%.0f%%)" % (label, format(int(now.get(k, 0)), ","),
+                                                100 * now.get(k, 0) / n))
         return {"region": STATE_INFO[code][0], "demand": n + r, "orders": n, **past,
                 "tip": tip}
 
     for code, g in sorted(d.groupby("state"), key=lambda kv: (-len(kv[1]), kv[0])):
-        n, at = len(g), st[g.index]
-        past = {k: int(at.isin(v).sum()) for k, v in _PAST.items()}
-        states[str(code)] = _state(str(code), n, int(resv_n.get(code, 0)), past)
-        cells.append({"value": code, "label": code, "n": n,
+        states[str(code)] = _state(str(code), len(g), int(resv_n.get(code, 0)),
+                                   st[g.index])
+        cells.append({"value": code, "label": code, "n": len(g),
                       "ref": None, "known": True})
     # A state with reservations but no orders yet is still demand on the map.
     for where, r in resv_n.items():
         key = str(where)
         if key not in states:
-            states[key] = _state(key, 0, int(r), dict.fromkeys(_PAST, 0))
+            states[key] = _state(key, 0, int(r), pd.Series([], dtype=object))
     left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
     spec = {"template": "geo", "title": "Geographic demand",
             "measures": [{"key": k, "label": lbl} for k, lbl in _MEASURES],

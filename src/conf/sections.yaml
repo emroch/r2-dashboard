@@ -165,7 +165,7 @@ sections:
   - title: "Geographic demand"
     components: [geo-demand]
     desc: >-
-      Demand by state around the Normal, IL plant (★). The slider steps down the
+      Demand by state around the Normal, IL plant (marked with Rivian's emblem). The slider steps down the
       pipeline, each stop a subset of the one before: total demand (orders plus
       outstanding reservations), orders, orders with a VIN (or further along),
       orders with a delivery scheduled (or delivered), and deliveries. Colors

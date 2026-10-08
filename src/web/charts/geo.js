@@ -34,6 +34,10 @@ export const FIPS = {
   "55": "WI", "56": "WY", "72": "PR",
 };
 
+// Rivian's emblem for the factory, resolved like the vendored files, inside the
+// hashed asset directory.
+const FACTORY_MARK = new URL("../img/rivian-logo.png", import.meta.url).href;
+
 // A value's share of the scale's top, on a square-root scale (so a state with a
 // quarter of the leader's orders reads half as strong): 0..1.
 export function share(n, max) {
@@ -97,9 +101,13 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
     return o ? path(o.f) : null;
   };
   const [fx, fy] = projection([spec.factory[1], spec.factory[0]]) || [null, null];
+  // The factory, marked with Rivian's emblem (a published asset, img/), centered
+  // on the plant. The footer credits the mark as Rivian's.
   if (fx !== null) {
-    svg.append("path").attr("class", "map-factory").attr("d", d3.symbol(d3.symbolStar, 90)())
-      .attr("transform", `translate(${fx},${fy})`);
+    const size = 20;
+    svg.append("image").attr("class", "map-factory").attr("href", FACTORY_MARK)
+      .attr("width", size).attr("height", size * 70 / 72)
+      .attr("x", fx - size / 2).attr("y", fy - (size * 70 / 72) / 2);
   }
 
   const val = (code) => spec.states[code]?.[measure] ?? 0;

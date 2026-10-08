@@ -348,13 +348,28 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active{
 .map-svg .map-outline{fill:none;stroke:var(--fg);pointer-events:none;stroke-linejoin:round;}
 .map-svg .map-hover{stroke-width:1.5;}
 .map-svg .map-selected{stroke-width:2.5;}
-.map-svg .map-factory{fill:var(--fg);stroke:var(--card-bg);stroke-width:1;pointer-events:none;}
+/* Rivian's emblem at the factory: a faint dark halo so the yellow holds on the
+   pale land of the light theme as well as the blue of a filled state. */
+.map-svg .map-factory{pointer-events:none;filter:drop-shadow(0 0 1.2px rgba(0,0,0,.7));}
 /* The measure slider: the stops sit at the centers of equal label columns, so
    the track runs from the first column's center to the last's (--thumb is the
    native thumb's width, near enough in every engine for the steps to line up). */
 .map-stage{--thumb:18px;margin:4px 0 10px;}
 .map-slider{display:block;width:calc(100% - 100% / var(--stops) + var(--thumb));
- margin:0 0 0 calc(50% / var(--stops) - var(--thumb) / 2);accent-color:var(--link);cursor:pointer;}
+ margin:0 0 0 calc(50% / var(--stops) - var(--thumb) / 2);height:var(--thumb);
+ -webkit-appearance:none;appearance:none;background:none;cursor:pointer;}
+/* A thin backing line rather than a filled progress bar, and the thumb in
+   Compass Yellow, so the control doesn't read as part of the blue value scale. */
+.map-slider::-webkit-slider-runnable-track{height:2px;background:var(--mark-edge);border-radius:1px;}
+.map-slider::-moz-range-track{height:2px;background:var(--mark-edge);border-radius:1px;}
+.map-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:var(--thumb);
+ height:var(--thumb);margin-top:calc(1px - var(--thumb) / 2);border-radius:50%;
+ background:var(--stat-bg);border:2px solid var(--card-bg);box-shadow:0 0 0 1px var(--mark-edge);
+ box-sizing:border-box;}
+.map-slider::-moz-range-thumb{width:var(--thumb);height:var(--thumb);border-radius:50%;
+ background:var(--stat-bg);border:2px solid var(--card-bg);box-shadow:0 0 0 1px var(--mark-edge);
+ box-sizing:border-box;}
+.map-slider:focus-visible{outline:2px solid var(--stat-bg);outline-offset:4px;border-radius:4px;}
 .map-stops{display:grid;grid-template-columns:repeat(var(--stops),1fr);}
 .map-stops button{font:inherit;font-size:12px;line-height:1.25;color:var(--desc);background:none;
  border:0;padding:2px 2px 0;cursor:pointer;text-align:center;}

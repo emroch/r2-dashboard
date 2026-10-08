@@ -374,7 +374,9 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     ca = spec["states"]["CA"]
     assert (ca["demand"], ca["orders"], ca["vin"], ca["scheduled"], ca["delivered"]) \
         == (3, 2, 2, 1, 1)
-    assert ca["tip"][-1] == "Delivered: 1 (50%)"
+    # The tooltip splits the orders by their stage now, adding up to 100%.
+    assert ca["tip"][1:] == [None, "Delivered: 1 (50%)", "Delivery scheduled: 0 (0%)",
+                             "With a VIN: 1 (50%)", "Waiting for a VIN: 0 (0%)"]
     # Each measure is a subset of the one before, state by state.
     keys = [m["key"] for m in spec["measures"]]
     assert keys == ["demand", "orders", "vin", "scheduled", "delivered"]
