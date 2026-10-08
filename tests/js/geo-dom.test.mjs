@@ -20,9 +20,9 @@ const spec = {
   measures: [{ key: "orders", label: "All orders" }, { key: "vin", label: "VIN assigned" },
              { key: "demand", label: "Orders + reservations" }],
   states: {
-    CA: { region: "West", orders: 100, vin: 40, demand: 400, delivered: 0.5, small: false, tip: ["100 orders"] },
-    TX: { region: "South", orders: 25, vin: 50, demand: 90, delivered: 0.2, small: false, tip: ["25 orders"] },
-    VT: { region: "Northeast", orders: 2, vin: 0, demand: 9, delivered: 0, small: true, tip: ["2 orders"] },
+    CA: { region: "West", orders: 100, vin: 40, demand: 400, small: false, tip: ["100 orders"] },
+    TX: { region: "South", orders: 25, vin: 50, demand: 90, small: false, tip: ["25 orders"] },
+    VT: { region: "Northeast", orders: 2, vin: 0, demand: 9, small: true, tip: ["2 orders"] },
   },
 };
 
@@ -39,13 +39,10 @@ function mountPoint() {
 const state = (h, code) => h.svg.querySelector(`path.map-state[data-state="${code}"]`);
 
 test("FIPS codes cover the 50 states and DC, and shares run on a square root", async () => {
-  const { FIPS, share, encodings } = await import("../../src/web/charts/geo.js");
+  const { FIPS, share } = await import("../../src/web/charts/geo.js");
   assert.equal(Object.values(FIPS).filter((c) => c !== "PR").length, 51);
   assert.equal(share(25, 100), 0.5);
   assert.equal(share(0, 100), 0);
-  assert.deepEqual(encodings("choropleth", "vin"), { fill: "vin", size: null });
-  assert.deepEqual(encodings("bubbles", "vin"), { fill: null, size: "vin" });
-  assert.deepEqual(encodings("both", "vin"), { fill: "demand", size: "orders" });
 });
 
 test("every state draws, keyed by postal code; small ones are hatched", { timeout: 5000 }, async () => {
@@ -61,22 +58,19 @@ test("every state draws, keyed by postal code; small ones are hatched", { timeou
   assert.ok(!state(h, "NY").classList.contains("map-filled"), "no orders: land only");
 });
 
-test("the measure and style switches redraw in place", { timeout: 5000 }, async () => {
+test("the measure switch refills in place; total demand is never hatched", { timeout: 5000 }, async () => {
   const { draw } = await import("../../src/web/charts/geo.js");
   const el = mountPoint();
   const h = draw(d3, atlas, el, spec);
   const count = () => h.svg.querySelectorAll("*").length;
+  const before = count();
   el.querySelector('.chart-switch [data-key="vin"]').dispatchEvent(new globalThis.window.Event("click"));
   assert.equal(state(h, "TX").style.getPropertyValue("--v"), "1.000", "TX leads on VINs");
-  h.setStyle("bubbles");
-  assert.equal(h.svg.querySelectorAll("circle.map-bubble").length, 2, "a bubble per state with VINs");
-  assert.ok(!state(h, "CA").classList.contains("map-filled"));
-  const before = count();
-  h.setStyle("both");
-  h.setStyle("both");
-  assert.equal(h.svg.querySelectorAll("circle.map-bubble").length, 3, "both: bubbles are orders");
-  assert.ok(Math.abs(count() - before) <= 1, "restyling updates rather than adds");
-  assert.ok(el.querySelector('[aria-label="Measure"]').hidden, "both fixes its own measures");
+  assert.equal(el.querySelector('[data-key="vin"]').getAttribute("aria-pressed"), "true");
+  h.setMeasure("demand");
+  assert.ok(state(h, "VT").classList.contains("map-filled"), "demand: no small-n hatch");
+  assert.equal(el.querySelectorAll(".map-swatch-small").length, 0);
+  assert.equal(count(), before, "switching refills rather than adds");
 });
 
 test("selecting a state outlines it and fires r2:stateselect; again clears", { timeout: 5000 }, async () => {

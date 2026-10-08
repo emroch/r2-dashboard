@@ -371,7 +371,8 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     assert agg.excluded == {"outside the US (not mapped)": 1, "no known state": 1}
     assert agg.meta["left"] == "1 order and 1 reservation"
     ca = spec["states"]["CA"]
-    assert (ca["orders"], ca["vin"], ca["demand"], ca["delivered"]) == (2, 2, 3, 0.5)
+    assert (ca["orders"], ca["vin"], ca["demand"]) == (2, 2, 3)
+    assert ca["tip"][-1] == "Delivered: 1 of 2 (50%)"
     # Reservations alone still put a state on the demand map, with no orders.
     assert spec["states"]["WA"]["orders"] == 0 and spec["states"]["WA"]["demand"] == 1
     assert "BC" not in spec["states"] and ca["small"]

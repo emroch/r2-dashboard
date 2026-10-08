@@ -333,9 +333,9 @@ html[data-theme="dark"] .lg-item .swatch[class*="tone-"]:not(.tone-grey){backgro
 html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active{
  fill:color-mix(in oklab,var(--stat-bg) var(--tone),black);}
 /* The hover rule over a line chart (timeseries). */
-/* The US map (charts/geo.js). A filled state or bubble mixes its share of the
-   scale (--v, 0-1, square-root) into the card, as the heatmap's cells do: states
-   in the link blue, bubbles (delivered share) in Compass Yellow. */
+/* The US map (charts/geo.js), a choropleth. A filled state mixes its share of
+   the scale (--v, 0-1, square-root) into the land, in the link blue, as the
+   heatmap's cells do. */
 .map-svg{cursor:default;}
 .map-svg .map-inset{fill:var(--map-inset);stroke:var(--card-bd);}
 .map-svg .map-state{fill:var(--map-land);cursor:pointer;}
@@ -345,18 +345,10 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active{
 .map-svg .map-border{fill:none;stroke:var(--map-border);stroke-width:.8;pointer-events:none;}
 .map-svg .map-state.hover,.map-svg .map-state.selected{stroke:var(--fg);stroke-width:1.5;}
 .map-svg .map-state.selected{stroke-width:2.2;}
-.map-svg .map-bubble{fill:color-mix(in oklab,var(--stat-bg) calc(var(--v) * 100%),var(--card-bg));
- stroke:var(--fg);stroke-width:.8;fill-opacity:.9;cursor:pointer;}
-.map-svg .map-bubble.hover,.map-svg .map-bubble.selected{stroke-width:2;}
 .map-svg .map-factory{fill:var(--fg);stroke:var(--card-bg);stroke-width:1;pointer-events:none;}
-.map-controls{flex-wrap:wrap;justify-content:flex-end;}
-.map-controls .chart-switch{display:flex;gap:4px;}
-.map-controls .chart-switch[hidden]{display:none;}
 .map-key{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--desc);margin-right:10px;}
-.map-key-t{color:var(--fg);}
-.map-ramp{display:inline-block;width:72px;height:10px;border:1px solid var(--card-bd);}
-.map-ramp-fill{background:linear-gradient(to right,var(--map-land),color-mix(in oklab,var(--link) 85%,var(--map-land)));}
-.map-ramp-bubble{background:linear-gradient(to right,var(--card-bg),var(--stat-bg));}
+.map-ramp{display:inline-block;width:72px;height:10px;border:1px solid var(--card-bd);
+ background:linear-gradient(to right,var(--map-land),color-mix(in oklab,var(--link) 85%,var(--map-land)));}
 .map-swatch-small{display:inline-block;width:12px;height:12px;border:1px solid var(--card-bd);
  background:repeating-linear-gradient(45deg,var(--map-land) 0 2px,color-mix(in oklab,var(--desc) 55%,var(--map-land)) 2px 3.5px);}
 .chart-svg .hover-rule{stroke:var(--desc);stroke-width:1;stroke-dasharray:3,3;pointer-events:none;}

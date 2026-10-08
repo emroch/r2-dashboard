@@ -247,8 +247,8 @@ def dest_vs_delivery(df: pd.DataFrame) -> tuple:
 
 # --- geo: the US states map ----------------------------------------------------
 #
-#   geo   states: {postal code: {region, orders, vin, demand, delivered, small,
-#         tip}}, keyed as the map's paths are; measures: the counts the reader
+#   geo   states: {postal code: {region, orders, vin, demand, small, tip}}, keyed
+#         as the map's paths are; measures: the counts the reader
 #         can map ({key, label}), and `default`; factory: [lat, lon]. The map is
 #         the US only, for now (docs/presentation.md): Canada isn't on sale yet,
 #         so its orders and reservations are left out, counted in `excluded`.
@@ -268,7 +268,7 @@ def _us(frame: pd.DataFrame) -> pd.Series:
 
 def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
     """§12: orders, orders with a VIN, and total demand (orders + outstanding
-    reservations) per US state, with each state's delivered share."""
+    reservations) per US state; each state's tooltip adds its delivered share."""
     if resv is None or "state" not in resv:
         resv = pd.DataFrame({"state": pd.Series([], dtype=object)})
     us, rus = _us(df), _us(resv)
@@ -286,7 +286,7 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
         r = int(resv_n.get(code, 0))
         states[code] = {
             "region": STATE_INFO[code][0], "orders": n, "vin": vin, "demand": n + r,
-            "delivered": round(delivered / n, 3), "small": n < small,
+            "small": n < small,
             "tip": ["%s · %s with a VIN" % (_count(n, "order"), format(vin, ",")),
                     "%s outstanding" % _count(r, "reservation"),
                     "Delivered: %d of %d (%.0f%%)" % (delivered, n,
@@ -298,7 +298,7 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
         key = str(where)
         if key not in states:
             states[key] = {"region": STATE_INFO[key][0], "orders": 0, "vin": 0,
-                           "demand": int(r), "delivered": 0.0, "small": True,
+                           "demand": int(r), "small": True,
                            "tip": ["No orders yet",
                                    "%s outstanding" % _count(int(r), "reservation")]}
     left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
@@ -306,10 +306,8 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
             "measures": [{"key": k, "label": lbl} for k, lbl in _MEASURES],
             "default": "orders", "small_n": small,
             "factory": list(FACTORY), "states": states}
-    table = (["State", "Region", "Orders", "VIN assigned", "Orders + reservations",
-              "Delivered"],
-             [[c, v["region"], v["orders"], v["vin"], v["demand"],
-               "%.0f%%" % (100 * v["delivered"]) if v["orders"] else ""]
+    table = (["State", "Region", "Orders", "VIN assigned", "Orders + reservations"],
+             [[c, v["region"], v["orders"], v["vin"], v["demand"]]
               for c, v in states.items()])
     agg = Aggregate("orders by US state", "orders", cells, excluded, "state",
                     meta={"states": sum(1 for v in states.values() if v["orders"]),

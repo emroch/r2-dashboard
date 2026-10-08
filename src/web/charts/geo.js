@@ -4,14 +4,11 @@
 // background of their own so their land reads against it).
 //
 // The spec counts each state (render/specs.py geo_demand); the reader picks the
-// measure (all orders, VIN assigned, orders + reservations) and, while the map's
-// form is being chosen (#111), how it is drawn:
-//   choropleth  state fill = the measure, on a square-root scale
-//   bubbles     a bubble per state, area = the measure, fill = delivered share
-//   both        fill = orders + reservations; bubbles = orders, by delivered share
-// Fills are CSS: a state's share of the scale is --v, which styles.css mixes into
-// the card, as the heatmap does, so a theme change needs no redraw. States under
-// the spec's small_n are hatched instead of filled: too few to compare.
+// measure (all orders, VIN assigned, orders + reservations), kept in the URL, and
+// each state is filled by it on a square-root scale: a choropleth. Fills are CSS:
+// a state's share of the scale is --v, which styles.css mixes into the land, as
+// the heatmap does, so a theme change needs no redraw. States under the spec's
+// small_n are hatched instead of filled: too few to compare.
 //
 // A state is a path keyed by its postal code (data-state). Clicking one selects
 // it (Escape or a second click clears) and fires `r2:stateselect` on the mount,
@@ -35,20 +32,10 @@ export const FIPS = {
   "55": "WI", "56": "WY", "72": "PR",
 };
 
-export const STYLES = [["choropleth", "Choropleth"], ["bubbles", "Bubbles"], ["both", "Both"]];
-
 // A value's share of the scale's top, on a square-root scale (so a state with a
 // quarter of the leader's orders reads half as strong): 0..1.
 export function share(n, max) {
   return max > 0 && n > 0 ? Math.sqrt(n / max) : 0;
-}
-
-// The encodings a style draws for the chosen measure: what fills the states and
-// what sizes the bubbles (null: not drawn).
-export function encodings(style, measure) {
-  if (style === "bubbles") return { fill: null, size: measure };
-  if (style === "both") return { fill: "demand", size: "orders" };
-  return { fill: measure, size: null };
 }
 
 export async function mount(el) {
@@ -71,7 +58,7 @@ export async function mount(el) {
 }
 
 // Draw `spec` into the mount `el`. Returns a handle for tests: select(code),
-// selected(), and setMeasure / setStyle as the switches do.
+// selected(), and setMeasure(key) as the switch does.
 export function draw(d3, { topojson, us }, el, spec, { selected: startSelected = null } = {}) {
   const doc = el.ownerDocument;
   const plotEl = el.querySelector(".chart-plot");
@@ -80,7 +67,6 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
   const id = el.dataset.chart;
   const keys = spec.measures.map((m) => m.key);
   let measure = keys.includes(getState(`${id}-m`)) ? getState(`${id}-m`) : spec.default;
-  let style = STYLES.some(([s]) => s === getState(`${id}-style`)) ? getState(`${id}-style`) : "choropleth";
   let selected = startSelected;
 
   const nation = topojson.feature(us, us.objects.nation);
@@ -110,75 +96,38 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
     .attr("class", "map-state").attr("data-state", (o) => o.code).attr("d", (o) => path(o.f));
   svg.append("path").attr("class", "map-border")
     .attr("d", path(topojson.mesh(us, us.objects.states, (a, b) => a !== b)));
-  const bubbleG = svg.append("g").attr("class", "map-bubbles");
   const [fx, fy] = projection([spec.factory[1], spec.factory[0]]) || [null, null];
   if (fx !== null) {
     svg.append("path").attr("class", "map-factory").attr("d", d3.symbol(d3.symbolStar, 90)())
       .attr("transform", `translate(${fx},${fy})`);
   }
 
-  const val = (code, key) => spec.states[code]?.[key] ?? 0;
-  const top = (key) => Math.max(0, ...Object.values(spec.states).map((s) => s[key] ?? 0));
-  const rMax = Math.max(14, W / 26);
+  const val = (code) => spec.states[code]?.[measure] ?? 0;
+  // The orders measure is what small_n counts; total demand is never small.
+  const small = (code) => measure !== "demand" && (spec.states[code]?.orders ?? 0) < spec.small_n;
 
   function paint() {
-    const enc = encodings(style, measure);
-    const fmax = enc.fill ? top(enc.fill) : 0;
+    const top = Math.max(0, ...Object.keys(spec.states).map(val));
     statePaths
-      .classed("map-filled", (o) => Boolean(enc.fill) && val(o.code, enc.fill) > 0 && !small(o.code, enc.fill))
-      .classed("map-small", (o) => Boolean(enc.fill) && val(o.code, enc.fill) > 0 && small(o.code, enc.fill))
-      .style("--v", (o) => (enc.fill ? share(val(o.code, enc.fill), fmax).toFixed(3) : null))
-      .style("fill", (o) => (enc.fill && small(o.code, enc.fill) && val(o.code, enc.fill) > 0 ? `url(#${id}-hatch)` : null))
+      .classed("map-filled", (o) => val(o.code) > 0 && !small(o.code))
+      .classed("map-small", (o) => val(o.code) > 0 && small(o.code))
+      .style("--v", (o) => share(val(o.code), top).toFixed(3))
+      .style("fill", (o) => (val(o.code) > 0 && small(o.code) ? `url(#${id}-hatch)` : null))
       .classed("selected", (o) => o.code === selected);
-    const smax = enc.size ? top(enc.size) : 0;
-    const bubbles = enc.size
-      ? features.filter((o) => val(o.code, enc.size) > 0)
-        .map((o) => ({ ...o, n: val(o.code, enc.size), at: path.centroid(o.f) }))
-        .sort((a, b) => b.n - a.n)       // small bubbles on top of large ones
-      : [];
-    bubbleG.selectAll("circle").data(bubbles, (o) => o.code).join("circle")
-      .attr("class", "map-bubble").attr("data-state", (o) => o.code)
-      .attr("cx", (o) => o.at[0]).attr("cy", (o) => o.at[1])
-      .attr("r", (o) => Math.max(2.5, share(o.n, smax) * rMax))
-      .style("--v", (o) => val(o.code, "delivered").toFixed(3))
-      .classed("selected", (o) => o.code === selected);
-    legendFor(enc, fmax, smax);
+    legendFor(top);
   }
-  // The orders measure is what small_n counts; total demand is never small.
-  const small = (code, key) => key !== "demand" && (spec.states[code]?.orders ?? 0) < spec.small_n;
 
-  // Legend: the fill's ramp (0, the top, and the hatch), and the bubbles' sizes
-  // and delivered-share ramp, as plain HTML beside the chart's other keys.
+  // Legend: the fill's ramp (0 to the top), and the hatch, as plain HTML.
   const legendEl = el.querySelector(".chart-legend");
-  function legendFor(enc, fmax, smax) {
-    legendEl.replaceChildren();
-    const label = (k) => spec.measures.find((m) => m.key === k)?.label ?? k;
-    const ramp = (title, lo, hi, cls) => {
-      const item = doc.createElement("span");
-      item.className = "map-key";
-      item.append(Object.assign(doc.createElement("span"), { className: "map-key-t", textContent: title }),
-        Object.assign(doc.createElement("span"), { textContent: lo }),
-        Object.assign(doc.createElement("span"), { className: `map-ramp ${cls}` }),
-        Object.assign(doc.createElement("span"), { textContent: hi }));
-      legendEl.append(item);
-    };
-    if (enc.fill) {
-      ramp(`Fill: ${label(enc.fill)}`, "0", d3.format(",")(fmax), "map-ramp-fill");
-      if (enc.fill !== "demand") {
-        const hatch = doc.createElement("span");
-        hatch.className = "map-key";
-        hatch.append(Object.assign(doc.createElement("span"), { className: "map-swatch-small" }),
-          Object.assign(doc.createElement("span"), { textContent: `Under ${spec.small_n} orders` }));
-        legendEl.append(hatch);
-      }
-    }
-    if (enc.size) {
-      const size = doc.createElement("span");
-      size.className = "map-key";
-      size.append(Object.assign(doc.createElement("span"), { className: "map-key-t",
-        textContent: `Bubble: ${label(enc.size)}, up to ${d3.format(",")(smax)}` }));
-      legendEl.append(size);
-      ramp("Bubble fill: delivered", "0%", "100%", "map-ramp-bubble");
+  const span = (className, textContent) => Object.assign(doc.createElement("span"), { className, textContent });
+  function legendFor(top) {
+    const ramp = span("map-key", "");
+    ramp.append(span("", "0"), span("map-ramp", ""), span("", d3.format(",")(top)));
+    legendEl.replaceChildren(ramp);
+    if (measure !== "demand") {
+      const hatch = span("map-key", "");
+      hatch.append(span("map-swatch-small", ""), span("", `Under ${spec.small_n} orders`));
+      legendEl.append(hatch);
     }
   }
 
@@ -189,44 +138,27 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
       { bubbles: true, detail: { code: selected } }));
   }
 
-  // Switches: the measure (kept in the URL), and the prototype's style.
+  // The measure switch, kept in the URL.
   const controls = doc.createElement("div");
-  controls.className = "chart-controls map-controls";
-  const group = (name, options, current, onPick) => {
-    const g = doc.createElement("div");
-    g.className = "chart-switch";
-    g.setAttribute("role", "group");
-    g.setAttribute("aria-label", name);
-    const buttons = options.map(([key, text]) => {
-      const b = Object.assign(doc.createElement("button"), { type: "button", className: "lg-item", textContent: text });
-      b.dataset.key = key;
-      b.addEventListener("click", () => {
-        onPick(key);
-        for (const o of buttons) o.setAttribute("aria-pressed", String(o === b));
-      });
-      b.setAttribute("aria-pressed", String(key === current()));
-      return b;
+  controls.className = "chart-controls chart-switch";
+  controls.setAttribute("role", "group");
+  controls.setAttribute("aria-label", "Measure");
+  const buttons = spec.measures.map((m) => {
+    const b = Object.assign(doc.createElement("button"), { type: "button", className: "lg-item", textContent: m.label });
+    b.dataset.key = m.key;
+    b.setAttribute("aria-pressed", String(m.key === measure));
+    b.addEventListener("click", () => {
+      measure = m.key;
+      setState(`${id}-m`, m.key === spec.default ? null : m.key);
+      for (const o of buttons) o.setAttribute("aria-pressed", String(o === b));
+      paint();
     });
-    g.append(...buttons);
-    controls.append(g);
-    return g;
-  };
-  const measureGroup = group("Measure", spec.measures.map((m) => [m.key, m.label]), () => measure, (k) => {
-    measure = k;
-    setState(`${id}-m`, k === spec.default ? null : k);
-    paint();
+    return b;
   });
-  const syncMeasure = () => { measureGroup.hidden = style === "both"; };
-  group("Style", STYLES, () => style, (k) => {
-    style = k;
-    setState(`${id}-style`, k === "choropleth" ? null : k);
-    syncMeasure();
-    paint();
-  });
-  syncMeasure();
+  controls.append(...buttons);
   plotEl.prepend(controls);
 
-  // Hover: the state under the pointer (or its bubble), named and counted.
+  // Hover: the state under the pointer, named and counted.
   const tip = tooltip(plotEl);
   const name = Object.fromEntries(features.map((o) => [o.code, o.f.properties.name]));
   let hovered = null;
@@ -254,6 +186,5 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
     select,
     selected: () => selected,
     setMeasure: (k) => { measure = k; paint(); },
-    setStyle: (k) => { style = k; syncMeasure(); paint(); },
   };
 }
