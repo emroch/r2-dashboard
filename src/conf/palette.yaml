@@ -33,7 +33,7 @@ fulfilment:
 # ---------------------------------------------------------------------------
 latency:
   order: "#4c78a8"            # one marker per order with a firm delivery date
-  median: "#f3ae3d"           # Compass Yellow — weekly median line
+  median: "#ffb100"           # Compass Yellow — weekly median line
   coverage: "#9aa9b8"         # share of each week's orders shown above
 
 # ---------------------------------------------------------------------------
@@ -43,8 +43,8 @@ latency:
 # Yellow, the page's accent for "the summary, not a data point".
 # ---------------------------------------------------------------------------
 cadence:
-  front: "#f3ae3d"                     # observed weekly build front (solid)
-  projection: "#f3ae3d"                # projected front (dashed)
+  front: "#ffb100"                     # observed weekly build front (solid)
+  projection: "#ffb100"                # projected front (dashed)
   band: "rgba(243, 174, 61, 0.18)"     # back-tested error band around it
 
 # ---------------------------------------------------------------------------
@@ -55,4 +55,4 @@ cadence:
 # ---------------------------------------------------------------------------
 price:
   bar: "#4c78a8"              # price distribution bars, per-trim boxes
-  accent: "#f3ae3d"           # Compass Yellow — option spend, median highlight
+  accent: "#ffb100"           # Compass Yellow — option spend, median highlight

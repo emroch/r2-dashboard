@@ -35,7 +35,7 @@ css:
     link: "#2f6f9f"
     warn: "#9a6a00"
     chg: "#2e7d32"
-    stat-bg: "#f3ae3d"  # Compass Yellow
+    stat-bg: "#ffb100"  # Compass Yellow (the Rivian emblem's yellow)
     # Mark lightness range (OKLCH L, 0-1) for category colors drawn as data marks
     # (render/categories.py): a mark keeps its paint's hue and chroma, with the
     # lightness clamped into this range so it stays visible on the card. 0.65 is
@@ -74,7 +74,7 @@ css:
     link: "#8fc9ef"
     warn: "#ffd27f"
     chg: "#8fdf8f"
-    stat-bg: "#f3ae3d"  # Compass Yellow
+    stat-bg: "#ffb100"  # Compass Yellow (the Rivian emblem's yellow)
     # Dark card: marks lifted to at least 0.70, and pale ones capped at 0.92.
     mark-lmin: "0.70"
     mark-lmax: "0.92"
@@ -85,7 +85,7 @@ css:
     topbar-sh: "rgba(0,0,0,.22)"
     disc-fg: "#ffe0b0"
     disc-bg: "rgba(255,180,80,.12)"
-    disc-bd: "#f3ae3d"   # Compass Yellow
+    disc-bd: "#ffb100"   # Compass Yellow
     side-bd: "rgba(0,0,0,.18)"
     side-sh: "rgba(0,0,0,.12)"
     side-title: "#33452f"
