@@ -119,7 +119,7 @@ sections:
       A firm date usually arrives with or after the VIN.
 
   - title: "VIN sequence vs. order date"
-    charts: [fig_vin_vs_order]
+    components: [vin-vs-order]
     desc: >-
       Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how
       tightly production sequence tracks order timing. Click a config in the legend
@@ -155,7 +155,7 @@ sections:
       itself over time.
 
   - title: "VIN sequence by configuration"
-    charts: [fig_vin_by_config]
+    components: [vin-by-config]
     desc: >-
       Each VIN-assigned order at its production sequence (x), grouped into rows by
       full configuration (trim · color · wheels · interior); marker fill = paint,
@@ -241,7 +241,7 @@ sections:
       them, where a single order swings the mix by 100 points.
 
   - title: "Destination vs. delivery date"
-    charts: [fig_dest_vs_delivery]
+    components: [dest-vs-delivery]
     desc: >-
       States ordered by distance from the Normal, IL plant (closest at bottom). An
       upward-right tilt would mean farther destinations deliver later. Whiskers span

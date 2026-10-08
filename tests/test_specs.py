@@ -290,14 +290,72 @@ def test_every_mounted_spec_names_colors_never_hex():
     import json
     import re
     from render.specs import (build_cadence, deliveries_by_week, delivery_latency,
-                              latency_coverage, orders_by_week, reservations_by_week)
+                              dest_vs_delivery, latency_coverage, orders_by_week,
+                              reservations_by_week, vin_by_config, vin_vs_order)
     df = _orders(5, order_date=[pd.Timestamp("2026-06-15")] * 5,
-                 resv_date=[pd.Timestamp("2024-03-07")] * 5)
+                 resv_date=[pd.Timestamp("2024-03-07")] * 5, trim=["Performance"] * 5,
+                 region=["Midwest"] * 5, dist_mi=[11.0] * 5)
     resv = pd.DataFrame({"resv_date": [pd.Timestamp("2024-03-08")]})
     for spec in (reservations_by_week(df, resv)[0], orders_by_week(df)[0],
                  deliveries_by_week(df)[0], delivery_latency(df)[0],
-                 latency_coverage(df)[0], build_cadence(_ramp())[0]):
+                 latency_coverage(df)[0], build_cadence(_ramp())[0],
+                 vin_vs_order(df)[0], vin_by_config(df)[0], dest_vs_delivery(df)[0]):
         assert not re.search(r"#[0-9a-fA-F]{6}\b", json.dumps(spec)), spec["title"]
+
+
+def test_vin_vs_order_plots_order_date_against_vin_and_reconciles():
+    from render.aggregates import cohort_sizes, reconcile
+    from render.specs import vin_vs_order
+    df = _orders(4, order_date=[pd.Timestamp("2026-06-15")] * 4,
+                 trim=["Performance"] * 4,
+                 price=[None] * 4, lat=[None] * 4)
+    df.loc[1, "vin_present"] = False
+    df.loc[2, "order_date"] = pd.NaT
+    spec, agg, (_, rows) = vin_vs_order(df)
+    assert agg.excluded == {"no VIN": 1, "no order date": 1,
+                            "paint or wheels not reported": 0}
+    reconcile([agg], cohort_sizes(df))
+    p = spec["series"][0]["points"][0]
+    assert (p["x"], p["y"]) == ("2026-06-15", 1000) and len(rows) == 2
+    x0, x1 = (pd.Timestamp(v) for v in spec["x"]["domain"])
+    assert x0 <= AS_OF <= x1
+
+
+def test_vin_by_config_rows_group_by_trim_then_paint_order():
+    from render.aggregates import cohort_sizes, reconcile
+    from render.specs import vin_by_config
+    paints = [COLOR_ORDER[1]] * 3 + [COLOR_ORDER[0]] * 2 + [COLOR_ORDER[2]]
+    df = _orders(6, color=paints, trim=["Performance"] * 6, price=[None] * 6,
+                 lat=[None] * 6)
+    df.loc[5, "interior"] = ""            # its configuration isn't fully reported
+    spec, agg, _ = vin_by_config(df)
+    reconcile([agg], cohort_sizes(df))
+    assert agg.excluded == {"no VIN": 0, "configuration not reported": 1}
+    rows = spec["y"]["rows"]
+    # The most-ordered paint's row first, then the next.
+    assert [r.split(" · ")[1] for r in rows] == [COLOR_ORDER[1], COLOR_ORDER[0]], rows
+    assert spec["y"]["type"] == "rows" and spec["x"]["type"] == "linear"
+    assert agg.meta["rows"] == 2
+    for s in spec["series"]:
+        for p in s["points"]:
+            row = rows.index(" · ".join(["Performance", s["color"].split(":", 1)[1],
+                                         '21" AS', "Black Crater Sig"]))
+            assert abs(p["y"] - row) < 0.2, (p["y"], row)
+
+
+def test_dest_vs_delivery_rows_run_farthest_first_with_today():
+    from render.aggregates import cohort_sizes, reconcile
+    from render.specs import dest_vs_delivery
+    df = _orders(4, state=["IL", "CA", "CA", "TX"],
+                 region=["Midwest", "West", "West", "South"],
+                 dist_mi=[11.0, 1800.0, 1800.0, None], price=[None] * 4, lat=[None] * 4)
+    df.loc[1, "delivery_est"] = pd.NaT
+    spec, agg, _ = dest_vs_delivery(df)
+    reconcile([agg], cohort_sizes(df))
+    assert agg.excluded == {"no delivery estimate": 1, "no known destination": 1}
+    assert spec["y"]["rows"] == ["CA (1800 mi)", "IL (11 mi)"]
+    assert [s["color"] for s in spec["series"]] == ["region:West", "region:Midwest"]
+    assert spec["layers"][-1]["type"] == "rule" and spec["toggles"]["whiskers"]
 
 
 def _run_all():

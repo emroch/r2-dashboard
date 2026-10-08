@@ -188,7 +188,7 @@ def test_view_build_reconciles_and_renders_every_component():
                 wheels_short=['21" Liquid Tungsten', None],
                 vin_display=["1200", "—"], order_display=["—", "—"],
                 est_display=["Sep 01, 2026", "—"], elev_ft=[600.0, None],
-                temp_f=[51.0, None], urban_pct=[88.0, None],
+                temp_f=[51.0, None], urban_pct=[88.0, None], dist_mi=[11.0, None],
                 resv_date=[pd.Timestamp("2024-03-08"), pd.NaT],
                 order_date=[pd.Timestamp("2026-06-15"), pd.NaT])
     from test_aggregates import _priced

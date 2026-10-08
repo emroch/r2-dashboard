@@ -16,13 +16,14 @@ like every static component's counts.
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from config import AS_OF, COLOR_ORDER, DIMENSIONS
+from config import (AS_OF, COLOR_ORDER, DIMENSIONS, INTERIOR_ORDER, INTERIOR_SHORT,
+                    WHEEL_ABBR)
 
 from .aggregates import STAGE_LABELS, STAGES, Aggregate, stages
 from .cadence import projection as cadence_projection
@@ -72,6 +73,177 @@ def _paint_order(d: pd.DataFrame) -> list[str]:
     return sorted(counts.index, key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
 
 
+def _config_tip(r: pd.Series) -> list[str]:
+    """An order's tooltip in the configuration scatters (§9, §10, §11)."""
+    return [str(r["user"]),
+            "%s · %s" % (r["color"], r["wheels_short"]),
+            "%s · %s" % (r["interior"], r["buylease"]),
+            "State: %s" % r["state"],
+            "VIN seq: %s" % r["vin_display"],
+            "Ordered: %s" % r["order_display"],
+            "Est. delivery: %s (%s)" % (r["est_display"], r["delivery_type"])]
+
+
+def _reported(d: pd.DataFrame, *cols: str) -> pd.Series:
+    """Rows that report every one of `cols`. A curated addition can leave the
+    configuration blank (overrides.yaml); it counts in the cohort but has no
+    choice to plot, so the configuration charts leave it out, as excluded."""
+    ok = pd.Series(True, index=d.index)
+    for c in cols:
+        ok &= ~d[c].map(_blank)
+    return ok
+
+
+def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], Any],
+                   y: Callable[[pd.Series], Any]) -> tuple[list[dict], list[dict]]:
+    """One series per paint × wheel, paints in `paints` order, then the wheels in
+    dimensions.yaml's: fill = paint, shape = wheels, the house config language.
+    Returns (series, cells)."""
+    series, cells = [], []
+    for color in paints:
+        for wheel in _WHEEL_SYMBOL:
+            s = d[(d["color"] == color) & (d["wheels_short"] == wheel)]
+            if s.empty:
+                continue
+            name = "%s · %s" % (color, wheel.split()[0])
+            series.append({"name": name, "color": "color:%s" % color,
+                           "shape": "wheels:%s" % wheel, "symbol": _WHEEL_SYMBOL[wheel],
+                           "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r)}
+                                      for _, r in s.iterrows()]})
+            cells.append({"value": name, "label": name, "n": len(s),
+                          "ref": "color:%s" % color, "known": True})
+    return series, cells
+
+
+def vin_vs_order(df: pd.DataFrame) -> tuple:
+    """§9: each order with a VIN at (order date, VIN), one series per paint ×
+    wheel, as §10."""
+    vin = df["vin_present"].astype(bool)
+    has = vin & df["order_date"].notna()
+    d = df[has & _reported(df, "color", "wheels_short")]
+    excluded = {"no VIN": int((~vin).sum()),
+                "no order date": int((vin & df["order_date"].isna()).sum()),
+                "paint or wheels not reported": int(has.sum()) - len(d)}
+    series, cells = _config_series(d, _paint_order(d),
+                                   lambda r: _iso(r["order_date"]),
+                                   lambda r: int(r["vin_seq"]))
+    xs = list(d["order_date"]) + [AS_OF]
+    spec = {"template": "scatter", "title": "VIN sequence vs. order date",
+            "x": {"label": "R2 order date", "type": "date", "domain": _date_domain(xs)},
+            "y": {"label": "VIN sequence number", "type": "linear",
+                  "domain": _num_domain([float(v) for v in d["vin_seq"]])},
+            "legend": "Paint · wheels", "series": series, "layers": []}
+    rows = [[s_["name"], p["tip"][0], p["x"], format(p["y"], ",")]
+            for s_ in series for p in s_["points"]]
+    table = (["Paint · wheels", "Order", "Ordered", "VIN"], rows)
+    return spec, Aggregate("vin-vs-order points", "orders", cells, excluded), table
+
+
+def vin_by_config(df: pd.DataFrame) -> tuple:
+    """§11: each order with a VIN at its sequence (x), in a row per full
+    configuration (trim · paint · wheels · interior). Interior joins the row key
+    rather than becoming a third marker channel: fill and shape are taken."""
+    vin = df["vin_present"].astype(bool)
+    d = df[vin & _reported(df, "color", "wheels_short", "interior")]
+    excluded = {"no VIN": int((~vin).sum()),
+                "configuration not reported": int(vin.sum()) - len(d)}
+    # The cohort's paint order, not the VIN-assigned rows', so rows group the way
+    # every other paint chart on the page does.
+    paints = _paint_order(df[_reported(df, "color")])
+    paint_rank = {c: i for i, c in enumerate(paints)}
+    interior_rank = {v: i for i, v in enumerate(INTERIOR_ORDER)}
+    keys = {}
+    for _, r in d.iterrows():
+        label = " · ".join([str(r["trim"]), r["color"],
+                            WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
+                            INTERIOR_SHORT.get(r["interior"], r["interior"])])
+        keys[label] = (str(r["trim"]), paint_rank.get(r["color"], len(paint_rank)),
+                       WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
+                       interior_rank.get(r["interior"], len(interior_rank)))
+    rows = sorted(keys, key=keys.__getitem__)
+    row_of = {k: i for i, k in enumerate(rows)}
+    # A fixed jitter within the row, so stacked points separate, and the same on
+    # every build.
+    rng = np.random.RandomState(11)
+    jitter = dict(zip(d.index, (rng.rand(len(d)) - 0.5) * 0.36))
+
+    def _row(r: pd.Series) -> float:
+        label = " · ".join([str(r["trim"]), r["color"],
+                            WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
+                            INTERIOR_SHORT.get(r["interior"], r["interior"])])
+        return round(row_of[label] + float(jitter[r.name]), 3)
+
+    series, cells = _config_series(d, [p for p in paints if p in set(d["color"])],
+                                   lambda r: int(r["vin_seq"]), _row)
+    spec = {"template": "scatter", "title": "VIN sequence by configuration",
+            "x": {"label": "VIN sequence number (production order →)", "type": "linear",
+                  "domain": _num_domain([float(v) for v in d["vin_seq"]])},
+            "y": {"label": "Configuration", "type": "rows", "rows": rows,
+                  "domain": [-0.6, len(rows) - 0.4]},
+            "legend": "Paint · wheels", "series": series, "layers": []}
+    table_rows = [[rows[round(p["y"])], p["tip"][0], format(p["x"], ",")]
+                  for s_ in series for p in s_["points"]]
+    table = (["Configuration", "Order", "VIN"], table_rows)
+    agg = Aggregate("vin-by-config points", "orders", cells, excluded,
+                    meta={"rows": len(rows)})
+    return spec, agg, table
+
+
+# Regions in the destination chart's legend order (as the Plotly chart had it).
+_REGIONS = [c["value"] for c in DIMENSIONS["region"]["categories"]]
+
+
+def dest_vs_delivery(df: pd.DataFrame) -> tuple:
+    """§17: each order with a delivery estimate and a known destination, in a row
+    per state, ordered by distance from the factory (nearest at the bottom), one
+    series per region, with the quoted window as a whisker; and today."""
+    est = df["delivery_est"].notna()
+    d = df[est & df["dist_mi"].notna()]
+    excluded = {"no delivery estimate": int((~est).sum()),
+                "no known destination": int((est & df["dist_mi"].isna()).sum())}
+    dist = (d.groupby("state")["dist_mi"].first()
+            .sort_values(ascending=False, kind="mergesort"))
+    rows = ["%s (%.0f mi)" % (st, mi) for st, mi in dist.items()]
+    row_of = {st: i for i, st in enumerate(dist.index)}
+    rng = np.random.RandomState(7)
+    jitter = dict(zip(d.index, (rng.rand(len(d)) - 0.5) * 0.55))
+    series, cells = [], []
+    for region in [r for r in _REGIONS if (d["region"] == r).any()]:
+        pts = []
+        for i, r in d[d["region"] == region].iterrows():
+            lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
+            window = bool(lo and hi and hi > lo)
+            pts.append({"x": _iso(r["delivery_est"]),
+                        "y": round(row_of[r["state"]] + float(jitter[i]), 3),
+                        "lo": lo if window else None, "hi": hi if window else None,
+                        "tip": ["%s — %s" % (r["user"], r["state"]),
+                                "%.0f mi from Normal, IL" % r["dist_mi"],
+                                str(r["color"]),
+                                "Est. delivery: %s (%s)" % (r["est_display"],
+                                                            r["delivery_type"])]})
+        series.append({"name": region, "color": "region:%s" % region,
+                       "symbol": "circle", "points": pts})
+        cells.append({"value": region, "label": region, "n": len(pts),
+                      "ref": "region:%s" % region, "known": True})
+    xs = [pd.Timestamp(v) for c in ("delivery_est", "delivery_min", "delivery_max")
+          for v in d[c].dropna()] + [AS_OF]
+    spec = {"template": "scatter", "title": "Destination vs. delivery date",
+            "x": {"label": "Estimated delivery date (whiskers = quoted window)",
+                  "type": "date", "domain": _date_domain(xs)},
+            "y": {"label": "Destination — nearest to the factory at the bottom",
+                  "type": "rows", "rows": rows, "domain": [-0.7, len(rows) - 0.3]},
+            "legend": "Region", "series": series,
+            "layers": [{"type": "rule", "axis": "x", "value": _iso(AS_OF),
+                        "label": "Today"}],
+            "toggles": {"whiskers": True}}
+    table_rows = [[rows[round(p["y"])], s_["name"], p["tip"][0].split(" — ")[0],
+                   p["x"], "%s – %s" % (p["lo"], p["hi"]) if p["lo"] else ""]
+                  for s_ in series for p in s_["points"]]
+    table = (["Destination", "Region", "Order", "Est. delivery", "Quoted window"],
+             table_rows)
+    return spec, Aggregate("dest-vs-delivery points", "orders", cells, excluded), table
+
+
 def delivery_vs_vin(df: pd.DataFrame) -> tuple:
     """§10: each order with a VIN and a delivery estimate, at (estimated
     delivery date, VIN), one series per paint × wheel, with the quoted window
@@ -97,14 +269,7 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
                     "lo": lo if lo and hi and hi > lo else None,
                     "hi": hi if lo and hi and hi > lo else None,
                     "firm": r["delivery_type"] == "explicit",
-                    "tip": [str(r["user"]),
-                            "%s · %s" % (color, wheel),
-                            "%s · %s" % (r["interior"], r["buylease"]),
-                            "State: %s" % r["state"],
-                            "VIN seq: %s" % r["vin_display"],
-                            "Ordered: %s" % r["order_display"],
-                            "Est. delivery: %s (%s)" % (r["est_display"],
-                                                        r["delivery_type"])]})
+                    "tip": _config_tip(r)})
             name = "%s · %s" % (color, wheel.split()[0])
             series.append({"name": name, "color": "color:%s" % color,
                            "shape": "wheels:%s" % wheel,
