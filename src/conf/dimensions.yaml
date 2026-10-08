@@ -73,7 +73,8 @@ dimensions:
   #   value  — display label, and what the CSV's wheels_short holds
   #   abbr   — compact label for dense axes; size + All-Season/All-Terrain, which
   #            is unique across all four and is the distinction people argue about
-  #   symbol — Plotly marker, dual-encoding with paint color on the scatter charts
+  #   symbol — marker shape, dual-encoding with paint color on the scatter charts
+  #            (circle, square, diamond, triangle-up; charts/scatter.js maps them)
   #   color  — fill for the wheel-mix bars. Listed in ascending size, which is the
   #            stack order; validated for CVD separation and contrast in both
   #            light and dark against that order.
@@ -131,8 +132,8 @@ dimensions:
   # The one thing worth keeping in view when tuning: each of these sits near one of
   # the two chart surfaces (the dark cabins near the dark card, the light one near
   # the white card), so a fill on its own doesn't delineate a segment in both
-  # themes. The interior charts draw a border in CHART.edge, which the theme flips
-  # (#2b2b2b light / #aab0b8 dark), and that border is what holds the edge. Pushing
+  # themes. The interior mix bars draw a border in mark-edge (theme.yaml), which
+  # the theme flips, and that border is what holds the edge. Pushing
   # the colors further apart from each other tends to push each one closer to its
   # weaker surface, so it's worth a look in both themes after a change.
   # ---------------------------------------------------------------------------

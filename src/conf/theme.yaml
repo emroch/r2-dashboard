@@ -35,7 +35,7 @@ css:
     link: "#2f6f9f"
     warn: "#9a6a00"
     chg: "#2e7d32"
-    stat-bg: "#f3ae3d"  # Compass Yellow
+    stat-bg: "#ffb100"  # Compass Yellow (the Rivian emblem's yellow)
     # Mark lightness range (OKLCH L, 0-1) for category colors drawn as data marks
     # (render/categories.py): a mark keeps its paint's hue and chroma, with the
     # lightness clamped into this range so it stays visible on the card. 0.65 is
@@ -48,6 +48,8 @@ css:
     # shows and a true-color mark (dimensions.yaml true_color) like a white paint
     # on the white card still has an outline.
     mark-edge: "#808080"
+    # The US map (§12, web/charts/geo.js): the land the fill ramp mixes into.
+    map-land: "#efefec"
   dark:
     bg: "#15171c"
     fg: "#dfe4ea"
@@ -72,17 +74,18 @@ css:
     link: "#8fc9ef"
     warn: "#ffd27f"
     chg: "#8fdf8f"
-    stat-bg: "#f3ae3d"  # Compass Yellow
+    stat-bg: "#ffb100"  # Compass Yellow (the Rivian emblem's yellow)
     # Dark card: marks lifted to at least 0.70, and pale ones capped at 0.92.
     mark-lmin: "0.70"
     mark-lmax: "0.92"
     mark-edge: "#8a909b"
+    map-land: "#2c3038"
   fixed:                        # header / sidebar / disclaimer chrome (same in both themes)
     topbar-fg: "#ffffff"
     topbar-sh: "rgba(0,0,0,.22)"
     disc-fg: "#ffe0b0"
     disc-bg: "rgba(255,180,80,.12)"
-    disc-bd: "#f3ae3d"   # Compass Yellow
+    disc-bd: "#ffb100"   # Compass Yellow
     side-bd: "rgba(0,0,0,.18)"
     side-sh: "rgba(0,0,0,.12)"
     side-title: "#33452f"
@@ -101,47 +104,3 @@ css:
     a-scheduled: "0.75"
     a-vin: "0.5"
     a-wait: "0.3"
-
-# ---------------------------------------------------------------------------
-# Chart chrome. The `light` values are baked into the server-rendered charts;
-# the theme toggle (web/plotly-theme.js) swaps to `dark`. Covers font, gridlines, axis
-# lines, geo land/borders, legend boxes, the "managed" marker/line edge grey,
-# and the factory star.
-# ---------------------------------------------------------------------------
-chart:
-  light:
-    text: "#1c1c1c"
-    grid: "#e9e9e9"
-    line: "#c9c9c9"
-    land: "#f2f2f0"
-    sub: "#c4c4c4"
-    country: "#9e9e9e"
-    legbg: "rgba(255,255,255,0.75)"
-    legbd: "#dddddd"
-    edge: "#2b2b2b"
-    star: "#111111"
-  dark:
-    text: "#d7dde3"
-    grid: "#333941"
-    line: "#4a515a"
-    land: "#2a2d33"
-    sub: "#474d56"
-    country: "#5c636d"
-    legbg: "rgba(30,33,38,0.85)"
-    legbd: "#4a515a"
-    edge: "#aab0b8"
-    star: "#e8e8e8"
-
-# ---------------------------------------------------------------------------
-# Static chart accents (not swapped by the theme toggle).
-# ---------------------------------------------------------------------------
-chart_ui:
-  control_bg: "rgba(255,255,255,0.9)"     # filter dropdown / whisker toggle
-  control_border: "#cccccc"
-  control_fg: "#2b2b2b"
-  annotation_bg: "rgba(255,255,255,0.9)"  # reveal-week callout (chart 6)
-  annotation_border: "#cdd"
-  annotation_text: "#33475a"
-  annotation_arrow: "#4c78a8"
-  muted: "#888888"                         # unmapped-category / fallback grey
-  key_marker: "#999999"                    # legend-key marker (chart 10)

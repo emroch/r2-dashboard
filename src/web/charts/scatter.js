@@ -13,6 +13,11 @@
 // that share a `group` (the build front, its projection and band) are one legend
 // entry and draw above the points. Whiskers follow ?whiskers= (state.js). The
 // chart redraws when its width changes, keeping what the legend hides.
+//
+// x is a date axis, or a number line with `x.type: "linear"` (§11: VIN sequence).
+// y is a number line, or rows with `y.type: "rows"`: `y.rows` lists the row labels
+// top to bottom, row i sits at y = i (a point's y is its row plus a jitter, set in
+// Python), and the axis labels each row instead of ticking numbers.
 
 import { view } from "../data.js";
 import { legend } from "../lib/legend.js";
@@ -20,7 +25,7 @@ import { loadD3 } from "../lib/load.js";
 import { tooltip } from "../lib/tooltip.js";
 import { set as setState, whiskersShown } from "../state.js";
 
-// dimensions.yaml wheel symbols (Plotly's names) -> d3's. A diamond is a square
+// dimensions.yaml wheel symbols -> d3's. A diamond is a square
 // turned 45° (d3's own symbolDiamond is a tall rhombus), so it keeps a 1:1 shape.
 export const SYMBOLS = { circle: "symbolCircle", square: "symbolSquare",
                          diamond: "symbolSquare", "triangle-up": "symbolTriangle" };
@@ -76,6 +81,13 @@ export function nearest(candidates, px, py, radius = 18) {
 
 const date = (s) => new Date(s + "T12:00:00");
 
+// The left margin a rows axis needs: its longest label at about 6.2 px a character
+// (the 11px axis font), clamped so the plot keeps at least half the width.
+export function rowsMargin(rows, width) {
+  const longest = Math.max(0, ...rows.map((r) => String(r).length));
+  return Math.round(Math.min(width * 0.5, Math.max(64, longest * 6.2 + 14)));
+}
+
 export async function mount(el) {
   const [d3, data] = await Promise.all([loadD3(), view()]);
   const spec = data.components[el.dataset.chart];
@@ -102,10 +114,17 @@ export async function mount(el) {
 export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const plotEl = el.querySelector(".chart-plot");
   plotEl.replaceChildren();
-  const W = Math.max(320, plotEl.clientWidth), H = W < 600 ? 420 : 560;
-  const m = { t: 24, r: 16, b: 52, l: 64 };
-  const x0 = d3.scaleUtc().domain(spec.x.domain.map(date)).range([m.l, W - m.r]);
-  const y0 = d3.scaleLinear().domain(spec.y.domain).range([H - m.b, m.t]);
+  const W = Math.max(320, plotEl.clientWidth || 0);   // 0 before layout (and in tests)
+  const rows = spec.y.type === "rows" ? spec.y.rows : null;
+  const m = { t: 24, r: 16, b: 52, l: rows ? rowsMargin(rows, W) : 64 };
+  // Rows get a fixed pitch, so a long list grows the chart instead of cramming it.
+  const H = rows ? Math.max(W < 600 ? 320 : 420, rows.length * 20 + m.t + m.b)
+                 : (W < 600 ? 420 : 560);
+  const linearX = spec.x.type === "linear";
+  const xv = linearX ? (v) => v : date;
+  const x0 = (linearX ? d3.scaleLinear() : d3.scaleUtc()).domain(spec.x.domain.map(xv)).range([m.l, W - m.r]);
+  // Rows run top to bottom, so row 0 is at the top of the plot.
+  const y0 = d3.scaleLinear().domain(spec.y.domain).range(rows ? [m.t, H - m.b] : [H - m.b, m.t]);
   let x = x0, y = y0;
 
   const svg = d3.select(plotEl).append("svg").attr("class", "chart-svg")
@@ -123,7 +142,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("x", (m.l + W - m.r) / 2).attr("y", H - 10).text(spec.x.label);
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
-    .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
+    .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(rows ? "" : spec.y.label);
   const plot = svg.append("g").attr("clip-path", `url(#${clip})`);
   // Points first, then the layers above them, so the build front stays visible.
   const whiskG = plot.append("g"), dotG = plot.append("g"), layerG = plot.append("g");
@@ -159,18 +178,27 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   function place() {
     const xt = Math.max(3, W / 120);
     gridX.call(d3.axisBottom(x).ticks(xt).tickSize(-(H - m.t - m.b)).tickFormat(""));
-    gridY.call(d3.axisLeft(y).ticks(8).tickSize(-(W - m.l - m.r)).tickFormat(""));
-    gx.call(d3.axisBottom(x).ticks(xt));
-    gy.call(d3.axisLeft(y).ticks(8, "~s"));
-    bandSel.attr("d", (l) => d3.area().x((d) => x(date(d[0]))).y0((d) => y(d[1])).y1((d) => y(d[2]))(l.points));
-    lineSel.select("path").attr("d", (l) => d3.line().x((d) => x(date(d[0]))).y((d) => y(d[1]))(l.points));
-    lineSel.selectAll("circle").attr("cx", (o) => x(date(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
-    ruleSel.select("line").attr("x1", (l) => x(date(l.value))).attr("x2", (l) => x(date(l.value)))
+    gx.call(linearX ? d3.axisBottom(x).ticks(xt, "~s") : d3.axisBottom(x).ticks(xt));
+    if (rows) {
+      // A row's label and gridline stay put while it's in view; rows panned out of
+      // the plot drop their ticks rather than piling up at its edge.
+      const [lo, hi] = y.domain();
+      const shown = d3.range(rows.length).filter((i) => i >= Math.min(lo, hi) && i <= Math.max(lo, hi));
+      gridY.call(d3.axisLeft(y).tickValues(shown).tickSize(-(W - m.l - m.r)).tickFormat(""));
+      gy.call(d3.axisLeft(y).tickValues(shown).tickFormat((i) => rows[i]));
+    } else {
+      gridY.call(d3.axisLeft(y).ticks(8).tickSize(-(W - m.l - m.r)).tickFormat(""));
+      gy.call(d3.axisLeft(y).ticks(8, "~s"));
+    }
+    bandSel.attr("d", (l) => d3.area().x((d) => x(xv(d[0]))).y0((d) => y(d[1])).y1((d) => y(d[2]))(l.points));
+    lineSel.select("path").attr("d", (l) => d3.line().x((d) => x(xv(d[0]))).y((d) => y(d[1]))(l.points));
+    lineSel.selectAll("circle").attr("cx", (o) => x(xv(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
+    ruleSel.select("line").attr("x1", (l) => x(xv(l.value))).attr("x2", (l) => x(xv(l.value)))
       .attr("y1", m.t).attr("y2", H - m.b);
-    ruleSel.select("text").attr("x", (l) => x(date(l.value)) + 4).attr("y", m.t + 10);
-    dots.selectAll("path.pt").attr("transform", (d) => `translate(${x(date(d.p.x))},${y(d.p.y)})${turn(d)}`);
+    ruleSel.select("text").attr("x", (l) => x(xv(l.value)) + 4).attr("y", m.t + 10);
+    dots.selectAll("path.pt").attr("transform", (d) => `translate(${x(xv(d.p.x))},${y(d.p.y)})${turn(d)}`);
     whiskG.style("display", showWhiskers ? null : "none");
-    whisk.selectAll("path.whisker").attr("d", (p) => whiskerPath(x(date(p.lo)), x(date(p.hi)), y(p.y)));
+    whisk.selectAll("path.whisker").attr("d", (p) => whiskerPath(x(xv(p.lo)), x(xv(p.hi)), y(p.y)));
   }
   function visibility() {
     svg.selectAll("[data-name]").style("display", function () { return hidden.has(this.dataset.name) ? "none" : null; });
@@ -204,8 +232,8 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.on("pointermove", (ev) => {
     const [px, py] = d3.pointer(ev);
     const cands = [];
-    for (const o of series) if (!hidden.has(o.s.name)) for (const p of o.s.points) cands.push({ x: x(date(p.x)), y: y(p.y), tip: p.tip });
-    for (const l of lines) if (l.tips && !hidden.has(layerName(l))) l.points.forEach((pt, i) => cands.push({ x: x(date(pt[0])), y: y(pt[1]), tip: l.tips[i] }));
+    for (const o of series) if (!hidden.has(o.s.name)) for (const p of o.s.points) cands.push({ x: x(xv(p.x)), y: y(p.y), tip: p.tip });
+    for (const l of lines) if (l.tips && !hidden.has(layerName(l))) l.points.forEach((pt, i) => cands.push({ x: x(xv(pt[0])), y: y(pt[1]), tip: l.tips[i] }));
     const hit = nearest(cands, px, py);
     const [hx, hy] = d3.pointer(ev, plotEl);
     if (hit) tip.show(hit.tip, hx, hy); else tip.hide();

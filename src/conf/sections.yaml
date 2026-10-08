@@ -14,9 +14,6 @@
 #           fit (side by side at equal widths until a panel's content wouldn't
 #           fit, then one across: for tables, which shouldn't scroll), single
 #           (always one across)
-#   charts  Plotly figure builders in render/charts.py, by name, drawn after the
-#           components. Each goes as its section moves to components
-#           (docs/presentation.md).
 #
 # Editing prose or order is a data edit here, not a code change.
 
@@ -119,7 +116,7 @@ sections:
       A firm date usually arrives with or after the VIN.
 
   - title: "VIN sequence vs. order date"
-    charts: [fig_vin_vs_order]
+    components: [vin-vs-order]
     desc: >-
       Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how
       tightly production sequence tracks order timing. Click a config in the legend
@@ -155,7 +152,7 @@ sections:
       itself over time.
 
   - title: "VIN sequence by configuration"
-    charts: [fig_vin_by_config]
+    components: [vin-by-config]
     desc: >-
       Each VIN-assigned order at its production sequence (x), grouped into rows by
       full configuration (trim · color · wheels · interior); marker fill = paint,
@@ -166,13 +163,16 @@ sections:
       newer cabins show up here as their orders get assigned.
 
   - title: "Geographic demand"
-    charts: [fig_geo]
+    components: [geo-demand]
     desc: >-
-      Three stacked maps of demand around the Normal, IL plant: orders with an
-      assigned VIN, all orders, and total demand (orders + incomplete reservations).
-      Bubble area = count; the first two share a scale, while total demand (~20x
-      larger) scales to its own. The bars beside each map give that panel's
-      per-region total.
+      Demand by state around the Normal, IL plant (marked with Rivian's emblem). The slider steps down the
+      pipeline, each stop a subset of the one before: total demand (orders plus
+      outstanding reservations), orders, orders with a VIN (or further along),
+      orders with a delivery scheduled (or delivered), and deliveries. Colors
+      run on a square-root scale, so a state with a quarter of the leader's count
+      reads half as strong; a state with none is hatched. Select a state to outline
+      it. Only US orders are mapped for now, since the R2
+      isn't on sale elsewhere yet.
 
   - title: "Orders by state"
     components: [state-totals]
@@ -241,7 +241,7 @@ sections:
       them, where a single order swings the mix by 100 points.
 
   - title: "Destination vs. delivery date"
-    charts: [fig_dest_vs_delivery]
+    components: [dest-vs-delivery]
     desc: >-
       States ordered by distance from the Normal, IL plant (closest at bottom). An
       upward-right tilt would mean farther destinations deliver later. Whiskers span

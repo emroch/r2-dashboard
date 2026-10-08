@@ -3,7 +3,7 @@
 reconciliation, summary sentences, and the take-rate rows; then the crosstab
 components (#108) and configured price.
 
-The take-rate tests carry over what the Plotly take-rate figure's tests checked
+The take-rate tests carry over what the old take-rate figure's tests checked
 (test_parsing.py, before #106): one paint order everywhere, blanks left out
 rather than drawn, a fixed reading order for yes/no answers, and an R1 owner who
 named no model staying an owner.
@@ -125,7 +125,7 @@ def test_stage_split_always_sums_to_the_cell():
     assert a.excluded == {"not reported": 1}
 
 
-# --- Carried over from the Plotly take-rate tests -------------------------------
+# --- Carried over from the old take-rate figure's tests ----------------------------
 
 def _paint_rank_frame():
     """Paints at unequal counts with a tie: popularity orders them, and the
@@ -140,7 +140,7 @@ def test_paint_rows_follow_the_page_wide_paint_order():
     # Issue #58: every paint chart shows one popularity ranking, palette order
     # breaking ties, stable across builds. The take-rate rows are one of them.
     from render.aggregates import counts
-    from render.charts import _paint_order
+    from render.specs import _paint_order
     df = _paint_rank_frame()
     want = [COLOR_ORDER[2], COLOR_ORDER[1], COLOR_ORDER[0], COLOR_ORDER[3]]
     assert [c["value"] for c in counts(df, "color").cells] == want
@@ -434,7 +434,7 @@ def test_price_distribution_counts_exact_prices_and_marks_the_median():
                       "max": "$62,745"}
     reconcile([a], cohort_sizes(df))
     # An even count can put the median midway between two prices: one row is
-    # still marked, the lower (as the Plotly chart did).
+    # still marked, the lower (as the old chart did).
     a = price_distribution(_orders(**_priced([57990.0, 59990.0, 62745.0, 62745.0])))
     assert a.meta["median"] == "$61,368"
     assert [c["label"] for c in a.cells if c["highlight"]] == ["$59,990"]

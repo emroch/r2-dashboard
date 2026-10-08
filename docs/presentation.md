@@ -90,7 +90,7 @@ Every section is made of components, and every component has the same frame:
 | static | `range` | median / IQR strip | Python |
 | mounted | `timeseries` | lines or stacked columns over dates | JS |
 | mounted | `scatter` | points, plus `line`, `whisker` and `band` layers | JS |
-| mounted | `geo` | bubble map | JS |
+| mounted | `geo` | US states choropleth, selectable | JS |
 
 A mounted component is `<div data-chart="id">` inside the same frame. The page boots,
 and when the mount nears the viewport the template module and its library are imported.
@@ -112,7 +112,7 @@ A starting point, not a spec: each section may be redesigned in its stage.
 | §9 VIN vs. order date | scatter per paint × wheel | `scatter` |
 | §10 Delivery vs. VIN | scatter, whiskers, build front, cadence | `scatter` with `whisker`, `line`, `band` |
 | §11 VIN by configuration | scatter, one row per configuration | `scatter` |
-| §12 Geographic demand | scattergeo maps + region bars | `geo`, with the bars as `mix` |
+| §12 Geographic demand | scattergeo maps + region bars | `geo` (one map with a measure switch; the region bars dropped) |
 | §13 Orders by state | stacked bars | `takerate` rows with an all-states total |
 | §14–16 Preference by location | 100%-stacked bars | `mix` |
 | §17 Destination vs. delivery | jittered scatter + whiskers | `scatter` |
@@ -338,6 +338,11 @@ tracked under **#102**. Blockers are also set as issue dependencies.
 8. **#111 Remaining library charts** (`lib-rest`). §9, §11, §12, §17; then delete
    `charts.py`, plotly and the retint code. Blocked by 4–7.
    - *Acceptance:* no plotly remains in the repo, and the budgets are met.
+   - *Budget deferred (2026-10-07):* the page is ~510 KB without Plotly, ~200 KB of
+     it the per-point no-JS tables. Rather than tune to the 250 KB figure, the
+     page is to be optimized from measured performance in #112. The leaning: render
+     the per-point tables from `r2_view.json` when the reader opens them, with
+     pre-rendered static chart images as the no-JS fallback.
 9. **#112 Polish** (`polish`). Blocked by 5–8.
    - **#41:** header behavior on narrow screens.
    - **#46:** close the report menu when one of its links is clicked.
@@ -399,9 +404,10 @@ Recorded as each stage settles them.
 - **Maps: the US only, for now (2026-10-05).** Canada and Mexico aren't on sale yet
   and have few reservations, so the §12 maps will show US orders, with a note saying
   how many are left out. That allows d3's standard US layout (`geoAlbersUsa`, with
-  Alaska and Hawaii inset) on census state shapes. Alternatives to the region-colored
-  bubbles (a choropleth, bubbles sized and colored by two measures, or both) are to be
-  prototyped in #111.
+  Alaska and Hawaii inset) on census state shapes. Of the prototypes (#111: a
+  choropleth, bubbles sized by orders and colored by delivered share, or both), the
+  choropleth was chosen: the states carry the data, which suits a selectable map
+  (#112), with a measure switch replacing the three stacked maps.
 
 ## Risks and open questions
 

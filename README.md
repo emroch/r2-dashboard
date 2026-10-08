@@ -1,17 +1,17 @@
 # R2 Orders
 
 Parses, sanitizes, and visualizes crowd-sourced **Rivian R2 pre-order** data into
-an interactive Plotly dashboard. It pulls two live Google Sheets (an
+an interactive dashboard (HTML, with charts drawn in d3). It pulls two live Google Sheets (an
 orders/deliveries tracker and a separate reservations-only tracker) via their CSV
 export endpoints, cleans them (dedup, VIN recovery, date normalization, geo
 enrichment), removes reservation-holders who have already ordered, and produces a
-tidy CSV plus a 10-chart HTML dashboard.
+tidy CSV plus the HTML dashboard.
 
 ## Project layout
 
 ```
 r2_dashboard          run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
-requirements.txt      pandas, numpy, plotly, PyYAML, beautifulsoup4
+requirements.txt      pandas, numpy, PyYAML, beautifulsoup4
 package.json          JS dev tools (eslint, pinned wrangler); Node version in .nvmrc
 src/
   config.py           paths, run timestamps + loaders for the conf/ YAML files
@@ -22,12 +22,12 @@ src/
     schema_check.py   locates columns by name; verifies them against schema.yaml
     loaders.py        load_and_clean, load_reservations
   render/             build the webpage
-    colors.py         color transforms (HLS palettes for Plotly, OKLCH for marks)
+    colors.py         color transforms (OKLCH, for marks and contrast)
     categories.py     category colors as CSS classes (true swatch + theme-clamped mark)
     aggregates.py     reconciled counts behind the components
     components.py     the shared component frame (summary, n, caveats, data table)
     view.py           builds the aggregates; writes r2_view.json
-    charts.py         the ten fig_* chart builders + helpers
+    specs.py          specs for the browser-drawn charts (points, layers, map counts)
     page.py           BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
     assets.py         publishes src/web/ as content-hashed static assets
   templates/          valid standalone page shell, filled at render time
@@ -36,19 +36,17 @@ src/
     head.js           pre-paint theme set (no flash), inlined
   web/                browser code, served as static files (no build step)
     main.js           boots browser-drawn components (ES module), lazily
-    charts/           d3 chart templates (scatter.js) + registry.js
-    vendor/           d3 7.9.0 (version + checksum in its README)
+    charts/           d3 chart templates (scatter, timeseries, geo) + registry.js
+    vendor/           d3 7.9.0, topojson-client, us-atlas (versions + checksums in its README)
     lib/csv.js        data table -> CSV download
     theme.js          light/dark toggle (fires r2:themechange)
-    plotly-theme.js   re-tint Plotly chart chrome on theme change
     nav.js            sidebar hamburger + scroll-spy
-    scrollzoom.js     map wheel-zoom vs. page scroll
   conf/               data/config YAML (loaded by config.py)
     dimensions.yaml   category vocabulary: each column's label, order, blank handling, caveat, and
                       per-category label/color/marker (paints, wheels, interiors, regions, ...);
                       published as r2_dimensions.json
     palette.yaml      chart fills that don't name a category (take-rate, timeline, accents)
-    theme.yaml        page & chart chrome for light/dark (CSS variables + chart retint colors)
+    theme.yaml        page & chart chrome for light/dark (CSS variables)
     sections.yaml     the page's sections: order, title, prose, components, charts
     charts.yaml       the presentation-layer components (template, title, summary)
     schema.yaml       sheet sources, column maps, sanitize bounds, option vocab
@@ -77,7 +75,7 @@ From the project root:
 ```
 
 It's a run-in-place project (no install step). Dependencies are listed in
-`requirements.txt` (pandas, numpy, plotly, PyYAML, beautifulsoup4).
+`requirements.txt` (pandas, numpy, PyYAML, beautifulsoup4).
 
 ## Outputs
 
@@ -139,7 +137,7 @@ free tier, refreshed automatically:
   route afterwards, since the Worker has no preview environment.
 
 The Python build runs only in Actions — Cloudflare serves and routes but can't run
-pandas/plotly. One-time setup (API token, secrets, Pages project) is noted in the
+pandas. One-time setup (API token, secrets, Pages project) is noted in the
 workflow files. The API token needs **Workers Scripts · Edit** and **Workers
 Routes · Edit** on the `emroch.com` zone in addition to **Pages · Edit**, since the
 same token deploys both.

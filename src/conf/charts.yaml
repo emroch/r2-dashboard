@@ -248,6 +248,35 @@ components:
     summary: "The build front is moving at about {meta:rate} VINs a day, over its
       last {meta:window} weeks."
 
+  vin-vs-order:
+    template: scatter
+    title: VIN sequence vs. order date
+    dims: [color, wheels]
+    aggregate: vin_vs_order
+    summary: "{n} orders with both a VIN and an order date."
+
+  vin-by-config:
+    template: scatter
+    title: VIN sequence by configuration
+    dims: [trim, color, wheels, interior]
+    aggregate: vin_by_config
+    summary: "{n} orders with a VIN, in {meta:rows} configurations."
+
+  geo-demand:
+    template: geo
+    title: Geographic demand
+    dims: [state]
+    aggregate: geo_demand
+    summary: "{n} orders across {meta:states} states. Only US orders are mapped:
+      {meta:left} elsewhere are left out."
+
+  dest-vs-delivery:
+    template: scatter
+    title: Destination vs. delivery date
+    dims: [state, region, delivery_type]
+    aggregate: dest_vs_delivery
+    summary: "{n} orders with a delivery estimate and a known destination."
+
   delivery-vs-vin:
     template: scatter
     title: Delivery date vs. VIN sequence

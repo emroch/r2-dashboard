@@ -132,3 +132,26 @@ test("the grouped layers hide together, and a redraw keeps what is hidden", { ti
   assert.equal(hiddenLayers(), 2, "the front's line and band both stay hidden");
   assert.equal(h.hidden().has("Build front"), true);
 });
+
+// §11 and §17: a number line on x (VIN sequence) and labelled rows on y, row 0
+// at the top. Panning rows out of view drops their labels instead of stacking
+// them at the plot's edge.
+test("a rows axis labels each row, top to bottom, over a linear x", { timeout: 5000 }, async () => {
+  const { draw } = await import("../../src/web/charts/scatter.js");
+  const el = mountPoint();
+  const rows = { template: "scatter", title: "t",
+    x: { label: "VIN", type: "linear", domain: [0, 2000] },
+    y: { label: "Configuration", type: "rows", rows: ["A", "B", "C"], domain: [-0.6, 2.6] },
+    series: [{ name: "s", color: "color:Midnight", symbol: "circle",
+               points: [{ x: 100, y: 0.1, tip: ["a"] }, { x: 1500, y: 2, tip: ["c"] }] }],
+    layers: [] };
+  const h = draw(d3, el, rows);
+  const labels = () => [...h.svg.querySelectorAll("g.axis")][1].querySelectorAll(".tick text");
+  assert.deepEqual([...labels()].map((t) => t.textContent), ["A", "B", "C"]);
+  const ys = [...h.svg.querySelectorAll("path.pt")].map((p) => Number(/,([\d.]+)\)/.exec(p.getAttribute("transform"))[1]));
+  assert.ok(ys[0] < ys[1], "row 0 draws above row 2");
+  const xs = [...h.svg.querySelectorAll("path.pt")].map((p) => Number(/translate\(([\d.]+)/.exec(p.getAttribute("transform"))[1]));
+  assert.ok(xs[0] < xs[1], "x is a number line");
+  h.zoomTo(3);
+  assert.ok(labels().length < 3, "rows outside the zoomed view lose their labels");
+});

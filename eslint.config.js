@@ -18,8 +18,7 @@ export default [
   {
     // Classic page scripts, loaded with a plain <script> (not type="module"),
     // in the order page.html lists them. head.js is inlined into <head>.
-    files: ["src/web/theme.js", "src/web/nav.js", "src/web/scrollzoom.js",
-            "src/templates/*.js"],
+    files: ["src/web/theme.js", "src/web/nav.js", "src/templates/*.js"],
     languageOptions: { sourceType: "script", globals: globals.browser },
   },
   {

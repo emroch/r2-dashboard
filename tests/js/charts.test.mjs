@@ -6,11 +6,18 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { categoryClass, layerEntries, nearest, ROTATE, SYMBOLS, whiskerPath, zoomAllowed }
+import { categoryClass, layerEntries, nearest, ROTATE, rowsMargin, SYMBOLS, whiskerPath, zoomAllowed }
   from "../../src/web/charts/scatter.js";
 import { isolate, toggle } from "../../src/web/lib/legend.js";
 import { D3_FILE, loadD3 } from "../../src/web/lib/load.js";
 import { get, set, whiskersShown } from "../../src/web/state.js";
+
+test("a rows axis's margin fits its longest label, up to half the width", () => {
+  assert.equal(rowsMargin(["IL"], 800), 64, "never narrower than the number axis");
+  const long = "Performance · Catalina Cove · 20\" AT · Coastal Cloud Sig";
+  assert.ok(rowsMargin([long], 1200) > long.length * 6);
+  assert.equal(rowsMargin([long], 360), 180);
+});
 
 test("category references map to the classes render/categories.py writes", () => {
   assert.equal(categoryClass("color:Launch Green"), "cat-color-launch-green");

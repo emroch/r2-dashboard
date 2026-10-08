@@ -1,26 +1,18 @@
-"""Color transforms and the display palettes derived from the measured paints.
+"""Color transforms for the category colors measured from the paints.
 
 The palette in config (loaded from dimensions.yaml) is the source of truth for the
-on-screen colors. Two kinds of derived color live here:
-
-  * for the Plotly charts: the marker/legend palette (COLOR_DISPLAY) and the
-    tinted window whiskers per region (REGION_WHISKER), in HLS. They go with
-    Plotly (#111).
-  * for the presentation layer's CSS (docs/presentation.md, "Theming"): OKLCH,
-    the perceptual space the page's mark rule works in. A category keeps its
-    true color for its swatch; its MARK is the same hue and chroma with the
-    lightness clamped to a per-theme range, so it can't sit too close to the
-    surface. Browsers do that clamp themselves with relative color syntax; the
-    functions here compute the same result for the fallback CSS and for the
-    contrast tests.
+on-screen colors. What's derived here is for the page's CSS (docs/presentation.md,
+"Theming"): OKLCH, the perceptual space the page's mark rule works in. A
+category keeps its true color for its swatch; its MARK is the same hue and chroma
+with the lightness clamped to a per-theme range, so it can't sit too close to the
+surface. Browsers do that clamp themselves with relative color syntax; the
+functions here compute the same result for the fallback CSS and for the contrast
+tests.
 """
 # Lets the hints use `X | None` while the code still runs on the system 3.9.
 from __future__ import annotations
 
-import colorsys
 import math
-
-from config import COLOR_HEX, REGION_COLOR
 
 
 def _hex_to_rgb(h):
@@ -29,21 +21,6 @@ def _hex_to_rgb(h):
 
 def _rgb_to_hex(r, g, b):
     return "#%02X%02X%02X" % (round(r * 255), round(g * 255), round(b * 255))
-
-
-def _whisker_color(h, light=0.56, sat=0.14):
-    """Light-medium grey with just a hint of the source hue, so window whiskers
-    stay subtle (a tinted grey) yet still key to their series on white or dark."""
-    r, g, b = _hex_to_rgb(h)
-    hue, _, s = colorsys.rgb_to_hls(r, g, b)
-    return _rgb_to_hex(*colorsys.hls_to_rgb(hue, light, sat if s > 0.06 else 0.0))
-
-
-# COLOR_DISPLAY is the palette used for markers/legend (the dimensions.yaml hex
-# values are already tuned for on-screen legibility); REGION_WHISKER tints the
-# delivery-window whiskers per region (subtle tinted grey).
-COLOR_DISPLAY = dict(COLOR_HEX)
-REGION_WHISKER = {n: _whisker_color(h) for n, h in REGION_COLOR.items()}
 
 
 # --- OKLCH (Björn Ottosson's OKLab, in polar form) ------------------------------

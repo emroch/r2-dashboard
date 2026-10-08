@@ -11,7 +11,7 @@ Structure:
 ```
 r2_dashboard        run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
 curate              ship a curation edit to main via an auto-checked, auto-merged PR
-requirements.txt    pandas, numpy, plotly, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
+requirements.txt    pandas, numpy, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
 requirements-dev.txt  -r requirements.txt + dev tools (pytest, ruff, mypy + stubs); ./ci_env installs it
 package.json        JS dev tools only (eslint, the wrangler the deploys use), pinned in package-lock.json; Node version in .nvmrc
 eslint.config.js    JS lint settings (src/web/, tests/js/, worker/)
@@ -30,13 +30,12 @@ src/
     milestones.py   when each order's final VIN / final delivery date took hold (curated `dates:` or first snapshot showing it); internal
     contract.py     published data contract: dimension metadata + event-dated daily series (r2_dimensions.json / r2_series.json)
   render/           BUILD THE WEBPAGE
-    colors.py       color transforms: HLS display palettes for Plotly (COLOR_DISPLAY / WHISKER_HEX) + OKLCH math (marks, contrast)
+    colors.py       color transforms: OKLCH math (marks, contrast)
     categories.py   category colors as CSS: a .cat-<dim>-<slug> class per colored category (--paint true color, --mark theme-clamped) + fallback
     aggregates.py   counts for components, each reconciled against its cohort (cells + excluded == cohort, or the build stops)
     components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate)
     view.py         builds + reconciles the page's aggregates, renders the components; writes r2_view.json (browser-drawn components' specs)
-    specs.py        house-schema specs for the browser-drawn components (§10's scatter): points, layers, fixed domains; no colors
-    charts.py       the Plotly fig_* chart builders not yet moved to components + helpers
+    specs.py        house-schema specs for the browser-drawn components (scatter, timeseries, geo): points, layers, fixed domains, map counts; no colors
     page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
   templates/        valid standalone page shell, filled at render time
@@ -46,20 +45,18 @@ src/
     _headers        Cloudflare Pages cache headers (copied into the deploy)
   web/              the page's browser code, served as static files (docs/presentation.md, "JS layout")
     main.js         ES module: boots browser-drawn components at [data-chart] mounts, each when it nears the viewport; wires CSV buttons
-    charts/         d3 templates (scatter.js) + registry.js (template -> lazy import)
-    lib/            csv.js (table -> CSV), legend.js (house legend), tooltip.js, load.js (lazy d3)
+    charts/         d3 templates (scatter.js, timeseries.js, geo.js) + registry.js (template -> lazy import)
+    lib/            csv.js (table -> CSV), legend.js (house legend), tooltip.js, load.js (lazy d3 + map atlas)
     state.js        view state in the URL query (?whiskers=0)
     data.js         fetches r2_view.json once
-    vendor/         d3 7.9.0, committed; README records version + SHA-256 (a test checks it)
+    vendor/         d3 7.9.0, topojson-client 3.1.0, us-atlas 3.0.1 states, committed; README records versions + SHA-256 (a test checks it)
     theme.js        theme toggle; fires r2:themechange, keeps the theme-color meta in step (classic script)
-    plotly-theme.js re-tints the Plotly charts' chrome on r2:themechange; goes with Plotly (classic script)
     nav.js          sidebar scroll-spy, report-menu dismissal, local times (classic script)
-    scrollzoom.js   map wheel-zoom vs. page-scroll arbitration (classic script)
   conf/             the data/config YAML (loaded by config.py at import)
     dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
     palette.yaml    chart fills that don't name a category (take-rate/timeline tints, accents, heatmap scale)
-    theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities) + chart retint colors + static chart accents
-    sections.yaml   the page's sections in order: title, prose (HTML), and what each draws (components, then Plotly charts)
+    theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities, map land and borders)
+    sections.yaml   the page's sections in order: title, prose (HTML), layout, and the components each draws
     charts.yaml     the presentation-layer components by id: template, title, dims, aggregate, summary sentence
     schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
@@ -72,7 +69,7 @@ tests/              unit tests: test_parsing.py, test_aggregates.py, test_specs.
 tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 
-The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds a 10-chart interactive Plotly dashboard.
+The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds the interactive dashboard (HTML components, plus charts the browser draws with d3).
 
 ## Working with the data
 
@@ -117,7 +114,7 @@ newest local `python3.x` if that download is unavailable (the library versions a
 matter for parity). **Run `./ci_env check` before pushing** anything that touches parsing
 or rendering.
 
-Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
+Dependencies (`requirements.txt`: pandas, numpy, PyYAML, beautifulsoup4) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
 
 ## CSV structure and quirks
 

@@ -1,7 +1,7 @@
 name: Deploy
 
 # Build the dashboard and publish it to Cloudflare Pages. GitHub Actions is the
-# only place the Python pipeline runs (pandas/plotly + a live fetch); Cloudflare
+# only place the Python pipeline runs (pandas + a live fetch); Cloudflare
 # just serves (Pages) and routes (a Worker maps emroch.com/r2-dashboard -> Pages).
 on:
   schedule:
@@ -56,7 +56,6 @@ jobs:
         run: |
           mkdir -p dist
           cp output/r2_orders_dashboard.html dist/index.html
-          cp output/plotly.min.js dist/plotly.min.js
           cp data/processed/r2_orders_clean.csv dist/r2_orders_clean.csv
           cp data/processed/r2_dimensions.json dist/r2_dimensions.json
           cp data/processed/r2_series.json dist/r2_series.json
