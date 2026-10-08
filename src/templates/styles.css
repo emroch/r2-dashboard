@@ -181,6 +181,7 @@ section p.desc a:hover{filter:brightness(1.15);}
 footer{color:var(--footer);font-size:12px;text-align:center;padding:20px;}
 footer a{color:var(--footer-link);text-decoration:none;}
 footer code{background:var(--code-bg);color:var(--code-fg);padding:1px 4px;border-radius:3px;}
+footer .legal{max-width:720px;margin:8px auto 0;font-size:11px;line-height:1.45;}
 /* Presentation-layer components (render/components.py; docs/presentation.md).
    Every component sits in this frame: title, one-sentence summary, body, the
    n + caveats line, and a collapsed data table. */
