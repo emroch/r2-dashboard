@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      # Settings (files, strictness, the plotly exemption) live in pyproject.toml.
+      # Settings (files, strictness) live in pyproject.toml.
       - name: mypy
         run: mypy
 

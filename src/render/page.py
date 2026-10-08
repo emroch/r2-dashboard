@@ -5,25 +5,19 @@ The page shell lives under templates/ — page.html (a valid, standalone HTML
 shell with id'd slots) plus styles.css and the inlined head.js. The page scripts
 live under web/ and are published as hashed static assets (render/assets.py).
 build_dashboard parses the shell with BeautifulSoup and populates it by element
-id (theme vars, stat cards, nav links, chart sections, script URLs), then splices
-Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
+id (theme vars, stat cards, nav links, chart sections, script URLs).
 """
-import json
 import os
 from pathlib import Path
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, Tag
-from plotly.offline import get_plotlyjs
 
 from .assets import publish_assets
 from .categories import category_css
 from .components import (notes_html, readout, readout_group, shared_caveats,
                          stage_key, stage_readouts)
-from .charts import (fig_dest_vs_delivery, fig_geo,
-                     fig_vin_by_config,
-                     fig_vin_vs_order)
-from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
+from config import (COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
                     RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
@@ -43,23 +37,13 @@ def _tpl(name):
     return (_TPL_DIR / name).read_text(encoding="utf-8")
 
 
-# The Plotly figure builders a section can name in sections.yaml (`charts:`).
-# Each moves to a presentation-layer component as its section migrates
-# (docs/presentation.md, Stages).
-_BUILDERS = {f.__name__: f for f in (
-    fig_vin_vs_order, fig_vin_by_config, fig_geo, fig_dest_vs_delivery)}
-
-
 def _section(entry):
-    """(title, desc_html, builder or tuple of builders) from a sections.yaml entry."""
-    unknown = [n for n in entry.get("charts", []) if n not in _BUILDERS]
-    unknown += [c for c in entry.get("components", []) if c not in COMPONENTS]
+    """(title, desc_html) from a sections.yaml entry, checking its components."""
+    unknown = [c for c in entry.get("components", []) if c not in COMPONENTS]
     if unknown:
-        raise LookupError("sections.yaml: %r names unknown charts/components %s"
+        raise LookupError("sections.yaml: %r names unknown components %s"
                           % (entry["title"], unknown))
-    builders = tuple(_BUILDERS[n] for n in entry.get("charts", []))
-    return (entry["title"], entry["desc"],
-            builders[0] if len(builders) == 1 else builders)
+    return entry["title"], entry["desc"]
 
 
 # sections.yaml `layout` -> the component grid's extra class (styles.css).
@@ -108,36 +92,13 @@ _THEME_VARS_CSS = "\n%s\n%s\n" % (
 # the page chrome never flashes the wrong colors.
 HEAD_JS = _tpl("head.js")
 
-# The light/dark chart-chrome objects come from theme.yaml (config.CHART_CHROME),
-# written into the page as a JSON island that theme.js reads, so its retint and
-# the baked-in chart colors agree. "</" is escaped so the JSON can't close the
-# <script> element it sits in.
-CHROME_JSON = json.dumps({"light": CHART_CHROME["light"],
-                          "dark": CHART_CHROME["dark"]},
-                         separators=(",", ":")).replace("</", "<\\/")
-
 # The page scripts are static assets under src/web/, published content-hashed by
 # render/assets.py and loaded at the end of <body> in page.html's order:
-#   plotly-theme.js  re-tints the (already-rendered) Plotly charts' chrome on each
-#                    r2:themechange. Data colors are left untouched. Goes with
-#                    the last Plotly chart (#111).
 #   theme.js         the toggle; fires r2:themechange, keeps theme-color in step
 #   nav.js           sidebar toggle + scroll-spy, report-menu dismissal, local times
-#   scrollzoom.js    wheel arbitration between zooming a map and scrolling the page
-#   main.js          the module that boots browser-drawn components (none yet)
-PAGE_SCRIPTS = {"plotly-theme-script": "plotly-theme.js",
-                "theme-script": "theme.js", "nav-script": "nav.js",
-                "zoom-script": "scrollzoom.js", "main-script": "main.js"}
-
-# Plotly toolbar, applied to every figure. Box- and lasso-select mark points for
-# a selection this dashboard never reads, so they only add width to a bar that
-# has to fit in a chart's top margin; dropping them takes it from 272px to 200px.
-# The logo goes too — it links off-site and earns none of that space. Zoom, pan
-# and reset stay, since they're the ones worth having on the denser charts.
-PLOTLY_CONFIG = {
-    "displaylogo": False,
-    "modeBarButtonsToRemove": ["select2d", "lasso2d"],
-}
+#   main.js          the module that boots browser-drawn components
+PAGE_SCRIPTS = {"theme-script": "theme.js", "nav-script": "nav.js",
+                "main-script": "main.js"}
 
 def _report_url(report):
     """The "Report issue" button's target: the repo's dashboard-report issue form
@@ -360,41 +321,14 @@ def _quality_section(quality, num, cap=40):
 
 
 def build_dashboard(df, report, resv, view):
-    # Each chart section wraps one <!--PLOT:n--> comment placeholder per figure;
-    # the Plotly fragments are spliced in verbatim after the DOM is serialized
-    # (never re-parsed). Plotly.js is emitted as a separate plotly.min.js (not
-    # inlined) so browsers cache it — see the first figure below + the write at
-    # the end. Numbering (DOM order): summary card is 1, charts 2..N+1, QA N+2.
-    #
-    # A section's builder may be a TUPLE of builders, which renders as several
-    # separate plots under one heading. Separate figures (rather than subplot rows
-    # of one figure) give each chart its own zoom/pan and modebar, so panning one
-    # doesn't drag the others, and let CSS space them apart.
-    plots, sections = {}, []
-    pid = 0
-    for i, (title, desc, builder) in enumerate(SECTIONS):
-        builders = builder if isinstance(builder, tuple) else (builder,)
-        frags = []
-        for b in builders:
-            fig = b(df, resv) if b is fig_geo else b(df)
-            # Transparent backgrounds let the themed section card show through, so
-            # the charts adapt to light/dark (chrome is re-tinted by plotly-theme.js).
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)")
-            pid += 1
-            # The first figure on the page references an external plotly.min.js
-            # (written next to the page below) instead of inlining ~5 MB; the rest
-            # reuse window.Plotly.
-            plots[pid] = fig.to_html(
-                full_html=False,
-                include_plotlyjs=("directory" if pid == 1 else False),
-                default_width="100%", config=PLOTLY_CONFIG)
-            frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
+    # Numbering (DOM order): the summary card is 1, sections 2..N+1, QA N+2.
+    sections = []
+    for i, (title, desc) in enumerate(SECTIONS):
         n = i + 2
         comps = _components_html(SECTION_COMPONENTS[i], view, SECTION_LAYOUTS[i])
         sections.append(
             '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
-            '%s%s</section>' % (n, n, _esc(title), desc, comps, "".join(frags)))
+            '%s</section>' % (n, n, _esc(title), desc, comps))
     sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]
@@ -510,7 +444,7 @@ def build_dashboard(df, report, resv, view):
     # the QA panel (N+2), numbered by position to match the section headings.
     nav_items = [("sec-1", "1 · Sources & summary")]
     nav_items += [("sec-%d" % (i + 2), "%d · %s" % (i + 2, t))
-                  for i, (t, _, _) in enumerate(SECTIONS)]
+                  for i, (t, _) in enumerate(SECTIONS)]
     qa_num = len(SECTIONS) + 2
     nav_items.append(("sec-%d" % qa_num, "%d · Data quality & anomalies" % qa_num))
     nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
@@ -521,9 +455,8 @@ def build_dashboard(df, report, resv, view):
     chrome_css = ":root{--header-bg:%s;--side-bg:%s;}" % (
         header_bg, COLOR_HEX.get("Launch Green", "#91aa81"))
 
-    # Populate the (valid, standalone) template's DOM by element id, then splice
-    # the Plotly fragments into their placeholders. Script/style content is set
-    # via .string, which bs4 emits raw (no entity-escaping of < > &).
+    # Populate the (valid, standalone) template's DOM by element id. Script/style
+    # content is set via .string, which bs4 emits raw (no entity-escaping of < > &).
     soup = BeautifulSoup(_tpl("page.html"), "html.parser")
 
     def slot(*args, **kwargs):
@@ -542,7 +475,6 @@ def build_dashboard(df, report, resv, view):
     # step if the header color ever differs per theme.
     slot(id="theme-color")["content"] = header_bg
     slot(id="head-init").string = HEAD_JS
-    slot(id="chrome-data").string = CHROME_JSON
     assets = publish_assets(Path(DASHBOARD).parent)
     for sid, name in PAGE_SCRIPTS.items():
         slot(id=sid)["src"] = assets + name
@@ -556,10 +488,5 @@ def build_dashboard(df, report, resv, view):
         BeautifulSoup("".join(sections), "html.parser"))
 
     html = str(soup)
-    for n, frag in plots.items():
-        html = html.replace("<!--PLOT:%d-->" % n, frag, 1)
-    # to_html's "directory" mode references plotly.min.js but doesn't write it.
-    out_dir = Path(DASHBOARD).parent
-    (out_dir / "plotly.min.js").write_text(get_plotlyjs(), encoding="utf-8")
     with open(DASHBOARD, "w", encoding="utf-8") as fh:
         fh.write(html)

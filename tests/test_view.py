@@ -23,28 +23,25 @@ with open(os.path.join(_SRC, "templates", "styles.css")) as _fh:
 # --- The section registry (src/conf/sections.yaml) -----------------------------
 
 
-def test_every_section_names_known_charts_and_renders_in_order():
-    from render.page import _BUILDERS, SECTIONS
+def test_every_section_draws_components_and_renders_in_order():
+    from render.page import SECTIONS
     assert len(SECTIONS) == len(SECTIONS_CONF) > 0
     titles = [e["title"] for e in SECTIONS_CONF]
     assert len(set(titles)) == len(titles), "duplicate section titles"
-    for entry, (title, desc, builders) in zip(SECTIONS_CONF, SECTIONS):
+    for entry, (title, desc) in zip(SECTIONS_CONF, SECTIONS):
         assert title == entry["title"] and desc.strip(), title
-        names = [b.__name__ for b in
-                 (builders if isinstance(builders, tuple) else (builders,))]
-        assert names == entry.get("charts", []), title
-        assert names or entry.get("components"), "%s draws nothing" % title
-        assert all(n in _BUILDERS for n in names), title
+        assert entry.get("components"), "%s draws nothing" % title
+        assert "charts" not in entry, "%s names a server-rendered chart" % title
 
 
-def test_a_section_naming_an_unknown_chart_fails_loudly():
+def test_a_section_naming_an_unknown_component_fails_loudly():
     from render.page import _section
     try:
-        _section({"title": "X", "desc": "d", "charts": ["fig_nope"]})
+        _section({"title": "X", "desc": "d", "components": ["nope"]})
     except LookupError as exc:
-        assert "fig_nope" in str(exc)
+        assert "nope" in str(exc)
     else:
-        raise AssertionError("an unknown chart name was accepted")
+        raise AssertionError("an unknown component name was accepted")
 
 
 # --- Category CSS and marks (render/categories.py) -----------------------------

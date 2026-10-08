@@ -1,7 +1,7 @@
 """Tests for the browser-drawn components' specs (render/specs.py, #107): what
 Python hands the page's d3 templates.
 
-§10's delivery-vs-VIN scatter carries over what its Plotly figure's tests
+§10's delivery-vs-VIN scatter carries over what its old figure's tests
 checked (test_parsing.py, before #107): one series per paint × wheel in the
 page-wide paint order; whiskers only for quoted windows; the build front, its
 projection and band as their own layers after the series, with the projection

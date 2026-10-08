@@ -117,9 +117,6 @@ section p.desc{margin:0 0 8px;color:var(--desc);font-size:13.5px;line-height:1.4
 section p.desc a{color:var(--link);text-decoration:none;
  border-bottom:1px dotted currentColor;}
 section p.desc a:hover{filter:brightness(1.15);}
-/* A section may hold several independent plots (each with its own zoom/modebar);
-   space them apart so stacked charts don't read as one crowded figure. */
-.plot + .plot{margin-top:22px;}
 .statwrap{margin-top:14px;}
 /* Summary readouts (components.readout): a chip per number in a wrapping row.
    One with entries behind it is a <details> whose ⓘ chip opens the list inline.

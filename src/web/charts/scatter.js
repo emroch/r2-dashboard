@@ -25,7 +25,7 @@ import { loadD3 } from "../lib/load.js";
 import { tooltip } from "../lib/tooltip.js";
 import { set as setState, whiskersShown } from "../state.js";
 
-// dimensions.yaml wheel symbols (Plotly's names) -> d3's. A diamond is a square
+// dimensions.yaml wheel symbols -> d3's. A diamond is a square
 // turned 45° (d3's own symbolDiamond is a tall rhombus), so it keeps a 1:1 shape.
 export const SYMBOLS = { circle: "symbolCircle", square: "symbolSquare",
                          diamond: "symbolSquare", "triangle-up": "symbolTriangle" };

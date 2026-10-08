@@ -14,9 +14,6 @@
 #           fit (side by side at equal widths until a panel's content wouldn't
 #           fit, then one across: for tables, which shouldn't scroll), single
 #           (always one across)
-#   charts  Plotly figure builders in render/charts.py, by name, drawn after the
-#           components. Each goes as its section moves to components
-#           (docs/presentation.md).
 #
 # Editing prose or order is a data edit here, not a code change.
 

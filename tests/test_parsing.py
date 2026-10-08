@@ -1339,9 +1339,9 @@ def test_wheel_heatmap_covers_every_ordered_wheel():
 
 def test_vin_by_config_rows_carry_interior_and_stay_ordered():
     from config import INTERIOR_ORDER, INTERIOR_SHORT
-    from render.charts import _paint_order, fig_vin_by_config
+    from render.specs import _paint_order, vin_by_config
     df = _interior_frame()
-    rows = list(fig_vin_by_config(df).layout.yaxis.ticktext)
+    rows = vin_by_config(df)[0]["y"]["rows"]
     assert len(rows) == len(df), "one row per distinct configuration"
     for r in rows:
         assert len(r.split(" · ")) == 4, r
@@ -1396,7 +1396,7 @@ def _expected_paint_rank():
 
 def test_paint_order_ranks_by_count_then_palette_for_ties():
     from config import COLOR_ORDER
-    from render.charts import _paint_order
+    from render.specs import _paint_order
     df = _paint_rank_frame()
     got = _paint_order(df)
     assert got == _expected_paint_rank(), got
@@ -1420,7 +1420,7 @@ def test_every_paint_chart_uses_the_same_order():
     # (§10's delivery-vs-VIN scatter follows it too: test_specs.py.)
     from config import COMPONENTS
     from render.aggregates import crosstab
-    from render.charts import _paint_order, fig_vin_vs_order
+    from render.specs import _paint_order, vin_vs_order
     from render.view import _crosstab
     df = _paint_rank_frame()
     want = _paint_order(df)
@@ -1430,13 +1430,12 @@ def test_every_paint_chart_uses_the_same_order():
     assert [r["value"] for r in crosstab(df, "color", "wheels").meta["rows"]] == want
 
     # §9 scatter legend: one entry per paint × wheel, paints in rank order.
-    for fig in (fig_vin_vs_order(df),):
-        seen = []
-        for t in fig.data:
-            paint = (t.name or "").split(" · ")[0]
-            if paint in want and paint not in seen:
-                seen.append(paint)
-        assert seen == want, (fig.layout.title, seen)
+    seen = []
+    for s in vin_vs_order(df)[0]["series"]:
+        paint = s["name"].split(" · ")[0]
+        if paint not in seen:
+            seen.append(paint)
+    assert seen == want, seen
 
     # §14 stack order: the location mixes' columns and baseline.
     for cid in ("paint-by-region", "paint-by-state"):
@@ -1445,18 +1444,13 @@ def test_every_paint_chart_uses_the_same_order():
         assert [c["value"] for c in a.meta["baseline"]] == want, cid
 
 
-def test_stable_counts_breaks_ties_alphabetically():
+def test_counts_break_ties_alphabetically():
     # The regression that matters: sort_values is not stable and value_counts
     # promises no order among equal counts, so tied categories used to come out
     # differently on every run and the deployed charts' rows reshuffled between
-    # daily builds. Order must be (count, then name), repeatably: _stable_counts
-    # for the remaining Plotly charts, and counts() for a component's rows.
+    # daily builds. Order must be (count, then name), repeatably.
     from render.aggregates import counts
-    from render.charts import _stable_counts
     s = pd.Series(list("aaa") + ["zz", "mm", "bb"] * 2 + ["q"])
-    got = _stable_counts(s.value_counts())
-    assert list(got.index) == ["q", "bb", "mm", "zz", "a"]
-    assert list(got.values) == [1, 2, 2, 2, 3]
     # A component's rows (§13's states): largest first, ties by name, whatever
     # order the orders arrive in.
     df = pd.DataFrame({"state": list(s), "lat": 1.0})
@@ -1821,7 +1815,7 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     # (The §2 take-rate rows: test_aggregates.py.)
     from config import COMPONENTS
     from render.aggregates import crosstab
-    from render.charts import _paint_order
+    from render.specs import _paint_order
     from render.view import _crosstab
     df = _paint_rank_frame()
     blank = df.iloc[[0]].copy()
@@ -1893,18 +1887,13 @@ def test_publish_assets_hashes_content_and_replaces_old_builds():
 
 def test_page_scripts_are_published_assets():
     # Every script page.html loads from the asset prefix is a real file under
-    # src/web/, and the chrome JSON island parses back to theme.yaml's values.
-    from config import CHART_CHROME
+    # src/web/.
     from render.assets import WEB_DIR
-    from render.page import CHROME_JSON, PAGE_SCRIPTS, _tpl
+    from render.page import PAGE_SCRIPTS, _tpl
     shell = _tpl("page.html")
     for sid, name in PAGE_SCRIPTS.items():
         assert 'id="%s"' % sid in shell, sid
         assert (WEB_DIR / name).is_file(), name
-    assert 'id="chrome-data"' in shell
-    import json
-    assert json.loads(CHROME_JSON) == {"light": CHART_CHROME["light"],
-                                       "dark": CHART_CHROME["dark"]}
 
 
 # --- Fetch change detection against committed caches -----------------------------

@@ -127,8 +127,6 @@ INTERIOR_SHORT = {c["value"]: c["short"] for c in _cats("interior")}
 WHEEL_SHORT = {c["sheet"]: c["value"] for c in _cats("wheels")}
 WHEEL_ORDER = [c["value"] for c in _cats("wheels")]
 WHEEL_ABBR = {c["value"]: c["abbr"] for c in _cats("wheels")}
-WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in _cats("wheels")}
-REGION_COLOR = {c["value"]: c["color"] for c in _cats("region")}
 # Delivery-estimate types, firm to vague. TYPE_ORDER leaves out the "no estimate"
 # category, which the charts handle on its own.
 TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
@@ -259,12 +257,7 @@ MONTHS = dict(_DELIV["months"])
 MONTH_MODIFIERS = {str(k).lower(): tuple(v)
                    for k, v in (_DELIV.get("month_modifiers") or {}).items()}
 
-# --- Page & chart chrome (theme.yaml) -------------------------------------
+# --- Page chrome (theme.yaml) ----------------------------------------------
 # THEME_CSS drives the CSS custom properties (light / dark / theme-independent
-# fixed); CHART_CHROME is the chart chrome the theme toggle swaps, and CHART is
-# the light half baked into the server-rendered charts; CHART_UI holds static
-# (non-swapped) chart accents.
+# fixed).
 THEME_CSS = _THEME["css"]
-CHART_CHROME = _THEME["chart"]
-CHART = _THEME["chart"]["light"]
-CHART_UI = _THEME["chart_ui"]

@@ -117,10 +117,9 @@ banner() {
 
 case "$cmd" in
     sync)
-        "$PY" -c 'import sys,pandas,numpy,plotly,yaml,bs4
-print("ready: python %s | pandas %s | numpy %s | plotly %s"
-      % (sys.version.split()[0], pandas.__version__, numpy.__version__,
-         plotly.__version__))'
+        "$PY" -c 'import sys,pandas,numpy,yaml,bs4
+print("ready: python %s | pandas %s | numpy %s"
+      % (sys.version.split()[0], pandas.__version__, numpy.__version__))'
         ;;
     test)
         if [ "${1:-}" = "--both" ]; then

@@ -28,8 +28,8 @@ from config import (AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY, INTERIOR_ORDER,
 from .aggregates import STAGE_LABELS, STAGES, Aggregate, stages
 from .cadence import projection as cadence_projection
 
-# wheels value -> its marker shape (dimensions.yaml `symbol`; the Plotly names,
-# which each library's adapter maps to its own).
+# wheels value -> its marker shape (dimensions.yaml `symbol`: circle, square,
+# diamond, triangle-up, which charts/scatter.js maps to d3's symbols).
 _WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in DIMENSIONS["wheels"]["categories"]}
 
 
@@ -67,8 +67,9 @@ def _num_domain(ys: list[float], pad: float = 0.03) -> list[float] | None:
 
 
 def _paint_order(d: pd.DataFrame) -> list[str]:
-    """Most-ordered paint first, the palette breaking ties (#58), as everywhere."""
-    counts = d["color"].value_counts()
+    """Most-ordered paint first, the palette breaking ties (#58), as everywhere.
+    A blank (an unreported build) is not a paint."""
+    counts = d.loc[~d["color"].map(_blank), "color"].value_counts()
     rank = {c: i for i, c in enumerate(COLOR_ORDER)}
     return sorted(counts.index, key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
 
@@ -149,7 +150,7 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
                 "configuration not reported": int(vin.sum()) - len(d)}
     # The cohort's paint order, not the VIN-assigned rows', so rows group the way
     # every other paint chart on the page does.
-    paints = _paint_order(df[_reported(df, "color")])
+    paints = _paint_order(df)
     paint_rank = {c: i for i, c in enumerate(paints)}
     interior_rank = {v: i for i, v in enumerate(INTERIOR_ORDER)}
     keys = {}
@@ -189,7 +190,7 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
     return spec, agg, table
 
 
-# Regions in the destination chart's legend order (as the Plotly chart had it).
+# Regions in dimensions.yaml's order, for the destination chart's legend.
 _REGIONS = [c["value"] for c in DIMENSIONS["region"]["categories"]]
 
 
