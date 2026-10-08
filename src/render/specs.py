@@ -22,8 +22,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import (AS_OF, COLOR_ORDER, DIMENSIONS, INTERIOR_ORDER, INTERIOR_SHORT,
-                    WHEEL_ABBR)
+from config import (AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY, INTERIOR_ORDER,
+                    INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
 
 from .aggregates import STAGE_LABELS, STAGES, Aggregate, stages
 from .cadence import projection as cadence_projection
@@ -242,6 +242,79 @@ def dest_vs_delivery(df: pd.DataFrame) -> tuple:
     table = (["Destination", "Region", "Order", "Est. delivery", "Quoted window"],
              table_rows)
     return spec, Aggregate("dest-vs-delivery points", "orders", cells, excluded), table
+
+
+# --- geo: the US states map ----------------------------------------------------
+#
+#   geo   states: {postal code: {region, orders, vin, demand, delivered, small,
+#         tip}}, keyed as the map's paths are; measures: the counts the reader
+#         can map ({key, label}), and `default`; factory: [lat, lon]. The map is
+#         the US only, for now (docs/presentation.md): Canada isn't on sale yet,
+#         so its orders and reservations are left out, counted in `excluded`.
+
+_MEASURES = (("orders", "All orders"), ("vin", "VIN assigned"),
+             ("demand", "Orders + reservations"))
+
+
+def _count(n: int, noun: str) -> str:
+    return "%s %s%s" % (format(n, ","), noun, "" if n == 1 else "s")
+
+
+def _us(frame: pd.DataFrame) -> pd.Series:
+    known = frame["state"].isin(STATE_INFO)
+    return known & frame["state"].map(lambda s: STATE_INFO.get(s, ("",))[0] != "Canada")
+
+
+def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
+    """§12: orders, orders with a VIN, and total demand (orders + outstanding
+    reservations) per US state, with each state's delivered share."""
+    if resv is None or "state" not in resv:
+        resv = pd.DataFrame({"state": pd.Series([], dtype=object)})
+    us, rus = _us(df), _us(resv)
+    known = df["state"].isin(STATE_INFO)
+    excluded = {"outside the US (not mapped)": int((known & ~us).sum()),
+                "no known state": int((~known).sum())}
+    d = df[us]
+    st = stages(d)
+    small = DIMENSIONS["state"]["small_n"]["min_orders"]
+    resv_n = resv[rus].groupby("state").size()
+    states, cells = {}, []
+    for code, g in sorted(d.groupby("state"), key=lambda kv: (-len(kv[1]), kv[0])):
+        n, vin = len(g), int(g["vin_present"].astype(bool).sum())
+        delivered = int((st[g.index] == "delivered").sum())
+        r = int(resv_n.get(code, 0))
+        states[code] = {
+            "region": STATE_INFO[code][0], "orders": n, "vin": vin, "demand": n + r,
+            "delivered": round(delivered / n, 3), "small": n < small,
+            "tip": ["%s · %s with a VIN" % (_count(n, "order"), format(vin, ",")),
+                    "%s outstanding" % _count(r, "reservation"),
+                    "Delivered: %d of %d (%.0f%%)" % (delivered, n,
+                                                       100 * delivered / n)]}
+        cells.append({"value": code, "label": code, "n": n,
+                      "ref": None, "known": True})
+    # A state with reservations but no orders yet is still demand on the map.
+    for where, r in resv_n.items():
+        key = str(where)
+        if key not in states:
+            states[key] = {"region": STATE_INFO[key][0], "orders": 0, "vin": 0,
+                           "demand": int(r), "delivered": 0.0, "small": True,
+                           "tip": ["No orders yet",
+                                   "%s outstanding" % _count(int(r), "reservation")]}
+    left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
+    spec = {"template": "geo", "title": "Geographic demand",
+            "measures": [{"key": k, "label": lbl} for k, lbl in _MEASURES],
+            "default": "orders", "small_n": small,
+            "factory": list(FACTORY), "states": states}
+    table = (["State", "Region", "Orders", "VIN assigned", "Orders + reservations",
+              "Delivered"],
+             [[c, v["region"], v["orders"], v["vin"], v["demand"],
+               "%.0f%%" % (100 * v["delivered"]) if v["orders"] else ""]
+              for c, v in states.items()])
+    agg = Aggregate("orders by US state", "orders", cells, excluded, "state",
+                    meta={"states": sum(1 for v in states.values() if v["orders"]),
+                          "left": "%s and %s" % (_count(left["orders"], "order"),
+                                                 _count(left["resv"], "reservation"))})
+    return spec, agg, table
 
 
 def delivery_vs_vin(df: pd.DataFrame) -> tuple:

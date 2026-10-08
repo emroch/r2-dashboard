@@ -166,13 +166,14 @@ sections:
       newer cabins show up here as their orders get assigned.
 
   - title: "Geographic demand"
-    charts: [fig_geo]
+    components: [geo-demand]
     desc: >-
-      Three stacked maps of demand around the Normal, IL plant: orders with an
-      assigned VIN, all orders, and total demand (orders + incomplete reservations).
-      Bubble area = count; the first two share a scale, while total demand (~20x
-      larger) scales to its own. The bars beside each map give that panel's
-      per-region total.
+      Demand by state around the Normal, IL plant (★): all orders, orders with an
+      assigned VIN, or total demand (orders plus outstanding reservations). Colors
+      run on a square-root scale, so a state with a quarter of the leader's count
+      reads half as strong; states with too few orders to compare are hatched.
+      Select a state to outline it. Only US orders are mapped for now, since the R2
+      isn't on sale elsewhere yet.
 
   - title: "Orders by state"
     components: [state-totals]

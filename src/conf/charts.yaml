@@ -262,6 +262,14 @@ components:
     aggregate: vin_by_config
     summary: "{n} orders with a VIN, in {meta:rows} configurations."
 
+  geo-demand:
+    template: geo
+    title: Geographic demand
+    dims: [state]
+    aggregate: geo_demand
+    summary: "{n} orders across {meta:states} states. Only US orders are mapped:
+      {meta:left} elsewhere are left out."
+
   dest-vs-delivery:
     template: scatter
     title: Destination vs. delivery date

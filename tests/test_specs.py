@@ -291,7 +291,8 @@ def test_every_mounted_spec_names_colors_never_hex():
     import re
     from render.specs import (build_cadence, deliveries_by_week, delivery_latency,
                               dest_vs_delivery, latency_coverage, orders_by_week,
-                              reservations_by_week, vin_by_config, vin_vs_order)
+                              geo_demand, reservations_by_week, vin_by_config,
+                              vin_vs_order)
     df = _orders(5, order_date=[pd.Timestamp("2026-06-15")] * 5,
                  resv_date=[pd.Timestamp("2024-03-07")] * 5, trim=["Performance"] * 5,
                  region=["Midwest"] * 5, dist_mi=[11.0] * 5)
@@ -299,7 +300,8 @@ def test_every_mounted_spec_names_colors_never_hex():
     for spec in (reservations_by_week(df, resv)[0], orders_by_week(df)[0],
                  deliveries_by_week(df)[0], delivery_latency(df)[0],
                  latency_coverage(df)[0], build_cadence(_ramp())[0],
-                 vin_vs_order(df)[0], vin_by_config(df)[0], dest_vs_delivery(df)[0]):
+                 vin_vs_order(df)[0], vin_by_config(df)[0], dest_vs_delivery(df)[0],
+                 geo_demand(df, resv.assign(state="IL"))[0]):
         assert not re.search(r"#[0-9a-fA-F]{6}\b", json.dumps(spec)), spec["title"]
 
 
@@ -356,6 +358,23 @@ def test_dest_vs_delivery_rows_run_farthest_first_with_today():
     assert spec["y"]["rows"] == ["CA (1800 mi)", "IL (11 mi)"]
     assert [s["color"] for s in spec["series"]] == ["region:West", "region:Midwest"]
     assert spec["layers"][-1]["type"] == "rule" and spec["toggles"]["whiskers"]
+
+
+def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
+    from render.aggregates import cohort_sizes, reconcile
+    from render.specs import geo_demand
+    df = _orders(4, state=["CA", "CA", "BC", "ZZ"], price=[None] * 4, lat=[None] * 4,
+                 delivered_inferred=[True, False, False, False])
+    resv = pd.DataFrame({"state": ["CA", "WA", "BC"]})
+    spec, agg, _ = geo_demand(df, resv)
+    reconcile([agg], cohort_sizes(df))
+    assert agg.excluded == {"outside the US (not mapped)": 1, "no known state": 1}
+    assert agg.meta["left"] == "1 order and 1 reservation"
+    ca = spec["states"]["CA"]
+    assert (ca["orders"], ca["vin"], ca["demand"], ca["delivered"]) == (2, 2, 3, 0.5)
+    # Reservations alone still put a state on the demand map, with no orders.
+    assert spec["states"]["WA"]["orders"] == 0 and spec["states"]["WA"]["demand"] == 1
+    assert "BC" not in spec["states"] and ca["small"]
 
 
 def _run_all():

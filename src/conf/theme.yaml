@@ -48,6 +48,11 @@ css:
     # shows and a true-color mark (dimensions.yaml true_color) like a white paint
     # on the white card still has an outline.
     mark-edge: "#808080"
+    # The US map (§12, web/charts/geo.js): land with no orders, state borders, and
+    # the background behind the Alaska and Hawaii insets.
+    map-land: "#efefec"
+    map-border: "#ffffff"
+    map-inset: "#f4f6f8"
   dark:
     bg: "#15171c"
     fg: "#dfe4ea"
@@ -77,6 +82,9 @@ css:
     mark-lmin: "0.70"
     mark-lmax: "0.92"
     mark-edge: "#8a909b"
+    map-land: "#2c3038"
+    map-border: "#1e2127"
+    map-inset: "#252930"
   fixed:                        # header / sidebar / disclaimer chrome (same in both themes)
     topbar-fg: "#ffffff"
     topbar-sh: "rgba(0,0,0,.22)"
