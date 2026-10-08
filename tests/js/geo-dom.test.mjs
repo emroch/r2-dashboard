@@ -16,13 +16,13 @@ const atlas = { topojson: globalThis.topojson,
                 us: JSON.parse(readFileSync(vendor("us-atlas-3.0.1-states-10m.json"), "utf8")) };
 
 const spec = {
-  template: "geo", title: "t", default: "orders", small_n: 5, factory: [40.51, -88.99],
+  template: "geo", title: "t", default: "orders", factory: [40.51, -88.99],
   measures: [{ key: "orders", label: "All orders" }, { key: "vin", label: "VIN assigned" },
              { key: "demand", label: "Orders + reservations" }],
   states: {
-    CA: { region: "West", orders: 100, vin: 40, demand: 400, small: false, tip: ["100 orders"] },
-    TX: { region: "South", orders: 25, vin: 50, demand: 90, small: false, tip: ["25 orders"] },
-    VT: { region: "Northeast", orders: 2, vin: 0, demand: 9, small: true, tip: ["2 orders"] },
+    CA: { region: "West", orders: 100, vin: 40, demand: 400, tip: ["100 orders"] },
+    TX: { region: "South", orders: 25, vin: 50, demand: 90, tip: ["25 orders"] },
+    VT: { region: "Northeast", orders: 2, vin: 0, demand: 9, tip: ["2 orders"] },
   },
 };
 
@@ -45,20 +45,20 @@ test("FIPS codes cover the 50 states and DC, and shares run on a square root", a
   assert.equal(share(0, 100), 0);
 });
 
-test("every state draws, keyed by postal code; small ones are hatched", { timeout: 5000 }, async () => {
+test("every state draws, keyed by postal code; a state with none is hatched", { timeout: 5000 }, async () => {
   const { draw } = await import("../../src/web/charts/geo.js");
   const h = draw(d3, atlas, mountPoint(), spec);
   assert.equal(h.svg.querySelectorAll("path.map-state").length, 51);
   assert.ok(state(h, "CA").getAttribute("d").length > 100);
-  assert.equal(h.svg.querySelectorAll("rect.map-inset").length, 2, "Alaska and Hawaii insets");
+  assert.equal(h.svg.querySelectorAll("rect").length, 1, "only the hatch's own background");
   assert.ok(state(h, "CA").classList.contains("map-filled"));
   assert.equal(state(h, "TX").style.getPropertyValue("--v"), "0.500");
-  assert.ok(state(h, "VT").classList.contains("map-small"));
-  assert.match(state(h, "VT").style.getPropertyValue("fill"), /url\(#g-hatch\)/);
-  assert.ok(!state(h, "NY").classList.contains("map-filled"), "no orders: land only");
+  assert.ok(state(h, "VT").classList.contains("map-filled"), "two orders still fill");
+  assert.ok(state(h, "NY").classList.contains("map-none"));
+  assert.match(state(h, "NY").style.getPropertyValue("fill"), /url\(#g-hatch\)/);
 });
 
-test("the measure switch refills in place; total demand is never hatched", { timeout: 5000 }, async () => {
+test("the measure switch refills in place", { timeout: 5000 }, async () => {
   const { draw } = await import("../../src/web/charts/geo.js");
   const el = mountPoint();
   const h = draw(d3, atlas, el, spec);
@@ -67,9 +67,9 @@ test("the measure switch refills in place; total demand is never hatched", { tim
   el.querySelector('.chart-switch [data-key="vin"]').dispatchEvent(new globalThis.window.Event("click"));
   assert.equal(state(h, "TX").style.getPropertyValue("--v"), "1.000", "TX leads on VINs");
   assert.equal(el.querySelector('[data-key="vin"]').getAttribute("aria-pressed"), "true");
+  assert.ok(state(h, "VT").classList.contains("map-none"), "VT has no VINs");
   h.setMeasure("demand");
-  assert.ok(state(h, "VT").classList.contains("map-filled"), "demand: no small-n hatch");
-  assert.equal(el.querySelectorAll(".map-swatch-small").length, 0);
+  assert.ok(state(h, "VT").classList.contains("map-filled"));
   assert.equal(count(), before, "switching refills rather than adds");
 });
 
@@ -79,9 +79,12 @@ test("selecting a state outlines it and fires r2:stateselect; again clears", { t
   const h = draw(d3, atlas, el, spec);
   const got = [];
   el.addEventListener("r2:stateselect", (ev) => got.push(ev.detail.code));
+  const outline = () => h.svg.querySelector("path.map-selected").getAttribute("d");
   h.select("TX");
   assert.ok(state(h, "TX").classList.contains("selected"));
+  assert.equal(outline(), state(h, "TX").getAttribute("d"), "drawn above the rest");
   h.select("TX");
   assert.ok(!state(h, "TX").classList.contains("selected"));
+  assert.ok(!outline());
   assert.deepEqual(got, ["TX", null]);
 });

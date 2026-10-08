@@ -168,8 +168,8 @@ sections:
       Demand by state around the Normal, IL plant (★): all orders, orders with an
       assigned VIN, or total demand (orders plus outstanding reservations). Colors
       run on a square-root scale, so a state with a quarter of the leader's count
-      reads half as strong; states with too few orders to compare are hatched.
-      Select a state to outline it. Only US orders are mapped for now, since the R2
+      reads half as strong; a state with none is hatched. Select a state to outline
+      it. Only US orders are mapped for now, since the R2
       isn't on sale elsewhere yet.
 
   - title: "Orders by state"

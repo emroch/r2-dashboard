@@ -375,7 +375,7 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     assert ca["tip"][-1] == "Delivered: 1 of 2 (50%)"
     # Reservations alone still put a state on the demand map, with no orders.
     assert spec["states"]["WA"]["orders"] == 0 and spec["states"]["WA"]["demand"] == 1
-    assert "BC" not in spec["states"] and ca["small"]
+    assert "BC" not in spec["states"]
 
 
 def _run_all():

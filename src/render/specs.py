@@ -247,8 +247,8 @@ def dest_vs_delivery(df: pd.DataFrame) -> tuple:
 
 # --- geo: the US states map ----------------------------------------------------
 #
-#   geo   states: {postal code: {region, orders, vin, demand, small, tip}}, keyed
-#         as the map's paths are; measures: the counts the reader
+#   geo   states: {postal code: {region, orders, vin, demand, tip}}, keyed as the
+#         map's paths are; measures: the counts the reader
 #         can map ({key, label}), and `default`; factory: [lat, lon]. The map is
 #         the US only, for now (docs/presentation.md): Canada isn't on sale yet,
 #         so its orders and reservations are left out, counted in `excluded`.
@@ -277,7 +277,6 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
                 "no known state": int((~known).sum())}
     d = df[us]
     st = stages(d)
-    small = DIMENSIONS["state"]["small_n"]["min_orders"]
     resv_n = resv[rus].groupby("state").size()
     states, cells = {}, []
     for code, g in sorted(d.groupby("state"), key=lambda kv: (-len(kv[1]), kv[0])):
@@ -286,7 +285,6 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
         r = int(resv_n.get(code, 0))
         states[code] = {
             "region": STATE_INFO[code][0], "orders": n, "vin": vin, "demand": n + r,
-            "small": n < small,
             "tip": ["%s · %s with a VIN" % (_count(n, "order"), format(vin, ",")),
                     "%s outstanding" % _count(r, "reservation"),
                     "Delivered: %d of %d (%.0f%%)" % (delivered, n,
@@ -298,13 +296,13 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
         key = str(where)
         if key not in states:
             states[key] = {"region": STATE_INFO[key][0], "orders": 0, "vin": 0,
-                           "demand": int(r), "small": True,
+                           "demand": int(r),
                            "tip": ["No orders yet",
                                    "%s outstanding" % _count(int(r), "reservation")]}
     left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
     spec = {"template": "geo", "title": "Geographic demand",
             "measures": [{"key": k, "label": lbl} for k, lbl in _MEASURES],
-            "default": "orders", "small_n": small,
+            "default": "orders",
             "factory": list(FACTORY), "states": states}
     table = (["State", "Region", "Orders", "VIN assigned", "Orders + reservations"],
              [[c, v["region"], v["orders"], v["vin"], v["demand"]]

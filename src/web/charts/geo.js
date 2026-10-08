@@ -1,14 +1,15 @@
 // The `geo` template (docs/presentation.md, "Components"): the US states map,
 // drawn with d3 on the us-atlas states (vendor/README.md) in d3's standard US
-// layout (geoAlbersUsa: Alaska and Hawaii inset at the bottom left, on a
-// background of their own so their land reads against it).
+// layout (geoAlbersUsa: Alaska and Hawaii inset at the bottom left).
 //
 // The spec counts each state (render/specs.py geo_demand); the reader picks the
 // measure (all orders, VIN assigned, orders + reservations), kept in the URL, and
 // each state is filled by it on a square-root scale: a choropleth. Fills are CSS:
 // a state's share of the scale is --v, which styles.css mixes into the land, as
-// the heatmap does, so a theme change needs no redraw. States under the spec's
-// small_n are hatched instead of filled: too few to compare.
+// the heatmap does, so a theme change needs no redraw. A state with none of the
+// measure is hatched rather than filled, so "none" never reads as "a few". Every
+// state keeps an outline in the mark-edge grey, so pale states hold against the
+// card; hover and selection draw their own outline above the rest.
 //
 // A state is a path keyed by its postal code (data-state). Clicking one selects
 // it (Escape or a second click clears) and fires `r2:stateselect` on the mount,
@@ -83,19 +84,17 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
     .attr("patternTransform", "rotate(45)");
   hatch.append("rect").attr("class", "map-hatch-bg").attr("width", 5).attr("height", 5);
   hatch.append("line").attr("class", "map-hatch").attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 5);
-  // The insets' backgrounds: the bounds of each inset state, padded.
-  for (const code of ["AK", "HI"]) {
-    const o = features.find((s) => s.code === code);
-    if (!o) continue;
-    const [[x0, y0], [x1, y1]] = path.bounds(o.f);
-    svg.append("rect").attr("class", "map-inset").attr("rx", 4)
-      .attr("x", x0 - 6).attr("y", y0 - 6).attr("width", x1 - x0 + 12).attr("height", y1 - y0 + 12);
-  }
   const statesG = svg.append("g");
   const statePaths = statesG.selectAll("path").data(features).join("path")
     .attr("class", "map-state").attr("data-state", (o) => o.code).attr("d", (o) => path(o.f));
-  svg.append("path").attr("class", "map-border")
-    .attr("d", path(topojson.mesh(us, us.objects.states, (a, b) => a !== b)));
+  // Hover and selection outlines, above every state's own, so a neighbor never
+  // paints over them.
+  const outline = (cls) => svg.append("path").attr("class", `map-outline ${cls}`);
+  const hoverLine = outline("map-hover"), selectLine = outline("map-selected");
+  const shape = (code) => {
+    const o = code && features.find((s) => s.code === code);
+    return o ? path(o.f) : null;
+  };
   const [fx, fy] = projection([spec.factory[1], spec.factory[0]]) || [null, null];
   if (fx !== null) {
     svg.append("path").attr("class", "map-factory").attr("d", d3.symbol(d3.symbolStar, 90)())
@@ -103,32 +102,28 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
   }
 
   const val = (code) => spec.states[code]?.[measure] ?? 0;
-  // The orders measure is what small_n counts; total demand is never small.
-  const small = (code) => measure !== "demand" && (spec.states[code]?.orders ?? 0) < spec.small_n;
 
   function paint() {
     const top = Math.max(0, ...Object.keys(spec.states).map(val));
     statePaths
-      .classed("map-filled", (o) => val(o.code) > 0 && !small(o.code))
-      .classed("map-small", (o) => val(o.code) > 0 && small(o.code))
+      .classed("map-filled", (o) => val(o.code) > 0)
+      .classed("map-none", (o) => val(o.code) === 0)
       .style("--v", (o) => share(val(o.code), top).toFixed(3))
-      .style("fill", (o) => (val(o.code) > 0 && small(o.code) ? `url(#${id}-hatch)` : null))
+      .style("fill", (o) => (val(o.code) === 0 ? `url(#${id}-hatch)` : null))
       .classed("selected", (o) => o.code === selected);
+    selectLine.attr("d", shape(selected));
     legendFor(top);
   }
 
-  // Legend: the fill's ramp (0 to the top), and the hatch, as plain HTML.
+  // Legend: the fill's ramp (1 to the top), and the hatch for none, as plain HTML.
   const legendEl = el.querySelector(".chart-legend");
   const span = (className, textContent) => Object.assign(doc.createElement("span"), { className, textContent });
   function legendFor(top) {
     const ramp = span("map-key", "");
-    ramp.append(span("", "0"), span("map-ramp", ""), span("", d3.format(",")(top)));
-    legendEl.replaceChildren(ramp);
-    if (measure !== "demand") {
-      const hatch = span("map-key", "");
-      hatch.append(span("map-swatch-small", ""), span("", `Under ${spec.small_n} orders`));
-      legendEl.append(hatch);
-    }
+    ramp.append(span("", "1"), span("map-ramp", ""), span("", d3.format(",")(top)));
+    const none = span("map-key", "");
+    none.append(span("map-swatch-none", ""), span("", "None"));
+    legendEl.replaceChildren(ramp, none);
   }
 
   function select(code) {
@@ -165,7 +160,7 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
   const hover = (code) => {
     if (code === hovered) return;
     hovered = code;
-    svg.selectAll("[data-state]").classed("hover", function () { return this.dataset.state === code; });
+    hoverLine.attr("d", shape(code));
   };
   svg.on("pointermove", (ev) => {
     const code = ev.target?.dataset?.state;
