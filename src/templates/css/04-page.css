@@ -58,7 +58,7 @@ section {
   margin: 0 0 24px;
   padding: 23px;
   box-shadow: 0 1px 3px var(--card-sh);
-  transition: background .2s ease,border-color .2s ease;
+  transition: background .5s ease,border-color .5s ease;
 }
 section h2 {
   margin: 0 0 4px;

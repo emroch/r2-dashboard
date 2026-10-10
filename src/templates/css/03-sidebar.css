@@ -18,6 +18,21 @@
   --side-w: 256px;
 }
 
+/* How much of the rail is showing, 0 to --side-w: one animated value that both
+   the rail's slide and the main column's margin read, so on every frame the
+   margin is exactly the rail's visible width and the cards stay centered in
+   what's left. It's registered as a length so it can transition (a plain
+   custom property would jump), and transitions on <html>, where it is set. */
+@property --side-open {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+html {
+  --side-open: 0px;
+  transition: --side-open .3s ease;
+}
+
 .sidebar {
   position: fixed;
   top: var(--header-h,92px);
@@ -60,16 +75,16 @@
   display: none;
 }
 
-.main {
-  transition: margin-left .2s ease;
-}
 .sidebar {
-  transition: transform .2s ease;
+  transform: translateX(calc(var(--side-open) - var(--side-w)));
 }
 
 @media (width >= 768px) {
+  html {
+    --side-open: var(--side-w);
+  }
   .main {
-    margin-left: var(--side-w);
+    margin-left: var(--side-open);
   }
 }
 @media (width >= 1072px) {
@@ -78,20 +93,16 @@
   }
 }
 @media (768px <= width < 1072px) {
-  html.nav-hidden .sidebar {
-    transform: translateX(-100%);
-  }
-  html.nav-hidden .main {
-    margin-left: 0;
+  html.nav-hidden {
+    --side-open: 0px;
   }
 }
 
+/* Under 768px the rail overlays the page: it slides in by the same value, and
+   the main column never moves. */
 @media (width < 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-  }
-  html.nav-shown .sidebar {
-    transform: translateX(0);
+  html.nav-shown {
+    --side-open: var(--side-w);
   }
   html.nav-shown .nav-backdrop {
     display: block;
@@ -105,8 +116,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .main,
-  .sidebar {
+  html {
     transition: none;
   }
 }

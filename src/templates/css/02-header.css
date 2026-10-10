@@ -102,7 +102,12 @@
 .hdrmenu>summary::marker {
   content: "";
 }
+/* The menus' hover and current-item tints mix the theme's own ink and link
+   blue into the card, so each holds in both themes (the sidebar's fixed
+   rgba tints vanish on one card or the other). */
 .hdrpop {
+  --menu-hover: color-mix(in oklab, var(--fg) 9%, transparent);
+  --menu-current: color-mix(in oklab, var(--link) 20%, transparent);
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
@@ -124,7 +129,7 @@
   color: var(--fg);
 }
 .reportpop a:hover {
-  background: var(--side-hover);
+  background: var(--menu-hover);
 }
 .reportpop b {
   display: block;
@@ -158,10 +163,10 @@
   cursor: pointer;
 }
 .themepop button:hover {
-  background: var(--side-hover);
+  background: var(--menu-hover);
 }
 .themepop button[aria-pressed=true] {
-  background: var(--side-active-bg);
+  background: var(--menu-current);
   font-weight: 600;
 }
 .themepop button[aria-pressed=true]::after {

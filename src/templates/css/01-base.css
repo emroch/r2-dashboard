@@ -5,10 +5,18 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  transition: background .2s ease,color .2s ease;
+  transition: background .5s ease,color .5s ease;
 }
 html {
   scroll-behavior: smooth;
+}
+/* The browser's own surfaces (canvas, scrollbars, form controls) follow the
+   theme; the color-scheme meta covers the moment before this sheet applies. */
+html[data-theme="light"] {
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 @media (prefers-reduced-motion:reduce) {
   html {

@@ -13,16 +13,16 @@
 var root=document.documentElement;
 var os=window.matchMedia('(prefers-color-scheme: dark)');
 function saved(){
- try{var t=localStorage.getItem('r2theme');}catch{t=null;}
+ try{var t=localStorage.getItem('r2-theme');}catch{t=null;}
  return t==='light'||t==='dark'?t:'system';
 }
 var mode=saved(), shown=null;
 function apply(){
  var t=mode==='system'?(os.matches?'dark':'light'):mode;
  root.setAttribute('data-theme',t);
- // The pill shows the theme in use; the menu marks the choice.
  var g=document.querySelector('#themeMenu .theme-glyph');
- if(g)g.textContent=t==='dark'?'\u263e':'\u2600';
+ // ☀ Light, ☾ Dark, ◐ System: the pill shows the choice, not just the result.
+ if(g)g.textContent=mode==='system'?'\u25d0':mode==='dark'?'\u263e':'\u2600';
  document.querySelectorAll('#themeMenu [data-mode]').forEach(function(b){
   b.setAttribute('aria-pressed',String(b.getAttribute('data-mode')===mode));
  });
@@ -39,8 +39,8 @@ window.addEventListener('load',function(){
  document.querySelectorAll('#themeMenu [data-mode]').forEach(function(b){
   b.addEventListener('click',function(){
    mode=b.getAttribute('data-mode');
-   try{if(mode==='system')localStorage.removeItem('r2theme');
-       else localStorage.setItem('r2theme',mode);}catch{/* best effort */}
+   try{if(mode==='system')localStorage.removeItem('r2-theme');
+       else localStorage.setItem('r2-theme',mode);}catch{/* best effort */}
    apply();
   });
  });
