@@ -21,15 +21,32 @@
   links[a.getAttribute('data-sec')]=a;
   a.addEventListener('click',function(){if(narrowQ.matches)close();});
  });
- var secs=document.querySelectorAll('section[id]');
- if(secs.length&&'IntersectionObserver' in window){
-  var obs=new IntersectionObserver(function(entries){
-   entries.forEach(function(e){
-    if(e.isIntersecting)for(var k in links)links[k].classList.toggle('active',k===e.target.id);
-   });
-  },{rootMargin:'-45% 0px -50% 0px',threshold:0});
-  secs.forEach(function(s){obs.observe(s);});
+ // Scroll-spy: the current section is the last one whose top has reached the
+ // header (within a few px of where a jump puts it), so a jump to a short
+ // section highlights that section and not the next one down. At the foot of
+ // the page, where the last short sections can't scroll up that far, the
+ // section a link went to (r2:trip, below) keeps the highlight while it shows.
+ var secs=[].slice.call(document.querySelectorAll('section[id]'));
+ var tripTo=null, spyQueued=false;
+ function spy(){
+  spyQueued=false;
+  if(!secs.length)return;
+  var hdr=document.querySelector('.topbar');
+  var line=(hdr?Math.max(0,hdr.getBoundingClientRect().bottom):0)+12;
+  var cur=secs[0];
+  secs.forEach(function(x){if(x.getBoundingClientRect().top<=line)cur=x;});
+  var atEnd=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2;
+  if(atEnd&&tripTo&&tripTo.getBoundingClientRect().top<window.innerHeight)cur=tripTo;
+  for(var k in links)links[k].classList.toggle('active',k===cur.id);
  }
+ function spyLater(){if(!spyQueued){spyQueued=true;requestAnimationFrame(spy);}}
+ window.addEventListener('scroll',function(){
+  if(tripTo&&!tripTo.isConnected)tripTo=null;
+  spyLater();
+ },{passive:true});
+ window.addEventListener('resize',spyLater);
+ document.addEventListener('r2:trip',function(e){tripTo=document.getElementById(e.detail.id);spy();});
+ spy();
  // The header's height is dynamic (the title and disclaimer wrap), so it is
  // measured here. On narrow screens (css/02-header.css, under 768px) the header
  // sticks with a negative top: the title and disclaimer scroll away and only its
@@ -210,6 +227,7 @@
    e.preventDefault();
    if(location.hash!=='#'+t.id)history.pushState(null,'','#'+t.id);
    trip=t; aim(); tripScrolled();
+   document.dispatchEvent(new CustomEvent('r2:trip',{detail:{id:t.id}}));
   });
  });
  pick();
