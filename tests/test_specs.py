@@ -256,29 +256,6 @@ def test_fulfilment_over_time_ends_at_the_readouts_and_counts_dated_events():
     assert agg.excluded == {"no order date": 1}
 
 
-def test_deliveries_by_week_stack_firm_first_from_this_week_on():
-    from config import AS_OF
-    from render.aggregates import reconcile
-    from render.specs import deliveries_by_week
-    now = pd.Timestamp(AS_OF).normalize()
-    monday = now - pd.Timedelta(days=now.weekday())
-    week = pd.Timedelta(days=7)
-    df = _orders(5, delivery_type=["window", "explicit", "explicit", "unknown",
-                                   "explicit"],
-                 delivery_est=[monday + week, monday, monday + 2 * week, pd.NaT,
-                               monday - pd.Timedelta(days=1)])
-    spec, agg, _ = deliveries_by_week(df)
-    assert [s["color"] for s in spec["series"]] == ["delivery_type:explicit",
-                                                     "delivery_type:window"]
-    assert [v[1] for v in spec["series"][0]["values"]] == [1, 0, 1], \
-        "this week counts; last Sunday doesn't"
-    assert spec["x"]["domain"][0] == monday.date().isoformat()
-    assert spec["rules"][0]["label"] == "Today"
-    assert "clip" not in spec["y"], "no spike, no clip"
-    reconcile([agg], _sizes(df, pd.DataFrame({"resv_date": []})))
-    assert agg.excluded == {"no delivery estimate": 1, "estimate before this week": 1}
-
-
 def test_build_cadence_is_a_line_over_the_firm_dated_vins():
     from render.aggregates import reconcile
     from render.specs import build_cadence
@@ -296,7 +273,7 @@ def test_build_cadence_is_a_line_over_the_firm_dated_vins():
 def test_every_mounted_spec_names_colors_never_hex():
     import json
     import re
-    from render.specs import (build_cadence, deliveries_by_week, delivery_latency,
+    from render.specs import (build_cadence, delivery_latency,
                               dest_vs_delivery, latency_coverage, orders_by_week,
                               geo_demand, reservations_by_week, vin_by_config,
                               vin_vs_order)
@@ -305,7 +282,7 @@ def test_every_mounted_spec_names_colors_never_hex():
                  region=["Midwest"] * 5, dist_mi=[11.0] * 5)
     resv = pd.DataFrame({"resv_date": [pd.Timestamp("2024-03-08")]})
     for spec in (reservations_by_week(df, resv)[0], orders_by_week(df)[0],
-                 deliveries_by_week(df)[0], delivery_latency(df)[0],
+                 delivery_latency(df)[0],
                  latency_coverage(df)[0], build_cadence(_ramp())[0],
                  vin_vs_order(df)[0], vin_by_config(df)[0], dest_vs_delivery(df)[0],
                  geo_demand(df, resv.assign(state="IL"))[0]):

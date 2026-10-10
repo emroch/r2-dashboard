@@ -187,6 +187,11 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("inferred_delivery", "Delivery inferred, missing confirmed date",
+     "Orders counted as delivered because their estimate has passed, though it "
+     "was only a window, range or month, never a firm date. Most were probably "
+     "delivered, but some are likely stale estimates their owners never updated. "
+     "They still count as delivered; a firm date in the sheet confirms one."),
     ("entry_errors", "Likely entry errors set aside",
      "Values that parse fine on their own but can't be right against the rest of "
      "the data. Each one is set aside as unknown, so it isn't charted or counted. "

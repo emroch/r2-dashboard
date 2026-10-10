@@ -458,6 +458,18 @@ def _availability_mask(df):
     return mask, records
 
 
+def inferred_deliveries(df: pd.DataFrame) -> list[tuple[str, str, str]]:
+    """Orders counted as delivered only because a vague estimate (a window,
+    range or month) has passed, with no firm date to confirm it: likely
+    delivered, but possibly a stale estimate nobody updated. Listed in the
+    data-quality panel as (#, user, detail), not reclassified."""
+    rows = df[df["delivered_inferred"] & (df["delivery_type"] != "explicit")]
+    return [(r["orig_num"], r["user"],
+             "%s (%s) ended %s" % (r["delivery_raw"].strip(), r["delivery_type"],
+                                   r["delivery_max"].strftime("%Y-%m-%d")))
+            for _, r in rows.iterrows()]
+
+
 def load_and_clean(text, meta, keys=None, changed=None):
     """Clean the orders sheet. Returns (df, report, parsed).
 
@@ -695,6 +707,7 @@ def load_and_clean(text, meta, keys=None, changed=None):
                 and not any(s in low for s in UNKNOWN_SUBSTRINGS)
                 and i not in suspect_delivery):     # parsed; listed as set aside
             unparseable.append((r["orig_num"], r["user"], r["delivery_raw"]))
+    inferred = inferred_deliveries(df)
     # Usernames that normalize alike (case/space/punctuation) but weren't merged
     # by the exact-lowercase dedup — possibly the same person entered twice.
     by_norm: dict[str, list[tuple[str, str]]] = {}
@@ -780,6 +793,7 @@ def load_and_clean(text, meta, keys=None, changed=None):
         "quality": {
             "schema_notices": schema_notices,
             "unparseable": unparseable,
+            "inferred_delivery": inferred,
             "entry_errors": set_aside,
             "fuzzy_dups": fuzzy_dups,
             "dup_conflicts": dup_conflicts,

@@ -77,8 +77,8 @@ sections:
       each week's cohort is doing (§6 has the pipeline over time). Weeks run Monday to
       Sunday; hover a week for its counts.
 
-  - title: "Fulfilment & delivery outlook"
-    components: [fulfilment-by-week, deliveries-by-week, certainty-by-vin]
+  - title: "Fulfilment"
+    components: [fulfilment-by-week]
     desc: >-
       How the orders are getting through, from each order's own dates.
       <em>Cumulative</em> (the default) stacks every order placed by each week's end
@@ -86,12 +86,9 @@ sections:
       or still waiting for one — so the last column is today's delivery progress;
       <em>Weekly</em> shows what happened that week instead: orders placed, VINs
       assigned, deliveries scheduled and deliveries made. A VIN or date reported
-      without a date of its own shows from the last week on. Then the outlook: when
-      orders expect delivery, from this week on, stacked by how firm the estimate is
-      (firm dates at the bottom, then relative windows, ranges and months), and how
-      firm the estimates are for orders with a VIN against those still waiting for
-      one; a firm date usually arrives with or after the VIN. An order with no usable
-      estimate isn't drawn. Hover a week for its counts.
+      without a date of its own shows from the last week on. An order counts as
+      delivered once its estimate has passed; the data-quality panel lists those
+      whose estimate was only a window, range or month. Hover a week for its counts.
 
   - title: "Order-to-delivery time"
     components: [delivery-latency, latency-coverage]

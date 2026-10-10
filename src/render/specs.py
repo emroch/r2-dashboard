@@ -573,40 +573,6 @@ def orders_by_week(df: pd.DataFrame) -> tuple:
     return spec, agg, (heads, rows)
 
 
-def deliveries_by_week(df: pd.DataFrame) -> tuple:
-    """§6: the outlook, deliveries expected from this week on, stacked by how
-    firm the estimate is (dimensions.yaml delivery_type, firm first), with
-    today. Earlier weeks are left out: the fulfilment chart above has them,
-    from the orders' own dates."""
-    unknown = DIMENSIONS["delivery_type"]["missing"]["value"]
-    types = [c for c in DIMENSIONS["delivery_type"]["categories"]
-             if c["value"] != unknown]
-    today = pd.Timestamp(AS_OF).normalize()
-    est = df[df["delivery_est"].notna() & df["delivery_type"].isin(
-        [c["value"] for c in types])]
-    d = est[_week(pd.to_datetime(est["delivery_est"])) >= _week(pd.Series([today]))[0]]
-    stack = [(c.get("label") or c["value"], "delivery_type:%s" % c["value"],
-              _weekly(d.loc[d["delivery_type"] == c["value"], "delivery_est"]))
-             for c in types]
-    cols = _columns([s for s in stack if s[2]])
-    spec = {"template": "timeseries", "title": "Expected deliveries",
-            "x": {"label": "Expected delivery week", "type": "date",
-                  "domain": _weeks_domain(cols["weeks"], [today])
-                  if cols["weeks"] else None},
-            "y": {**cols["y"], "label": "Orders"}, "legend": "Estimate",
-            "series": cols["series"], "lines": [],
-            "rules": [{"axis": "x", "value": _iso(today), "label": "Today"}]}
-    heads, rows = _column_table("Week of", cols)
-    cells = [{"value": s["name"], "label": s["name"],
-              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
-             for s in cols["series"]]
-    left = {"no delivery estimate": len(df) - len(est),
-            "estimate before this week": len(est) - len(d)}
-    agg = Aggregate("deliveries by week", "orders", cells,
-                    {k: v for k, v in left.items() if v})
-    return spec, agg, (heads, rows)
-
-
 # The pipeline's events, in reading order: (key, label, line accent). Each is an
 # order's own date (ingest/milestones.py), the dates r2_series.json counts.
 _EVENTS = (("placed", "Orders placed", "fulfil-placed"),

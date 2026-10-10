@@ -375,8 +375,12 @@ def test_mix_rows_split_each_row_by_the_column_categories():
     from render.components import mix
     df = _orders(vin_present=[True, True, False],
                  delivery_type=["explicit", "window", "window"])
-    html = mix("c-m", COMPONENTS["certainty-by-vin"],
-               crosstab(df, "vin", "delivery_type"))
+    conf = {"template": "mix", "title": "Delivery estimate by VIN status",
+            "dims": ["vin", "delivery_type"], "aggregate": "crosstab",
+            "summary": "{share_in:VIN assigned|Firm date} of orders with a VIN have"
+                       " a firm delivery date, against {share_in:No VIN yet|Firm"
+                       " date} of those without."}
+    html = mix("c-m", conf, crosstab(df, "vin", "delivery_type"))
     assert html.count('<li class="mx-row">') == 2
     assert 'class="mark cat-delivery_type-explicit" style="width:50.00%"' in html
     assert 'class="mark cat-delivery_type-window" style="width:100.00%"' in html
