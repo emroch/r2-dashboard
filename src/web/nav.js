@@ -162,6 +162,7 @@
  // restore the new anchor, not the one from before the jump. Picking is cheap
  // (it stops at the first card that reaches below the header).
  window.addEventListener('scroll',function(){
+  if(trip){tripScrolled();return;}
   var mine=aimed!==null&&Math.abs(window.scrollY-aimed)<1;
   aimed=null;
   if(!mine)pick();
@@ -170,7 +171,7 @@
  // the sidebar slides, each step while a window is dragged, and again when
  // the charts redraw at their new width (taller or shorter) a moment later.
  // A change below the anchor doesn't move it, so restoring then is a no-op.
- new ResizeObserver(restore).observe(main);
+ new ResizeObserver(function(){if(trip)aim();else restore();}).observe(main);
  // The sidebar slide moves the column without resizing the window: hold the
  // anchor through each frame of it.
  var raf=0;
@@ -180,6 +181,37 @@
  }
  var tgl=document.getElementById('navToggle');
  if(tgl)tgl.addEventListener('click',function(){if(!anchor)pick();follow(performance.now()+600);});
+ // A trip to a section (the sidebar's links). The browser's own jump aims at
+ // a fixed position, but charts mount on the way (each taller than its
+ // placeholder) and push the section away, and correcting mid-scroll would
+ // cut the scroll short. So the trip holds the section as its anchor: it
+ // re-aims at the section's new place whenever the column resizes, and when
+ // the scroll comes to rest it puts the section exactly where a jump would
+ // (scroll-margin below the pinned header). The hash and history work as for
+ // a plain link.
+ var trip=null, rest=0;
+ function smooth(){return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+ function aim(how){
+  var gap=parseFloat(getComputedStyle(trip).scrollMarginTop)||0;
+  var y=window.scrollY+trip.getBoundingClientRect().top-gap;
+  window.scrollTo({top:y,behavior:how||(smooth()?'smooth':'instant')});
+ }
+ function tripScrolled(){
+  clearTimeout(rest);
+  rest=setTimeout(function(){
+   aim('instant');
+   trip=null; pick();
+  },150);
+ }
+ document.querySelectorAll('.sidebar a[data-sec]').forEach(function(a){
+  a.addEventListener('click',function(e){
+   var t=document.getElementById(a.getAttribute('data-sec'));
+   if(!t)return;
+   e.preventDefault();
+   if(location.hash!=='#'+t.id)history.pushState(null,'','#'+t.id);
+   trip=t; aim(); tripScrolled();
+  });
+ });
  pick();
 })();
 
