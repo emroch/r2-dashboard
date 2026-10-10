@@ -31,8 +31,10 @@
  function setHeaderH(){
   if(!hdr)return;
   var narrow=window.matchMedia('(max-width:820px)').matches;
-  var pad=parseFloat(getComputedStyle(hdr).paddingTop)||0;
-  var tuck=narrow&&last?Math.max(0,last.offsetTop-pad):0;
+  // Tuck to the row gap above the last row, so nothing of the row before peeks
+  // out; the gap stands in for the bar's top padding.
+  var gap=parseFloat(getComputedStyle(hdr).rowGap)||0;
+  var tuck=narrow&&last?Math.max(0,last.offsetTop-gap):0;
   el.style.setProperty('--header-tuck',tuck+'px');
   el.style.setProperty('--header-pin',(hdr.offsetHeight-tuck)+'px');
   showing();
