@@ -112,6 +112,14 @@
  // text span, or an SVG mark that a redraw replaces.
  var BLOCKS='h2,h3,p,li,tr,figure,.r2c,.chart-plot,.tr-row,.mx-row,.qa-cat';
  function top(){return hdr?Math.max(0,hdr.getBoundingClientRect().bottom):0;}
+ // Not a candidate: an SVG mark, or anything in a closed <details> (a Data
+ // table), which Safari still lays out, unseen, where it would be.
+ function shown(el){
+  if(el.closest('svg'))return false;
+  var d=el.closest('details:not([open])');
+  if(d&&!el.closest('summary'))return false;
+  return el.checkVisibility?el.checkVisibility({contentVisibilityAuto:true,visibilityProperty:true}):true;
+ }
  // The anchor is the first block, in reading order, that starts below the
  // header: the top of what's on screen. A tall block that only crosses the
  // header line (a chart frame begun far above) would make a poor anchor, since
@@ -128,7 +136,7 @@
    if(cr.top>=line){anchor=cards[i];break;}
    var bs=cards[i].querySelectorAll(BLOCKS);
    for(var j=0;j<bs.length;j++){
-    if(bs[j].closest('svg'))continue;
+    if(!shown(bs[j]))continue;
     var r=bs[j].getBoundingClientRect();
     if(!r.height||r.bottom<=line)continue;
     if(r.top>=line){anchor=bs[j];break;}
