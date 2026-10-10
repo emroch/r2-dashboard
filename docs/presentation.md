@@ -106,7 +106,7 @@ A starting point, not a spec: each section may be redesigned in its stage.
 | §3 Configuration combinations | two heatmaps | `heatmap` tables |
 | §4 Configured price | bars, options bars, per-trim boxes | bars and `range` |
 | §5 Reservation & order timeline | histograms | `timeseries` (can read `r2_series.json`) |
-| §6 Estimated delivery timeline | stacked weekly histogram | `timeseries` |
+| §6 Fulfilment & delivery outlook | stacked weekly histogram | `timeseries` |
 | §7 Order-to-delivery time | scatter + weekly median | `scatter` with a `line` layer |
 | §8 Certainty vs. VIN status | two donuts | stacked rows or `readout`s |
 | §9 VIN vs. order date | scatter per paint × wheel | `scatter` |

@@ -215,10 +215,11 @@ components:
       delivered so far; the busiest was the week of {meta:peak}."
   deliveries-by-week:
     template: timeseries
-    title: Estimated deliveries by week
+    title: Expected deliveries
     dims: [delivery_type]
     aggregate: deliveries_by_week
-    summary: "{share:Firm date} of {n} delivery estimates are firm dates."
+    summary: "{n} orders expect delivery from this week on; {share:Firm date} of
+      them have a firm date."
   fulfilment-by-week:
     template: timeseries
     title: Fulfilment over time
