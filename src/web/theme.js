@@ -14,7 +14,11 @@ function current(){return root.getAttribute('data-theme')==='dark'?'dark':'light
 function apply(t){
  root.setAttribute('data-theme',t);
  var b=document.getElementById('themeToggle');
- if(b)b.textContent=(t==='dark'?'\u2600 Light':'\u263e Dark');
+ // A glyph and a label (the label hides on the compact header, css/02-header.css).
+ if(b){var dark=t==='dark';
+  b.textContent=dark?'\u2600':'\u263e';
+  var l=document.createElement('span');l.className='pill-label';
+  l.textContent=dark?' Light':' Dark';b.appendChild(l);}
  // The tab bar / status bar tint (Safari, mobile browsers) follows the header.
  var m=document.getElementById('theme-color');
  var hdr=getComputedStyle(root).getPropertyValue('--header-bg').trim();

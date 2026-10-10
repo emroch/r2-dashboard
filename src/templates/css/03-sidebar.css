@@ -1,23 +1,26 @@
-/* Sidebar: the section nav rail, its backdrop, and the main column beside it. */
+/* Sidebar: the section nav rail, its backdrop, and the main column beside it.
 
-/* Chart-nav sidebar: Launch-Green rail, hidden by default, toggled by the
-   hamburger (nav-shown on <html>); pushes content on wide, overlays on narrow. */
+   768px and wider: the rail is always shown, 256px wide, and the main column
+   sits beside it; there is no menu button. Narrower: the rail is off-canvas,
+   and the menu button (☰) opens it as a temporary overlay above a backdrop
+   (nav-shown on <html>, nav.js). Following a link, tapping the backdrop, or
+   widening past 768px closes it; nothing is remembered between visits. */
+
+:root {
+  --side-w: 256px;
+}
+
 .sidebar {
   position: fixed;
   top: var(--header-h,92px);
   left: 0;
   bottom: 0;
-  width: 220px;
+  width: var(--side-w);
   overflow-y: auto;
   z-index: 55;
   background: var(--side-bg,#8C9A83);
   border-right: 1px solid var(--side-bd);
   box-shadow: 2px 0 10px var(--side-sh);
-  transform: translateX(-100%);
-  transition: transform .2s ease;
-}
-html.nav-shown .sidebar {
-  transform: translateX(0);
 }
 .side-title {
   padding: 14px 16px 8px;
@@ -47,16 +50,24 @@ html.nav-shown .sidebar {
 .nav-backdrop {
   display: none;
 }
-.main {
-  margin-left: 0;
-  transition: margin-left .2s ease;
-}
-@media (min-width:901px) {
-  html.nav-shown .main {
-    margin-left: 220px;
+
+@media (width >= 768px) {
+  .main {
+    margin-left: var(--side-w);
+  }
+  .navbtn {
+    display: none;
   }
 }
-@media (max-width:900px) {
+
+@media (width < 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+  }
+  html.nav-shown .sidebar {
+    transform: translateX(0);
+  }
   html.nav-shown .nav-backdrop {
     display: block;
     position: fixed;

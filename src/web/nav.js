@@ -1,7 +1,11 @@
 
 (function(){
  var el=document.documentElement;
+ // Below 768px the sidebar is an overlay (css/03-sidebar.css); widening past
+ // that closes it, so narrowing again starts with it hidden.
+ var narrowQ=window.matchMedia('(width < 768px)');
  function close(){el.classList.remove('nav-shown');}
+ narrowQ.addEventListener('change',function(q){if(!q.matches)close();});
  var tgl=document.getElementById('navToggle');
  if(tgl)tgl.addEventListener('click',function(){el.classList.toggle('nav-shown');});
  var bd=document.getElementById('navBackdrop');
@@ -9,7 +13,7 @@
  var links={};
  document.querySelectorAll('.sidebar a[data-sec]').forEach(function(a){
   links[a.getAttribute('data-sec')]=a;
-  a.addEventListener('click',function(){if(window.innerWidth<=900)close();});
+  a.addEventListener('click',function(){if(narrowQ.matches)close();});
  });
  var secs=document.querySelectorAll('section[id]');
  if(secs.length&&'IntersectionObserver' in window){
@@ -21,7 +25,7 @@
   secs.forEach(function(s){obs.observe(s);});
  }
  // The header's height is dynamic (the title and disclaimer wrap), so it is
- // measured here. On narrow screens (css/02-header.css, max-width 820px) the header
+ // measured here. On narrow screens (css/02-header.css, under 768px) the header
  // sticks with a negative top: the title and disclaimer scroll away and only its
  // last row (menu + action pills) stays pinned, a compact bar. --header-tuck is
  // how far it tucks up, --header-pin the pinned bar's height (anchor offsets),
@@ -30,7 +34,7 @@
  var last=hdr&&hdr.querySelector('.topbar-actions');
  function setHeaderH(){
   if(!hdr)return;
-  var narrow=window.matchMedia('(max-width:820px)').matches;
+  var narrow=narrowQ.matches;
   // Tuck to the row gap above the last row, so nothing of the row before peeks
   // out; the gap stands in for the bar's top padding.
   var gap=parseFloat(getComputedStyle(hdr).rowGap)||0;
@@ -42,7 +46,11 @@
  var queued=false;
  function showing(){
   queued=false;
-  el.style.setProperty('--header-h',Math.max(0,Math.round(hdr.getBoundingClientRect().bottom))+'px');
+  var r=hdr.getBoundingClientRect();
+  el.style.setProperty('--header-h',Math.max(0,Math.round(r.bottom))+'px');
+  // Fully tucked: the compact bar, whose pills drop to their glyphs.
+  var tuck=parseFloat(el.style.getPropertyValue('--header-tuck'))||0;
+  el.classList.toggle('header-tucked',tuck>0&&r.top<=-tuck+0.5);
  }
  setHeaderH();
  window.addEventListener('resize',setHeaderH);
