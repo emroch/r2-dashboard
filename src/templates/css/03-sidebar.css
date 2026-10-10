@@ -18,17 +18,20 @@
   --side-w: 256px;
 }
 
-/* How much of the rail is showing, 0 to --side-w: one animated value that both
-   the rail's slide and the main column's margin read, so on every frame the
-   margin is exactly the rail's visible width and the cards stay centered in
-   what's left. It's registered as a length so it can transition (a plain
-   custom property would jump), and transitions on <html>, where it is set. */
+/* How much of the rail is showing, 0 to --side-w: the rail's slide and the
+   main column's margin both read it, so on every frame the margin is exactly
+   the rail's visible width and the cards stay centered in what's left. It's
+   registered as a length so it can transition, and doesn't inherit: only the
+   rail and the main column hold it, each with the same transition, so a frame
+   restyles those two elements rather than the whole page (an inherited value
+   on <html> made every element recompute on every frame). */
 @property --side-open {
   syntax: "<length>";
-  inherits: true;
+  inherits: false;
   initial-value: 0px;
 }
-html {
+.sidebar,
+.main {
   --side-open: 0px;
   transition: --side-open .3s ease;
 }
@@ -80,7 +83,8 @@ html {
 }
 
 @media (width >= 768px) {
-  html {
+  .sidebar,
+  .main {
     --side-open: var(--side-w);
   }
   .main {
@@ -93,7 +97,8 @@ html {
   }
 }
 @media (768px <= width < 1072px) {
-  html.nav-hidden {
+  html.nav-hidden .sidebar,
+  html.nav-hidden .main {
     --side-open: 0px;
   }
 }
@@ -101,7 +106,7 @@ html {
 /* Under 768px the rail overlays the page: it slides in by the same value, and
    the main column never moves. */
 @media (width < 768px) {
-  html.nav-shown {
+  html.nav-shown .sidebar {
     --side-open: var(--side-w);
   }
   html.nav-shown .nav-backdrop {
@@ -116,7 +121,8 @@ html {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  html {
+  .sidebar,
+  .main {
     transition: none;
   }
 }

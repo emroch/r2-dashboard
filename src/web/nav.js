@@ -95,6 +95,62 @@
 })();
 
 (function(){
+ // Keep the reading position through a re-layout. When the content column
+ // changes width (a window resize, the sidebar sliding), text above the fold
+ // re-wraps and changes height, which would push what the reader was looking
+ // at up or down. So: remember the first block under the header and how far
+ // below the header it sits, and after every re-layout scroll just enough to
+ // put it back. The anchor is re-picked whenever the reader scrolls, never in
+ // response to our own correction. Browsers with native scroll anchoring
+ // (overflow-anchor) already do some of this; the correction then finds
+ // nothing to do.
+ var main=document.querySelector('.main');
+ var hdr=document.querySelector('.topbar');
+ if(!main||!('ResizeObserver' in window))return;
+ var anchor=null, offset=0, ours=false, width=main.clientWidth;
+ function top(){return hdr?Math.max(0,hdr.getBoundingClientRect().bottom):0;}
+ function pick(){
+  var y=top()+1, x=main.getBoundingClientRect().left+main.clientWidth/2;
+  var el=document.elementFromPoint(x,y);
+  // A block worth holding on to: a paragraph, row, chart, card or heading,
+  // not a text span or an SVG mark that may be redrawn.
+  while(el&&el!==main&&!(el.matches&&el.matches('p,li,tr,h2,h3,figure,section,.r2c,.chart-plot,.tr-row,.mx-row')))el=el.parentElement;
+  anchor=el&&el!==main?el:null;
+  if(anchor)offset=anchor.getBoundingClientRect().top-top();
+ }
+ function restore(){
+  if(!anchor||!anchor.isConnected)return;
+  var d=anchor.getBoundingClientRect().top-top()-offset;
+  if(Math.abs(d)<0.5)return;
+  ours=true;
+  window.scrollTo({top:window.scrollY+d,behavior:'instant'});
+ }
+ window.addEventListener('scroll',function(){
+  if(ours){ours=false;return;}
+  pick();
+ },{passive:true});
+ // Every re-layout of the column restores the anchor: frame by frame while
+ // the sidebar slides, once per step while a window is dragged wider or
+ // narrower. Only a width change counts; content mounting below the fold
+ // changes the height alone.
+ new ResizeObserver(function(){
+  if(Math.abs(main.clientWidth-width)<1)return;
+  width=main.clientWidth;
+  restore();
+ }).observe(main);
+ // The sidebar slide moves the column without resizing the window: hold the
+ // anchor through each frame of it.
+ var raf=0;
+ function follow(until){
+  cancelAnimationFrame(raf);
+  (function step(){restore();if(performance.now()<until)raf=requestAnimationFrame(step);})();
+ }
+ var tgl=document.getElementById('navToggle');
+ if(tgl)tgl.addEventListener('click',function(){if(!anchor)pick();follow(performance.now()+600);});
+ pick();
+})();
+
+(function(){
  // Localize the server-rendered <time data-r2time> stamps to the viewer's own
  // timezone (the datetime attr carries the absolute instant); falls back to the
  // build-timezone text if this doesn't run.
