@@ -23,7 +23,7 @@ html{scroll-behavior:smooth;}
    that absorbs slack, and then the (wrappable) disclaimer that gives way. A
    `1fr` actions column would instead collapse to zero and let the pills overlap
    the disclaimer. */
-.topbar{position:sticky;top:0;z-index:60;background:var(--header-bg);
+.topbar{position:sticky;top:calc(-1 * var(--header-tuck,0px));z-index:60;background:var(--header-bg);
  color:var(--topbar-fg);padding:12px 40px;box-shadow:0 2px 8px var(--topbar-sh);
  display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;
  column-gap:14px;row-gap:8px;align-items:center;}
@@ -93,7 +93,9 @@ html.nav-shown .sidebar{transform:translateX(0);}
 /* Below ~820px the disclaimer can no longer sit on one line beside the pills, so
    the header re-flows to three rows: the disclaimer takes the full width, and the
    hamburger drops down to share the last row with the action pills. Same markup,
-   different grid placement. */
+   different grid placement. At these widths the header also tucks up as the page
+   scrolls (top: -tuck, measured by nav.js): the title and disclaimer scroll away
+   and only that last row stays pinned, a compact bar (#41). */
 @media (max-width:820px){
  .topbar{grid-template-columns:auto minmax(0,1fr);}
  .topbar p.disclaimer{grid-column:1 / -1;grid-row:2;}
@@ -105,7 +107,7 @@ html.nav-shown .sidebar{transform:translateX(0);}
  .topbar{padding:10px 16px;}
  .wrap{padding:8px 14px 48px;}
 }
-section,.r2c{scroll-margin-top:calc(var(--header-h,92px) + 8px);}
+section,.r2c{scroll-margin-top:calc(var(--header-pin,92px) + 8px);}
 .wrap{max-width:1180px;margin:0 auto;padding:8px 24px 60px;}
 section{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:10px;
  margin:26px 0;padding:18px 22px;box-shadow:0 1px 3px var(--card-sh);
