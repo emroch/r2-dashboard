@@ -107,7 +107,7 @@
  var main=document.querySelector('.main');
  var hdr=document.querySelector('.topbar');
  if(!main||!('ResizeObserver' in window))return;
- var anchor=null, offset=0, ours=false;
+ var anchor=null, offset=0, aimed=null;
  // Blocks worth holding on to: headings, paragraphs, rows, chart frames; not a
  // text span, or an SVG mark that a redraw replaces.
  var BLOCKS='h2,h3,p,li,tr,figure,.r2c,.chart-plot,.tr-row,.mx-row,.qa-cat';
@@ -135,13 +135,18 @@
   if(!anchor||!anchor.isConnected)return;
   var d=anchor.getBoundingClientRect().top-top()-offset;
   if(Math.abs(d)<0.5)return;
-  ours=true;
+  // Remember where the correction aims, so its own scroll event isn't taken
+  // for the reader's (a flag would stick when the browser sends no event, as
+  // when the page is already there or the scroll is clamped at an end).
+  aimed=Math.round(window.scrollY+d);
   window.scrollTo({top:window.scrollY+d,behavior:'instant'});
  }
  // Re-pick at most once a frame while the reader scrolls.
  var queued=false;
  window.addEventListener('scroll',function(){
-  if(ours){ours=false;return;}
+  var mine=aimed!==null&&Math.abs(window.scrollY-aimed)<1;
+  aimed=null;
+  if(mine)return;
   if(!queued){queued=true;requestAnimationFrame(function(){queued=false;pick();});}
  },{passive:true});
  // Every re-layout of the column restores the anchor: frame by frame while
