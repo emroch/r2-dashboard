@@ -1,23 +1,53 @@
-/* Sidebar: the section nav rail, its backdrop, and the main column beside it. */
+/* Sidebar: the section nav rail, its backdrop, and the main column beside it.
+   Three tiers, by what hiding the rail would buy:
 
-/* Chart-nav sidebar: Launch-Green rail, hidden by default, toggled by the
-   hamburger (nav-shown on <html>); pushes content on wide, overlays on narrow. */
+     1072px+    768px of cards + the 256px rail + 24px gutters fit, so hiding the
+                rail would only re-center the content: always shown, no menu
+                button.
+     768-1071   the rail costs the content width: shown by default, beside the
+                main column; the menu button (☰) hides it (nav-hidden on <html>)
+                and the content takes the room.
+     under 768  off-canvas; ☰ opens it as a temporary overlay above a backdrop
+                (nav-shown on <html>). Following a link or tapping the backdrop
+                closes it.
+
+   Crossing a tier resets it to that tier's default (nav.js); nothing is
+   remembered between visits. */
+
+:root {
+  --side-w: 256px;
+}
+
+/* How much of the rail is showing, 0 to --side-w: the rail's slide and the
+   main column's margin both read it, so on every frame the margin is exactly
+   the rail's visible width and the cards stay centered in what's left. It's
+   registered as a length so it can transition, and doesn't inherit: only the
+   rail and the main column hold it, each with the same transition, so a frame
+   restyles those two elements rather than the whole page (an inherited value
+   on <html> made every element recompute on every frame). */
+@property --side-open {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.sidebar,
+.main {
+  --side-open: 0px;
+  transition: --side-open .3s ease;
+}
+
 .sidebar {
   position: fixed;
   top: var(--header-h,92px);
   left: 0;
   bottom: 0;
-  width: 220px;
+  width: var(--side-w);
+  box-sizing: border-box;
   overflow-y: auto;
   z-index: 55;
   background: var(--side-bg,#8C9A83);
   border-right: 1px solid var(--side-bd);
   box-shadow: 2px 0 10px var(--side-sh);
-  transform: translateX(-100%);
-  transition: transform .2s ease;
-}
-html.nav-shown .sidebar {
-  transform: translateX(0);
 }
 .side-title {
   padding: 14px 16px 8px;
@@ -47,16 +77,38 @@ html.nav-shown .sidebar {
 .nav-backdrop {
   display: none;
 }
-.main {
-  margin-left: 0;
-  transition: margin-left .2s ease;
+
+.sidebar {
+  transform: translateX(calc(var(--side-open) - var(--side-w)));
 }
-@media (min-width:901px) {
-  html.nav-shown .main {
-    margin-left: 220px;
+
+@media (width >= 768px) {
+  .sidebar,
+  .main {
+    --side-open: var(--side-w);
+  }
+  .main {
+    margin-left: var(--side-open);
   }
 }
-@media (max-width:900px) {
+@media (width >= 1072px) {
+  .navbtn {
+    display: none;
+  }
+}
+@media (768px <= width < 1072px) {
+  html.nav-hidden .sidebar,
+  html.nav-hidden .main {
+    --side-open: 0px;
+  }
+}
+
+/* Under 768px the rail overlays the page: it slides in by the same value, and
+   the main column never moves. */
+@media (width < 768px) {
+  html.nav-shown .sidebar {
+    --side-open: var(--side-w);
+  }
   html.nav-shown .nav-backdrop {
     display: block;
     position: fixed;
@@ -66,5 +118,11 @@ html.nav-shown .sidebar {
     right: 0;
     bottom: 0;
     background: var(--backdrop);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .main {
+    transition: none;
   }
 }

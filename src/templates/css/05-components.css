@@ -96,24 +96,16 @@
   opacity: var(--a-wait);
 }
 
-/* A section's components: a grid of frames under one stage key. Two across at
-   most, and only while each column is at least 340px, so rows stay roomy (with
-   the sidebar open on a mid-size window that is already one across); always one
-   across from the width where the sidebar floats over the page (900px, as .main
-   above). */
+/* A section's components: frames under one stage key, one across (a card's
+   content is at most 720px, too narrow for two take-rate panels side by side). */
 .r2c-group {
   margin: 10px 0 4px;
 }
 .r2c-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill,minmax(max(340px,calc((100% - 40px) / 2)),1fr));
+  grid-template-columns: minmax(0,1fr);
   gap: 22px 40px;
   align-items: start;
-}
-@media (max-width:900px) {
-  .r2c-grid {
-    grid-template-columns: minmax(0,1fr);
-  }
 }
 
 /* sections.yaml layout: fit — side by side at equal widths, each panel at least
@@ -131,9 +123,9 @@
   grid-template-columns: minmax(0,1fr);
 }
 
-/* One across once the sidebar floats; from there a phone too narrow for the
+/* One across once the sidebar folds away; from there a phone too narrow for the
    table scrolls it inside its frame rather than widening the page. */
-@media (max-width:900px) {
+@media (width < 768px) {
   .r2c-fit > .r2c {
     flex-basis: 100%;
     min-width: 0;

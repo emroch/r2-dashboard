@@ -42,19 +42,23 @@ section,
 .r2c {
   scroll-margin-top: calc(var(--header-pin,92px) + 8px);
 }
+/* The main column: cards at most 768px wide, 24px from the column's edges and
+   from each other, and each card's content inset 24px from its outer edge (23px
+   padding inside a 1px border), so content is at most 720px. Narrower windows
+   keep the 24px gutters and shrink the cards. */
 .wrap {
-  max-width: 1180px;
+  max-width: 768px;
   margin: 0 auto;
-  padding: 8px 24px 60px;
+  padding: 24px;
 }
 section {
   background: var(--card-bg);
   border: 1px solid var(--card-bd);
   border-radius: 10px;
-  margin: 26px 0;
-  padding: 18px 22px;
+  margin: 0 0 24px;
+  padding: 23px;
   box-shadow: 0 1px 3px var(--card-sh);
-  transition: background .2s ease,border-color .2s ease;
+  transition: background .5s ease,border-color .5s ease;
 }
 section h2 {
   margin: 0 0 4px;
@@ -209,13 +213,16 @@ section p.desc a:hover {
   font-size: 12px;
   color: var(--desc);
 }
+/* The data-quality categories: as many 300px-plus columns as fit, down to one
+   card-wide column on a phone, where each category's table scrolls inside it. */
 .qa {
   display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(300px,1fr));
+  grid-template-columns: repeat(auto-fit,minmax(min(300px,100%),1fr));
   gap: 16px;
   margin-top: 6px;
 }
 .qa-cat {
+  min-width: 0;
   border: 1px solid var(--card-bd);
   border-radius: 8px;
   padding: 10px 12px;
