@@ -16,6 +16,7 @@
   left: 0;
   bottom: 0;
   width: var(--side-w);
+  box-sizing: border-box;
   overflow-y: auto;
   z-index: 55;
   background: var(--side-bg,#8C9A83);

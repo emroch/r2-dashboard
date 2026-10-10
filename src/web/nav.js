@@ -53,6 +53,11 @@
   el.classList.toggle('header-tucked',tuck>0&&r.top<=-tuck+0.5);
  }
  setHeaderH();
+ // Re-measure whenever the header re-flows (a resize, the breakpoint, the
+ // title wrapping, the pills changing width), not on window resize alone,
+ // which can fire before the new layout is in.
+ if(hdr&&'ResizeObserver' in window)new ResizeObserver(setHeaderH).observe(hdr);
+ narrowQ.addEventListener('change',setHeaderH);
  window.addEventListener('resize',setHeaderH);
  window.addEventListener('load',setHeaderH);
  window.addEventListener('scroll',function(){
