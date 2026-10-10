@@ -141,13 +141,14 @@
   aimed=Math.round(window.scrollY+d);
   window.scrollTo({top:window.scrollY+d,behavior:'instant'});
  }
- // Re-pick at most once a frame while the reader scrolls.
- var queued=false;
+ // Re-pick as the reader scrolls, at once rather than on the next frame: a
+ // jump to a section mounts the charts near it, and the column's resize must
+ // restore the new anchor, not the one from before the jump. Picking is cheap
+ // (it stops at the first card that reaches below the header).
  window.addEventListener('scroll',function(){
   var mine=aimed!==null&&Math.abs(window.scrollY-aimed)<1;
   aimed=null;
-  if(mine)return;
-  if(!queued){queued=true;requestAnimationFrame(function(){queued=false;pick();});}
+  if(!mine)pick();
  },{passive:true});
  // Every re-layout of the column restores the anchor: frame by frame while
  // the sidebar slides, each step while a window is dragged, and again when
