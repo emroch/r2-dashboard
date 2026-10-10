@@ -107,16 +107,29 @@
  var main=document.querySelector('.main');
  var hdr=document.querySelector('.topbar');
  if(!main||!('ResizeObserver' in window))return;
- var anchor=null, offset=0, ours=false, width=main.clientWidth;
+ var anchor=null, offset=0, ours=false;
+ // Blocks worth holding on to: headings, paragraphs, rows, chart frames; not a
+ // text span, or an SVG mark that a redraw replaces.
+ var BLOCKS='h2,h3,p,li,tr,figure,.r2c,.chart-plot,.tr-row,.mx-row,.qa-cat';
  function top(){return hdr?Math.max(0,hdr.getBoundingClientRect().bottom):0;}
+ // The anchor is the first block, in reading order, that reaches below the
+ // header: the one being read (partly scrolled under the header) or, between
+ // cards, the next one down. Found by walking the cards rather than probing a
+ // point, which can land in a gap that belongs to no block.
  function pick(){
-  var y=top()+1, x=main.getBoundingClientRect().left+main.clientWidth/2;
-  var el=document.elementFromPoint(x,y);
-  // A block worth holding on to: a paragraph, row, chart, card or heading,
-  // not a text span or an SVG mark that may be redrawn.
-  while(el&&el!==main&&!(el.matches&&el.matches('p,li,tr,h2,h3,figure,section,.r2c,.chart-plot,.tr-row,.mx-row')))el=el.parentElement;
-  anchor=el&&el!==main?el:null;
-  if(anchor)offset=anchor.getBoundingClientRect().top-top();
+  var line=top(); anchor=null;
+  var cards=main.querySelectorAll('section');
+  for(var i=0;i<cards.length&&!anchor;i++){
+   if(cards[i].getBoundingClientRect().bottom<=line)continue;
+   var bs=cards[i].querySelectorAll(BLOCKS);
+   for(var j=0;j<bs.length;j++){
+    if(bs[j].closest('svg'))continue;
+    var r=bs[j].getBoundingClientRect();
+    if(r.height&&r.bottom>line){anchor=bs[j];break;}
+   }
+   if(!anchor)anchor=cards[i];
+  }
+  if(anchor)offset=anchor.getBoundingClientRect().top-line;
  }
  function restore(){
   if(!anchor||!anchor.isConnected)return;
@@ -125,19 +138,17 @@
   ours=true;
   window.scrollTo({top:window.scrollY+d,behavior:'instant'});
  }
+ // Re-pick at most once a frame while the reader scrolls.
+ var queued=false;
  window.addEventListener('scroll',function(){
   if(ours){ours=false;return;}
-  pick();
+  if(!queued){queued=true;requestAnimationFrame(function(){queued=false;pick();});}
  },{passive:true});
  // Every re-layout of the column restores the anchor: frame by frame while
- // the sidebar slides, once per step while a window is dragged wider or
- // narrower. Only a width change counts; content mounting below the fold
- // changes the height alone.
- new ResizeObserver(function(){
-  if(Math.abs(main.clientWidth-width)<1)return;
-  width=main.clientWidth;
-  restore();
- }).observe(main);
+ // the sidebar slides, each step while a window is dragged, and again when
+ // the charts redraw at their new width (taller or shorter) a moment later.
+ // A change below the anchor doesn't move it, so restoring then is a no-op.
+ new ResizeObserver(restore).observe(main);
  // The sidebar slide moves the column without resizing the window: hold the
  // anchor through each frame of it.
  var raf=0;
