@@ -112,23 +112,31 @@
  // text span, or an SVG mark that a redraw replaces.
  var BLOCKS='h2,h3,p,li,tr,figure,.r2c,.chart-plot,.tr-row,.mx-row,.qa-cat';
  function top(){return hdr?Math.max(0,hdr.getBoundingClientRect().bottom):0;}
- // The anchor is the first block, in reading order, that reaches below the
- // header: the one being read (partly scrolled under the header) or, between
- // cards, the next one down. Found by walking the cards rather than probing a
- // point, which can land in a gap that belongs to no block.
+ // The anchor is the first block, in reading order, that starts below the
+ // header: the top of what's on screen. A tall block that only crosses the
+ // header line (a chart frame begun far above) would make a poor anchor, since
+ // its own height changes as it re-lays out and moves everything after it; it
+ // is used only when nothing starts on screen. Found by walking the cards
+ // rather than probing a point, which can land in a gap that is no block.
  function pick(){
-  var line=top(); anchor=null;
+  var line=top(), bottom=window.innerHeight, crossing=null;
+  anchor=null;
   var cards=main.querySelectorAll('section');
   for(var i=0;i<cards.length&&!anchor;i++){
-   if(cards[i].getBoundingClientRect().bottom<=line)continue;
+   var cr=cards[i].getBoundingClientRect();
+   if(cr.bottom<=line)continue;
+   if(cr.top>=line){anchor=cards[i];break;}
    var bs=cards[i].querySelectorAll(BLOCKS);
    for(var j=0;j<bs.length;j++){
     if(bs[j].closest('svg'))continue;
     var r=bs[j].getBoundingClientRect();
-    if(r.height&&r.bottom>line){anchor=bs[j];break;}
+    if(!r.height||r.bottom<=line)continue;
+    if(r.top>=line){anchor=bs[j];break;}
+    crossing=bs[j];
    }
-   if(!anchor)anchor=cards[i];
   }
+  if(anchor&&anchor.getBoundingClientRect().top>bottom&&crossing)anchor=crossing;
+  if(!anchor)anchor=crossing;
   if(anchor)offset=anchor.getBoundingClientRect().top-line;
  }
  function restore(){
