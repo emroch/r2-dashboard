@@ -1,37 +1,48 @@
-// The light/dark theme toggle. head.js has already set data-theme before first
-// paint (saved choice, else the OS preference); this wires the button, saves a
-// change, keeps the browser's theme-color in step with the header, and tells the
-// rest of the page through one event:
+// The theme menu: Light, Dark or System (follow the OS). head.js has already set
+// data-theme before first paint (a saved Light or Dark, else the OS preference);
+// this wires the menu, saves a choice (System saves none), follows the OS while
+// System is chosen, keeps the browser's theme-color in step with the header, and
+// tells the rest of the page through one event:
 //
 //   r2:themechange   on document, detail {theme: 'light' | 'dark'}. Fired once
-//                    at load with the current theme, then on every toggle.
+//                    at load with the current theme, then whenever it changes.
 //
 // Anything drawn by script listens for it and redraws from its own spec
 // (docs/presentation.md, "Theming"); nothing is re-tinted by trace index.
 (function(){
 var root=document.documentElement;
-function current(){return root.getAttribute('data-theme')==='dark'?'dark':'light';}
-function apply(t){
+var os=window.matchMedia('(prefers-color-scheme: dark)');
+function saved(){
+ try{var t=localStorage.getItem('r2theme');}catch{t=null;}
+ return t==='light'||t==='dark'?t:'system';
+}
+var mode=saved(), shown=null;
+function apply(){
+ var t=mode==='system'?(os.matches?'dark':'light'):mode;
  root.setAttribute('data-theme',t);
- var b=document.getElementById('themeToggle');
- // A glyph and a label (the label hides on the compact header, css/02-header.css).
- if(b){var dark=t==='dark';
-  b.textContent=dark?'\u2600':'\u263e';
-  var l=document.createElement('span');l.className='pill-label';
-  l.textContent=dark?' Light':' Dark';b.appendChild(l);}
+ // The pill shows the theme in use; the menu marks the choice.
+ var g=document.querySelector('#themeMenu .theme-glyph');
+ if(g)g.textContent=t==='dark'?'\u263e':'\u2600';
+ document.querySelectorAll('#themeMenu [data-mode]').forEach(function(b){
+  b.setAttribute('aria-pressed',String(b.getAttribute('data-mode')===mode));
+ });
  // The tab bar / status bar tint (Safari, mobile browsers) follows the header.
  var m=document.getElementById('theme-color');
  var hdr=getComputedStyle(root).getPropertyValue('--header-bg').trim();
  if(m&&hdr)m.setAttribute('content',hdr);
- document.dispatchEvent(new CustomEvent('r2:themechange',{detail:{theme:t}}));
+ if(t!==shown){shown=t;
+  document.dispatchEvent(new CustomEvent('r2:themechange',{detail:{theme:t}}));}
 }
+os.addEventListener('change',function(){if(mode==='system')apply();});
 window.addEventListener('load',function(){
- apply(current());
- var b=document.getElementById('themeToggle');
- if(b)b.addEventListener('click',function(){
-  var nt=current()==='dark'?'light':'dark';
-  try{localStorage.setItem('r2theme',nt);}catch{/* best effort */}
-  apply(nt);
+ apply();
+ document.querySelectorAll('#themeMenu [data-mode]').forEach(function(b){
+  b.addEventListener('click',function(){
+   mode=b.getAttribute('data-mode');
+   try{if(mode==='system')localStorage.removeItem('r2theme');
+       else localStorage.setItem('r2theme',mode);}catch{/* best effort */}
+   apply();
+  });
  });
 });
 })();

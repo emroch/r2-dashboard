@@ -1,13 +1,19 @@
 
 (function(){
  var el=document.documentElement;
- // Below 768px the sidebar is an overlay (css/03-sidebar.css); widening past
- // that closes it, so narrowing again starts with it hidden.
+ // The sidebar's tiers (css/03-sidebar.css): under 768px an overlay the menu
+ // button opens (nav-shown); 768-1071px shown, and the button hides it
+ // (nav-hidden); 1072px+ always shown. Crossing a tier resets to its default.
  var narrowQ=window.matchMedia('(width < 768px)');
+ var midQ=window.matchMedia('(768px <= width < 1072px)');
  function close(){el.classList.remove('nav-shown');}
- narrowQ.addEventListener('change',function(q){if(!q.matches)close();});
+ function reset(){el.classList.remove('nav-shown','nav-hidden');}
+ narrowQ.addEventListener('change',reset);
+ midQ.addEventListener('change',reset);
  var tgl=document.getElementById('navToggle');
- if(tgl)tgl.addEventListener('click',function(){el.classList.toggle('nav-shown');});
+ if(tgl)tgl.addEventListener('click',function(){
+  el.classList.toggle(narrowQ.matches?'nav-shown':'nav-hidden');
+ });
  var bd=document.getElementById('navBackdrop');
  if(bd)bd.addEventListener('click',close);
  var links={};
@@ -66,22 +72,25 @@
 })();
 
 (function(){
- // The report menu is a <details>, so it opens and closes without any JS. What
- // <details> doesn't do is dismiss on an outside click or Escape, which is what
- // makes it feel like a menu rather than a stuck-open panel.
- var d=document.getElementById('reportMenu');
- if(!d)return;
+ // The header menus (Report issue, Theme) are <details>, so they open and close
+ // without any JS. What <details> doesn't do is dismiss on an outside click or
+ // Escape, which is what makes one feel like a menu rather than a stuck-open
+ // panel; opening one closes the other, as a click outside it.
+ var menus=document.querySelectorAll('details.hdrmenu');
  document.addEventListener('click',function(e){
-  if(d.open&&!d.contains(e.target))d.open=false;
+  menus.forEach(function(d){if(d.open&&!d.contains(e.target))d.open=false;});
  });
  document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&d.open){d.open=false;
-   var s=d.querySelector('summary'); if(s)s.focus();}
+  if(e.key!=='Escape')return;
+  menus.forEach(function(d){if(d.open){d.open=false;
+   var s=d.querySelector('summary'); if(s)s.focus();}});
  });
- // Picking one of its links opens a new tab; close the menu behind it, so it
- // isn't still open on returning to the dashboard (#46).
- d.querySelectorAll('.reportpop a').forEach(function(a){
-  a.addEventListener('click',function(){d.open=false;});
+ // Picking an item closes its menu: a report link opens a new tab, and the menu
+ // shouldn't still be open on returning (#46); a theme applies at once.
+ menus.forEach(function(d){
+  d.querySelectorAll('.hdrpop a, .hdrpop button').forEach(function(a){
+   a.addEventListener('click',function(){d.open=false;});
+  });
  });
 })();
 

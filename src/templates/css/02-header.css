@@ -4,19 +4,22 @@
 /* Pinned bar, laid out as a grid so the same children re-flow between the wide
    and narrow arrangements with no duplicate markup:
 
-     768px+   [ title...................................... ]
-              [ disclaimer ]..............[ report ][ theme ]
+     1072px+   [ title...................................... ]
+               [ disclaimer ]..............[ report ][ theme ]
 
-     narrower [ title...... ]
-              [ disclaimer full width... ]
-              [ ☰ ]..................[ report ][ theme ]
+     768-1071  [ title...................................... ]
+               [ ☰ ][ disclaimer ].........[ report ][ theme ]
+
+     narrower  [ title...... ]
+               [ disclaimer full width... ]
+               [ ☰ ]..................[ report ][ theme ]
 
    The title spans every column. The disclaimer column is `auto` so its
    background hugs its text, and the actions column is `auto` too so the pills
    keep their intrinsic width: the spacer absorbs slack, then the (wrappable)
    disclaimer gives way. A `1fr` actions column would instead collapse to zero
-   and let the pills overlap the disclaimer. The menu button only exists below
-   768px (03-sidebar.css), where the sidebar folds away.
+   and let the pills overlap the disclaimer. The menu button exists below
+   1072px (03-sidebar.css), where hiding the sidebar gives the content room.
 
    Below 768px the bar also tucks up as the page scrolls (top: -tuck, measured
    by nav.js): the title and disclaimer scroll away and only the last row stays
@@ -30,7 +33,7 @@
   padding: 12px 24px;
   box-shadow: 0 2px 8px var(--topbar-sh);
   display: grid;
-  grid-template-columns: auto minmax(0,1fr) auto;
+  grid-template-columns: auto auto minmax(0,1fr) auto;
   column-gap: 14px;
   row-gap: 8px;
   align-items: center;
@@ -42,7 +45,7 @@
   font-size: 20px;
 }
 .topbar p.disclaimer {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 2;
   margin: 0;
   padding: 5px 10px;
@@ -57,7 +60,7 @@
 /* Topbar actions: the report menu and theme toggle share one pill style, sitting
    at the right of the bar's last row. They stack if even that doesn't fit. */
 .topbar-actions {
-  grid-column: 3;
+  grid-column: 4;
   grid-row: 2;
   justify-self: end;
   display: flex;
@@ -83,32 +86,35 @@
   filter: brightness(1.15);
 }
 
-/* Report menu: a plain <details> disclosure, so the menu opens with no JS at
-   all; nav.js only adds click-outside / Escape dismissal, which <details>
-   doesn't do natively. Absolute popover so opening it can't resize the header. */
-.reportmenu {
+/* Header menus (Report issue, Theme): plain <details> disclosures, so they open
+   with no JS at all; nav.js only adds click-outside / Escape dismissal, which
+   <details> doesn't do natively. Absolute popovers, so opening one can't resize
+   the header. */
+.hdrmenu {
   position: relative;
 }
-.reportmenu>summary {
+.hdrmenu>summary {
   list-style: none;
 }
-.reportmenu>summary::-webkit-details-marker {
+.hdrmenu>summary::-webkit-details-marker {
   display: none;
 }
-.reportmenu>summary::marker {
+.hdrmenu>summary::marker {
   content: "";
 }
-.reportpop {
+.hdrpop {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
   z-index: 5;
-  min-width: 300px;
   padding: 6px;
   border-radius: 10px;
   background: var(--card-bg);
   border: 1px solid var(--card-bd);
   box-shadow: 0 6px 20px var(--side-sh);
+}
+.reportpop {
+  min-width: 300px;
 }
 .reportpop a {
   display: block;
@@ -129,6 +135,59 @@
   font-size: 11.5px;
   color: var(--desc);
   margin-top: 2px;
+}
+
+/* The theme menu's three choices, the current one marked (aria-pressed, set
+   by theme.js) with a tint and a check. */
+.themepop {
+  min-width: 150px;
+}
+.themepop button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.themepop button:hover {
+  background: var(--side-hover);
+}
+.themepop button[aria-pressed=true] {
+  background: var(--side-active-bg);
+  font-weight: 600;
+}
+.themepop button[aria-pressed=true]::after {
+  content: "✓";
+  margin-left: auto;
+}
+
+/* A pill's label after its glyph: it shrinks to nothing (width and opacity,
+   animated) when the header is pinned as the compact bar, and grows back when
+   it isn't. It stays in the accessibility tree either way. */
+.pill-label {
+  display: inline-block;
+  vertical-align: top;
+  max-width: 8em;
+  overflow: hidden;
+  white-space: pre;
+  transition: max-width .25s ease, opacity .2s ease;
+}
+html.header-tucked .pill-label {
+  max-width: 0;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-label {
+    transition: none;
+  }
 }
 .navbtn {
   grid-column: 1;
@@ -162,14 +221,18 @@
     grid-column: 2;
     grid-row: 3;
   }
-  /* Pinned (nav.js sets header-tucked): the pills keep only their glyphs. The
-     label stays in the accessibility tree, clipped rather than removed. */
-  html.header-tucked .pill-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+}
+
+/* 1072px and up the sidebar is always shown, so there is no menu button and
+   no column for it. */
+@media (width >= 1072px) {
+  .topbar {
+    grid-template-columns: auto minmax(0,1fr) auto;
+  }
+  .topbar p.disclaimer {
+    grid-column: 1;
+  }
+  .topbar-actions {
+    grid-column: 3;
   }
 }
