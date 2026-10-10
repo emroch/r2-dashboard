@@ -17,8 +17,13 @@ if _TESTS not in sys.path:
 
 from config import DIMENSIONS, SECTIONS_CONF, THEME_CSS
 
-with open(os.path.join(_SRC, "templates", "styles.css")) as _fh:
-    CSS_TEXT = _fh.read()
+from render.page import page_css
+
+CSS_TEXT = page_css()
+# The stylesheet with its whitespace squeezed out, for checking a rule by its
+# text however it is laid out in the source files.
+CSS_FLAT = re.sub(r"\s*([{};:,])\s*", r"\1",
+                  re.sub(r"/\*.*?\*/", "", CSS_TEXT, flags=re.S))
 
 # --- The section registry (src/conf/sections.yaml) -----------------------------
 
@@ -59,7 +64,7 @@ def test_every_colored_category_has_a_class_with_its_true_paint():
     assert "color:Midnight" in true and "wheels:20\" Black Sand" not in true
     # Every category keeps a clamped mark (take-rate stages fade it); a mix bar
     # draws a true-color one from --paint (.mark-true).
-    assert ".mark.mark-true{background:var(--paint);}" in CSS_TEXT
+    assert ".mark.mark-true{background:var(--paint);}" in CSS_FLAT
     assert len(refs) > 20
     for ref in refs:
         dim, _, value = ref.partition(":")

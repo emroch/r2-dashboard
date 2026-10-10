@@ -2,7 +2,7 @@
 and the build_dashboard entry point that renders every chart into one HTML file.
 
 The page shell lives under templates/ — page.html (a valid, standalone HTML
-shell with id'd slots) plus styles.css and the inlined head.js. The page scripts
+shell with id'd slots) plus the stylesheet (templates/css/) and the inlined head.js. The page scripts
 live under web/ and are published as hashed static assets (render/assets.py).
 build_dashboard parses the shell with BeautifulSoup and populates it by element
 id (theme vars, stat cards, nav links, chart sections, script URLs).
@@ -37,6 +37,14 @@ def _tpl(name):
     return (_TPL_DIR / name).read_text(encoding="utf-8")
 
 
+def page_css():
+    """The page stylesheet: templates/css/*.css, joined in file-name order. The
+    files are numbered by area (base, header, sidebar, page, components, charts,
+    map) and the order is the cascade's, so a later file wins a tie."""
+    return "\n".join(p.read_text(encoding="utf-8")
+                     for p in sorted((_TPL_DIR / "css").glob("*.css")))
+
+
 def _section(entry):
     """(title, desc_html) from a sections.yaml entry, checking its components."""
     unknown = [c for c in entry.get("components", []) if c not in COMPONENTS]
@@ -46,7 +54,7 @@ def _section(entry):
     return entry["title"], entry["desc"]
 
 
-# sections.yaml `layout` -> the component grid's extra class (styles.css).
+# sections.yaml `layout` -> the component grid's extra class (css/05-components.css).
 _LAYOUTS = {"grid": "", "fit": " r2c-fit", "single": " r2c-single"}
 
 
@@ -468,7 +476,7 @@ def build_dashboard(df, report, resv, view):
         return tag
 
     slot(id="theme-vars").string = _THEME_VARS_CSS
-    slot(id="page-style").string = _tpl("styles.css")
+    slot(id="page-style").string = page_css()
     slot(id="chrome-vars").string = chrome_css
     slot(id="category-vars").string = category_css()
     # The browser tab/status-bar tint matches the header; theme.js keeps it in

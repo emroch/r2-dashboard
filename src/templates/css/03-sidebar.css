@@ -1,0 +1,70 @@
+/* Sidebar: the section nav rail, its backdrop, and the main column beside it. */
+
+/* Chart-nav sidebar: Launch-Green rail, hidden by default, toggled by the
+   hamburger (nav-shown on <html>); pushes content on wide, overlays on narrow. */
+.sidebar {
+  position: fixed;
+  top: var(--header-h,92px);
+  left: 0;
+  bottom: 0;
+  width: 220px;
+  overflow-y: auto;
+  z-index: 55;
+  background: var(--side-bg,#8C9A83);
+  border-right: 1px solid var(--side-bd);
+  box-shadow: 2px 0 10px var(--side-sh);
+  transform: translateX(-100%);
+  transition: transform .2s ease;
+}
+html.nav-shown .sidebar {
+  transform: translateX(0);
+}
+.side-title {
+  padding: 14px 16px 8px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--side-title);
+}
+.sidebar a {
+  display: block;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  color: var(--side-fg);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  line-height: 1.35;
+}
+.sidebar a:hover {
+  background: var(--side-hover);
+}
+.sidebar a.active {
+  border-left-color: var(--side-active-bd);
+  color: var(--side-active-fg);
+  font-weight: 600;
+  background: var(--side-active-bg);
+}
+.nav-backdrop {
+  display: none;
+}
+.main {
+  margin-left: 0;
+  transition: margin-left .2s ease;
+}
+@media (min-width:901px) {
+  html.nav-shown .main {
+    margin-left: 220px;
+  }
+}
+@media (max-width:900px) {
+  html.nav-shown .nav-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 54;
+    top: var(--header-h,92px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--backdrop);
+  }
+}

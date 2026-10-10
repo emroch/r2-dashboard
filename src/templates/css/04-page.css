@@ -1,0 +1,328 @@
+/* Page: section cards, the intro, summary readouts, the data-quality panel
+   and the footer. */
+
+/* Intro is a normal body-section card now (see the `section` rules below); only
+   its inner text/links need styling, themed like the rest of the page. */
+.intro p {
+  margin: 0;
+  color: var(--fg);
+  font-size: 14px;
+}
+.intro p.src {
+  margin: 3px 0;
+  font-size: 13px;
+  color: var(--desc);
+}
+.intro p.src a {
+  color: var(--link);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.intro p.src a:hover {
+  filter: brightness(1.15);
+}
+.intro p.meth {
+  margin: 10px 0 0;
+  color: var(--desc);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.intro .warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+.intro .chg {
+  color: var(--chg);
+  font-weight: 600;
+}
+.intro .dim {
+  color: var(--desc);
+}
+section,
+.r2c {
+  scroll-margin-top: calc(var(--header-pin,92px) + 8px);
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 24px 60px;
+}
+section {
+  background: var(--card-bg);
+  border: 1px solid var(--card-bd);
+  border-radius: 10px;
+  margin: 26px 0;
+  padding: 18px 22px;
+  box-shadow: 0 1px 3px var(--card-sh);
+  transition: background .2s ease,border-color .2s ease;
+}
+section h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  color: var(--sec-title);
+}
+section p.desc {
+  margin: 0 0 8px;
+  color: var(--desc);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+/* Source links in a section's description, treated like the header's source
+   links rather than left to the browser default (which ignores the theme). */
+section p.desc a {
+  color: var(--link);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+section p.desc a:hover {
+  filter: brightness(1.15);
+}
+.statwrap {
+  margin-top: 14px;
+}
+
+/* Summary readouts (components.readout): a chip per number in a wrapping row.
+   One with entries behind it is a <details> whose ⓘ chip opens the list inline.
+   Where ::details-content can be styled, the list drops to a full-width row
+   under the chips and the chips stay put; elsewhere the opened chip and its list
+   take a row of their own. */
+.ro-group {
+  margin-top: 12px;
+}
+.ro-title {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--desc);
+  margin: 0 0 5px 2px;
+}
+.ro-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ro-chip {
+  display: inline-block;
+  background: var(--stat-bg);
+  color: var(--chip-fg);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  min-width: 96px;
+  box-sizing: border-box;
+}
+.ro-v {
+  font-size: 18px;
+  display: block;
+  line-height: 1.25;
+}
+.ro-i {
+  opacity: .55;
+  font-size: 11px;
+  margin-left: 3px;
+}
+.ro-more[open] {
+  flex-basis: 100%;
+}
+.ro-more:not([open]) .ro-rows {
+  display: none;
+}
+@supports selector(::details-content) {
+  .ro-more,
+  .ro-more::details-content {
+    display: contents;
+  }
+}
+@supports not selector(::details-content) {
+  .ro-rows {
+    margin-top: 8px;
+  }
+}
+.ro-more > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.ro-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The open chip is ringed in the page's ink (not the chip's), so it reads
+   against the card in either theme. */
+.ro-more[open] > summary {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.ro-more[open] > summary .ro-i {
+  opacity: 1;
+}
+.ro-more > summary:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+.ro-rows {
+  flex-basis: 100%;
+  order: 1;
+  box-sizing: border-box;
+  min-width: 0;
+  background: var(--tip-bg);
+  color: var(--tip-fg);
+  border: 1px solid var(--tip-bd);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.ro-rows .r2c-scroll {
+  max-height: 300px;
+  overflow: auto;
+}
+.intro .ro-cap,
+.ro-cap {
+  margin: 0 0 5px;
+  font-weight: 600;
+  color: var(--tip-cap);
+  font-size: 12px;
+}
+.ro-rows table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.ro-rows th,
+.ro-rows td {
+  text-align: left;
+  padding: 2px 12px 2px 0;
+  white-space: nowrap;
+}
+.ro-rows th {
+  border-bottom: 1px solid var(--tip-th);
+  color: var(--tip-thc);
+  font-weight: 600;
+}
+.ro-rows td:first-child {
+  color: var(--tip-td1);
+}
+.intro .ro-note,
+.ro-note {
+  margin: 6px 0 0 2px;
+  font-size: 12px;
+  color: var(--desc);
+}
+.qa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(300px,1fr));
+  gap: 16px;
+  margin-top: 6px;
+}
+.qa-cat {
+  border: 1px solid var(--card-bd);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.qa-cat h3 {
+  margin: 0 0 3px;
+  font-size: 13.5px;
+  color: var(--sec-title);
+}
+.qa-n {
+  display: inline-block;
+  min-width: 18px;
+  text-align: center;
+  padding: 0 6px;
+  margin-left: 7px;
+  border-radius: 10px;
+  background: var(--tip-th);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+.qa-note {
+  margin: 0 0 7px;
+  color: var(--desc);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.qa table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+  width: 100%;
+  display: block;
+  max-height: 220px;
+  overflow: auto;
+}
+.qa th,
+.qa td {
+  text-align: left;
+  padding: 2px 10px 2px 0;
+  white-space: nowrap;
+}
+.qa th {
+  border-bottom: 1px solid var(--tip-th);
+  color: var(--tip-thc);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+}
+.qa td:first-child {
+  color: var(--tip-td1);
+}
+.qa-none {
+  margin: 2px 0 0;
+  color: var(--desc);
+  font-size: 12px;
+}
+.qa-conv {
+  margin-top: 16px;
+  border: 1px solid var(--card-bd);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.qa-conv h3 {
+  margin: 0 0 3px;
+  font-size: 13.5px;
+  color: var(--sec-title);
+}
+.qa-conv table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+  width: 100%;
+  display: block;
+  max-height: 260px;
+  overflow: auto;
+}
+.qa-conv th,
+.qa-conv td {
+  text-align: left;
+  padding: 2px 16px 2px 0;
+  white-space: nowrap;
+}
+.qa-conv th {
+  border-bottom: 1px solid var(--tip-th);
+  color: var(--tip-thc);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+}
+footer {
+  color: var(--footer);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+footer a {
+  color: var(--footer-link);
+  text-decoration: none;
+}
+footer code {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+footer .legal {
+  max-width: 720px;
+  margin: 8px auto 0;
+  font-size: 11px;
+  line-height: 1.45;
+}

@@ -57,7 +57,7 @@ const slug = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 export function categoryClass(ref) {
   const i = ref.indexOf(":");
   // "acc:<name>" is an accent fill (render/categories.py ACCENTS): .acc-<name>;
-  // "neutral" is the uncategorized grey (styles.css .tr-neutral).
+  // "neutral" is the uncategorized grey (css/05-components.css .tr-neutral).
   if (ref === "neutral") return "tr-neutral";
   if (ref.slice(0, i) === "acc") return `acc-${ref.slice(i + 1)}`;
   return `cat-${ref.slice(0, i)}-${slug(ref.slice(i + 1))}`;
