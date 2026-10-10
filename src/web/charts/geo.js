@@ -6,7 +6,7 @@
 // measure on a slider, from total demand (orders + reservations) down through
 // orders, with a VIN, scheduled and delivered, and each state is filled by it on
 // a square-root scale: a choropleth. Fills are CSS:
-// a state's share of the scale is --v, which styles.css mixes into the land, as
+// a state's share of the scale is --v, which css/07-map.css mixes into the land, as
 // the heatmap does, so a theme change needs no redraw. A state with none of the
 // measure is hatched rather than filled, so "none" never reads as "a few". Every
 // state keeps an outline in the mark-edge grey, so pale states hold against the

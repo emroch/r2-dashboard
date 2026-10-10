@@ -32,7 +32,7 @@ src/
     assets.py         publishes src/web/ as content-hashed static assets
   templates/          valid standalone page shell, filled at render time
     page.html         valid HTML shell (empty id'd slots, populated via the DOM)
-    styles.css        page stylesheet (its own <style> slot)
+    css/              page stylesheet, one file per area, joined in order
     head.js           pre-paint theme set (no flash), inlined
   web/                browser code, served as static files (no build step)
     main.js           boots browser-drawn components (ES module), lazily

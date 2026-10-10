@@ -1,0 +1,146 @@
+/* The US map (src/web/charts/geo.js): states, outlines, the factory mark, the
+   measure slider and the legend. */
+
+/* The US map (charts/geo.js), a choropleth. A state with any of the measure
+   mixes its share of the scale (--v, 0-1, square-root) into the land, in the
+   link blue, from a floor of 22% so the smallest still reads as filled; a state
+   with none is hatched. Every state is outlined in the mark-edge grey (3:1
+   against the card), so a pale state holds its shape; hover and selection draw
+   their own outline above the rest. */
+.map-svg {
+  cursor: default;
+}
+.map-svg .map-state {
+  fill: var(--map-land);
+  stroke: var(--mark-edge);
+  stroke-width: .6;
+  cursor: pointer;
+}
+.map-svg .map-state.map-filled {
+  fill: color-mix(in oklab,var(--link) calc(22% + var(--v) * 70%),var(--map-land));
+}
+.map-svg .map-hatch-bg {
+  fill: var(--card-bg);
+}
+.map-svg .map-hatch {
+  stroke: var(--mark-edge);
+  stroke-width: 1;
+  opacity: .6;
+}
+.map-svg .map-outline {
+  fill: none;
+  stroke: var(--fg);
+  pointer-events: none;
+  stroke-linejoin: round;
+}
+.map-svg .map-hover {
+  stroke-width: 1.5;
+}
+.map-svg .map-selected {
+  stroke-width: 2.5;
+}
+
+/* Rivian's emblem at the factory: a faint dark halo so the yellow holds on the
+   pale land of the light theme as well as the blue of a filled state. */
+.map-svg .map-factory {
+  pointer-events: none;
+  filter: drop-shadow(0 0 1.2px rgba(0,0,0,.7));
+}
+
+/* The measure slider: the stops sit at the centers of equal label columns, so
+   the track runs from the first column's center to the last's (--thumb is the
+   native thumb's width, near enough in every engine for the steps to line up). */
+.map-stage {
+  --thumb: 18px;
+  margin: 4px 0 10px;
+}
+.map-slider {
+  display: block;
+  width: calc(100% - 100% / var(--stops) + var(--thumb));
+  margin: 0 0 0 calc(50% / var(--stops) - var(--thumb) / 2);
+  height: var(--thumb);
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* A thin backing line rather than a filled progress bar, and the thumb in
+   Compass Yellow, so the control doesn't read as part of the blue value scale. */
+.map-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--mark-edge);
+  border-radius: 1px;
+}
+.map-slider::-moz-range-track {
+  height: 2px;
+  background: var(--mark-edge);
+  border-radius: 1px;
+}
+.map-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc(1px - var(--thumb) / 2);
+  border-radius: 50%;
+  background: var(--stat-bg);
+  border: 2px solid var(--card-bg);
+  box-shadow: 0 0 0 1px var(--mark-edge);
+  box-sizing: border-box;
+}
+.map-slider::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--stat-bg);
+  border: 2px solid var(--card-bg);
+  box-shadow: 0 0 0 1px var(--mark-edge);
+  box-sizing: border-box;
+}
+.map-slider:focus-visible {
+  outline: 2px solid var(--stat-bg);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.map-stops {
+  display: grid;
+  grid-template-columns: repeat(var(--stops),1fr);
+}
+.map-stops button {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--desc);
+  background: none;
+  border: 0;
+  padding: 2px 2px 0;
+  cursor: pointer;
+  text-align: center;
+}
+.map-stops button[aria-pressed=true] {
+  color: var(--fg);
+  font-weight: 600;
+}
+.map-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--desc);
+  margin-right: 10px;
+}
+.map-ramp {
+  display: inline-block;
+  width: 72px;
+  height: 10px;
+  border: 1px solid var(--mark-edge);
+  background: linear-gradient(to right,color-mix(in oklab,var(--link) 22%,var(--map-land)),color-mix(in oklab,var(--link) 92%,var(--map-land)));
+}
+.map-swatch-none {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--mark-edge);
+  background: repeating-linear-gradient(45deg,var(--card-bg) 0 2px,color-mix(in oklab,var(--mark-edge) 60%,var(--card-bg)) 2px 3px);
+}

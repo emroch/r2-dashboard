@@ -21,7 +21,7 @@
   secs.forEach(function(s){obs.observe(s);});
  }
  // The header's height is dynamic (the title and disclaimer wrap), so it is
- // measured here. On narrow screens (styles.css, max-width 820px) the header
+ // measured here. On narrow screens (css/02-header.css, max-width 820px) the header
  // sticks with a negative top: the title and disclaimer scroll away and only its
  // last row (menu + action pills) stays pinned, a compact bar. --header-tuck is
  // how far it tucks up, --header-pin the pinned bar's height (anchor offsets),
