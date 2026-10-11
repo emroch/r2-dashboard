@@ -14,8 +14,9 @@
 //
 // A state is a path keyed by its postal code (data-state). Clicking one selects
 // it (Escape or a second click clears) and fires `r2:stateselect` on the mount,
-// {detail: {code}} (null when cleared), for a companion component to follow
-// (#112: per-state views under a shared map).
+// {detail: {code}} (null when cleared), which the state mix under the map
+// follows (statemix.js); an `r2:stateset` event on the mount selects a state
+// from outside (the mix's picker). The selection is kept in the URL (?state=).
 
 import { view } from "../data.js";
 import { loadAtlas, loadD3 } from "../lib/load.js";
@@ -73,7 +74,8 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
   const id = el.dataset.chart;
   const keys = spec.measures.map((m) => m.key);
   let measure = keys.includes(getState(`${id}-m`)) ? getState(`${id}-m`) : spec.default;
-  let selected = startSelected;
+  const valid = (code) => Boolean(code && code !== "PR" && Object.values(FIPS).includes(code));
+  let selected = startSelected ?? (valid(getState("state")) ? getState("state") : null);
 
   const nation = topojson.feature(us, us.objects.nation);
   const features = topojson.feature(us, us.objects.states).features
@@ -137,6 +139,7 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
 
   function select(code) {
     selected = code && code !== selected ? code : null;
+    setState("state", selected);
     paint();
     el.dispatchEvent(new (doc.defaultView?.CustomEvent ?? CustomEvent)("r2:stateselect",
       { bubbles: true, detail: { code: selected } }));
@@ -210,6 +213,16 @@ export function draw(d3, { topojson, us }, el, spec, { selected: startSelected =
   if (el.r2Escape) doc.removeEventListener("keydown", el.r2Escape);
   el.r2Escape = (ev) => { if (ev.key === "Escape" && selected) select(null); };
   doc.addEventListener("keydown", el.r2Escape);
+  // A selection made elsewhere (the state mix's picker): taken quietly, since
+  // whoever set it already knows.
+  if (el.r2Set) el.removeEventListener("r2:stateset", el.r2Set);
+  el.r2Set = (ev) => {
+    const code = valid(ev.detail?.code) ? ev.detail.code : null;
+    if (code === selected) return;
+    selected = code;
+    paint();
+  };
+  el.addEventListener("r2:stateset", el.r2Set);
 
   paint();
   return {

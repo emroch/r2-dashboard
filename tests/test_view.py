@@ -201,7 +201,7 @@ def test_view_build_reconciles_and_renders_every_component():
     assert view.readouts["progress"] in view.aggregates
     assert view.readouts["progress"].counted == 2
     # Everything but the browser-drawn templates is rendered to HTML in Python.
-    drawn = ("geo", "scatter", "timeseries")
+    drawn = ("geo", "scatter", "statemix", "timeseries")
     static = {c for c, sp in COMPONENTS.items() if sp["template"] not in drawn}
     assert set(view.static) == static
     for cid in view.static:

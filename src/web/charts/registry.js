@@ -3,5 +3,6 @@
 export const templates = {
   geo: () => import("./geo.js"),
   scatter: () => import("./scatter.js"),
+  statemix: () => import("./statemix.js"),
   timeseries: () => import("./timeseries.js"),
 };

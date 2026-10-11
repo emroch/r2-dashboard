@@ -372,6 +372,48 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     assert "BC" not in spec["states"]
 
 
+def test_state_mix_splits_each_us_state_by_every_measure():
+    from render.aggregates import cohort_sizes, reconcile
+    from render.specs import state_mix
+    df = _orders(5, state=["CA", "CA", "CA", "IL", "BC"], price=[None] * 5,
+                 lat=[36.0, 36.0, 36.0, 40.0, 53.0],
+                 color=["Launch Green", "Esker Silver", "Launch Green", "",
+                        "Esker Silver"],
+                 vin_present=[True, False, True, True, False],
+                 delivered_inferred=[True, False, False, False, False],
+                 delivery_type=["explicit", "window", "window", "explicit", "window"])
+    spec, agg, (heads, rows) = state_mix(df)
+    reconcile([agg], cohort_sizes(df))
+    assert agg.excluded == {"outside the US (not mapped)": 1}
+    assert [m["key"] for m in spec["measures"]] == ["status", "color", "wheels",
+                                                    "interior"]
+    status, paint = spec["measures"][0], spec["measures"][1]
+    assert [c["stage"] for c in status["cats"]] == ["delivered", "scheduled", "vin",
+                                                    "wait"]
+    # CA: one delivered, one with a VIN, one waiting; IL scheduled.
+    assert spec["states"]["CA"]["status"] == [1, 0, 1, 1]
+    assert spec["us"]["status"] == [1, 1, 1, 1]
+    # Paint: true colors, and IL's blank paint sits out of the paint split only.
+    assert paint["true"] and paint["cats"][0]["color"].startswith("color:")
+    names = [c["label"] for c in paint["cats"]]
+    ca = dict(zip(names, spec["states"]["CA"]["color"]))
+    assert ca == {"Launch Green": 2, "Esker Silver": 1}
+    assert sum(spec["states"]["IL"]["color"]) == 0 and spec["states"]["IL"]["n"] == 1
+    assert "BC" not in spec["states"]
+    assert spec["small_n"] == 5 and spec["map"] == "geo-demand"
+    # The table: All US first, then a row per state, a column per category.
+    assert rows[0][:3] == ["All US", "", 4] and len(rows) == 3
+    assert len(heads) == len(rows[0]) and "Paint: Launch Green" in heads
+
+
+def test_region_lean_reads_the_biggest_regional_gap():
+    from render.specs import _region_lean
+    cats = [{"value": "a", "label": "A"}, {"value": "b", "label": "B"}]
+    counts = {"CA": [20, 0], "IL": [10, 10], "IN": [0, 10]}
+    assert _region_lean(counts, cats) == \
+        "A at 100% of West orders (60% across all orders)"
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))

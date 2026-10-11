@@ -74,7 +74,7 @@ components:
     aggregate: crosstab
     summary: "{top} is the most common pairing, at {top_share} of {n} orders."
 
-  # Location (§13–16), over the orders with a known location (cohort: located).
+  # Location (§12), over the orders with a known location (cohort: located).
   #   cohort    the aggregate's cohort (aggregates.COHORTS; default orders)
   #   total     takerate: a first row summing every row, on its own scale
   #   row_label the row heading in the data table (default: the dimension's label)
@@ -87,39 +87,6 @@ components:
   #             state_reference_bins), unit}
   # Mix summaries may use {meta:lean}: the row and column furthest from the
   # baseline, among rows of 20+ orders.
-  state-totals:
-    template: takerate
-    title: Orders by state
-    dims: [state]
-    cohort: located
-    total: All states
-    row_label: State / province
-    summary: "{top} leads, with {top_share} of {n} orders with a known state."
-  paint-by-region:
-    template: mix
-    title: Paint by region
-    dims: [region, color]
-    aggregate: crosstab
-    cohort: located
-    baseline: All orders
-    summary: "The biggest lean: {meta:lean}."
-  paint-by-state:
-    template: mix
-    title: Paint by state
-    dims: [state, color]
-    aggregate: crosstab
-    cohort: located
-    baseline: All orders
-    small_n: true
-    summary: "The biggest lean: {meta:lean}."
-  wheels-by-region:
-    template: mix
-    title: Wheels by region
-    dims: [region, wheels]
-    aggregate: crosstab
-    cohort: located
-    baseline: All orders
-    summary: "The biggest lean: {meta:lean}."
   wheels-by-elevation:
     template: mix
     title: Wheels by the state's mean elevation
@@ -148,14 +115,6 @@ components:
     cohort: located
     bins: {column: urban_pct, edges: urban_pct, unit: "% urban"}
     row_label: Urban share of population
-    baseline: All orders
-    summary: "The biggest lean: {meta:lean}."
-  interior-by-region:
-    template: mix
-    title: Interior by region
-    dims: [region, interior]
-    aggregate: crosstab
-    cohort: located
     baseline: All orders
     summary: "The biggest lean: {meta:lean}."
 
@@ -256,6 +215,13 @@ components:
     aggregate: geo_demand
     summary: "{n} orders across {meta:states} states. Only US orders are mapped:
       {meta:left} elsewhere are left out."
+  state-mix:
+    template: statemix
+    title: Orders by state
+    dims: [state]
+    aggregate: state_mix
+    summary: "Select a state on the map, or pick one here, to compare its {n}
+      orders' status, paint, wheels and interior with the whole US."
 
   dest-vs-delivery:
     template: scatter

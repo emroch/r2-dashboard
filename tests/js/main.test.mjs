@@ -12,7 +12,7 @@ function page(...mounts) {
 }
 
 test("importing main.js touches no DOM, and the chart templates are registered", () => {
-  assert.deepEqual(Object.keys(templates), ["geo", "scatter", "timeseries"]);
+  assert.deepEqual(Object.keys(templates), ["geo", "scatter", "statemix", "timeseries"]);
 });
 
 test("a mount waits for its schedule before loading anything", async () => {

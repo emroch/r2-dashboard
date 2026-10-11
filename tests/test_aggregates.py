@@ -23,6 +23,32 @@ from config import COLOR_ORDER, COMPONENTS
 
 # --- Aggregates (render/aggregates.py) -----------------------------------------
 
+
+# Component configs the page no longer uses, kept here to exercise the mix and
+# take-rate templates' options (small_n, baseline, total) on location data.
+_LOCATION_CONFS = {
+    "paint-by-state": {
+        "template": "mix", "title": "Paint by state", "dims": ["state", "color"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "small_n": True, "summary": "The biggest lean: {meta:lean}."},
+    "paint-by-region": {
+        "template": "mix", "title": "Paint by region", "dims": ["region", "color"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "summary": "The biggest lean: {meta:lean}."},
+    "wheels-by-region": {
+        "template": "mix", "title": "Wheels by region", "dims": ["region", "wheels"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "summary": "The biggest lean: {meta:lean}."},
+    "interior-by-region": {
+        "template": "mix", "title": "Interior by region",
+        "dims": ["region", "interior"], "aggregate": "crosstab", "cohort": "located",
+        "baseline": "All orders", "summary": "The biggest lean: {meta:lean}."},
+    "state-totals": {
+        "template": "takerate", "title": "Orders by state", "dims": ["state"],
+        "cohort": "located", "total": "All states", "row_label": "State / province",
+        "summary": "{top} leads, with {top_share} of {n} orders with a known state."},
+}
+
 def _orders(**cols):
     n = len(next(iter(cols.values())))
     base = {"vin_present": [False] * n, "delivered_inferred": [False] * n,
@@ -514,7 +540,7 @@ def _located(states, colors):
 
 
 def test_small_n_rows_are_excluded_with_their_reason_and_note():
-    from config import COMPONENTS, DIMENSIONS
+    from config import DIMENSIONS
     from render.aggregates import cohort_sizes, crosstab, reconcile
     from render.components import mix
     least = DIMENSIONS["state"]["small_n"]["min_orders"]
@@ -526,7 +552,7 @@ def test_small_n_rows_are_excluded_with_their_reason_and_note():
     reconcile([a], cohort_sizes(df))
     # The baseline still counts every located order that reported a paint.
     assert sum(b["n"] for b in a.meta["baseline"]) == len(states)
-    html = mix("c-p", COMPONENTS["paint-by-state"], a)
+    html = mix("c-p", _LOCATION_CONFS["paint-by-state"], a)
     assert DIMENSIONS["state"]["small_n"]["note"] in html
 
 
@@ -539,10 +565,10 @@ def test_mix_draws_paints_true_and_take_rates_clamped():
     df = _orders(region=["West"] * 2, color=["Glacier White", "Midnight"],
                  lat=[40.0] * 2, delivery_type=["window"] * 2,
                  wheels_short=['20" Black Sand'] * 2)
-    paint = mix("c-p", COMPONENTS["paint-by-region"],
+    paint = mix("c-p", _LOCATION_CONFS["paint-by-region"],
                 crosstab(df, "region", "color", "located"))
     assert paint.count('class="mark mark-true cat-color-') == 4    # baseline + West
-    wheels = mix("c-w", COMPONENTS["wheels-by-region"],
+    wheels = mix("c-w", _LOCATION_CONFS["wheels-by-region"],
                  crosstab(df, "region", "wheels", "located"))
     assert "mark-true" not in wheels, "wheels are not true_color"
     rate = takerate("c-t", COMPONENTS["takerate-color"],
@@ -551,7 +577,6 @@ def test_mix_draws_paints_true_and_take_rates_clamped():
 
 
 def test_mix_baseline_row_comes_first_and_the_lean_names_the_biggest_gap():
-    from config import COMPONENTS
     from render.aggregates import LEAN_MIN_ORDERS, crosstab
     from render.components import mix
     n = LEAN_MIN_ORDERS
@@ -561,7 +586,7 @@ def test_mix_baseline_row_comes_first_and_the_lean_names_the_biggest_gap():
     a = crosstab(df, "region", "color", "located")
     assert a.meta["lean"] == ("Midnight at 100% of West orders "
                               "(75% across all orders)"), a.meta["lean"]
-    html = mix("c-r", COMPONENTS["paint-by-region"], a)
+    html = mix("c-r", _LOCATION_CONFS["paint-by-region"], a)
     assert html.index('<li class="mx-row mx-base">') < html.index('<li class="mx-row">')
     assert "The biggest lean: Midnight at 100% of West orders" in html
     small = crosstab(df.iloc[[0, n]], "region", "color", "located")
@@ -569,12 +594,11 @@ def test_mix_baseline_row_comes_first_and_the_lean_names_the_biggest_gap():
 
 
 def test_state_take_rate_carries_an_all_states_row_on_its_own_scale():
-    from config import COMPONENTS
     from render.aggregates import counts
     from render.components import takerate
     df = _orders(state=["CA"] * 3 + ["TX"], lat=[40.0] * 4,
                  delivered_inferred=[True, False, False, False])
-    html = takerate("c-s", COMPONENTS["state-totals"],
+    html = takerate("c-s", _LOCATION_CONFS["state-totals"],
                     counts(df, "state", cohort="located", by_stage=True))
     assert html.count('<li class="tr-row tr-neutral tr-total">') == 1
     assert html.index("All states") < html.index(">CA<")
