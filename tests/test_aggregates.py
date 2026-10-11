@@ -544,11 +544,11 @@ def test_small_n_rows_are_excluded_with_their_reason_and_note():
     from render.aggregates import cohort_sizes, crosstab, reconcile
     from render.components import mix
     least = DIMENSIONS["state"]["small_n"]["min_orders"]
-    states = ["CA"] * 6 + ["NV"] * (least - 1) + ["OR"]
+    states = ["CA"] * (least + 1) + ["NV"] * (least - 1) + ["OR"]
     df = _located(states, ["Midnight"] * len(states))
     a = crosstab(df, "state", "color", "located", small_n=True)
     assert [r["value"] for r in a.meta["rows"]] == ["CA"]
-    assert a.excluded == {"fewer than 5 orders": 5}
+    assert a.excluded == {"fewer than %d orders" % least: least}
     reconcile([a], cohort_sizes(df))
     # The baseline still counts every located order that reported a paint.
     assert sum(b["n"] for b in a.meta["baseline"]) == len(states)

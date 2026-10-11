@@ -163,7 +163,8 @@ sections:
       deliveries. Colors run on a square-root scale, so a state with a quarter of
       the leader's count reads half as strong; a state with none is hatched. Select
       a state to see its orders below, split by status, paint, wheels or interior,
-      against the whole US; a state with only a few orders says so, since one order
+      against the whole US, or <em>Show all</em> to compare every state with 10 or
+      more orders at once; a state with fewer says so when shown, since one order
       swings its mix. Only US orders are mapped for now, since the R2 isn't on sale
       elsewhere yet.
 

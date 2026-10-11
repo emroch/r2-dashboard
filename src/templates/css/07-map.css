@@ -146,14 +146,20 @@
 }
 
 /* statemix (charts/statemix.js): the map's companion, in the mix panels'
-   markup. Its controls sit in the flow above the rows, not over a plot: the
-   measure switch, then the state picker. */
+   markup. Its controls sit in the flow above the key, not over a plot: the
+   measure switch, then the state picker and Show all. */
 .mx-controls {
   position: static;
+  flex-basis: 100%;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+}
+.mx-pick {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 .mx-picker {
   font: inherit;

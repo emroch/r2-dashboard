@@ -45,7 +45,7 @@ test("with nothing selected, one US row; the key and lean follow the measure", a
   const el = mountPoint();
   const h = draw(el, spec, names);
   assert.equal(rows(el).length, 1);
-  assert.match(rows(el)[0].textContent, /All US.*n = 12.*4 Delivered \(33%\) · 8 Waiting for a VIN \(67%\)/);
+  assert.match(rows(el)[0].textContent, /Overall \(US\).*n = 12.*4 Delivered \(33%\) · 8 Waiting for a VIN \(67%\)/);
   assert.ok(el.querySelector(".mx-bar i.stage-delivered"));
   h.setMeasure("color");
   assert.ok(el.querySelector(".mx-bar i.mark-true.cat-color-launch-green"));
@@ -66,6 +66,26 @@ test("a state selected on the map adds its row under the US baseline", async () 
   assert.ok(el.querySelector(".mx-small").hidden, "10 orders isn't small");
   map.dispatchEvent(new globalThis.window.CustomEvent("r2:stateselect", { bubbles: true, detail: { code: null } }));
   assert.equal(rows(el).length, 1);
+});
+
+test("Show all lists the states with small_n orders or more, largest first", async () => {
+  const { draw } = await import("../../src/web/charts/statemix.js");
+  const el = mountPoint("?state=CA");
+  const big = { ...spec, states: { ...spec.states, TX: { n: 6, status: [1, 5], color: [3, 3] } } };
+  const h = draw(el, big, { ...names, TX: "Texas" });
+  const got = [];
+  el.ownerDocument.querySelector('[data-chart="g"]').addEventListener("r2:stateset", (ev) => got.push(ev.detail.code));
+  h.toggleAll();
+  assert.equal(h.selected(), null, "the list replaces the single state");
+  assert.deepEqual(got, [null], "and clears it on the map");
+  assert.equal(globalThis.location.search, "?state=all");
+  assert.deepEqual(rows(el).map((r) => r.querySelector(".tr-name").textContent),
+    ["Overall (US)", "California", "Texas"]);
+  assert.match(el.querySelector(".mx-small").textContent, /1 state with fewer than 5 orders is left out/);
+  assert.equal(el.querySelector(".mx-all").getAttribute("aria-pressed"), "true");
+  h.select("VT");
+  assert.equal(rows(el).length, 2, "selecting a state ends the list");
+  assert.equal(el.querySelector(".mx-all").getAttribute("aria-pressed"), "false");
 });
 
 test("a small state carries the small-n note; a state with no orders says so", async () => {

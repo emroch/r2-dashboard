@@ -3,9 +3,12 @@
 // the mix panels' markup (css/05-components.css .mx-*). It follows the state
 // selected on the map above it (spec.map, a `geo` mount: its r2:stateselect),
 // and its own state picker selects on the map in turn (r2:stateset), so the
-// two always agree. The counts are render/specs.py state_mix; this only draws.
+// two always agree. "Show all" lists every state with spec.small_n orders or
+// more instead, largest first, to compare states side by side. The counts are
+// render/specs.py state_mix; this only draws.
 //
-// URL state: ?state=CA (shared with the map) and ?by=paint (the measure).
+// URL state: ?state=CA (shared with the map; ?state=all for the list) and
+// ?by=paint (the measure).
 
 import { view } from "../data.js";
 import { loadAtlas } from "../lib/load.js";
@@ -51,6 +54,7 @@ export function draw(el, spec, names) {
   let measure = keys.includes(getState("by")) ? getState("by") : spec.default;
   const known = (code) => Boolean(code && names[code]);
   let selected = known(getState("state")) ? getState("state") : null;
+  let showAll = getState("state") === "all";
   const make = (tag, className, text) => {
     const e = doc.createElement(tag);
     if (className) e.className = className;
@@ -58,8 +62,9 @@ export function draw(el, spec, names) {
     return e;
   };
 
-  // Controls: the measure switch (the timeseries view switch's look) and a
-  // state picker, which is also the keyboard's way to select a state.
+  // Controls, above the key: the measure switch (the timeseries view switch's
+  // look), then a state picker (also the keyboard's way to select a state) and
+  // the Show all toggle.
   const controls = make("div", "chart-controls mx-controls");
   const sw = make("div", "chart-switch");
   sw.setAttribute("role", "group");
@@ -82,17 +87,31 @@ export function draw(el, spec, names) {
     o.value = code;
     picker.append(o);
   }
-  picker.addEventListener("change", () => {
-    select(picker.value || null);
+  const tellMap = () => {
     const map = doc.querySelector(`[data-chart="${spec.map}"]`);
     map?.dispatchEvent(new (doc.defaultView?.CustomEvent ?? CustomEvent)("r2:stateset",
       { detail: { code: selected } }));
+  };
+  picker.addEventListener("change", () => {
+    select(picker.value || null);
+    tellMap();
   });
-  controls.append(sw, picker);
+  const allBtn = make("button", "lg-item mx-all", "Show all");
+  allBtn.type = "button";
+  allBtn.addEventListener("click", () => {
+    showAll = !showAll;
+    selected = null;
+    setState("state", showAll ? "all" : null);
+    tellMap();
+    render();
+  });
+  const pick = make("div", "chart-switch mx-pick");
+  pick.append(picker, allBtn);
+  controls.append(sw, pick);
   const list = make("ol", "tr mx");
   const small = make("p", "mx-note mx-small");
   const leanNote = make("p", "mx-note");
-  plotEl.append(controls, list, small, leanNote);
+  plotEl.append(list, small, leanNote);
 
   function row(label, counts, m, cls) {
     const { n, parts } = split(counts, m.cats);
@@ -114,6 +133,7 @@ export function draw(el, spec, names) {
   function render() {
     const m = spec.measures.find((x) => x.key === measure);
     buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.key === measure)));
+    allBtn.setAttribute("aria-pressed", String(showAll));
     for (const o of picker.querySelectorAll("option")) o.selected = o.value === (selected || "");
     // The key: every category of the measure, in the mix panels' style.
     const key = make("p", "mx-key");
@@ -125,24 +145,35 @@ export function draw(el, spec, names) {
       s.append(sw_, doc.createTextNode(c.label));
       key.append(s);
     }
-    legendEl.replaceChildren(key);
+    legendEl.replaceChildren(controls, key);
     const st = selected && spec.states[selected];
-    const rows = [row("All US", spec.us[m.key], m, selected ? "mx-row mx-base" : "mx-row")];
-    if (selected) {
+    const base = selected || showAll ? "mx-row mx-base" : "mx-row";
+    const rows = [row("Overall (US)", spec.us[m.key], m, base)];
+    let note = "";
+    if (showAll) {
+      // spec.states runs largest first.
+      const big = Object.keys(spec.states).filter((c) => spec.states[c].n >= spec.small_n);
+      rows.push(...big.map((c) => row(names[c] || c, spec.states[c][m.key], m, "mx-row")));
+      const left = Object.keys(spec.states).length - big.length;
+      if (left) {
+        note = `${left} state${left === 1 ? "" : "s"} with fewer than ${spec.small_n} orders ${left === 1 ? "is" : "are"} left out; pick one to see it.`;
+      }
+    } else if (selected) {
       rows.push(st ? row(names[selected], st[m.key], m, "mx-row")
         : make("li", "mx-row mx-empty", `No orders from ${names[selected]} yet.`));
+      if (st && st.n < spec.small_n) {
+        note = `Only ${st.n} order${st.n === 1 ? "" : "s"} from ${names[selected]}: one order moves its mix by ${Math.round(100 / st.n)} points.`;
+      }
     }
     list.replaceChildren(...rows);
-    const few = st && st.n < spec.small_n;
-    small.hidden = !few;
-    small.textContent = few
-      ? `Only ${st.n} order${st.n === 1 ? "" : "s"} from ${names[selected]}: one order moves its mix by ${Math.round(100 / st.n)} points.`
-      : "";
+    small.hidden = !note;
+    small.textContent = note;
     leanNote.textContent = `By region, the biggest lean: ${m.lean}.`;
   }
 
   function select(code) {
     selected = known(code) ? code : null;
+    showAll = false;
     setState("state", selected);
     render();
   }
@@ -161,5 +192,5 @@ export function draw(el, spec, names) {
   doc.addEventListener("r2:stateselect", el.r2Follow);
 
   render();
-  return { select, selected: () => selected, setMeasure };
+  return { select, selected: () => selected, setMeasure, toggleAll: () => allBtn.click() };
 }

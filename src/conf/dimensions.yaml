@@ -233,8 +233,9 @@ dimensions:
     order: count
     missing: {policy: bucket, label: No state data}
     small_n:
-      min_orders: 5
-      note: States with fewer orders are summarized by region only.
+      min_orders: 10
+      note: States with fewer orders are left out of a list of states, and carry a
+        note when shown on their own.
     caveat: Location is self-reported.
     categories: []              # the states present; geo.yaml has the full list
 
