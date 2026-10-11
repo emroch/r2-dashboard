@@ -220,8 +220,8 @@ components:
     title: Orders by state
     dims: [state]
     aggregate: state_mix
-    summary: "Select a state on the map, or pick one here, to compare its {n}
-      orders' status, paint, wheels and interior with the whole US."
+    summary: "{n} US orders. Select a state on the map, or pick one here, to
+      compare its status, paint, wheels and interior with the whole US."
 
   dest-vs-delivery:
     template: scatter
