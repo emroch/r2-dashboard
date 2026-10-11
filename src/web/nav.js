@@ -132,10 +132,15 @@
    var s=d.querySelector('summary'); if(s)s.focus();}});
  });
  // Picking an item closes its menu: a report link opens a new tab, and the menu
- // shouldn't still be open on returning (#46); a theme applies at once.
+ // shouldn't still be open on returning (#46); a theme applies at once. Focus
+ // goes back to the menu's button, as with Escape, rather than being lost with
+ // the item that just disappeared.
  menus.forEach(function(d){
   d.querySelectorAll('.hdrpop a, .hdrpop button').forEach(function(a){
-   a.addEventListener('click',function(){d.open=false;});
+   a.addEventListener('click',function(){
+    d.open=false;
+    var s=d.querySelector('summary'); if(s)s.focus();
+   });
   });
  });
 })();
