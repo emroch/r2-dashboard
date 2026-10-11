@@ -103,8 +103,7 @@ sections:
     desc: >-
       Demand by state around the Normal, IL plant, shaded on a square-root
       scale. Below, a state's orders by status, paint, wheels or interior, against the
-      US overall. Only US orders are mapped, since the R2 isn't on sale elsewhere
-      yet.
+      US overall.
     howto: >-
       Select a state on the map, or pick one, to see its orders; <em>Show
       all</em> lists every state with 10 or more.
