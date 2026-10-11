@@ -17,8 +17,9 @@ export function isolate(hidden, name, names) {
 }
 
 // Render the legend into `el` and call onChange(hidden) after each change.
-// items: [{name, cls?, accent?}], where cls is a category class for the swatch
-// and accent a CSS variable name (for layers that aren't a category).
+// items: [{name, cls?, accent?, dash?}], where cls is a category class for the
+// swatch and accent a CSS variable name (for layers that aren't a category),
+// drawn as a dashed stroke with `dash`.
 export function legend(el, items, onChange, hidden = new Set()) {
   const doc = el.ownerDocument;
   const names = items.map((it) => it.name);
@@ -29,7 +30,13 @@ export function legend(el, items, onChange, hidden = new Set()) {
     b.className = "lg-item";
     const sw = doc.createElement("i");
     sw.className = "swatch " + (it.cls || "");
-    if (it.accent) sw.style.background = `var(--${it.accent})`;
+    // A dashed layer's swatch is a short dashed stroke, like its line.
+    if (it.accent) {
+      sw.style.background = it.dash
+        ? `repeating-linear-gradient(90deg,var(--${it.accent}) 0 4px,transparent 4px 7px)`
+        : `var(--${it.accent})`;
+      if (it.dash) sw.classList.add("swatch-dash");
+    }
     b.append(sw, doc.createTextNode(it.name));
     // A click waits a moment so a double-click isn't also two toggles.
     let timer = null;

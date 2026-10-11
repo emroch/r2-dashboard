@@ -42,6 +42,14 @@
 .chart-plot {
   position: relative;
 }
+
+/* A dashed line's swatch (legend.js `dash`): a short stroke, not a dot. */
+.swatch.swatch-dash {
+  width: 1.1em;
+  height: 3px;
+  border-radius: 0;
+  box-shadow: none;
+}
 .chart-controls {
   position: absolute;
   right: 0;
