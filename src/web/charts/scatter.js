@@ -220,7 +220,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
         r.append("text").attr("class", "row-label").attr("text-anchor", "end").attr("x", m.l - 20).attr("dy", "0.35em")
           .text((i) => rows[i].row.short);
       }
-      r.append("g").attr("class", (i) => categoryClass(rows[i].row.mark)).append("path").attr("class", "pt")
+      r.append("g").attr("class", (i) => `${categoryClass(rows[i].row.mark)} pt-true`).append("path").attr("class", "pt")
         .attr("d", (i) => d3.symbol(d3[SYMBOLS[rows[i].row.symbol] || "symbolCircle"], ROTATE[rows[i].row.symbol] ? 48 : 60)())
         .attr("transform", (i) => `translate(${m.l - 10},0)${ROTATE[rows[i].row.symbol] ? ` rotate(${ROTATE[rows[i].row.symbol]})` : ""}`);
       return g;
@@ -255,9 +255,11 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   const whisk = whiskG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
   whisk.selectAll("path").data((o) => o.s.points.filter((p) => p.lo)).join("path").attr("class", "whisker");
-  // A series with `open` draws hollow points (§7: a delivery still scheduled).
+  // A series with `open` draws hollow points (§7: a delivery still scheduled);
+  // one with `true`, its category's true color, outlined (§8–10's paints).
   const dots = dotG.selectAll("g").data(series).join("g")
-    .attr("class", (o) => (o.s.open ? `${o.cls} pt-open` : o.cls)).attr("data-name", (o) => o.s.name);
+    .attr("class", (o) => o.cls + (o.s.open ? " pt-open" : "") + (o.s.true ? " pt-true" : ""))
+    .attr("data-name", (o) => o.s.name);
   const turn = (d) => (ROTATE[d.o.s.symbol] ? ` rotate(${ROTATE[d.o.s.symbol]})` : "");
   dots.selectAll("path").data((o) => o.s.points.map((p) => ({ p, o }))).join("path").attr("class", "pt")
     .attr("d", (d) => d3.symbol(d3[SYMBOLS[d.o.s.symbol] || "symbolCircle"], ROTATE[d.o.s.symbol] ? 64 : 80)());

@@ -129,6 +129,13 @@
   stroke: var(--desc);
   stroke-width: .8;
 }
+/* A true-color point (a paint): the fill is the paint itself, so the greys
+   and darks stay apart, and the mark-edge outline holds 3:1 on the card. */
+.chart-svg .pt-true .pt {
+  fill: var(--paint);
+  stroke: var(--mark-edge);
+  stroke-width: 1;
+}
 .chart-svg .pt-open .pt {
   fill: none;
   stroke: var(--mark);

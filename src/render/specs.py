@@ -100,7 +100,9 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
                    y: Callable[[pd.Series], Any]) -> tuple[list[dict], list[dict]]:
     """One series per paint × wheel, paints in `paints` order, then the wheels in
     dimensions.yaml's: fill = paint, shape = wheels, the house config language.
-    Returns (series, cells)."""
+    `true`: the points are the paint's true color, outlined (charts/scatter.js),
+    as a paint's swatch is: clamped to the mark range, the greys and the darks
+    become indistinguishable at a point's size. Returns (series, cells)."""
     series, cells = [], []
     for color in paints:
         for wheel in _WHEEL_SYMBOL:
@@ -110,6 +112,7 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
             name = "%s · %s" % (color, wheel.split()[0])
             series.append({"name": name, "color": "color:%s" % color,
                            "shape": "wheels:%s" % wheel, "symbol": _WHEEL_SYMBOL[wheel],
+                           "true": True,
                            "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r)}
                                       for _, r in s.iterrows()]})
             cells.append({"value": name, "label": name, "n": len(s),
