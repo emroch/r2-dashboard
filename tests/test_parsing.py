@@ -927,6 +927,19 @@ def test_delivered_inferred_only_for_a_passed_upper_bound():
     assert list(delivered) == [True, False, False, False]
 
 
+def test_inferred_deliveries_lists_only_vague_estimates_that_passed():
+    import pandas as pd
+    from ingest.loaders import inferred_deliveries
+    day = pd.Timestamp("2026-08-14")
+    df = pd.DataFrame({"orig_num": ["1", "2", "3"], "user": ["a", "b", "c"],
+                       "delivered_inferred": [True, True, False],
+                       "delivery_type": ["window", "explicit", "month"],
+                       "delivery_raw": ["4-8 weeks ", "8/14/26", "December"],
+                       "delivery_max": [day, day, pd.NaT]})
+    assert inferred_deliveries(df) == [
+        ("1", "a", "4-8 weeks (window) ended 2026-08-14")]
+
+
 # --- Column mapping and schema-drift detection ------------------------------
 # Columns are located by NAME, so these tests pin both halves of that contract:
 # what the sheets are free to change (order, new questions, wording) and what

@@ -573,36 +573,6 @@ def orders_by_week(df: pd.DataFrame) -> tuple:
     return spec, agg, (heads, rows)
 
 
-def deliveries_by_week(df: pd.DataFrame) -> tuple:
-    """§6: estimated deliveries by week, stacked by how firm the estimate is
-    (dimensions.yaml delivery_type, firm first), with today."""
-    unknown = DIMENSIONS["delivery_type"]["missing"]["value"]
-    types = [c for c in DIMENSIONS["delivery_type"]["categories"]
-             if c["value"] != unknown]
-    d = df[df["delivery_est"].notna() & df["delivery_type"].isin(
-        [c["value"] for c in types])]
-    stack = [(c.get("label") or c["value"], "delivery_type:%s" % c["value"],
-              _weekly(d.loc[d["delivery_type"] == c["value"], "delivery_est"]))
-             for c in types]
-    cols = _columns([s for s in stack if s[2]])
-    today = pd.Timestamp(AS_OF).normalize()
-    spec = {"template": "timeseries", "title": "Estimated deliveries by week",
-            "x": {"label": "Estimated delivery week", "type": "date",
-                  "domain": _weeks_domain(cols["weeks"], [today])
-                  if cols["weeks"] else None},
-            "y": {**cols["y"], "label": "Orders"}, "legend": "Estimate",
-            "series": cols["series"], "lines": [],
-            "rules": [{"axis": "x", "value": _iso(today), "label": "Today"}]}
-    heads, rows = _column_table("Week of", cols)
-    cells = [{"value": s["name"], "label": s["name"],
-              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
-             for s in cols["series"]]
-    agg = Aggregate("deliveries by week", "orders", cells,
-                    {"no delivery estimate": len(df) - len(d)} if len(df) - len(d)
-                    else {})
-    return spec, agg, (heads, rows)
-
-
 # The pipeline's events, in reading order: (key, label, line accent). Each is an
 # order's own date (ingest/milestones.py), the dates r2_series.json counts.
 _EVENTS = (("placed", "Orders placed", "fulfil-placed"),
