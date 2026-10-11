@@ -2,6 +2,9 @@
 // any view is a link someone can post. Anchors (#sec-10) are left alone.
 //
 //   whiskers  "0" hides the delivery-window whiskers; shown otherwise
+//   <chart>   a timeseries' view, when not its first ("cumulative")
+//   <chart>-grain  a timeseries' grain, once the reader picks one ("month")
+//   state, by  the state mix's state ("CA", "all") and measure ("paint")
 
 export function get(name, search = globalThis.location?.search ?? "") {
   return new URLSearchParams(search).get(name);

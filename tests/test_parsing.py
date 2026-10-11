@@ -787,7 +787,7 @@ def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
     # window doesn't count as shown). Week of 8/17: h's impossible estimate leaves
     # it 0 of 1 — not in the scatter, but still counted as an order placed.
     assert [round(v) for _, v in cov["values"]] == [75, 67, 0], cov["values"]
-    assert [t.split(" of ")[1].split()[0] for t in cov["tips"]] == ["4", "3", "1"]
+    assert cov["counts"] == [[3, 4], [2, 3], [0, 1]], cov["counts"]
 
 
 # --- Build cadence (#33) ----------------------------------------------------

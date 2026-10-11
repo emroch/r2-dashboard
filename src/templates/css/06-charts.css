@@ -225,3 +225,17 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   white-space: nowrap;
   z-index: 3;
 }
+
+/* A timeseries' controls (charts/timeseries.js): the grain and the view, in a
+   row above the plot that wraps on a narrow screen, rather than over it. */
+.ts-controls {
+  position: static;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 12px;
+  margin-bottom: 6px;
+}
+.ts-controls .chart-switch {
+  display: flex;
+  gap: 6px;
+}

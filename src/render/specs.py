@@ -774,11 +774,13 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
             "y": {"label": "Orders with a firm date", "type": "linear",
                   "domain": [0, 100], "format": "pct"},
             "legend": None, "lines": [], "rules": [],
+            # A share, so the chart's month and quarter groups re-divide the
+            # counts (charts/timeseries.js regroup) and word the tips from `tip`.
             "series": [{"name": "Coverage", "color": "acc:primary",
                         "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
-                        "tips": ["%d of %d orders have a firm date"
-                                 % (int(num.get(w, 0)), int(den[w]))
-                                 for w in den.index]}]}
+                        "counts": [[int(num.get(w, 0)), int(den[w])]
+                                   for w in den.index],
+                        "tip": "{0} of {1} orders have a firm date"}]}
     rows = [[_iso(w), int(num.get(w, 0)), int(den[w]), "%.0f%%" % p]
             for w, p in zip(weeks, pct)]
     agg = Aggregate("firm-date coverage", "orders",
