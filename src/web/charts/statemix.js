@@ -144,7 +144,7 @@ export function draw(el, spec, names) {
     for (const c of m.cats) {
       const s = make("span");
       const sw_ = make("i", c.stage ? `mark tr-neutral stage-${c.stage} mx-chip`
-        : `swatch ${categoryClass(c.color)}`);
+        : `swatch${m.true ? " swatch-true" : ""} ${categoryClass(c.color)}`);
       s.append(sw_, doc.createTextNode(c.label));
       key.append(s);
     }

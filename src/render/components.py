@@ -374,8 +374,9 @@ def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str
     out += [row(str(r["label"]), int(r["n"]),
                 [(c, by[(r["value"], c["value"])]) for c in cols], "mx-row")
             for r in rows]
-    key = "".join('<span><i class="swatch %s"></i>%s</span>'
-                  % (category_class(c["ref"]) if c["ref"] else "",
+    key = "".join('<span><i class="swatch%s %s"></i>%s</span>'
+                  % (" swatch-true" if true and c["ref"] else "",
+                     category_class(c["ref"]) if c["ref"] else "",
                      escape(str(c["label"]))) for c in keyed)
     head = spec.get("row_label") or DIMENSIONS[agg.meta["row_dim"]]["label"]
     bv = {c["value"]: int(c["n"]) for c in base or ()}
