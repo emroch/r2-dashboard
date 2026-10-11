@@ -122,6 +122,13 @@
   color: var(--fg);
   font-weight: 600;
 }
+/* On a phone the five labels are about 66px apart: a size smaller keeps a
+   clear gap between neighbours ("With a VIN" | "Scheduled"). */
+@media (width < 768px) {
+  .map-stops button {
+    font-size: 11px;
+  }
+}
 .map-key {
   display: inline-flex;
   align-items: center;
