@@ -150,7 +150,7 @@ components:
   # (render/specs.py, into r2_view.json) and the page draws it with d3
   # (src/web/charts/<template>.js), lazily, when it nears the viewport.
   #   aggregate  the spec builder in render/specs.py
-  # Time (§5–7, §10's cadence): weekly columns and lines, Monday weeks.
+  # Time (§5–7, §9's cadence): weekly columns and lines, Monday weeks.
   reservations-by-week:
     template: timeseries
     title: Reservations by week

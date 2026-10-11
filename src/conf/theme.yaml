@@ -48,7 +48,7 @@ css:
     # shows and a true-color mark (dimensions.yaml true_color) like a white paint
     # on the white card still has an outline.
     mark-edge: "#808080"
-    # The US map (§12, web/charts/geo.js): the land the fill ramp mixes into.
+    # The US map (§11, web/charts/geo.js): the land the fill ramp mixes into.
     map-land: "#efefec"
   dark:
     bg: "#15171c"

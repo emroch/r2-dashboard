@@ -76,7 +76,7 @@ def _paint_order(d: pd.DataFrame) -> list[str]:
 
 
 def _config_tip(r: pd.Series) -> list[str]:
-    """An order's tooltip in the configuration scatters (§9, §10, §11)."""
+    """An order's tooltip in the configuration scatters (§8, §9, §10)."""
     return [str(r["user"]),
             "%s · %s" % (r["color"], r["wheels_short"]),
             "%s · %s" % (r["interior"], r["buylease"]),
@@ -118,8 +118,8 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
 
 
 def vin_vs_order(df: pd.DataFrame) -> tuple:
-    """§9: each order with a VIN at (order date, VIN), one series per paint ×
-    wheel, as §10."""
+    """§8: each order with a VIN at (order date, VIN), one series per paint ×
+    wheel, as §9."""
     vin = df["vin_present"].astype(bool)
     has = vin & df["order_date"].notna()
     d = df[has & _reported(df, "color", "wheels_short")]
@@ -142,7 +142,7 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
 
 
 def vin_by_config(df: pd.DataFrame) -> tuple:
-    """§11: each order with a VIN at its sequence (x), in a row per full
+    """§10: each order with a VIN at its sequence (x), in a row per full
     configuration (trim · paint · wheels · interior). Interior joins the row key
     rather than becoming a third marker channel: fill and shape are taken."""
     vin = df["vin_present"].astype(bool)
@@ -196,7 +196,7 @@ _REGIONS = [c["value"] for c in DIMENSIONS["region"]["categories"]]
 
 
 def dest_vs_delivery(df: pd.DataFrame) -> tuple:
-    """§17: each order with a delivery estimate and a known destination, in a row
+    """§13: each order with a delivery estimate and a known destination, in a row
     per state, ordered by distance from the factory (nearest at the bottom), one
     series per region, with the quoted window as a whisker; and today."""
     est = df["delivery_est"].notna()
@@ -279,7 +279,7 @@ def _us(frame: pd.DataFrame) -> pd.Series:
 
 
 def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
-    """§12: per US state, total demand (orders + outstanding reservations), orders,
+    """§11: per US state, total demand (orders + outstanding reservations), orders,
     and the orders that have reached each delivery stage, cumulatively: with a
     VIN (or further), scheduled (or delivered), delivered."""
     if resv is None or "state" not in resv:
@@ -412,7 +412,7 @@ def state_mix(df: pd.DataFrame) -> tuple:
 
 
 def delivery_vs_vin(df: pd.DataFrame) -> tuple:
-    """§10: each order with a VIN and a delivery estimate, at (estimated
+    """§9: each order with a VIN and a delivery estimate, at (estimated
     delivery date, VIN), one series per paint × wheel, with the quoted window
     as a whisker; the build front, its projection and band; and today."""
     has = df["vin_present"].astype(bool) & df["delivery_est"].notna()
@@ -840,7 +840,7 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
 
 
 def build_cadence(df: pd.DataFrame) -> tuple:
-    """§10, beneath: the build front's rate over time, VINs per day, as of each
+    """§9, beneath: the build front's rate over time, VINs per day, as of each
     front week (render/cadence.py rate_history), at the week's middle."""
     from config import CADENCE_WINDOW_WEEKS
     from .cadence import cadence_frame, rate_history

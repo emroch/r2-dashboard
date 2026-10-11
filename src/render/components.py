@@ -200,7 +200,7 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
     total = agg.counted
     widest = max((int(c["n"]) for c in cells), default=0) or 1
     # charts.yaml `total`: a first row summing every row, on its own scale (at
-    # the shared one it would flatten the rest), for a long list (§13's states).
+    # the shared one it would flatten the rest), for a long list (a row per state).
     tot = ([{"label": spec["total"], "n": total, "ref": None, "total": True,
              "stages": {st: sum(c["stages"][st] for c in cells) for st in STAGES}}]
            if spec.get("total") and cells else [])

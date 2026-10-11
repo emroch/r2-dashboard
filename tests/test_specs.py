@@ -1,7 +1,7 @@
 """Tests for the browser-drawn components' specs (render/specs.py, #107): what
 Python hands the page's d3 templates.
 
-§10's delivery-vs-VIN scatter carries over what its old figure's tests
+§9's delivery-vs-VIN scatter carries over what its old figure's tests
 checked (test_parsing.py, before #107): one series per paint × wheel in the
 page-wide paint order; whiskers only for quoted windows; the build front, its
 projection and band as their own layers after the series, with the projection
@@ -27,7 +27,7 @@ from config import AS_OF, COLOR_ORDER
 
 
 def _orders(n=0, **cols):
-    """A cleaned-orders frame with every column the §10 spec reads."""
+    """A cleaned-orders frame with every column the §9 spec reads."""
     base = dict(user=["u%d" % i for i in range(n)], color=["Esker Silver"] * n,
                 wheels_short=['21" Liquid Tungsten'] * n,
                 interior=["Black Crater Signature"] * n, buylease=["Purchase"] * n,
@@ -165,7 +165,7 @@ def test_the_mounted_component_has_a_no_js_table_of_every_point():
     assert "3 orders with both a VIN and a delivery estimate." in html
 
 
-# --- timeseries specs (§5, §6, §7's coverage, §10's cadence) ------------------------
+# --- timeseries specs (§5, §6, §7's coverage, §9's cadence) ------------------------
 
 def _sizes(df, resv):
     from render.aggregates import cohort_sizes

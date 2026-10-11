@@ -161,7 +161,7 @@ def test_frame_carries_title_summary_n_caveats_and_table():
     assert html.count("Location is self-reported.") == 1
     assert DIMENSIONS["state"]["small_n"]["note"] in html and "Extra note." in html
     assert DIMENSIONS["state"]["small_n"]["note"] not in frame(
-        "c-x", "All states", "", dims=["state"]), "§13 lists every state"
+        "c-x", "All states", "", dims=["state"]), "a state list lists every state"
     assert '<table id="c-test-data">' in html and "<td>Midnight</td>" in html
     assert 'data-table="c-test-data" data-file="c-test.csv" hidden' in html
 

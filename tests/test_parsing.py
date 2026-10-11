@@ -887,7 +887,8 @@ def test_backtest_sign_shows_when_reality_ran_ahead():
 
 
 def test_state_totals_segments_partition_each_state():
-    # §13 is the state take-rate over the located orders: the four stages must
+    # The state take-rate (no longer on the page) is over the located orders:
+    # the four stages must
     # sum to each state's count, so a delivery is counted once whatever its VIN
     # status (a delivered order with no VIN still counts as delivered), and an
     # order with no location sits out of the cohort.
@@ -911,7 +912,8 @@ def test_state_totals_segments_partition_each_state():
 
 
 def test_state_totals_summary_row_matches_the_shared_split():
-    # #53: §13's "All states" row and the summary's Delivery progress readouts
+    # #53: the state take-rate's "All states" row and the summary's Delivery
+    # progress readouts
     # come from one split (aggregates.stages()), so they can't drift. The row
     # covers the located orders, the readouts every order: they agree exactly
     # when every order is located, and differ by the unmapped ones.
@@ -1456,7 +1458,7 @@ def test_every_paint_chart_uses_the_same_order():
     # follow one popularity ranking, or a reader learns an order in §2 that fails
     # them in §3.
     # (The §2 take-rate rows follow it too: test_aggregates.py.)
-    # (§10's delivery-vs-VIN scatter follows it too: test_specs.py.)
+    # (§9's delivery-vs-VIN scatter follows it too: test_specs.py.)
     from render.aggregates import crosstab
     from render.specs import _paint_order, vin_vs_order
     from render.view import _crosstab
@@ -1467,7 +1469,7 @@ def test_every_paint_chart_uses_the_same_order():
     # §3 heatmap rows, top-down.
     assert [r["value"] for r in crosstab(df, "color", "wheels").meta["rows"]] == want
 
-    # §9 scatter legend: one entry per paint × wheel, paints in rank order.
+    # §8 scatter legend: one entry per paint × wheel, paints in rank order.
     seen = []
     for s in vin_vs_order(df)[0]["series"]:
         paint = s["name"].split(" · ")[0]
@@ -1475,7 +1477,7 @@ def test_every_paint_chart_uses_the_same_order():
             seen.append(paint)
     assert seen == want, seen
 
-    # §14 stack order: the location mixes' columns and baseline.
+    # Stack order in the location mixes: their columns and baseline.
     for cid in ("paint-by-region", "paint-by-state"):
         a = _crosstab(df, _LOCATION_CONFS[cid])
         assert [c["value"] for c in a.meta["cols"]] == want, cid
@@ -1489,7 +1491,7 @@ def test_counts_break_ties_alphabetically():
     # daily builds. Order must be (count, then name), repeatably.
     from render.aggregates import counts
     s = pd.Series(list("aaa") + ["zz", "mm", "bb"] * 2 + ["q"])
-    # A component's rows (§13's states): largest first, ties by name, whatever
+    # A component's rows (a row per state): largest first, ties by name, whatever
     # order the orders arrive in.
     df = pd.DataFrame({"state": list(s), "lat": 1.0})
     def rows(frame):

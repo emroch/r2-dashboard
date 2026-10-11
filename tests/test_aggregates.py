@@ -532,7 +532,7 @@ def test_price_components_render_rows_text_and_tables():
     assert "Median configured price by trim: Performance $59,990." in html
 
 
-# --- Location mixes (§13–16) -------------------------------------------------------
+# --- Location mixes (§12, and the removed per-region panels) ----------------------
 
 def _located(states, colors):
     return _orders(state=states, color=colors, lat=[40.0] * len(states),

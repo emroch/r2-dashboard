@@ -14,7 +14,7 @@
 // entry and draw above the points. Whiskers follow ?whiskers= (state.js). The
 // chart redraws when its width changes, keeping what the legend hides.
 //
-// x is a date axis, or a number line with `x.type: "linear"` (§11: VIN sequence).
+// x is a date axis, or a number line with `x.type: "linear"` (§10: VIN sequence).
 // y is a number line, or rows with `y.type: "rows"`: `y.rows` lists the row labels
 // top to bottom, row i sits at y = i (a point's y is its row plus a jitter, set in
 // Python), and the axis labels each row instead of ticking numbers.

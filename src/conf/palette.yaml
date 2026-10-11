@@ -37,7 +37,7 @@ latency:
   coverage: "#9aa9b8"         # share of each week's orders shown above
 
 # ---------------------------------------------------------------------------
-# Build front + projection overlaid on the delivery-vs-VIN scatter (§10), and the
+# Build front + projection overlaid on the delivery-vs-VIN scatter (§9), and the
 # cadence-over-time companion. The scatter's markers are paint colors, so the
 # overlay needs a hue that isn't a paint and reads on both surfaces: Compass
 # Yellow, the page's accent for "the summary, not a data point".
