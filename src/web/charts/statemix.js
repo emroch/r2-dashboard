@@ -120,10 +120,12 @@ export function draw(el, spec, names) {
     li.append(make("span", "tr-name", label), make("span", "tr-n", `n = ${fmt(n)}`));
     const bar = make("span", "mx-bar");
     bar.setAttribute("aria-hidden", "true");
-    for (const { c, pct } of parts) {
+    for (const { c, k, pct } of parts) {
       const seg = make("i", c.stage ? `mark tr-neutral stage-${c.stage}`
         : `mark${m.true ? " mark-true" : ""} ${categoryClass(c.color)}`);
       seg.style.width = `${pct.toFixed(2)}%`;
+      // Its hover popover (lib/barhover.js), as the HTML mix rows have.
+      seg.dataset.tip = `${label}\n${c.label}: ${fmt(k)} of ${fmt(n)} (${Math.round(pct)}%)`;
       bar.append(seg);
     }
     li.append(bar, make("span", "tr-split",
