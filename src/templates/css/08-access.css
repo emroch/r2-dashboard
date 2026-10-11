@@ -34,13 +34,16 @@ section[tabindex="-1"]:focus {
   .mx-picker,
   .map-stops button,
   .hdrpop a,
-  .hdrpop button {
+  .hdrpop button,
+  .sidebar a {
     min-height: 44px;
+    box-sizing: border-box;
   }
   .navbtn,
   .pillbtn {
     min-width: 44px;
   }
+  .pillbtn,
   .lg-item,
   .r2c-csv {
     display: inline-flex;
@@ -49,13 +52,11 @@ section[tabindex="-1"]:focus {
   .sidebar a {
     display: flex;
     align-items: center;
-    min-height: 44px;
   }
-  .r2c-data > summary,
-  .ro-more > summary {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
+  /* A disclosure keeps its own display (a flex <summary> loses its marker), so
+     its one line is made 44px tall instead. */
+  .r2c-data > summary {
+    line-height: 44px;
   }
 }
 
