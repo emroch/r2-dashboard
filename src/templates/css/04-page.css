@@ -21,6 +21,13 @@
 .intro p.src a:hover {
   filter: brightness(1.15);
 }
+/* A relative time ("3 hours ago", nav.js) carries the exact time as its
+   tooltip; the dotted underline says there's more to see. */
+time[data-r2time][title] {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
 .intro p.meth {
   margin: 10px 0 0;
   color: var(--desc);

@@ -270,14 +270,36 @@
 })();
 
 (function(){
- // Localize the server-rendered <time data-r2time> stamps to the viewer's own
- // timezone and locale (the datetime attr carries the absolute instant), in
- // words ("Oct 10, 2026, 10:12 PM CDT"), which a screen reader reads as a date
- // and time; the build-timezone text stays if this doesn't run.
- var fmt; try{fmt=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',
-  day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});}catch{/* best effort */}
- if(fmt)document.querySelectorAll('time[data-r2time]').forEach(function(t){
-  var d=new Date(t.getAttribute('datetime'));
-  if(!isNaN(d.getTime()))t.textContent=fmt.format(d);
- });
+ // The server-rendered <time data-r2time> stamps (the datetime attr carries
+ // the absolute instant) read as relative times in the viewer's language ("3
+ // hours ago", "yesterday"), refreshed each minute, with the exact time in the
+ // viewer's own timezone as the tooltip ("Oct 10, 2026, 10:12 PM CDT"). Both
+ // are words, which a screen reader reads as a time rather than as numbers.
+ // Without this, the build-timezone text the server wrote stays.
+ var fmt, rtf;
+ try{
+  fmt=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',
+   hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+  rtf=new Intl.RelativeTimeFormat(undefined,{numeric:'auto'});
+ }catch{/* best effort */}
+ // The largest unit that fits, rounded, as RelativeTimeFormat words it.
+ var UNITS=[['year',31536000],['month',2592000],['week',604800],['day',86400],
+  ['hour',3600],['minute',60]];
+ function ago(d){
+  var s=(d.getTime()-Date.now())/1000;
+  for(var i=0;i<UNITS.length;i++){
+   if(Math.abs(s)>=UNITS[i][1])return rtf.format(Math.round(s/UNITS[i][1]),UNITS[i][0]);
+  }
+  return rtf.format(0,'minute');
+ }
+ var stamps=[].slice.call(document.querySelectorAll('time[data-r2time]'));
+ function refresh(){
+  stamps.forEach(function(t){
+   var d=new Date(t.getAttribute('datetime'));
+   if(isNaN(d.getTime()))return;
+   t.textContent=ago(d);
+   t.title=fmt.format(d);
+  });
+ }
+ if(fmt&&rtf&&stamps.length){refresh();setInterval(refresh,60000);}
 })();
