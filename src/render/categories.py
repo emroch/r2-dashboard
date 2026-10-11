@@ -75,8 +75,7 @@ def bounds(theme: str) -> tuple[float, float]:
 # stage key with no category color, so they read at a paint's brightness.
 ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"],
            "blue": CHART_BLUE,
-           "latency-order": LATENCY_COLORS["order"],
-           "latency-coverage": LATENCY_COLORS["coverage"]}
+           "latency-order": LATENCY_COLORS["order"]}
 
 
 def true_color() -> set[tuple[str, str]]:

@@ -118,7 +118,8 @@
 
 /* Delivery stages in a chart's columns (timeseries `stage`): the color stepped
    paler toward white rather than faded by opacity, which on the dark card turns
-   every stage brown. Legend swatches step the same way. */
+   every stage brown. Legend swatches step the same way, from the same --mark as
+   the bars, so a swatch matches its band in both themes. */
 .tone-delivered {
   --tone: 100%;
 }
@@ -135,7 +136,7 @@
   fill: color-mix(in oklab,var(--mark) var(--tone),white);
 }
 .lg-item .swatch[class*="tone-"] {
-  background: color-mix(in oklab,var(--paint) var(--tone),white);
+  background: color-mix(in oklab,var(--mark) var(--tone),white);
 }
 
 /* On the dark card the stages step darker instead, duller like the take-rate
@@ -154,7 +155,7 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar {
   fill: color-mix(in oklab,var(--mark) var(--tone),black);
 }
 html[data-theme="dark"] .lg-item .swatch[class*="tone-"] {
-  background: color-mix(in oklab,var(--paint) var(--tone),black);
+  background: color-mix(in oklab,var(--mark) var(--tone),black);
 }
 
 /* The current week, still under way (timeseries x.partial), crosshatched in the
@@ -169,6 +170,9 @@ html[data-theme="dark"] .lg-item .swatch[class*="tone-"] {
 
 /* The hovered week (timeseries .active) in Compass Yellow, stepped by stage
    toward white, or black on the dark card. */
+.chart-svg .bar.active {
+  fill: var(--stat-bg);
+}
 .chart-svg [class*="tone-"] .bar.active {
   fill: color-mix(in oklab,var(--stat-bg) var(--tone),white);
 }

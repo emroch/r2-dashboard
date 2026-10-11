@@ -27,15 +27,13 @@ fulfilment:
   delivered: "#54a24b"
 
 # ---------------------------------------------------------------------------
-# Order-to-delivery time (latency chart). The same three hues the page already
-# uses: the shared chart blue for individual orders, Compass Yellow for the
-# emphasized summary (the weekly median), and the neutral grey for the coverage
-# bars underneath, which are context rather than a finding.
+# Order-to-delivery time (latency chart): the shared chart blue for individual
+# orders, Compass Yellow for the emphasized summary (the weekly median). The
+# coverage bars underneath are the chart blue (chart_blue).
 # ---------------------------------------------------------------------------
 latency:
   order: "#4c78a8"            # one marker per order with a firm delivery date
   median: "#ffb100"           # Compass Yellow — weekly median line
-  coverage: "#9aa9b8"         # share of each week's orders shown above
 
 # ---------------------------------------------------------------------------
 # Build front + projection overlaid on the delivery-vs-VIN scatter (§9), and the

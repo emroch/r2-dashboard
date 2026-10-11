@@ -774,7 +774,7 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
             "y": {"label": "Orders with a firm date", "type": "linear",
                   "domain": [0, 100], "format": "pct"},
             "legend": None, "lines": [], "rules": [],
-            "series": [{"name": "Coverage", "color": "acc:latency-coverage",
+            "series": [{"name": "Coverage", "color": "acc:blue",
                         "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
                         "tips": ["%d of %d orders have a firm date"
                                  % (int(num.get(w, 0)), int(den[w]))
