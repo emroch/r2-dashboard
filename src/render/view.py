@@ -28,7 +28,7 @@ from .aggregates import (Aggregate, binned, cohort_sizes, counts, crosstab,
                          stage_counts)
 from .components import bars, heatmap, mix, mount, range_strip, takerate
 from .specs import (build_cadence, delivery_latency,
-                    delivery_vs_vin, dest_vs_delivery, fulfilment_by_week, geo_demand,
+                    delivery_vs_vin, fulfilment_by_week, geo_demand,
                     latency_coverage, orders_by_week, reservations_by_week,
                     state_mix, vin_by_config, vin_vs_order)
 
@@ -83,7 +83,6 @@ _SPECS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], tuple]] = {
     "geo_demand": geo_demand,
     "state_mix": lambda df, resv: state_mix(df),
     "vin_by_config": lambda df, resv: vin_by_config(df),
-    "dest_vs_delivery": lambda df, resv: dest_vs_delivery(df),
     "reservations_by_week": reservations_by_week,
     "orders_by_week": lambda df, resv: orders_by_week(df),
     "delivery_latency": lambda df, resv: delivery_latency(df),

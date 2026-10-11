@@ -191,61 +191,6 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
     return spec, agg, table
 
 
-# Regions in dimensions.yaml's order, for the destination chart's legend.
-_REGIONS = [c["value"] for c in DIMENSIONS["region"]["categories"]]
-
-
-def dest_vs_delivery(df: pd.DataFrame) -> tuple:
-    """§13: each order with a delivery estimate and a known destination, in a row
-    per state, ordered by distance from the factory (nearest at the bottom), one
-    series per region, with the quoted window as a whisker; and today."""
-    est = df["delivery_est"].notna()
-    d = df[est & df["dist_mi"].notna()]
-    excluded = {"no delivery estimate": int((~est).sum()),
-                "no known destination": int((est & df["dist_mi"].isna()).sum())}
-    dist = (d.groupby("state")["dist_mi"].first()
-            .sort_values(ascending=False, kind="mergesort"))
-    rows = ["%s (%.0f mi)" % (st, mi) for st, mi in dist.items()]
-    row_of = {st: i for i, st in enumerate(dist.index)}
-    rng = np.random.RandomState(7)
-    jitter = dict(zip(d.index, (rng.rand(len(d)) - 0.5) * 0.55))
-    series, cells = [], []
-    for region in [r for r in _REGIONS if (d["region"] == r).any()]:
-        pts = []
-        for i, r in d[d["region"] == region].iterrows():
-            lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
-            window = bool(lo and hi and hi > lo)
-            pts.append({"x": _iso(r["delivery_est"]),
-                        "y": round(row_of[r["state"]] + float(jitter[i]), 3),
-                        "lo": lo if window else None, "hi": hi if window else None,
-                        "tip": ["%s — %s" % (r["user"], r["state"]),
-                                "%.0f mi from Normal, IL" % r["dist_mi"],
-                                str(r["color"]),
-                                "Est. delivery: %s (%s)" % (r["est_display"],
-                                                            r["delivery_type"])]})
-        series.append({"name": region, "color": "region:%s" % region,
-                       "symbol": "circle", "points": pts})
-        cells.append({"value": region, "label": region, "n": len(pts),
-                      "ref": "region:%s" % region, "known": True})
-    xs = [pd.Timestamp(v) for c in ("delivery_est", "delivery_min", "delivery_max")
-          for v in d[c].dropna()] + [AS_OF]
-    spec = {"template": "scatter", "title": "Destination vs. delivery date",
-            "x": {"label": "Estimated delivery date (whiskers = quoted window)",
-                  "type": "date", "domain": _date_domain(xs)},
-            "y": {"label": "Destination — nearest to the factory at the bottom",
-                  "type": "rows", "rows": rows, "domain": [-0.7, len(rows) - 0.3]},
-            "legend": "Region", "series": series,
-            "layers": [{"type": "rule", "axis": "x", "value": _iso(AS_OF),
-                        "label": "Today"}],
-            "toggles": {"whiskers": True}}
-    table_rows = [[rows[round(p["y"])], s_["name"], p["tip"][0].split(" — ")[0],
-                   p["x"], "%s – %s" % (p["lo"], p["hi"]) if p["lo"] else ""]
-                  for s_ in series for p in s_["points"]]
-    table = (["Destination", "Region", "Order", "Est. delivery", "Quoted window"],
-             table_rows)
-    return spec, Aggregate("dest-vs-delivery points", "orders", cells, excluded), table
-
-
 # --- geo: the US states map ----------------------------------------------------
 #
 #   geo   states: {postal code: {region, demand, orders, vin, scheduled, delivered,
@@ -763,7 +708,8 @@ def latency_frame(df: pd.DataFrame) -> pd.DataFrame:
 def delivery_latency(df: pd.DataFrame) -> tuple:
     """§7: each order with a firm delivery date at (order date, days to
     delivery), filled once the date has passed and open while it's still
-    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more."""
+    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more,
+    as a curve."""
     d = latency_frame(df)
     passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
     series: list[dict[str, Any]] = []
@@ -787,7 +733,7 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     if len(med):
         layers.append({
             "type": "line", "name": "Weekly median (%d+ orders)" % LATENCY_MIN_WEEK_N,
-            "color": "var:latency-median",
+            "color": "var:latency-median", "curve": True,
             "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
                        for w, v in med.items()],
             "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),

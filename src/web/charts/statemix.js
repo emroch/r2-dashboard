@@ -110,8 +110,9 @@ export function draw(el, spec, names) {
   controls.append(sw, pick);
   const list = make("ol", "tr mx");
   const small = make("p", "mx-note mx-small");
-  const leanNote = make("p", "mx-note");
-  plotEl.append(list, small, leanNote);
+  // Where a region leans, as a headline over the rows rather than a note under them.
+  const leanNote = make("p", "mx-lean");
+  plotEl.append(leanNote, list, small);
 
   function row(label, counts, m, cls) {
     const { n, parts } = split(counts, m.cats);
@@ -170,7 +171,7 @@ export function draw(el, spec, names) {
     list.replaceChildren(...rows);
     small.hidden = !note;
     small.textContent = note;
-    leanNote.textContent = `By region, the biggest lean: ${m.lean}.`;
+    leanNote.textContent = `Biggest regional lean: ${m.lean}.`;
   }
 
   function select(code) {
