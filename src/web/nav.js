@@ -238,12 +238,12 @@
  // cut the scroll short. So the trip holds the section as its anchor: it
  // re-aims at the section's new place whenever the column resizes, and when
  // the scroll comes to rest it puts the section exactly where a jump would
- // (scroll-margin below the pinned header). The hash and history work as for
+ // (scroll-padding below the pinned header). The hash and history work as for
  // a plain link.
  var trip=null, rest=0;
  function smooth(){return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
  function aim(how){
-  var gap=parseFloat(getComputedStyle(trip).scrollMarginTop)||0;
+  var gap=parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop)||0;
   var y=window.scrollY+trip.getBoundingClientRect().top-gap;
   window.scrollTo({top:y,behavior:how||(smooth()?'smooth':'instant')});
  }

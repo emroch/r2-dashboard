@@ -7,8 +7,12 @@ body {
   color: var(--fg);
   transition: background .5s ease,color .5s ease;
 }
+/* Anything scrolled into view (a jump to a section, a focused heading or link,
+   VoiceOver's cursor) stops 8px below the pinned header rather than under it;
+   nav.js measures --header-pin. */
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--header-pin,92px) + 8px);
 }
 /* The browser's own surfaces (canvas, scrollbars, form controls) follow the
    theme; the color-scheme meta covers the moment before this sheet applies. */
