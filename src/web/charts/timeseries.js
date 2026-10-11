@@ -363,7 +363,7 @@ export function draw(d3, el, weekly, { hidden: startHidden = new Set() } = {}) {
   const controls = doc.createElement("div");
   controls.className = "chart-controls ts-controls";
   const group = (label) => {
-    const g = Object.assign(doc.createElement("div"), { className: "chart-switch" });
+    const g = Object.assign(doc.createElement("div"), { className: "chart-switch seg" });
     g.setAttribute("role", "group");
     g.setAttribute("aria-label", label);
     controls.append(g);

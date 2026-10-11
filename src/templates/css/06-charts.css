@@ -62,6 +62,30 @@
   color: var(--card-bg);
   border-color: var(--fg);
 }
+/* Mutually exclusive choices (.seg: a grain, a view, a measure) are one
+   segmented control: the buttons share their borders, rounded only at the
+   ends, and the pressed one sits on top so its border shows whole. */
+.chart-switch.seg {
+  display: inline-flex;
+  gap: 0;
+}
+.seg .lg-item {
+  position: relative;
+  border-radius: 0;
+}
+.seg .lg-item + .lg-item {
+  margin-left: -1px;
+}
+.seg .lg-item:first-child {
+  border-radius: 12px 0 0 12px;
+}
+.seg .lg-item:last-child {
+  border-radius: 0 12px 12px 0;
+}
+.seg .lg-item[aria-pressed=true],
+.seg .lg-item:focus-visible {
+  z-index: 1;
+}
 .chart-loading {
   margin: 0;
   padding: 40px 0;
@@ -234,8 +258,4 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   justify-content: flex-end;
   gap: 6px 12px;
   margin-bottom: 6px;
-}
-.ts-controls .chart-switch {
-  display: flex;
-  gap: 6px;
 }

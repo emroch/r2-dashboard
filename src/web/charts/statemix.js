@@ -66,7 +66,7 @@ export function draw(el, spec, names) {
   // look), then a state picker (also the keyboard's way to select a state) and
   // the Show all toggle.
   const controls = make("div", "chart-controls mx-controls");
-  const sw = make("div", "chart-switch");
+  const sw = make("div", "chart-switch seg");
   sw.setAttribute("role", "group");
   sw.setAttribute("aria-label", "Split by");
   const buttons = spec.measures.map((m) => {
