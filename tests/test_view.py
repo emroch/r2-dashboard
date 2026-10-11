@@ -33,7 +33,7 @@ def test_every_section_draws_components_and_renders_in_order():
     assert len(SECTIONS) == len(SECTIONS_CONF) > 0
     titles = [e["title"] for e in SECTIONS_CONF]
     assert len(set(titles)) == len(titles), "duplicate section titles"
-    for entry, (title, desc) in zip(SECTIONS_CONF, SECTIONS):
+    for entry, (title, desc, _) in zip(SECTIONS_CONF, SECTIONS):
         assert title == entry["title"] and desc.strip(), title
         assert entry.get("components"), "%s draws nothing" % title
         assert "charts" not in entry, "%s names a server-rendered chart" % title
