@@ -134,7 +134,7 @@ TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
 
 # --- Chart fills (palette.yaml) --------------------------------------------
 # Single-series chart fills (bars/histograms).
-TIMELINE_COLORS = dict(_PALETTE["timeline"])
+CHART_BLUE = str(_PALETTE["chart_blue"])
 # Configured-price charts: neutral bar + Compass Yellow accent.
 PRICE_COLORS = dict(_PALETTE["price"])
 # Order-to-delivery time: order markers, weekly median, coverage bars.

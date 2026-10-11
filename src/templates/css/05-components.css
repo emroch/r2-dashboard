@@ -225,11 +225,9 @@
   margin-top: 2px;
 }
 
-/* Rows whose category has no color of its own (purchase/lease, yes/no) get a
-   neutral mark: color is kept for what it identifies. */
-.tr-neutral {
-  --mark: var(--desc);
-}
+/* Rows whose category has no color of its own (purchase/lease, yes/no, the
+   stage key) take the chart blue: .tr-neutral shares .acc-blue's --paint and
+   --mark (render/categories.py). */
 
 /* heatmap (render/components.py): a crosstab as a table. Each cell's shade is
    its count's share of the grid's peak (--hm), mixed into the card; dark cells

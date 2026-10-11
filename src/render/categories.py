@@ -32,7 +32,7 @@ from __future__ import annotations
 import re
 
 from config import (CADENCE_COLORS, DIMENSIONS, FULFILMENT_COLORS, LATENCY_COLORS,
-                    PRICE_COLORS, THEME_CSS, TIMELINE_COLORS)
+                    PRICE_COLORS, THEME_CSS, CHART_BLUE)
 
 from .colors import mark_hex
 
@@ -70,11 +70,11 @@ def bounds(theme: str) -> tuple[float, float]:
 # Fills that aren't a category but are drawn as data marks (the price bars), as
 # classes .acc-<name> with the same --paint / --mark rule, so they hold the same
 # contrast in both themes. A component uses the class name directly.
-# The timeline and latency charts' fills are accents too (a spec names one as
-# "acc:<name>").
+# The stage, timeline and latency charts' fills are accents too (a spec names
+# one as "acc:<name>"). The chart blue also colors .tr-neutral, the rows and
+# stage key with no category color, so they read at a paint's brightness.
 ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"],
-           "timeline-ordered": TIMELINE_COLORS["ordered"],
-           "timeline-reserved": TIMELINE_COLORS["reserved_only"],
+           "blue": CHART_BLUE,
            "latency-order": LATENCY_COLORS["order"],
            "latency-coverage": LATENCY_COLORS["coverage"]}
 
@@ -95,6 +95,8 @@ def marked() -> dict[tuple[str, str], str]:
 
 
 def _selector(key: tuple[str, str]) -> str:
+    if key == ("acc", "blue"):
+        return ".acc-blue,.tr-neutral"
     return ".acc-" + key[1] if key[0] == "acc" else "." + category_class("%s:%s" % key)
 
 

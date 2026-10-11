@@ -131,10 +131,10 @@
 .tone-wait {
   --tone: 30%;
 }
-.chart-svg [class*="tone-"]:not(.tone-grey) .bar {
+.chart-svg [class*="tone-"] .bar {
   fill: color-mix(in oklab,var(--mark) var(--tone),white);
 }
-.lg-item .swatch[class*="tone-"]:not(.tone-grey) {
+.lg-item .swatch[class*="tone-"] {
   background: color-mix(in oklab,var(--paint) var(--tone),white);
 }
 
@@ -150,10 +150,10 @@ html[data-theme="dark"] .tone-vin {
 html[data-theme="dark"] .tone-wait {
   --tone: 42%;
 }
-html[data-theme="dark"] .chart-svg [class*="tone-"]:not(.tone-grey) .bar {
+html[data-theme="dark"] .chart-svg [class*="tone-"] .bar {
   fill: color-mix(in oklab,var(--mark) var(--tone),black);
 }
-html[data-theme="dark"] .lg-item .swatch[class*="tone-"]:not(.tone-grey) {
+html[data-theme="dark"] .lg-item .swatch[class*="tone-"] {
   background: color-mix(in oklab,var(--paint) var(--tone),black);
 }
 
@@ -165,28 +165,6 @@ html[data-theme="dark"] .lg-item .swatch[class*="tone-"]:not(.tone-grey) {
 }
 .chart-svg .bar-partial {
   pointer-events: none;
-}
-
-/* Stages in the neutral grey (.tone-grey): the stage key's look, the grey mixed
-   into the card by each stage's opacity (theme.yaml a-*), as fills rather than
-   group opacity, so a highlighted column isn't faded with them. */
-.tone-delivered {
-  --a: var(--a-delivered);
-}
-.tone-scheduled {
-  --a: var(--a-scheduled);
-}
-.tone-vin {
-  --a: var(--a-vin);
-}
-.tone-wait {
-  --a: var(--a-wait);
-}
-.chart-svg .tone-grey .bar {
-  fill: color-mix(in oklab,var(--desc) calc(var(--a) * 100%),var(--card-bg));
-}
-.lg-item .swatch.tone-grey {
-  background: color-mix(in oklab,var(--desc) calc(var(--a) * 100%),var(--card-bg));
 }
 
 /* The hovered week (timeseries .active) in Compass Yellow, stepped by stage
