@@ -1,0 +1,72 @@
+/* Access: the skip link, focus on jump targets, touch-sized controls, and
+   reduced motion. Last in the cascade, so these win a tie. */
+
+/* Skip to content: the first thing a keyboard reaches, hidden until focused. */
+.skip {
+  position: absolute;
+  left: 8px;
+  top: -100px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--fg);
+  box-shadow: 0 2px 8px var(--tip-sh);
+}
+.skip:focus {
+  top: 8px;
+}
+
+/* Where a jump puts focus (the main column, a section via the sidebar): the
+   page scrolls there, so the region itself needs no ring. */
+main:focus,
+section[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Touch screens and phone widths: every control at least 44px tall (WCAG 2.5.5),
+   most by growing its box, the bar of map stops by growing its labels. */
+@media (pointer: coarse), (width < 768px) {
+  .navbtn,
+  .pillbtn,
+  .lg-item,
+  .r2c-csv,
+  .mx-picker,
+  .map-stops button,
+  .hdrpop a,
+  .hdrpop button {
+    min-height: 44px;
+  }
+  .navbtn,
+  .pillbtn {
+    min-width: 44px;
+  }
+  .lg-item,
+  .r2c-csv {
+    display: inline-flex;
+    align-items: center;
+  }
+  .sidebar a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .r2c-data > summary,
+  .ro-more > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* Reduced motion: no transitions or animations anywhere (theme fades, the
+   sidebar slide, hover brightening), on top of the instant scrolling in
+   01-base.css. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

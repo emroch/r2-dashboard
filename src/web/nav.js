@@ -6,14 +6,39 @@
  // (nav-hidden); 1072px+ always shown. Crossing a tier resets to its default.
  var narrowQ=window.matchMedia('(width < 768px)');
  var midQ=window.matchMedia('(768px <= width < 1072px)');
- function close(){el.classList.remove('nav-shown');}
- function reset(){el.classList.remove('nav-shown','nav-hidden');}
+ var side=document.getElementById('sidebar');
+ var tgl=document.getElementById('navToggle');
+ // Whether the sidebar is out of view: then it's inert, so its links can't take
+ // keyboard focus or be read while off screen, and the button says so.
+ function hidden(){
+  return narrowQ.matches?!el.classList.contains('nav-shown')
+   :midQ.matches&&el.classList.contains('nav-hidden');
+ }
+ function sync(){
+  var off=hidden();
+  if(side)side.inert=off;
+  if(tgl)tgl.setAttribute('aria-expanded',String(!off));
+ }
+ function close(){el.classList.remove('nav-shown');sync();}
+ function reset(){el.classList.remove('nav-shown','nav-hidden');sync();}
  narrowQ.addEventListener('change',reset);
  midQ.addEventListener('change',reset);
- var tgl=document.getElementById('navToggle');
  if(tgl)tgl.addEventListener('click',function(){
   el.classList.toggle(narrowQ.matches?'nav-shown':'nav-hidden');
+  sync();
+  // The overlay takes focus while open, on its current section's link.
+  if(narrowQ.matches&&!hidden()&&side){
+   var a=side.querySelector('a.active')||side.querySelector('a');
+   if(a)a.focus({preventScroll:true});
+  }
  });
+ // Escape closes the overlay, back to the button that opened it.
+ document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&narrowQ.matches&&el.classList.contains('nav-shown')){
+   close(); if(tgl)tgl.focus();
+  }
+ });
+ sync();
  var bd=document.getElementById('navBackdrop');
  if(bd)bd.addEventListener('click',close);
  var links={};
@@ -37,7 +62,11 @@
   secs.forEach(function(x){if(x.getBoundingClientRect().top<=line)cur=x;});
   var atEnd=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2;
   if(atEnd&&tripTo&&tripTo.getBoundingClientRect().top<window.innerHeight)cur=tripTo;
-  for(var k in links)links[k].classList.toggle('active',k===cur.id);
+  for(var k in links){
+   links[k].classList.toggle('active',k===cur.id);
+   if(k===cur.id)links[k].setAttribute('aria-current','location');
+   else links[k].removeAttribute('aria-current');
+  }
  }
  function spyLater(){if(!spyQueued){spyQueued=true;requestAnimationFrame(spy);}}
  window.addEventListener('scroll',function(){
@@ -227,6 +256,8 @@
    e.preventDefault();
    if(location.hash!=='#'+t.id)history.pushState(null,'','#'+t.id);
    trip=t; aim(); tripScrolled();
+   // Keyboard focus goes with the reader, so the next Tab is in the section.
+   t.setAttribute('tabindex','-1'); t.focus({preventScroll:true});
    document.dispatchEvent(new CustomEvent('r2:trip',{detail:{id:t.id}}));
   });
  });

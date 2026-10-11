@@ -1936,6 +1936,18 @@ def test_page_scripts_are_published_assets():
         assert (WEB_DIR / name).is_file(), name
 
 
+def test_page_shell_has_its_landmarks():
+    # #30: a language, a skip link to <main>, a labelled nav, and a menu button
+    # that names what it controls (nav.js keeps aria-expanded current).
+    from render.page import _tpl
+    shell = _tpl("page.html")
+    assert '<html lang="en">' in shell
+    assert '<a class="skip" href="#content">' in shell
+    assert '<main class="wrap" id="content" tabindex="-1">' in shell
+    assert '<nav class="sidebar" id="sidebar" aria-label="Sections">' in shell
+    assert 'aria-controls="sidebar" aria-expanded="true"' in shell
+
+
 # --- Fetch change detection against committed caches -----------------------------
 
 def test_fetch_skips_data_already_committed_on_main():

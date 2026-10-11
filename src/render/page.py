@@ -40,7 +40,7 @@ def _tpl(name):
 def page_css():
     """The page stylesheet: templates/css/*.css, joined in file-name order. The
     files are numbered by area (base, header, sidebar, page, components, charts,
-    map) and the order is the cascade's, so a later file wins a tie."""
+    map, access) and the order is the cascade's, so a later file wins a tie."""
     return "\n".join(p.read_text(encoding="utf-8")
                      for p in sorted((_TPL_DIR / "css").glob("*.css")))
 
@@ -505,7 +505,7 @@ def build_dashboard(df, report, resv, view):
     slot(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
     slot(id="sec-1").append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
-    slot("div", class_="wrap").append(
+    slot("main", class_="wrap").append(
         BeautifulSoup("".join(sections), "html.parser"))
 
     html = str(soup)
