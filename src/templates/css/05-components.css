@@ -11,10 +11,12 @@
 
 /* A bar segment with a hover popover (web/lib/barhover.js) brightens a touch
    under the pointer: less than one stage step, so stages never blend. */
-[data-tip] {
+.tr-bar [data-tip],
+.mx-bar [data-tip] {
   transition: filter .12s;
 }
-[data-tip]:hover {
+.tr-bar [data-tip]:hover,
+.mx-bar [data-tip]:hover {
   filter: brightness(1.08);
 }
 .r2c figcaption {

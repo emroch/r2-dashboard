@@ -1952,6 +1952,22 @@ def test_timestamps_are_words_with_the_instant_in_datetime():
     assert _fmt_time(None) == "—"
 
 
+def test_source_line_warns_only_when_the_fetch_failed():
+    # Never a "fetched" time: just when the data last changed. A failed fetch
+    # (fell back to the cache) adds a warning sign, labelled; --offline doesn't.
+    from datetime import datetime, timedelta, timezone
+    from render.page import _src_line
+    t = datetime(2026, 10, 10, 22, 12, tzinfo=timezone(timedelta(hours=-5)))
+    base = {"view_url": "u", "fetched_at": t, "updated_at": t}
+    def line(**kw):
+        return _src_line("Sheet", {**base, **kw}, "1 order", "f")
+    for ok in (line(live=True, offline=False), line(live=False, offline=True)):
+        assert "fetched" not in ok and "last updated <time" in ok
+        assert "src-warn" not in ok
+    failed = line(live=False, offline=False)
+    assert 'class="src-warn" role="img" aria-label="Couldn&#8217;t check' in failed
+
+
 def test_page_shell_has_its_landmarks():
     # #30: a language, a skip link to <main>, a labelled nav, and a menu button
     # that names what it controls (nav.js keeps aria-expanded current).

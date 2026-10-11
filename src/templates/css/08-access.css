@@ -17,6 +17,16 @@
   top: 8px;
 }
 
+/* Text for screen readers only (a relative time's exact time, nav.js). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Where a jump puts focus (the main column, a section via the sidebar): the
    page scrolls there, so the region itself needs no ring. */
 main:focus,

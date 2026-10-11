@@ -168,21 +168,35 @@ def _fmt_time(dt):
             % (aware.isoformat(timespec="minutes"), text.strip()))
 
 
+# A warning sign: a filled triangle (the stat-card yellow, css .src-warn) with a
+# dark "!", legible at text size in both themes.
+_WARN_SVG = ('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2 15.4 14.3'
+             'H.6z" fill="currentColor"/><path d="M8 5.6v4.3" stroke="#1e2127" '
+             'stroke-width="1.9" stroke-linecap="round"/><circle cx="8" cy="12.1" '
+             'r="1.05" fill="#1e2127"/></svg>')
+
+
 def _src_line(name, meta, extra, thread_url):
-    """One header line: linked sheet name, count, fetched + last-updated times
-    (viewer-localized via <time>), the offline badge, and a link to the forum
-    thread where an entry is submitted or corrected — the sheet is the source of
-    truth, so that thread is the only route to changing any of these numbers."""
-    live = ("" if meta["live"]
-            else ' <span class="warn">(offline — showing cached copy)</span>')
+    """One header line: linked sheet name, count, when its data last changed
+    (viewer-localized via <time>), and a link to the forum thread where an entry
+    is submitted or corrected — the sheet is the source of truth, so that thread
+    is the only route to changing any of these numbers.
+
+    No "fetched" time: a recent fetch of an unchanged sheet reads the same as an
+    old update. A fetch that failed (the build fell back to the newest cache) is
+    the one case where an old time means a problem rather than a quiet sheet, so
+    a warning sign follows the time, saying so: its label, and the hover/tap
+    popover (web/lib/barhover.js)."""
+    warn = "Couldn&#8217;t check the sheet for newer data; this is the last copy fetched."
+    failed = ("" if meta["live"] or meta.get("offline")
+              else ' <span class="src-warn" role="img" aria-label="%s" data-tip="%s">'
+                   '%s</span>' % (warn, warn, _WARN_SVG))
     return ('<p class="src"><a href="%s" target="_blank" rel="noopener">%s</a> — %s '
-            '<span class="dim">·</span> fetched %s%s '
-            '<span class="dim">·</span> last updated %s '
+            '<span class="dim">·</span> last updated %s%s '
             '<span class="dim">·</span> <a href="%s" target="_blank" '
             'rel="noopener">add or correct your entry</a></p>'
             % (meta["view_url"], _esc(name), _esc(extra),
-               _fmt_time(meta["fetched_at"]), live, _fmt_time(meta["updated_at"]),
-               thread_url))
+               _fmt_time(meta["updated_at"]), failed, thread_url))
 
 
 # Data-quality categories: (report["quality"] key, heading, one-line note).

@@ -21,9 +21,24 @@
 .intro p.src a:hover {
   filter: brightness(1.15);
 }
-/* A relative time ("3 hours ago", nav.js) carries the exact time as its
-   tooltip; the dotted underline says there's more to see. */
-time[data-r2time][title] {
+/* A failed fetch's warning sign after a source's time (page.py _src_line), in
+   the stat-card yellow; its tooltip and label say what happened. */
+.src-warn {
+  color: var(--stat-bg);
+  cursor: help;
+}
+.src-warn svg {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -.2em;
+}
+/* The summary hosts the times' and warning's popovers (lib/barhover.js). */
+.intro {
+  position: relative;
+}
+/* A relative time ("3 hours ago", nav.js) carries the exact time as its hover
+   or tap popover; the dotted underline says there's more to see. */
+time[data-r2time][data-tip] {
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   cursor: help;
@@ -33,10 +48,6 @@ time[data-r2time][title] {
   color: var(--desc);
   font-size: 12.5px;
   line-height: 1.5;
-}
-.intro .warn {
-  color: var(--warn);
-  font-weight: 600;
 }
 .intro .chg {
   color: var(--chg);
