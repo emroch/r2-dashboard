@@ -222,13 +222,6 @@ components:
     aggregate: state_mix
     summary: "{n} US orders, by state."
 
-  dest-vs-delivery:
-    template: scatter
-    title: Destination vs. delivery date
-    dims: [state, region, delivery_type]
-    aggregate: dest_vs_delivery
-    summary: "{n} orders with a delivery estimate and a known destination."
-
   delivery-vs-vin:
     template: scatter
     title: Delivery date vs. VIN sequence
