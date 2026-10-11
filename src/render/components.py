@@ -318,7 +318,9 @@ def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) ->
         cells = "".join('<td class="hm-cell%s" style="--hm:%.3f">%s</td>'
                         % (" hm-hi" if k / peak > 0.55 else "", k / peak,
                            format(k, ",")) for k in counts)
-        body.append('<tr><th scope="row"%s>%s%s</th>%s<td class="hm-tot">%s</td></tr>'
+        # The swatch and name sit in a span: a flex <th> stops being a table cell.
+        body.append('<tr><th scope="row"%s><span class="hm-rh">%s%s</span></th>%s'
+                    '<td class="hm-tot">%s</td></tr>'
                     % (cls, sw, escape(str(r["label"])), cells,
                        format(int(r["n"]), ",")))
     foot = "".join('<td class="hm-tot">%s</td>' % format(int(c["n"]), ",")

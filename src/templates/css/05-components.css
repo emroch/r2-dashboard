@@ -279,7 +279,9 @@
   white-space: normal;
   text-align: center;
 }
-.hm tbody th {
+/* A row header's swatch and name (an inner span: the <th> stays a table cell,
+   so screen readers keep it in the grid). */
+.hm-rh {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -313,9 +315,11 @@
     padding: 6px 4px;
     min-width: 2.6em;
   }
+  .hm-rh {
+    gap: 4px;
+  }
   .hm tbody th,
   .hm tfoot th {
-    gap: 4px;
     white-space: normal;
   }
   .hm thead th.hm-ch {

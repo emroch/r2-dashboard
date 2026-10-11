@@ -388,8 +388,9 @@ def test_heatmap_table_has_counts_shading_totals_and_csv():
     assert '<table class="hm" id="c-h-data" style="--hm-w:19ch;--hm-min:8ch">' in html
     assert html.count('<th scope="col" class="hm-ch">') == 2
     assert 'data-table="c-h-data"' in html
-    assert ('<th scope="row" class="cat-color-midnight"><span class="swatch"></span>'
-            'Midnight') in html
+    # The row header stays a table cell; its swatch and name lay out in a span.
+    assert ('<th scope="row" class="cat-color-midnight"><span class="hm-rh">'
+            '<span class="swatch"></span>Midnight</span></th>') in html
     assert 'class="hm-cell hm-hi" style="--hm:1.000">2</td>' in html, "the peak cell"
     assert 'style="--hm:0.000">0</td>' in html, "an empty pairing still has its cell"
     assert '<td class="hm-tot">3</td></tr></tfoot>' in html, "the grand total"
