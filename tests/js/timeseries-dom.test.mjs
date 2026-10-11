@@ -20,9 +20,9 @@ const columns = {
   y: { label: "n", type: "linear", domain: [0, 20], clip: 20,
        cumulative: { domain: [0, 1750] } },
   series: [
-    { name: "Ordered", color: "acc:blue",
+    { name: "Ordered", color: "acc:primary",
       values: [["2024-03-04", 400], ["2024-03-11", 5], ["2024-03-18", 3]] },
-    { name: "Only", color: "acc:blue",
+    { name: "Only", color: "acc:primary",
       values: [["2024-03-04", 1266], ["2024-03-11", 10], ["2024-03-18", 0]] }],
   lines: [], rules: [{ axis: "x", value: "2024-03-20", label: "Today" }],
   toggles: { cumulative: true },
@@ -67,7 +67,7 @@ test("a lines-only chart (build cadence) draws its line and no legend", () => {
   const el = mountPoint();
   draw(d3, el, { ...columns, y: { label: "VINs/day", type: "linear", domain: [0, 60] },
                  series: [], rules: [],
-                 lines: [{ name: "Cadence", color: "var:cadence-front",
+                 lines: [{ name: "Cadence", color: "var:highlight",
                            points: [["2024-03-07", 20], ["2024-03-14", 40]], tips: [["a"], ["b"]] }] });
   assert.equal(el.querySelectorAll("rect.bar").length, 0);
   assert.equal(el.querySelectorAll("g.line circle").length, 2);
@@ -115,9 +115,9 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
     x: { label: "week", type: "date", domain: ["2026-06-01", "2026-06-22"] },
     y: { label: "n", type: "linear", domain: [0, 5], cumulative: { domain: [0, 10] } },
     series: [
-      { name: "Delivered", color: "acc:blue", stage: "delivered", view: "cumulative",
+      { name: "Delivered", color: "acc:primary", stage: "delivered", view: "cumulative",
         values: [["2026-06-01", 0], ["2026-06-08", 2], ["2026-06-15", 5]] },
-      { name: "Waiting", color: "acc:blue", stage: "wait", view: "cumulative",
+      { name: "Waiting", color: "acc:primary", stage: "wait", view: "cumulative",
         values: [["2026-06-01", 3], ["2026-06-08", 3], ["2026-06-15", 4]] }],
     lines: [
       { name: "Placed", color: "var:fulfil-placed", view: "weekly",
@@ -156,7 +156,7 @@ test("a line view's hover rule follows the pointer and snaps to a week's points"
   const el = mountPoint();
   const spec = { ...columns, series: [], rules: [], toggles: {},
     y: { label: "n", type: "linear", domain: [0, 60] },
-    lines: [{ name: "Cadence", color: "var:cadence-front",
+    lines: [{ name: "Cadence", color: "var:highlight",
               points: [["2024-03-07", 20], ["2024-03-14", 40]], tips: [["a"], ["b"]] }] };
   draw(d3, el, spec);
   const rule = el.querySelector("line.hover-rule");

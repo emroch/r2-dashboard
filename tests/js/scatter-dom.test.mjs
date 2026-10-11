@@ -25,9 +25,9 @@ const spec = {
     { name: "Borealis · 20\"", color: "color:Borealis", symbol: "diamond", points: [
       { x: "2026-09-01", y: 9000, lo: null, hi: null, tip: ["c"] }] }],
   layers: [
-    { type: "line", name: "Front", group: "Build front", color: "var:cadence-front",
+    { type: "line", name: "Front", group: "Build front", color: "var:highlight",
       points: [["2026-07-01", 900], ["2026-08-01", 4800]], tips: [["f1"], ["f2"]] },
-    { type: "band", name: "Range", group: "Build front", color: "var:cadence-band",
+    { type: "band", name: "Range", group: "Build front", color: "var:highlight-band",
       points: [["2026-10-01", 10000, 12000], ["2026-11-01", 11000, 15000]] },
     { type: "rule", axis: "x", value: "2026-10-05", label: "Today" }],
   toggles: { whiskers: true },

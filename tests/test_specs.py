@@ -262,7 +262,7 @@ def test_build_cadence_is_a_line_over_the_firm_dated_vins():
     df = _ramp()
     spec, agg, (_, rows) = build_cadence(df)
     line = spec["lines"][0]
-    assert spec["series"] == [] and line["color"] == "var:cadence-front"
+    assert spec["series"] == [] and line["color"] == "var:highlight"
     assert len(line["points"]) == len(rows) > 3
     assert 100 < line["points"][-1][1] < 200, "about the 150 VINs/day ramp"
     assert spec["y"]["domain"][0] == 0

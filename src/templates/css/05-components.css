@@ -235,9 +235,12 @@
   margin-top: 2px;
 }
 
-/* Rows whose category has no color of its own (purchase/lease, yes/no, the
-   stage key) take the chart blue: .tr-neutral shares .acc-blue's --paint and
-   --mark (render/categories.py). */
+/* Rows whose category has no color of its own (purchase/lease, yes/no), the
+   stage key and the state mix's status bars get a neutral grey: in panels where
+   color is data (a paint), a themed color would read as one more category. */
+.tr-neutral {
+  --mark: var(--desc);
+}
 
 /* heatmap (render/components.py): a crosstab as a table. Each cell's shade is
    its count's share of the grid's peak (--hm), mixed into the card; dark cells

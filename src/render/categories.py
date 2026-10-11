@@ -15,9 +15,10 @@ the lightness clamped into the theme's range from theme.yaml, so a pale paint on
 the white card or a dark one on the dark card stays visible. Delivery stages are
 the same mark at the stage opacities (--a-delivered/-scheduled/-vin/-wait).
 
-Accents that don't name a category (the build front's line and band) are CSS
-variables too, --cadence-<name> from palette.yaml; a spec refers to one as
-"var:cadence-front".
+Accents that don't name a category (the build front's line and band, the weekly
+median) are CSS variables too, from palette.yaml's chart roles (--highlight,
+--highlight-band) and fulfilment lines (--fulfil-<name>); a spec refers to one
+as "var:highlight".
 
 Browsers without relative color syntax (before Safari 18) get the clamped colors
 precomputed here instead, per theme, in an @supports block.
@@ -31,8 +32,7 @@ from __future__ import annotations
 
 import re
 
-from config import (CADENCE_COLORS, DIMENSIONS, FULFILMENT_COLORS, LATENCY_COLORS,
-                    PRICE_COLORS, THEME_CSS, CHART_BLUE)
+from config import CHART_COLORS, DIMENSIONS, FULFILMENT_COLORS, THEME_CSS
 
 from .colors import mark_hex
 
@@ -67,15 +67,11 @@ def bounds(theme: str) -> tuple[float, float]:
     return float(css["mark-lmin"]), float(css["mark-lmax"])
 
 
-# Fills that aren't a category but are drawn as data marks (the price bars), as
-# classes .acc-<name> with the same --paint / --mark rule, so they hold the same
-# contrast in both themes. A component uses the class name directly.
-# The stage, timeline and latency charts' fills are accents too (a spec names
-# one as "acc:<name>"). The chart blue also colors .tr-neutral, the rows and
-# stage key with no category color, so they read at a paint's brightness.
-ACCENTS = {"price-bar": PRICE_COLORS["bar"], "price-accent": PRICE_COLORS["accent"],
-           "blue": CHART_BLUE,
-           "latency-order": LATENCY_COLORS["order"]}
+# Fills that aren't a category but are drawn as data marks, as classes
+# .acc-<role> with the same --paint / --mark rule, so they hold the same contrast
+# in both themes: palette.yaml's chart roles. A spec names one as "acc:<role>";
+# an HTML component uses the class name directly.
+ACCENTS = {"primary": CHART_COLORS["primary"], "highlight": CHART_COLORS["highlight"]}
 
 
 def true_color() -> set[tuple[str, str]]:
@@ -94,8 +90,6 @@ def marked() -> dict[tuple[str, str], str]:
 
 
 def _selector(key: tuple[str, str]) -> str:
-    if key == ("acc", "blue"):
-        return ".acc-blue,.tr-neutral"
     return ".acc-" + key[1] if key[0] == "acc" else "." + category_class("%s:%s" % key)
 
 
@@ -112,8 +106,8 @@ def category_css() -> str:
            for k, h in cats.items()])
     # Line accents a spec names as "var:<name>" (raw palette values).
     accents = ":root{%s}" % "".join(
-        ["--cadence-%s:%s;" % kv for kv in CADENCE_COLORS.items()]
-        + ["--latency-median:%s;" % LATENCY_COLORS["median"]]
+        ["--highlight:%s;" % CHART_COLORS["highlight"],
+         "--highlight-band:%s;" % CHART_COLORS["highlight_band"]]
         + ["--fulfil-%s:%s;" % kv for kv in FULFILMENT_COLORS.items()])
     return "\n%s\n%s\n%s\n@supports not %s{\n%s\n}\n" % (
         accents, paints, marks, _SUPPORTS_RELATIVE, fallback)

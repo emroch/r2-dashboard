@@ -54,7 +54,7 @@ src/
     nav.js          sidebar scroll-spy, report-menu dismissal, local times (classic script)
   conf/             the data/config YAML (loaded by config.py at import)
     dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
-    palette.yaml    chart fills that don't name a category (take-rate/timeline tints, accents, heatmap scale)
+    palette.yaml    chart colors that name no category: roles (primary, highlight), so re-theming is one edit, and the fulfilment event lines
     theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities, map land and borders)
     sections.yaml   the page's sections in order: title, prose (HTML), layout, and the components each draws
     charts.yaml     the presentation-layer components by id: template, title, dims, aggregate, summary sentence

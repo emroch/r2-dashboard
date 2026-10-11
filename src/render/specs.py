@@ -3,7 +3,7 @@
 Each builder turns the cleaned orders into one component's spec: what the chart
 library draws, already counted and laid out in Python, so the browser only
 draws. Specs never carry a color: a series names its category
-("color:Launch Green") and an accent names a CSS variable ("var:cadence-front"),
+("color:Launch Green") and an accent names a CSS variable ("var:highlight"),
 and the page's CSS resolves both, per theme. Each builder also returns the
 Aggregate behind it, so the points it publishes reconcile against their cohort
 like every static component's counts.
@@ -398,20 +398,20 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
         week = [w + pd.Timedelta(days=3) for w in front.index]
         layers.append({
             "type": "line", "name": "Build front (observed)", "group": "Build front",
-            "color": "var:cadence-front",
+            "color": "var:highlight",
             "points": [[_iso(w), float(v)] for w, v in zip(week, front.values)],
             "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
                      for w, v in zip(front.index, front.values)]})
         mids = [_iso(w + pd.Timedelta(days=3)) for w in proj["weeks"]]
         layers.append({"type": "band", "name": "Likely range", "group": "Build front",
-                       "color": "var:cadence-band",
+                       "color": "var:highlight-band",
                        "points": [[m, float(lo), float(hi)]
                                   for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
         # The projection quotes VINs, its own axis, to the nearest hundred: the
         # back-test supports no more precision than that.
         layers.append({
             "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
-            "group": "Build front", "color": "var:cadence-front", "dash": True,
+            "group": "Build front", "color": "var:highlight", "dash": True,
             "points": [[m, float(c)] for m, c in zip(mids, proj["center"])],
             "tips": [["Projected front",
                       "Week of %s: ≈ VIN %s" % (_day(w), _vins(c, 100)),
@@ -536,10 +536,10 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
     (holders still waiting to order, from the reservations sheet) on top of
     converted (every order with a reservation date)."""
     ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
-    cols = _columns([("Converted", "acc:blue", ordered),
-                     ("Outstanding", "acc:blue", only)], cumulative=True)
-    # The chart blue in two tones: converted at full strength, outstanding (still
-    # waiting to order) at the waiting stage's.
+    cols = _columns([("Converted", "acc:primary", ordered),
+                     ("Outstanding", "acc:primary", only)], cumulative=True)
+    # The primary chart color in two tones: converted at full strength,
+    # outstanding (still waiting to order) at the waiting stage's.
     for s_, tone in zip(cols["series"], ("delivered", "wait")):
         s_["stage"] = tone
     x = {"label": "Week reserved", "type": "date",
@@ -571,10 +571,10 @@ def _stage_names() -> list[tuple[str, str]]:
 def orders_by_week(df: pd.DataFrame) -> tuple:
     """§5, bottom: orders by the week the configuration was finalized, each
     split by how far it has got today (the four delivery stages, delivered at
-    the bottom): how each week's cohort is doing. The chart blue, stepped by
-    stage (`stage`)."""
+    the bottom): how each week's cohort is doing. The primary chart color,
+    stepped by stage (`stage`)."""
     st = stages(df)
-    cols = _columns([(label, "acc:blue",
+    cols = _columns([(label, "acc:primary",
                       _weekly(df.loc[st == stage, "order_date"]))
                      for stage, label in _stage_names()], cumulative=True)
     for s_, (stage, _) in zip(cols["series"], _stage_names()):
@@ -656,7 +656,7 @@ def fulfilment_by_week(df: pd.DataFrame) -> tuple:
             levels[st].append(int(mask.sum()))
     events = {key: _weekly(ev[key]) for key, _, _ in _EVENTS}
     iso = [_iso(w) for w in weeks]
-    series = [{"name": label, "color": "acc:blue", "stage": st,
+    series = [{"name": label, "color": "acc:primary", "stage": st,
                "view": "cumulative",
                "values": [[x, v] for x, v in zip(iso, levels[st])]}
               for st, label in _stage_names()]
@@ -722,7 +722,7 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
         s = d[mask].sort_values("order_date")
         if s.empty:
             continue
-        series.append({"name": name, "color": "acc:latency-order", "open": open_,
+        series.append({"name": name, "color": "acc:primary", "open": open_,
                        "points": [{"x": _iso(o), "y": int(n),
                                    "tip": [str(u), "Ordered %s" % _day(o),
                                            "Delivery %s" % _day(e), "%d days" % n]}
@@ -736,7 +736,7 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     if len(med):
         layers.append({
             "type": "line", "name": "Weekly median (%d+ orders)" % LATENCY_MIN_WEEK_N,
-            "color": "var:latency-median", "curve": True,
+            "color": "var:highlight", "curve": True,
             "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
                        for w, v in med.items()],
             "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),
@@ -774,7 +774,7 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
             "y": {"label": "Orders with a firm date", "type": "linear",
                   "domain": [0, 100], "format": "pct"},
             "legend": None, "lines": [], "rules": [],
-            "series": [{"name": "Coverage", "color": "acc:blue",
+            "series": [{"name": "Coverage", "color": "acc:primary",
                         "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
                         "tips": ["%d of %d orders have a firm date"
                                  % (int(num.get(w, 0)), int(den[w]))
@@ -805,7 +805,7 @@ def build_cadence(df: pd.DataFrame) -> tuple:
             "y": {"label": "VINs per day", "type": "linear",
                   "domain": [0, max([float(r) for r in hist] or [1.0]) * 1.1]},
             "legend": None, "series": [], "rules": [],
-            "lines": [{"name": "Build cadence", "color": "var:cadence-front",
+            "lines": [{"name": "Build cadence", "color": "var:highlight",
                        "points": pts,
                        "tips": [["%s: ≈ %.0f VINs/day" % (_week_label(w), r)]
                                 for w, r in hist.items()]}]}

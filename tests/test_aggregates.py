@@ -531,8 +531,8 @@ def test_price_components_render_rows_text_and_tables():
     assert ('<li class="tr-row br-row br-hi"><span class="tr-name">$59,990 '
             '<b class="br-tag">median</b>') in html
     assert html.index("$59,990") < html.index("$57,990"), "highest first"
-    assert 'acc-price-accent" style="width:100.00%"' in html
-    assert 'acc-price-bar" style="width:50.00%"' in html
+    assert 'acc-highlight" style="width:100.00%"' in html
+    assert 'acc-primary" style="width:50.00%"' in html
     assert "The median configured price is $59,990 and the mean $59,323, across " \
         "3 orders from $57,990 to $59,990." in html
     html = bars("c-o", COMPONENTS["price-options"], price_options(df))
