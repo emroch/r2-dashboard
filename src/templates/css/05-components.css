@@ -5,7 +5,17 @@
    Every component sits in this frame: title, one-sentence summary, body, the
    n + caveats line, and a collapsed data table. */
 .r2c {
+  position: relative;
   margin: 14px 0 0;
+}
+
+/* A bar segment with a hover popover (web/lib/barhover.js) brightens a little
+   under the pointer. */
+[data-tip] {
+  transition: filter .12s;
+}
+[data-tip]:hover {
+  filter: brightness(1.2) saturate(1.1);
 }
 .r2c figcaption {
   font-weight: 600;

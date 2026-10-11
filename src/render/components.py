@@ -187,6 +187,13 @@ def stage_key() -> str:
         % (st, escape(STAGE_LABELS[st])) for st in STAGES))
 
 
+def _tip(row: object, part: object, k: int, n: int) -> str:
+    """A bar segment's hover popover, as lines (web/lib/barhover.js): the row it
+    belongs to, then the segment's count and its share of the row."""
+    return "%s\n%s: %s of %s (%s)" % (row, part, format(k, ","), format(n, ","),
+                                     share(k, n))
+
+
 def takerate(cid: str, spec: dict, agg: Aggregate,
              shared: Sequence[str] = ()) -> str:
     """A take-rate component: one row per category, largest bar full width.
@@ -214,8 +221,12 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
         # suggests a 100% the row isn't out of; its stage segments split it.
         n = int(c["n"])
         reach = 100.0 if c.get("total") else 100.0 * n / widest
-        parts = "".join('<i class="mark stage-%s" style="width:%.2f%%"></i>'
-                        % (st, 100.0 * c["stages"][st] / n)
+        # Each segment's hover popover (web/lib/barhover.js): the row, then the
+        # stage's count and its share of the row.
+        parts = "".join('<i class="mark stage-%s" style="width:%.2f%%" data-tip="%s">'
+                        '</i>' % (st, 100.0 * c["stages"][st] / n, escape(_tip(
+                            c["label"], STAGE_LABELS[st][:1].upper()
+                            + STAGE_LABELS[st][1:], c["stages"][st], n)))
                         for st in STAGES if c["stages"][st])
         segs = ('<span class="tr-fill" style="width:%.2f%%">%s</span>' % (reach, parts)
                 if n else "")
@@ -346,10 +357,11 @@ def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str
     true = " mark-true" if DIMENSIONS[agg.meta["col_dim"]].get("true_color") else ""
 
     def row(label: str, n: int, parts: Sequence[tuple[dict, int]], cls: str) -> str:
-        segs = "".join('<i class="mark%s %s" style="width:%.2f%%"></i>'
+        segs = "".join('<i class="mark%s %s" style="width:%.2f%%" data-tip="%s"></i>'
                        % (true if c["ref"] else "",
                           category_class(c["ref"]) if c["ref"] else "tr-neutral",
-                          100.0 * k / (n or 1)) for c, k in parts if k)
+                          100.0 * k / (n or 1), escape(_tip(label, c["label"], k, n)))
+                       for c, k in parts if k)
         split = " · ".join("%s %s" % (format(k, ","), escape(str(c["label"])))
                            for c, k in parts if k)
         return ('<li class="%s"><span class="tr-name">%s</span>'
