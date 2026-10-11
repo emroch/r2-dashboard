@@ -536,9 +536,12 @@ def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
     (holders still waiting to order, from the reservations sheet) on top of
     converted (every order with a reservation date)."""
     ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
-    cols = _columns([("Converted", "acc:timeline-ordered", ordered),
-                     ("Outstanding", "acc:timeline-reserved", only)],
-                    cumulative=True)
+    cols = _columns([("Converted", "acc:blue", ordered),
+                     ("Outstanding", "acc:blue", only)], cumulative=True)
+    # The chart blue in two tones: converted at full strength, outstanding (still
+    # waiting to order) at the waiting stage's.
+    for s_, tone in zip(cols["series"], ("delivered", "wait")):
+        s_["stage"] = tone
     x = {"label": "Week reserved", "type": "date",
          "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None,
          "partial": _partial(cols["weeks"])}
@@ -568,10 +571,10 @@ def _stage_names() -> list[tuple[str, str]]:
 def orders_by_week(df: pd.DataFrame) -> tuple:
     """§5, bottom: orders by the week the configuration was finalized, each
     split by how far it has got today (the four delivery stages, delivered at
-    the bottom): how each week's cohort is doing. The neutral grey at the
-    stages' opacities (`stage`), as the take-rate stage key draws them."""
+    the bottom): how each week's cohort is doing. The chart blue, stepped by
+    stage (`stage`)."""
     st = stages(df)
-    cols = _columns([(label, "neutral",
+    cols = _columns([(label, "acc:blue",
                       _weekly(df.loc[st == stage, "order_date"]))
                      for stage, label in _stage_names()], cumulative=True)
     for s_, (stage, _) in zip(cols["series"], _stage_names()):
@@ -653,7 +656,7 @@ def fulfilment_by_week(df: pd.DataFrame) -> tuple:
             levels[st].append(int(mask.sum()))
     events = {key: _weekly(ev[key]) for key, _, _ in _EVENTS}
     iso = [_iso(w) for w in weeks]
-    series = [{"name": label, "color": "neutral", "stage": st,
+    series = [{"name": label, "color": "acc:blue", "stage": st,
                "view": "cumulative",
                "values": [[x, v] for x, v in zip(iso, levels[st])]}
               for st, label in _stage_names()]
@@ -771,7 +774,7 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
             "y": {"label": "Orders with a firm date", "type": "linear",
                   "domain": [0, 100], "format": "pct"},
             "legend": None, "lines": [], "rules": [],
-            "series": [{"name": "Coverage", "color": "acc:latency-coverage",
+            "series": [{"name": "Coverage", "color": "acc:blue",
                         "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
                         "tips": ["%d of %d orders have a firm date"
                                  % (int(num.get(w, 0)), int(den[w]))

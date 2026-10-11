@@ -144,12 +144,11 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
 
-  // A series with `stage` draws at that delivery stage's tone (.tone-*). In the
-  // neutral grey (.tone-grey) that is the stage key's look, the grey mixed into
-  // the card by the stage's opacity; in a color, the color stepped toward white
-  // (or black on the dark card), since a faded color turns muddy. The hovered
-  // week (.active) lights up in Compass Yellow at the same steps.
-  const stageCls = (s) => ` tone-${s.stage}${s.color === "neutral" ? " tone-grey" : ""}`;
+  // A series with `stage` draws at that delivery stage's tone (.tone-*): its
+  // color stepped toward white (or black on the dark card), since a faded color
+  // turns muddy. The hovered week (.active) lights up in Compass Yellow at the
+  // same steps.
+  const stageCls = (s) => ` tone-${s.stage}`;
   const series = spec.series.map((s) => ({
     s, cls: categoryClass(s.color) + (s.stage ? stageCls(s) : "") }));
   const weeks = spec.series.length ? spec.series[0].values.map((v) => date(v[0])) : [];
