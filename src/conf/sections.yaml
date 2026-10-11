@@ -100,6 +100,9 @@ sections:
     desc: >-
       Each order with a VIN at its place in the build sequence, in a row per
       full configuration: trim, paint, wheels and interior.
+    howto: >-
+      Rows are grouped by trim and interior, and marked by paint and wheel shape.
+      The chips above hide or show rows by any part of the configuration.
 
   - title: "Geographic demand"
     components: [geo-demand, state-mix]

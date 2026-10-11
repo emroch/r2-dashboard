@@ -276,3 +276,46 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   stroke-width: 1.2;
   fill: none;
 }
+
+/* A rows axis (§10): a group's heading line, and each row's short label. */
+.chart-svg .row-head {
+  fill: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+.chart-svg .row-label {
+  fill: var(--desc);
+  font-size: 11px;
+}
+
+/* Filter chips (charts/scatter.js `filters`): a labelled group per dimension. */
+.fl-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  flex-basis: 100%;
+}
+.fl-label {
+  font-size: 12px;
+  color: var(--desc);
+  min-width: 4.5em;
+}
+.fl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+/* A wheel chip's swatch is its marker shape, in neutral grey. */
+.swatch.swatch-sym {
+  border-radius: 0;
+}
+.swatch.sym-circle {
+  border-radius: 50%;
+}
+.swatch.sym-diamond {
+  transform: rotate(45deg) scale(.85);
+}
+.swatch.sym-triangle-up {
+  clip-path: polygon(50% 0,100% 100%,0 100%);
+}

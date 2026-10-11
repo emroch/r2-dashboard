@@ -144,7 +144,12 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
 def vin_by_config(df: pd.DataFrame) -> tuple:
     """§10: each order with a VIN at its sequence (x), in a row per full
     configuration (trim · paint · wheels · interior). Interior joins the row key
-    rather than becoming a third marker channel: fill and shape are taken."""
+    rather than becoming a third marker channel: fill and shape are taken.
+
+    Rows group by trim, then interior (`group`, a heading over its rows), then
+    run by paint and wheels; each row names its parts, so the chart labels it
+    with its mark (paint fill, wheel shape) and filters rows by any of them
+    (`filters`: the values present, per dimension, in this order)."""
     vin = df["vin_present"].astype(bool)
     d = df[vin & _reported(df, "color", "wheels_short", "interior")]
     excluded = {"no VIN": int((~vin).sum()),
@@ -152,38 +157,62 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
     # The cohort's paint order, not the VIN-assigned rows', so rows group the way
     # every other paint chart on the page does.
     paints = _paint_order(df)
-    paint_rank = {c: i for i, c in enumerate(paints)}
-    interior_rank = {v: i for i, v in enumerate(INTERIOR_ORDER)}
-    keys = {}
-    for _, r in d.iterrows():
-        label = " · ".join([str(r["trim"]), r["color"],
-                            WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
-                            INTERIOR_SHORT.get(r["interior"], r["interior"])])
-        keys[label] = (str(r["trim"]), paint_rank.get(r["color"], len(paint_rank)),
-                       WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
-                       interior_rank.get(r["interior"], len(interior_rank)))
-    rows = sorted(keys, key=keys.__getitem__)
-    row_of = {k: i for i, k in enumerate(rows)}
+    trims = [c["value"] for c in DIMENSIONS["trim"]["categories"]]
+    rank = {"trim": {t: i for i, t in enumerate(trims)},
+            "color": {c: i for i, c in enumerate(paints)},
+            "wheels": {w: i for i, w in enumerate(_WHEEL_SYMBOL)},
+            "interior": {v: i for i, v in enumerate(INTERIOR_ORDER)}}
+
+    def _parts(r: pd.Series) -> tuple[str, str, str, str]:
+        return str(r["trim"]), r["color"], r["wheels_short"], r["interior"]
+
+    def _label(t: str, c: str, w: str, i: str) -> str:
+        return " · ".join([t, c, WHEEL_ABBR.get(w, w), INTERIOR_SHORT.get(i, i)])
+
+    def _key(parts: tuple[str, str, str, str]) -> tuple:
+        t, c, w, i = parts
+        return tuple(rank[k].get(v, len(rank[k])) for k, v in
+                     (("trim", t), ("interior", i), ("color", c), ("wheels", w)))
+
+    configs = sorted({_parts(r) for _, r in d.iterrows()}, key=_key)
+    row_of = {p: n for n, p in enumerate(configs)}
+    rows = [{"label": _label(t, c, w, i),
+             "short": "%s · %s" % (c, WHEEL_ABBR.get(w, w)),
+             "group": "%s · %s" % (t, INTERIOR_SHORT.get(i, i)),
+             "trim": t, "color": c, "wheels": w, "interior": i,
+             "mark": "color:%s" % c, "symbol": _WHEEL_SYMBOL.get(w, "circle")}
+            for t, c, w, i in configs]
     # A fixed jitter within the row, so stacked points separate, and the same on
     # every build.
     rng = np.random.RandomState(11)
     jitter = dict(zip(d.index, (rng.rand(len(d)) - 0.5) * 0.36))
 
     def _row(r: pd.Series) -> float:
-        label = " · ".join([str(r["trim"]), r["color"],
-                            WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
-                            INTERIOR_SHORT.get(r["interior"], r["interior"])])
-        return round(row_of[label] + float(jitter[r.name]), 3)
+        return round(row_of[_parts(r)] + float(jitter[r.name]), 3)
 
     series, cells = _config_series(d, [p for p in paints if p in set(d["color"])],
                                    lambda r: int(r["vin_seq"]), _row)
+
+    def _values(dim: str, label: Callable[[str], str]) -> list[dict[str, Any]]:
+        order = rank[dim]
+        present = sorted({r[dim] for r in rows}, key=lambda v: order.get(v, len(order)))
+        return [{"value": v, "label": label(v)} for v in present]
+
+    filters = [{"dim": "color", "label": "Paint", "values": _values("color", str)},
+               {"dim": "wheels", "label": "Wheels",
+                "values": [{**v, "symbol": _WHEEL_SYMBOL.get(v["value"], "circle")}
+                           for v in _values("wheels", lambda w: WHEEL_ABBR.get(w, w))]},
+               {"dim": "interior", "label": "Interior",
+                "values": _values("interior", lambda i: INTERIOR_SHORT.get(i, i))},
+               {"dim": "trim", "label": "Trim", "values": _values("trim", str)}]
     spec = {"template": "scatter", "title": "VIN sequence by configuration",
             "x": {"label": "VIN sequence number (production order →)", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
             "y": {"label": "Configuration", "type": "rows", "rows": rows,
                   "domain": [-0.6, len(rows) - 0.4]},
-            "legend": "Paint · wheels", "series": series, "layers": []}
-    table_rows = [[rows[round(p["y"])], p["tip"][0], format(p["x"], ",")]
+            "legend": "Paint · wheels", "series": series, "layers": [],
+            "filters": filters}
+    table_rows = [[rows[round(p["y"])]["label"], p["tip"][0], format(p["x"], ",")]
                   for s_ in series for p in s_["points"]]
     table = (["Configuration", "Order", "VIN"], table_rows)
     agg = Aggregate("vin-by-config points", "orders", cells, excluded,

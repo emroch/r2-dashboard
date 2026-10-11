@@ -15,9 +15,15 @@
 // chart redraws when its width changes, keeping what the legend hides.
 //
 // x is a date axis, or a number line with `x.type: "linear"` (§10: VIN sequence).
-// y is a number line, or rows with `y.type: "rows"`: `y.rows` lists the row labels
-// top to bottom, row i sits at y = i (a point's y is its row plus a jitter, set in
-// Python), and the axis labels each row instead of ticking numbers.
+// y is a number line, or rows with `y.type: "rows"` (§10): `y.rows` lists the
+// rows top to bottom ({label, short, group, mark, symbol, and a value per
+// filtered dimension}), and a point's y is its row's index plus a jitter (set in
+// Python). Each run of rows sharing a `group` gets a heading line above it; a
+// row is labelled with its mark (its `mark` category's color in its `symbol`'s
+// shape), and on a wide chart its `short` label too. `filters` replace the
+// legend with a chip group per dimension (house legend behavior, hidden kept
+// as "dim:value"); a dimension with one value has none. Rows a filter hides
+// are left out, so the chart gets shorter.
 //
 // With `toggles.boxes` ({min_n, unit}), Points / Boxes buttons swap the points
 // for a box per week (or month, when weeks are too narrow: lib/grain.js) of
@@ -112,6 +118,23 @@ export function rowsMargin(rows, width) {
   return Math.round(Math.min(width * 0.5, Math.max(64, longest * 6.2 + 14)));
 }
 
+// The rows still shown, as slots top to bottom: a heading slot where the group
+// changes, then a slot per row. slotOf maps a row's index to its slot. Pure.
+export function rowLayout(rows, keep = () => true) {
+  const slots = [], slotOf = new Map();
+  let group;
+  rows.forEach((r, i) => {
+    if (!keep(r)) return;
+    if (r.group !== undefined && r.group !== group) {
+      group = r.group;
+      slots.push({ heading: group });
+    }
+    slotOf.set(i, slots.length);
+    slots.push({ row: r });
+  });
+  return { slots, slotOf };
+}
+
 export async function mount(el) {
   const [d3, data] = await Promise.all([loadD3(), view()]);
   const spec = data.components[el.dataset.chart];
@@ -126,7 +149,7 @@ export async function mount(el) {
       clearTimeout(timer);
       timer = setTimeout(() => {
         width = plotEl.clientWidth;
-        h = draw(d3, el, spec, { hidden: h.hidden() });
+        h = draw(d3, el, spec, { hidden: (el.r2sc || h).hidden() });
       }, 150);
     }).observe(plotEl);
   }
@@ -135,15 +158,32 @@ export async function mount(el) {
 // Draw `spec` into the mount `el`. Returns a handle for tests: zoomTo(k) zooms
 // like the wheel does (about the plot's center), panBy(dx, dy) drags, redraw()
 // re-places everything at the current view, reset() returns to the full view.
-export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
+export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   const plotEl = el.querySelector(".chart-plot");
   plotEl.replaceChildren();
   const W = Math.max(320, plotEl.clientWidth || 0);   // 0 before layout (and in tests)
-  const rows = spec.y.type === "rows" ? spec.y.rows : null;
-  const m = { t: 24, r: 16, b: 52, l: rows ? rowsMargin(rows, W) : 64 };
-  // Rows get a fixed pitch, so a long list grows the chart instead of cramming it.
-  const H = rows ? Math.max(W < 600 ? 320 : 420, rows.length * 20 + m.t + m.b)
-                 : (W < 600 ? 420 : 560);
+  const filters = given.filters || null;
+  // Rows: the filters' survivors, laid out in slots, each point moved to its
+  // row's slot (keeping its jitter) or dropped with its row.
+  let spec = given, layout = null;
+  if (given.y.type === "rows") {
+    const keep = (r) => !filters || filters.every((f) => !startHidden.has(`${f.dim}:${r[f.dim]}`));
+    layout = rowLayout(given.y.rows, keep);
+    spec = { ...given,
+      y: { ...given.y, domain: [-0.6, layout.slots.length - 0.4] },
+      series: given.series.map((s) => ({ ...s, points: s.points.flatMap((p) => {
+        const i = Math.round(p.y), slot = layout.slotOf.get(i);
+        return slot === undefined ? [] : [{ ...p, y: slot + p.y - i }];
+      }) })) };
+  }
+  const rows = layout ? layout.slots : null;
+  // A wide chart labels each row with its short label beside its mark.
+  const rowText = Boolean(rows) && W >= 600;
+  const m = { t: 24, r: 16, b: 52,
+              l: !rows ? 64 : rowText ? rowsMargin(given.y.rows.map((r) => r.short), W) + 18 : 30 };
+  // Rows get a fixed pitch, so a long list grows the chart instead of cramming
+  // it, and a filtered one shrinks.
+  const H = rows ? Math.max(160, rows.length * 20 + m.t + m.b) : (W < 600 ? 420 : 560);
   const linearX = spec.x.type === "linear";
   const xv = linearX ? (v) => v : date;
   const x0 = (linearX ? d3.scaleLinear() : d3.scaleUtc()).domain(spec.x.domain.map(xv)).range([m.l, W - m.r]);
@@ -163,6 +203,30 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const gridY = svg.append("g").attr("class", "grid").attr("transform", `translate(${m.l},0)`);
   const gx = svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`);
   const gy = svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`);
+  // Rows' labels: a heading line per group, across the chart (no points share
+  // its slot), and per row its mark, with its short label when there's room.
+  const rowG = svg.append("g").attr("class", "rows-axis");
+  if (rows && !rows.length) {
+    svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle").attr("x", (m.l + W - m.r) / 2)
+      .attr("y", (m.t + H - m.b) / 2).text("No configurations match these filters.");
+  }
+  function placeRows(inView) {
+    const items = rowG.selectAll("g.slot").data(inView, (i) => i).join((e) => {
+      const g = e.append("g").attr("class", (i) => (rows[i].heading ? "slot slot-head" : "slot"));
+      g.filter((i) => rows[i].heading).append("text").attr("class", "row-head").attr("x", 4).attr("dy", "0.35em")
+        .text((i) => rows[i].heading);
+      const r = g.filter((i) => rows[i].row);
+      if (rowText) {
+        r.append("text").attr("class", "row-label").attr("text-anchor", "end").attr("x", m.l - 20).attr("dy", "0.35em")
+          .text((i) => rows[i].row.short);
+      }
+      r.append("g").attr("class", (i) => categoryClass(rows[i].row.mark)).append("path").attr("class", "pt")
+        .attr("d", (i) => d3.symbol(d3[SYMBOLS[rows[i].row.symbol] || "symbolCircle"], ROTATE[rows[i].row.symbol] ? 48 : 60)())
+        .attr("transform", (i) => `translate(${m.l - 10},0)${ROTATE[rows[i].row.symbol] ? ` rotate(${ROTATE[rows[i].row.symbol]})` : ""}`);
+      return g;
+    });
+    items.attr("transform", (i) => `translate(0,${y(i)})`);
+  }
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("x", (m.l + W - m.r) / 2).attr("y", H - 10).text(spec.x.label);
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
@@ -271,11 +335,11 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     gx.call(linearX ? d3.axisBottom(x).ticks(xt, "~s") : d3.axisBottom(x).ticks(xt));
     if (rows) {
       // A row's label and gridline stay put while it's in view; rows panned out of
-      // the plot drop their ticks rather than piling up at its edge.
+      // the plot drop theirs rather than piling up at its edge.
       const [lo, hi] = y.domain();
-      const shown = d3.range(rows.length).filter((i) => i >= Math.min(lo, hi) && i <= Math.max(lo, hi));
-      gridY.call(d3.axisLeft(y).tickValues(shown).tickSize(-(W - m.l - m.r)).tickFormat(""));
-      gy.call(d3.axisLeft(y).tickValues(shown).tickFormat((i) => rows[i]));
+      const inView = d3.range(rows.length).filter((i) => i >= Math.min(lo, hi) && i <= Math.max(lo, hi));
+      gridY.call(d3.axisLeft(y).tickValues(inView.filter((i) => rows[i].row)).tickSize(-(W - m.l - m.r)).tickFormat(""));
+      placeRows(inView);
     } else {
       gridY.call(d3.axisLeft(y).ticks(8).tickSize(-(W - m.l - m.r)).tickFormat(""));
       gy.call(d3.axisLeft(y).ticks(8, "~s"));
@@ -305,11 +369,39 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   place();
   visibility();
 
-  // Legend: every series, then one entry per layer group.
-  legend(el.querySelector(".chart-legend"),
-    [...series.map((o) => ({ name: o.s.name, cls: o.s.open ? `${o.cls} swatch-open` : o.cls })),
-     ...layerEntries(spec.layers)],
-    (h) => { hidden = h; visibility(); }, hidden);
+  // Legend: every series, then one entry per layer group; or with `filters`, a
+  // chip group per dimension with more than one value. A filter change redraws
+  // the chart whole (its rows and height change), and focus returns to the chip.
+  const legendEl = el.querySelector(".chart-legend");
+  if (filters) {
+    legendEl.replaceChildren();
+    for (const f of filters) {
+      if (f.values.length < 2) continue;
+      const wrap = Object.assign(el.ownerDocument.createElement("div"), { className: "fl-group" });
+      wrap.dataset.dim = f.dim;
+      const name = Object.assign(el.ownerDocument.createElement("span"), { className: "fl-label", textContent: f.label });
+      const chips = Object.assign(el.ownerDocument.createElement("div"), { className: "fl-chips" });
+      chips.setAttribute("role", "group");
+      chips.setAttribute("aria-label", f.label);
+      wrap.append(name, chips);
+      legendEl.append(wrap);
+      const valueOf = new Map(f.values.map((v) => [v.label, v.value]));
+      const cls = (v) => (v.symbol ? `tr-neutral swatch-sym sym-${v.symbol}` : categoryClass(`${f.dim}:${v.value}`));
+      legend(chips, f.values.map((v) => ({ name: v.label, cls: cls(v) })), (hs) => {
+        const next = new Set([...hidden].filter((k) => !k.startsWith(`${f.dim}:`)));
+        for (const label of hs) next.add(`${f.dim}:${valueOf.get(label)}`);
+        const focused = el.ownerDocument.activeElement?.textContent;
+        draw(d3, el, given, { hidden: next });
+        [...el.querySelectorAll(`.fl-group[data-dim="${f.dim}"] .lg-item`)]
+          .find((b) => b.textContent === focused)?.focus();
+      }, new Set(f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).map((v) => v.label)));
+    }
+  } else {
+    legend(legendEl,
+      [...series.map((o) => ({ name: o.s.name, cls: o.s.open ? `${o.cls} swatch-open` : o.cls })),
+       ...layerEntries(spec.layers)],
+      (h) => { hidden = h; visibility(); }, hidden);
+  }
 
   // Controls: the whisker toggle (kept in the URL), when the spec has whiskers,
   // and Reset view.
@@ -374,7 +466,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const home = () => svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
   svg.call(zoom).on("dblclick.zoom", home);
   reset.addEventListener("click", home);
-  return {
+  const handle = {
     svg: svg.node(),
     zoomTo: (k) => svg.call(zoom.scaleTo, k),
     panBy: (dx, dy) => svg.call(zoom.translateBy, dx, dy),
@@ -383,4 +475,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     reset: () => svg.call(zoom.transform, d3.zoomIdentity),
     boxes: () => (boxView ? boxes : null),
   };
+  // The latest drawing, for a resize after a filter redraw.
+  el.r2sc = handle;
+  return handle;
 }

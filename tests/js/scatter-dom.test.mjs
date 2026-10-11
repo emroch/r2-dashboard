@@ -139,18 +139,20 @@ test("the grouped layers hide together, and a redraw keeps what is hidden", { ti
 test("a rows axis labels each row, top to bottom, over a linear x", { timeout: 5000 }, async () => {
   const { draw } = await import("../../src/web/charts/scatter.js");
   const el = mountPoint();
+  const r = (short) => ({ label: short, short, mark: "color:Midnight", symbol: "circle" });
   const rows = { template: "scatter", title: "t",
     x: { label: "VIN", type: "linear", domain: [0, 2000] },
-    y: { label: "Configuration", type: "rows", rows: ["A", "B", "C"], domain: [-0.6, 2.6] },
+    y: { label: "Configuration", type: "rows", rows: [r("A"), r("B"), r("C")], domain: [-0.6, 2.6] },
     series: [{ name: "s", color: "color:Midnight", symbol: "circle",
                points: [{ x: 100, y: 0.1, tip: ["a"] }, { x: 1500, y: 2, tip: ["c"] }] }],
     layers: [] };
   const h = draw(d3, el, rows);
-  const labels = () => [...h.svg.querySelectorAll("g.axis")][1].querySelectorAll(".tick text");
-  assert.deepEqual([...labels()].map((t) => t.textContent), ["A", "B", "C"]);
-  const ys = [...h.svg.querySelectorAll("path.pt")].map((p) => Number(/,([\d.]+)\)/.exec(p.getAttribute("transform"))[1]));
+  const labels = () => h.svg.querySelectorAll(".rows-axis g.slot");
+  assert.equal(labels().length, 3, "a mark per row, and no headings without groups");
+  const pts = () => [...h.svg.querySelectorAll("g[data-name] path.pt")];
+  const ys = pts().map((p) => Number(/,([\d.]+)\)/.exec(p.getAttribute("transform"))[1]));
   assert.ok(ys[0] < ys[1], "row 0 draws above row 2");
-  const xs = [...h.svg.querySelectorAll("path.pt")].map((p) => Number(/translate\(([\d.]+)/.exec(p.getAttribute("transform"))[1]));
+  const xs = pts().map((p) => Number(/translate\(([\d.]+)/.exec(p.getAttribute("transform"))[1]));
   assert.ok(xs[0] < xs[1], "x is a number line");
   h.zoomTo(3);
   assert.ok(labels().length < 3, "rows outside the zoomed view lose their labels");
@@ -197,4 +199,63 @@ test("box view: a box per week of min_n+, the rest as points, the median through
   // Isolating the passed series recomputes the box from what's left.
   el.querySelector(".chart-legend .lg-item").dispatchEvent(new globalThis.window.Event("dblclick"));
   assert.equal(h.boxes()[0].st.n, 4);
+});
+
+// §10's rows: two groups (trim · interior), filterable by paint and interior.
+const row = (color, interior, symbol = "circle") => ({
+  label: `Performance · ${color} · 21" AS · ${interior}`, short: `${color} · 21" AS`,
+  group: `Performance · ${interior}`, trim: "Performance", color, wheels: "21\" Liquid Tungsten",
+  interior, mark: `color:${color}`, symbol });
+const configs = {
+  template: "scatter", title: "c",
+  x: { label: "VIN", type: "linear", domain: [0, 100] },
+  y: { label: "Configuration", type: "rows", domain: [-0.6, 3.6],
+       rows: [row("Midnight", "Black Crater Sig"), row("Borealis", "Black Crater Sig"),
+              row("Midnight", "Coastal Cloud Sig"), row("Borealis", "Coastal Cloud Sig")] },
+  series: [
+    { name: "Midnight · 21\"", color: "color:Midnight", symbol: "circle",
+      points: [{ x: 10, y: 0.1, tip: ["a"] }, { x: 20, y: 2, tip: ["b"] }] },
+    { name: "Borealis · 21\"", color: "color:Borealis", symbol: "circle",
+      points: [{ x: 30, y: 1, tip: ["c"] }, { x: 40, y: 2.9, tip: ["d"] }] }],
+  layers: [],
+  filters: [
+    { dim: "color", label: "Paint", values: [{ value: "Midnight", label: "Midnight" }, { value: "Borealis", label: "Borealis" }] },
+    { dim: "wheels", label: "Wheels", values: [{ value: "21\" Liquid Tungsten", label: "21\" AS", symbol: "circle" }] },
+    { dim: "interior", label: "Interior", values: [{ value: "Black Crater Sig", label: "Black Crater Sig" },
+                                                   { value: "Coastal Cloud Sig", label: "Coastal Cloud Sig" }] }],
+};
+
+test("rows lay out in slots: a heading where the group changes, then its rows", async () => {
+  const { rowLayout } = await import("../../src/web/charts/scatter.js");
+  const all = rowLayout(configs.y.rows);
+  assert.deepEqual(all.slots.map((s) => s.heading || s.row.short), [
+    "Performance · Black Crater Sig", "Midnight · 21\" AS", "Borealis · 21\" AS",
+    "Performance · Coastal Cloud Sig", "Midnight · 21\" AS", "Borealis · 21\" AS"]);
+  assert.deepEqual([...all.slotOf], [[0, 1], [1, 2], [2, 4], [3, 5]]);
+  const some = rowLayout(configs.y.rows, (r) => r.color === "Borealis");
+  assert.deepEqual(some.slots.map((s) => s.heading || s.row.short), [
+    "Performance · Black Crater Sig", "Borealis · 21\" AS", "Performance · Coastal Cloud Sig", "Borealis · 21\" AS"]);
+});
+
+test("filters: a chip group per dimension with a choice; hiding drops rows and redraws whole", async () => {
+  const { draw } = await import("../../src/web/charts/scatter.js");
+  const el = mountPoint();
+  draw(d3, el, configs);
+  const groups = [...el.querySelectorAll(".fl-group")].map((g) => g.dataset.dim);
+  assert.deepEqual(groups, ["color", "interior"], "one wheel, so no wheel chips");
+  assert.equal(el.querySelectorAll(".rows-axis .row-head").length, 2);
+  assert.equal(el.querySelectorAll(".rows-axis .row-label").length, 0, "narrow: marks only");
+  assert.equal(el.querySelectorAll(".rows-axis .pt").length, 4);
+  assert.equal(el.querySelectorAll("g[data-name] path.pt").length, 4);
+  // Isolating Coastal Cloud leaves its group: one heading, two rows, two points.
+  const cc = [...el.querySelectorAll('.fl-group[data-dim="interior"] .lg-item')].find((b) => b.textContent === "Coastal Cloud Sig");
+  cc.dispatchEvent(new globalThis.window.Event("dblclick"));
+  assert.deepEqual([...el.r2sc.hidden()], ["interior:Black Crater Sig"]);
+  assert.equal(el.querySelectorAll(".rows-axis .row-head").length, 1);
+  assert.equal(el.querySelectorAll(".rows-axis .pt").length, 2);
+  const ys = [...el.querySelectorAll("g[data-name] path.pt")].map((p) => p.getAttribute("transform"));
+  assert.equal(ys.length, 2, "Black Crater's points are gone");
+  assert.equal(el.querySelectorAll(".fl-group").length, 2, "redrawn, not added to");
+  assert.equal([...el.querySelectorAll('.fl-group[data-dim="interior"] .lg-item')]
+    .find((b) => b.textContent === "Black Crater Sig").getAttribute("aria-pressed"), "false");
 });
