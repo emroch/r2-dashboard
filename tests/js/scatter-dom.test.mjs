@@ -133,7 +133,7 @@ test("the grouped layers hide together, and a redraw keeps what is hidden", { ti
   assert.equal(h.hidden().has("Build front"), true);
 });
 
-// §10 and §13: a number line on x (VIN sequence) and labelled rows on y, row 0
+// §10: a number line on x (VIN sequence) and labelled rows on y, row 0
 // at the top. Panning rows out of view drops their labels instead of stacking
 // them at the plot's edge.
 test("a rows axis labels each row, top to bottom, over a linear x", { timeout: 5000 }, async () => {

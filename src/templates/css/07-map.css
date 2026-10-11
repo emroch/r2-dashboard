@@ -179,6 +179,10 @@
 .mx-empty {
   color: var(--desc);
 }
+.mx-lean {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
 .mx-note {
   margin: 6px 0 0;
   font-size: 12px;

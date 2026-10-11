@@ -191,7 +191,10 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
       gy.call(d3.axisLeft(y).ticks(8, "~s"));
     }
     bandSel.attr("d", (l) => d3.area().x((d) => x(xv(d[0]))).y0((d) => y(d[1])).y1((d) => y(d[2]))(l.points));
-    lineSel.select("path").attr("d", (l) => d3.line().x((d) => x(xv(d[0]))).y((d) => y(d[1]))(l.points));
+    // `curve` smooths a line through its points (monotone, so it never
+    // overshoots a week's value); the rest join them straight.
+    lineSel.select("path").attr("d", (l) => d3.line().curve(l.curve ? d3.curveMonotoneX : d3.curveLinear)
+      .x((d) => x(xv(d[0]))).y((d) => y(d[1]))(l.points));
     lineSel.selectAll("circle").attr("cx", (o) => x(xv(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
     ruleSel.select("line").attr("x1", (l) => x(xv(l.value))).attr("x2", (l) => x(xv(l.value)))
       .attr("y1", m.t).attr("y2", H - m.b);
