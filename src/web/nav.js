@@ -274,9 +274,8 @@
  // the absolute instant) read as relative times in the viewer's language ("3
  // hours ago", "yesterday"), refreshed each minute, with the exact time in the
  // viewer's own timezone ("Oct 10, 2026, 10:12 PM CDT") as the hover/tap
- // popover (lib/barhover.js's data-tip) and, for a screen reader, as hidden
- // text after it. Both are words, which a screen reader reads as a time rather
- // than as numbers. Without this, the build-timezone text the server wrote stays.
+ // popover (lib/barhover.js's data-tip). Words, which a screen reader reads as
+ // a time rather than as numbers. Without this, the build-timezone text the server wrote stays.
  var fmt, rtf;
  try{
   fmt=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',
@@ -298,10 +297,8 @@
   stamps.forEach(function(t){
    var d=new Date(t.getAttribute('datetime'));
    if(isNaN(d.getTime()))return;
-   var exact=fmt.format(d), sr=document.createElement('span');
-   sr.className='sr-only'; sr.textContent=' ('+exact+')';
-   t.textContent=ago(d); t.append(sr);
-   t.dataset.tip=exact;
+   t.textContent=ago(d);
+   t.dataset.tip=fmt.format(d);
   });
  }
  if(fmt&&rtf&&stamps.length){refresh();setInterval(refresh,60000);}

@@ -15,10 +15,11 @@ from bs4 import BeautifulSoup, Tag
 
 from .assets import publish_assets
 from .categories import category_css
-from .components import (notes_html, readout, readout_group, shared_caveats,
-                         stage_key, stage_readouts)
-from config import (COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
-                    RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
+from .components import (INFO_SVG, notes_html, readout, readout_group,
+                         shared_caveats, stage_key, stage_readouts)
+from config import (COLOR_HEX, DASHBOARD, DIMENSIONS, ORDER_DATE_MIN, ORDERS_THREAD,
+                    RESV_DATE_MIN, RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF,
+                    COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -150,6 +151,11 @@ def _esc(s):
 def _money(v):
     """Whole-dollar money for the stat cards; em dash when there's nothing to show."""
     return "—" if v is None else "$%s" % format(round(v), ",")
+
+
+def _day_words(ts):
+    """A date as words ("June 9, 2026"), which a screen reader reads as a date."""
+    return "%s %d, %d" % (ts.strftime("%B"), ts.day, ts.year)
 
 
 def _fmt_time(dt):
@@ -468,16 +474,30 @@ def build_dashboard(df, report, resv, view):
         + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
           ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
           ' owner/reservation trackers are compiled from</p>'
-        + '<p class="meth">Relative delivery windows (&#8220;4&ndash;8 weeks&#8221;) '
-          'are measured from each order date. Order dates before 2026-06-09 and '
-          'reservations before 2024-03-07 are treated as invalid, and reservations '
-          'that also appear as orders are dropped. &#8220;Last updated&#8221; is '
-          'when a sheet last changed. Numbers marked &#9432; open the entries '
+        # How the data is read, and (with scripts) how the charts are used:
+        # reference, so it's folded away rather than standing between the
+        # sources and the numbers. Written to read the same aloud as on screen
+        # (dates and ranges in words, keys spelled out): an inline swap for a
+        # screen reader splits the sentence into separate stops.
+        + '<details class="intro-more"><summary>About this page</summary>'
+          '<p class="meth">Data collected from Rivian R2 reservation holders and '
+          'buyers on the Rivian forums, who track their reservations, orders, VINs '
+          'and deliveries in two community spreadsheets. This page cleans those '
+          'entries and charts what the cohort ordered, how orders are moving toward '
+          'delivery, how production is advancing by VIN, and where the cars are '
+          'going.</p>'
+          '<p class="meth">Relative delivery windows, such as &#8220;4 to 8 weeks&#8221;, '
+          'are measured from each order date. Order dates before %s and '
+          'reservations before %s are treated as invalid, and reservations that '
+          'also appear as orders are dropped. &#8220;Last updated&#8221; is when a '
+          'sheet last changed. Numbers marked with an info icon %s open the entries '
           'behind them.</p>'
+          % (_day_words(ORDER_DATE_MIN), _day_words(RESV_DATE_MIN), INFO_SVG)
         + _howto('Hover a chart for its values. Click a legend entry to hide it, '
-                 'or double-click to show it alone. On the scatter charts, pinch '
-                 'or &#8984;/Ctrl-scroll to zoom and drag to pan; double-click or '
-                 '<em>Reset view</em> to return.'))
+                 'or double-click to show it alone. On the scatter charts, pinch, '
+                 'or hold Command or Control and scroll, to zoom; drag to pan; '
+                 'double-click or <em>Reset view</em> to return.')
+        + '</details>')
 
     # Chart-navigation sidebar: the summary card (1), each chart (2..N+1), and
     # the QA panel (N+2), numbered by position to match the section headings.

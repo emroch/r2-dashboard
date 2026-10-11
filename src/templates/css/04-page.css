@@ -43,6 +43,16 @@ time[data-r2time][data-tip] {
   text-underline-offset: 2px;
   cursor: help;
 }
+/* "About this page": the methodology and chart how-to, folded under the
+   sources (page.py). */
+.intro-more {
+  margin-top: 10px;
+}
+.intro-more > summary {
+  cursor: pointer;
+  color: var(--desc);
+  font-size: 13px;
+}
 .intro p.meth {
   margin: 10px 0 0;
   color: var(--desc);
@@ -153,9 +163,14 @@ section p.desc a:hover {
   line-height: 1.25;
 }
 .ro-i {
-  opacity: .55;
-  font-size: 11px;
-  margin-left: 3px;
+  opacity: .7;
+  margin-left: 4px;
+}
+/* The info mark (components.py INFO_SVG), at text size wherever it sits. */
+.info-svg {
+  width: .95em;
+  height: .95em;
+  vertical-align: -.12em;
 }
 .ro-more[open] {
   flex-basis: 100%;

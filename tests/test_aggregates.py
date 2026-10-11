@@ -649,13 +649,15 @@ def test_stage_counts_partition_every_order_as_the_take_rate_bars_do():
 def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
     from render.components import readout, readout_group, stage_readouts
     from render.aggregates import stage_counts
-    assert readout(694, "Unique orders") == \
-        '<div class="ro-chip"><b class="ro-v">694</b><span class="ro-l">Unique orders' \
-        '</span></div>'
+    # Read as one phrase; the visual number and label are hidden from it.
+    assert readout(694, "Unique orders") == (
+        '<div class="ro-chip"><span class="sr-only">694 Unique orders</span>'
+        '<span aria-hidden="true"><b class="ro-v">694</b><span class="ro-l">'
+        'Unique orders</span></span></div>')
     html = readout(2, "Curated removals", [(310, "a<b", "cancelled")], "Why")
     assert html.startswith('<details class="ro-more"><summary class="ro-chip">')
-    assert ('Curated removals<span class="ro-i" aria-hidden="true">&#9432;</span>'
-            in html)
+    assert ('Curated removals<span class="ro-i" aria-hidden="true">'
+            '<svg class="info-svg"' in html)
     assert '<p class="ro-cap"><b>Curated removals</b> — Why</p>' in html
     assert "<td>#310</td><td>a&lt;b</td><td>cancelled</td>" in html
     g = readout_group("Delivery progress", stage_readouts(stage_counts(_orders(

@@ -17,7 +17,7 @@
   top: 8px;
 }
 
-/* Text for screen readers only (a relative time's exact time, nav.js). */
+/* Text for screen readers only (a stat card's phrase, components.py). */
 .sr-only {
   position: absolute;
   width: 1px;
