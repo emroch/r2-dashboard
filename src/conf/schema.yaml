@@ -124,7 +124,7 @@ sanitize:
 # split one order into several.
 dedupe_identity_columns: [trim, color, wheels, interior]
 
-# Build cadence (VIN issuance rate) and the projected build front (§10). Delivery
+# Build cadence (VIN issuance rate) and the projected build front (§9). Delivery
 # date stands in for build date: the build-to-delivery lag shifts WHEN a VIN shows
 # up, but barely changes the slope, which is the rate. Only orders with a VIN and a
 # FIRM delivery date are used.

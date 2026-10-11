@@ -144,3 +144,43 @@
   border: 1px solid var(--mark-edge);
   background: repeating-linear-gradient(45deg,var(--card-bg) 0 2px,color-mix(in oklab,var(--mark-edge) 60%,var(--card-bg)) 2px 3px);
 }
+
+/* statemix (charts/statemix.js): the map's companion, in the mix panels'
+   markup. Its controls sit in the flow above the key, not over a plot: the
+   measure switch, then the state picker and Show all. */
+.mx-controls {
+  position: static;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.mx-pick {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mx-picker {
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--card-bg);
+  border: 1px solid var(--card-bd);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.mx-chip {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+}
+.mx-empty {
+  color: var(--desc);
+}
+.mx-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--desc);
+}

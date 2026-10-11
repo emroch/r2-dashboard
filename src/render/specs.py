@@ -25,7 +25,8 @@ import pandas as pd
 from config import (AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY, INTERIOR_ORDER,
                     INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
 
-from .aggregates import STAGE_LABELS, STAGES, Aggregate, stages
+from .aggregates import (COHORTS, STAGE_LABELS, STAGES, Aggregate, crosstab,
+                         lean, stages)
 from .cadence import projection as cadence_projection
 
 # wheels value -> its marker shape (dimensions.yaml `symbol`: circle, square,
@@ -75,7 +76,7 @@ def _paint_order(d: pd.DataFrame) -> list[str]:
 
 
 def _config_tip(r: pd.Series) -> list[str]:
-    """An order's tooltip in the configuration scatters (§9, §10, §11)."""
+    """An order's tooltip in the configuration scatters (§8, §9, §10)."""
     return [str(r["user"]),
             "%s · %s" % (r["color"], r["wheels_short"]),
             "%s · %s" % (r["interior"], r["buylease"]),
@@ -117,8 +118,8 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
 
 
 def vin_vs_order(df: pd.DataFrame) -> tuple:
-    """§9: each order with a VIN at (order date, VIN), one series per paint ×
-    wheel, as §10."""
+    """§8: each order with a VIN at (order date, VIN), one series per paint ×
+    wheel, as §9."""
     vin = df["vin_present"].astype(bool)
     has = vin & df["order_date"].notna()
     d = df[has & _reported(df, "color", "wheels_short")]
@@ -141,7 +142,7 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
 
 
 def vin_by_config(df: pd.DataFrame) -> tuple:
-    """§11: each order with a VIN at its sequence (x), in a row per full
+    """§10: each order with a VIN at its sequence (x), in a row per full
     configuration (trim · paint · wheels · interior). Interior joins the row key
     rather than becoming a third marker channel: fill and shape are taken."""
     vin = df["vin_present"].astype(bool)
@@ -195,7 +196,7 @@ _REGIONS = [c["value"] for c in DIMENSIONS["region"]["categories"]]
 
 
 def dest_vs_delivery(df: pd.DataFrame) -> tuple:
-    """§17: each order with a delivery estimate and a known destination, in a row
+    """§13: each order with a delivery estimate and a known destination, in a row
     per state, ordered by distance from the factory (nearest at the bottom), one
     series per region, with the quoted window as a whisker; and today."""
     est = df["delivery_est"].notna()
@@ -278,7 +279,7 @@ def _us(frame: pd.DataFrame) -> pd.Series:
 
 
 def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
-    """§12: per US state, total demand (orders + outstanding reservations), orders,
+    """§11: per US state, total demand (orders + outstanding reservations), orders,
     and the orders that have reached each delivery stage, cumulatively: with a
     VIN (or further), scheduled (or delivered), delivered."""
     if resv is None or "state" not in resv:
@@ -333,8 +334,86 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
     return spec, agg, table
 
 
+# The state mix's measures, in switch order: (key, label, dimension). Status is
+# the delivery stages (aggregates.stages()), the rest a dimension's categories.
+_MIX_MEASURES = (("status", "Status", None), ("color", "Paint", "color"),
+                 ("wheels", "Wheels", "wheels"), ("interior", "Interior", "interior"))
+
+
+def _region_lean(counts: dict[str, list[int]], cats: list[dict]) -> str:
+    """The biggest regional departure from the US mix (aggregates.lean), from
+    per-state counts, as a sentence fragment."""
+    by: dict[str, list[int]] = {}
+    for code, row in counts.items():
+        reg = STATE_INFO[code][0]
+        by[reg] = [a + b for a, b in zip(by.get(reg, [0] * len(cats)), row)]
+    rows = [{"value": r, "label": r, "n": sum(v)} for r, v in by.items()]
+    cells = [{"row": r, "col": c["value"], "n": v[i], "row_label": r,
+              "col_label": c["label"]}
+             for r, v in by.items() for i, c in enumerate(cats)]
+    base = [{"value": c["value"], "n": sum(v[i] for v in by.values())}
+            for i, c in enumerate(cats)]
+    return lean(rows, cells, base)
+
+
+def state_mix(df: pd.DataFrame) -> tuple:
+    """§11, under the map: each US state's orders split by a measure the reader
+    picks (status, paint, wheels, interior), and the US as a whole, for the
+    page to draw as a 100% bar for the state selected on the map. Per measure:
+    its categories (label, color ref, stage), each state's counts in that
+    order (an order that didn't report the measure sits out of it), the US
+    counts, and where a region leans furthest from the US mix."""
+    located = COHORTS["located"](df)
+    us = _us(df) & located
+    d = df[us]
+    small = int(DIMENSIONS["state"]["small_n"]["min_orders"])
+    measures: list[dict[str, Any]] = []
+    states: dict[str, dict[str, Any]] = {}
+    us_row: dict[str, list[int]] = {}
+    size = d["state"].value_counts()
+    codes = [str(c) for c in sorted(size.index, key=lambda c: (-int(size[c]), c))]
+    for key, label, dim in _MIX_MEASURES:
+        if dim is None:
+            st = stages(d)
+            cats = [{"value": k, "color": "neutral", "stage": k,
+                     "label": STAGE_LABELS[k][0].upper() + STAGE_LABELS[k][1:]}
+                    for k in STAGES]
+            by = {c: [int((st[d["state"] == c] == k).sum()) for k in STAGES]
+                  for c in codes}
+        else:
+            agg = crosstab(d, "state", dim, "located")
+            cats = [{"value": c["value"], "label": c["label"],
+                     "color": c["ref"] or "neutral"} for c in agg.meta["cols"]]
+            n = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
+            by = {c: [n.get((c, k["value"]), 0) for k in cats] for c in codes}
+        us_row[key] = [sum(v[i] for v in by.values()) for i in range(len(cats))]
+        for c in codes:
+            states.setdefault(c, {"n": int(size[c])})[key] = by[c]
+        measures.append({"key": key, "label": label,
+                         "true": bool(dim and DIMENSIONS[dim].get("true_color")),
+                         "cats": [{k: v for k, v in c.items() if k != "value"}
+                                  for c in cats],
+                         "lean": _region_lean(by, cats)})
+    spec = {"template": "statemix", "title": "Orders by state", "map": "geo-demand",
+            "default": "status", "small_n": small, "n": len(d), "us": us_row,
+            "measures": measures, "states": states}
+    heads = ["State", "Region", "Orders"] + [
+        "%s: %s" % (m["label"], c["label"]) for m in measures for c in m["cats"]]
+    rows = [["Overall (US)", "", len(d)]
+            + [v for m in measures for v in us_row[m["key"]]]]
+    rows += [[c, STATE_INFO[c][0], states[c]["n"]]
+             + [v for m in measures for v in states[c][m["key"]]] for c in codes]
+    cells = [{"value": c, "label": c, "n": states[c]["n"], "ref": None, "known": True}
+             for c in codes]
+    left = int((located & ~us).sum())
+    agg = Aggregate("located orders by US state", "located", cells,
+                    {"outside the US (not mapped)": left} if left else {}, "state",
+                    meta={"states": len(codes)})
+    return spec, agg, (heads, rows)
+
+
 def delivery_vs_vin(df: pd.DataFrame) -> tuple:
-    """§10: each order with a VIN and a delivery estimate, at (estimated
+    """§9: each order with a VIN and a delivery estimate, at (estimated
     delivery date, VIN), one series per paint × wheel, with the quoted window
     as a whisker; the build front, its projection and band; and today."""
     has = df["vin_present"].astype(bool) & df["delivery_est"].notna()
@@ -762,7 +841,7 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
 
 
 def build_cadence(df: pd.DataFrame) -> tuple:
-    """§10, beneath: the build front's rate over time, VINs per day, as of each
+    """§9, beneath: the build front's rate over time, VINs per day, as of each
     front week (render/cadence.py rate_history), at the week's middle."""
     from config import CADENCE_WINDOW_WEEKS
     from .cadence import cadence_frame, rate_history

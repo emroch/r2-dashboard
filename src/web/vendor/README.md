@@ -10,7 +10,7 @@ needs it nears the viewport (`lib/load.js`). eslint skips this directory.
 | `topojson-client-3.1.0.min.js` | [topojson-client](https://github.com/topojson/topojson-client) | 3.1.0 | npm `topojson-client@3.1.0`, `dist/topojson-client.min.js` | `25cd02ae486cc5063e0215a4e4cfb15de83700c87ac48bac4d57dc6aaf3ebb89` | ISC, `LICENSE-topojson-client` |
 | `us-atlas-3.0.1-states-10m.json` | [us-atlas](https://github.com/topojson/us-atlas) | 3.0.1 | npm `us-atlas@3.0.1`, `states-10m.json` (Census cartographic boundaries, 1:10m) | `d76b391ccfa8bff601d51e3e3da5d43a89fa46cd5caca72ce731b383be5596d0` | ISC, `LICENSE-us-atlas` |
 
-The map (§12) loads topojson-client and the us-atlas states with d3; state
+The map (§11) loads topojson-client and the us-atlas states with d3; state
 geometries are keyed by FIPS code, which `charts/geo.js` maps to postal codes.
 
 To update: install the new version from the public registry, copy its file

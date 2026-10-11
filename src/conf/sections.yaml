@@ -154,56 +154,27 @@ sections:
       newer cabins show up here as their orders get assigned.
 
   - title: "Geographic demand"
-    components: [geo-demand]
+    components: [geo-demand, state-mix]
     desc: >-
-      Demand by state around the Normal, IL plant (marked with Rivian's emblem). The slider steps down the
-      pipeline, each stop a subset of the one before: total demand (orders plus
-      outstanding reservations), orders, orders with a VIN (or further along),
-      orders with a delivery scheduled (or delivered), and deliveries. Colors
-      run on a square-root scale, so a state with a quarter of the leader's count
-      reads half as strong; a state with none is hatched. Select a state to outline
-      it. Only US orders are mapped for now, since the R2
-      isn't on sale elsewhere yet.
+      Demand by state around the Normal, IL plant (marked with Rivian's emblem). The
+      slider steps down the pipeline, each stop a subset of the one before: total
+      demand (orders plus outstanding reservations), orders, orders with a VIN (or
+      further along), orders with a delivery scheduled (or delivered), and
+      deliveries. Colors run on a square-root scale, so a state with a quarter of
+      the leader's count reads half as strong; a state with none is hatched. Select
+      a state to see its orders below, split by status, paint, wheels or interior,
+      against the whole US, or <em>Show all</em> to compare every state with 10 or
+      more orders at once; a state with fewer says so when shown, since one order
+      swings its mix. Only US orders are mapped for now, since the R2 isn't on sale
+      elsewhere yet.
 
-  - title: "Orders by state"
-    components: [state-totals]
+  - title: "Wheels by climate & terrain"
+    components: [wheels-by-elevation, wheels-by-temperature, wheels-by-urban]
     desc: >-
-      Every state that has ordered, largest first, each bar split by how far its
-      orders have got: delivered, delivery scheduled, assigned a VIN, or still waiting
-      for one, the same four stages as the take-rate bars and the summary. Bar length
-      is the state's order count. Deliveries are <em>inferred</em>, not reported — an
-      order whose whole delivery estimate has passed is assumed to have arrived, on
-      the theory that people rarely come back to update the sheet afterwards. That is
-      rough and errs both ways: a delayed car still looks delivered, and one that
-      arrived early against a vague estimate does not. Any estimate with a known end
-      date counts, including a relative window that finished a while ago; orders with
-      no estimate never do. Deliveries count whether or not a VIN is known, since some
-      people post about taking delivery without ever updating their VIN. The top row
-      sums every state on its own scale — at the shared one it would flatten every
-      other bar — and equals the summary's delivery progress, counted over the orders
-      with a known state.
-
-  - title: "Paint preference by location"
-    components: [paint-by-region, paint-by-state]
-    desc: >-
-      Does color taste vary geographically? Each row is 100% of its orders, so a
-      region's or state's paint mix compares regardless of order volume — the West has
-      ~70x Canada's. The <em>All orders</em> row on top is the baseline: read a row
-      against it to see which paints that group over- or under-indexes on, and the
-      summary names the biggest lean among groups of 20 or more orders. Every row
-      gives its n and its counts. The state panel is limited to states with enough
-      orders to be meaningful; below that a single order swings the mix by 100 points,
-      so the rest stay summarized in the region panel.
-
-  - title: "Wheel preference by location"
-    components: [wheels-by-region, wheels-by-elevation, wheels-by-temperature,
-                 wheels-by-urban]
-    desc: >-
-      Wheel choice for every order with a known state, as 100% rows per group so
-      rows compare regardless of order volume; each panel's <em>All orders</em> row
-      is the whole cohort, a baseline to read the others against, and every row
-      gives its n and its counts. The elevation, temperature and urban-share panels
-      order their rows by <em>value</em> rather than by volume. Sources, all per-state published
+      Wheel choice by the state each order is going to, grouped by that state's
+      elevation, climate and urban share, as 100% rows so groups compare regardless
+      of order volume; each panel's <em>All orders</em> row is the whole cohort, a
+      baseline to read the others against, and rows run in order of value. Sources, all per-state published
       figures: <a href="https://pubs.usgs.gov/pp/1200us/report.pdf" target="_blank"
       rel="noopener">USGS</a> mean state elevation (area-weighted), <a
       href="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/"
@@ -220,16 +191,6 @@ sections:
       all-terrain efficiency argument carries confounds &mdash; local terrain,
       driving mix, when each wheel was orderable &mdash; that state averages cannot
       separate.
-
-  - title: "Interior preference by location"
-    components: [interior-by-region]
-    desc: >-
-      Interior mix by region, read the same way as the paint and wheel panels above:
-      each row is 100% of its orders so a region's mix compares regardless of order
-      volume, the <em>All orders</em> row on top is the baseline, and every row gives
-      its n and its counts. Region only, no per-state row &mdash; the newer cabins are
-      a small share of orders, and split by state most rows would hold one or two of
-      them, where a single order swings the mix by 100 points.
 
   - title: "Destination vs. delivery date"
     components: [dest-vs-delivery]

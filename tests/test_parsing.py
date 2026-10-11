@@ -30,6 +30,32 @@ from ingest.parsing import (
 from config import FACTORY
 
 
+
+# Component configs the page no longer uses, kept here to exercise the mix and
+# take-rate templates' options (small_n, baseline, total) on location data.
+_LOCATION_CONFS = {
+    "paint-by-state": {
+        "template": "mix", "title": "Paint by state", "dims": ["state", "color"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "small_n": True, "summary": "The biggest lean: {meta:lean}."},
+    "paint-by-region": {
+        "template": "mix", "title": "Paint by region", "dims": ["region", "color"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "summary": "The biggest lean: {meta:lean}."},
+    "wheels-by-region": {
+        "template": "mix", "title": "Wheels by region", "dims": ["region", "wheels"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "summary": "The biggest lean: {meta:lean}."},
+    "interior-by-region": {
+        "template": "mix", "title": "Interior by region",
+        "dims": ["region", "interior"], "aggregate": "crosstab", "cohort": "located",
+        "baseline": "All orders", "summary": "The biggest lean: {meta:lean}."},
+    "state-totals": {
+        "template": "takerate", "title": "Orders by state", "dims": ["state"],
+        "cohort": "located", "total": "All states", "row_label": "State / province",
+        "summary": "{top} leads, with {top_share} of {n} orders with a known state."},
+}
+
 def test_clean_vin_obfuscated_recoverable():
     assert clean_vin("X1435") == (1435, True, True)
 
@@ -861,7 +887,8 @@ def test_backtest_sign_shows_when_reality_ran_ahead():
 
 
 def test_state_totals_segments_partition_each_state():
-    # §13 is the state take-rate over the located orders: the four stages must
+    # The state take-rate (no longer on the page) is over the located orders:
+    # the four stages must
     # sum to each state's count, so a delivery is counted once whatever its VIN
     # status (a delivered order with no VIN still counts as delivered), and an
     # order with no location sits out of the cohort.
@@ -885,12 +912,12 @@ def test_state_totals_segments_partition_each_state():
 
 
 def test_state_totals_summary_row_matches_the_shared_split():
-    # #53: §13's "All states" row and the summary's Delivery progress readouts
+    # #53: the state take-rate's "All states" row and the summary's Delivery
+    # progress readouts
     # come from one split (aggregates.stages()), so they can't drift. The row
     # covers the located orders, the readouts every order: they agree exactly
     # when every order is located, and differ by the unmapped ones.
     import pandas as pd
-    from config import COMPONENTS
     from render.aggregates import counts, stage_counts
     from render.components import takerate
     def row(state, vin, delivered, lat=1.0):
@@ -901,7 +928,7 @@ def test_state_totals_summary_row_matches_the_shared_split():
         row("CA", False, False), row("TX", False, True), row("TX", True, False),
         row("ZZ", True, True, lat=float("nan")),
     ])
-    html = takerate("c-s", COMPONENTS["state-totals"],
+    html = takerate("c-s", _LOCATION_CONFS["state-totals"],
                     counts(df, "state", cohort="located", by_stage=True))
     located = stage_counts(df[df["lat"].notna()])
     want = " · ".join("%d %s" % (c["n"], c["label"]) for c in located.cells if c["n"])
@@ -1272,10 +1299,11 @@ def test_wheels_by_location_panels_partition_the_cohort():
         "vin_present": [False] * 6, "delivered_inferred": [False] * 6,
         "price": [None] * 6,
     })
-    panels = [cid for cid in COMPONENTS if cid.startswith("wheels-by-")]
-    assert len(panels) == 4, panels
-    for cid in panels:
-        a = _crosstab(df, COMPONENTS[cid])
+    panels = {cid: c for cid, c in COMPONENTS.items() if cid.startswith("wheels-by-")}
+    assert len(panels) == 3, panels
+    panels["wheels-by-region"] = _LOCATION_CONFS["wheels-by-region"]
+    for cid, conf in panels.items():
+        a = _crosstab(df, conf)
         reconcile([a], cohort_sizes(df))
         assert a.counted == 5 and not a.excluded, (cid, a.excluded)
         for r in a.meta["rows"]:
@@ -1430,8 +1458,7 @@ def test_every_paint_chart_uses_the_same_order():
     # follow one popularity ranking, or a reader learns an order in §2 that fails
     # them in §3.
     # (The §2 take-rate rows follow it too: test_aggregates.py.)
-    # (§10's delivery-vs-VIN scatter follows it too: test_specs.py.)
-    from config import COMPONENTS
+    # (§9's delivery-vs-VIN scatter follows it too: test_specs.py.)
     from render.aggregates import crosstab
     from render.specs import _paint_order, vin_vs_order
     from render.view import _crosstab
@@ -1442,7 +1469,7 @@ def test_every_paint_chart_uses_the_same_order():
     # §3 heatmap rows, top-down.
     assert [r["value"] for r in crosstab(df, "color", "wheels").meta["rows"]] == want
 
-    # §9 scatter legend: one entry per paint × wheel, paints in rank order.
+    # §8 scatter legend: one entry per paint × wheel, paints in rank order.
     seen = []
     for s in vin_vs_order(df)[0]["series"]:
         paint = s["name"].split(" · ")[0]
@@ -1450,9 +1477,9 @@ def test_every_paint_chart_uses_the_same_order():
             seen.append(paint)
     assert seen == want, seen
 
-    # §14 stack order: the location mixes' columns and baseline.
+    # Stack order in the location mixes: their columns and baseline.
     for cid in ("paint-by-region", "paint-by-state"):
-        a = _crosstab(df, COMPONENTS[cid])
+        a = _crosstab(df, _LOCATION_CONFS[cid])
         assert [c["value"] for c in a.meta["cols"]] == want, cid
         assert [c["value"] for c in a.meta["baseline"]] == want, cid
 
@@ -1464,7 +1491,7 @@ def test_counts_break_ties_alphabetically():
     # daily builds. Order must be (count, then name), repeatably.
     from render.aggregates import counts
     s = pd.Series(list("aaa") + ["zz", "mm", "bb"] * 2 + ["q"])
-    # A component's rows (§13's states): largest first, ties by name, whatever
+    # A component's rows (a row per state): largest first, ties by name, whatever
     # order the orders arrive in.
     df = pd.DataFrame({"state": list(s), "lat": 1.0})
     def rows(frame):
@@ -1474,14 +1501,14 @@ def test_counts_break_ties_alphabetically():
 
 
 def test_interior_by_location_panels_partition_the_cohort():
-    from config import COMPONENTS, INTERIOR_SHORT
+    from config import INTERIOR_SHORT
     from render.aggregates import cohort_sizes, reconcile
     from render.view import _crosstab
     df = _interior_frame().assign(
         lat=[40.0, 41.0, 42.0, 43.0, 44.0, 45.0],
         region=["West", "West", "South", "South", "Northeast", "Canada"],
         delivered_inferred=False, price=None)
-    a = _crosstab(df, COMPONENTS["interior-by-region"])
+    a = _crosstab(df, _LOCATION_CONFS["interior-by-region"])
     reconcile([a], cohort_sizes(df))
     assert a.counted == len(df) and not a.excluded
     for r in a.meta["rows"]:
@@ -1826,7 +1853,6 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     # 100%-stacked panels divide by each bar's own total, so the stack would quietly
     # stop adding up to 100.
     # (The §2 take-rate rows: test_aggregates.py.)
-    from config import COMPONENTS
     from render.aggregates import crosstab
     from render.specs import _paint_order
     from render.view import _crosstab
@@ -1845,7 +1871,7 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     assert a.counted == len(df) - 1 and a.excluded == {"not reported": 1}
 
     # The location mix leaves it out too, so every row still adds up to its n.
-    mix = _crosstab(df, COMPONENTS["paint-by-region"])
+    mix = _crosstab(df, _LOCATION_CONFS["paint-by-region"])
     assert "" not in [c["value"] for c in mix.meta["cols"]]
     assert mix.excluded == {"not reported": 1}
     for r in mix.meta["rows"]:

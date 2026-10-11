@@ -95,3 +95,21 @@ test("selecting a state outlines it and fires r2:stateselect; again clears", { t
   assert.ok(!outline());
   assert.deepEqual(got, ["TX", null]);
 });
+
+test("the selection is kept in the URL, and r2:stateset selects without firing", { timeout: 5000 }, async () => {
+  const { draw } = await import("../../src/web/charts/geo.js");
+  const el = mountPoint();
+  globalThis.location = { href: "https://example.test/?state=CA", search: "?state=CA" };
+  globalThis.history = { state: null, replaceState(_, __, url) {
+    globalThis.location = { href: String(url), search: new URL(url).search }; } };
+  const h = draw(d3, atlas, el, spec);
+  assert.equal(h.selected(), "CA", "read from the URL");
+  const got = [];
+  el.addEventListener("r2:stateselect", (ev) => got.push(ev.detail.code));
+  el.dispatchEvent(new globalThis.window.CustomEvent("r2:stateset", { detail: { code: "TX" } }));
+  assert.equal(h.selected(), "TX");
+  assert.ok(state(h, "TX").classList.contains("selected"));
+  assert.deepEqual(got, [], "set from outside, so no echo");
+  h.select("TX");
+  assert.equal(globalThis.location.search, "", "a click clears it, and the URL");
+});

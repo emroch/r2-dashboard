@@ -1,7 +1,7 @@
 """Tests for the browser-drawn components' specs (render/specs.py, #107): what
 Python hands the page's d3 templates.
 
-§10's delivery-vs-VIN scatter carries over what its old figure's tests
+§9's delivery-vs-VIN scatter carries over what its old figure's tests
 checked (test_parsing.py, before #107): one series per paint × wheel in the
 page-wide paint order; whiskers only for quoted windows; the build front, its
 projection and band as their own layers after the series, with the projection
@@ -27,7 +27,7 @@ from config import AS_OF, COLOR_ORDER
 
 
 def _orders(n=0, **cols):
-    """A cleaned-orders frame with every column the §10 spec reads."""
+    """A cleaned-orders frame with every column the §9 spec reads."""
     base = dict(user=["u%d" % i for i in range(n)], color=["Esker Silver"] * n,
                 wheels_short=['21" Liquid Tungsten'] * n,
                 interior=["Black Crater Signature"] * n, buylease=["Purchase"] * n,
@@ -165,7 +165,7 @@ def test_the_mounted_component_has_a_no_js_table_of_every_point():
     assert "3 orders with both a VIN and a delivery estimate." in html
 
 
-# --- timeseries specs (§5, §6, §7's coverage, §10's cadence) ------------------------
+# --- timeseries specs (§5, §6, §7's coverage, §9's cadence) ------------------------
 
 def _sizes(df, resv):
     from render.aggregates import cohort_sizes
@@ -370,6 +370,48 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     # Reservations alone still put a state on the demand map, with no orders.
     assert spec["states"]["WA"]["orders"] == 0 and spec["states"]["WA"]["demand"] == 1
     assert "BC" not in spec["states"]
+
+
+def test_state_mix_splits_each_us_state_by_every_measure():
+    from render.aggregates import cohort_sizes, reconcile
+    from render.specs import state_mix
+    df = _orders(5, state=["CA", "CA", "CA", "IL", "BC"], price=[None] * 5,
+                 lat=[36.0, 36.0, 36.0, 40.0, 53.0],
+                 color=["Launch Green", "Esker Silver", "Launch Green", "",
+                        "Esker Silver"],
+                 vin_present=[True, False, True, True, False],
+                 delivered_inferred=[True, False, False, False, False],
+                 delivery_type=["explicit", "window", "window", "explicit", "window"])
+    spec, agg, (heads, rows) = state_mix(df)
+    reconcile([agg], cohort_sizes(df))
+    assert agg.excluded == {"outside the US (not mapped)": 1}
+    assert [m["key"] for m in spec["measures"]] == ["status", "color", "wheels",
+                                                    "interior"]
+    status, paint = spec["measures"][0], spec["measures"][1]
+    assert [c["stage"] for c in status["cats"]] == ["delivered", "scheduled", "vin",
+                                                    "wait"]
+    # CA: one delivered, one with a VIN, one waiting; IL scheduled.
+    assert spec["states"]["CA"]["status"] == [1, 0, 1, 1]
+    assert spec["us"]["status"] == [1, 1, 1, 1]
+    # Paint: true colors, and IL's blank paint sits out of the paint split only.
+    assert paint["true"] and paint["cats"][0]["color"].startswith("color:")
+    names = [c["label"] for c in paint["cats"]]
+    ca = dict(zip(names, spec["states"]["CA"]["color"]))
+    assert ca == {"Launch Green": 2, "Esker Silver": 1}
+    assert sum(spec["states"]["IL"]["color"]) == 0 and spec["states"]["IL"]["n"] == 1
+    assert "BC" not in spec["states"]
+    assert spec["small_n"] == 10 and spec["map"] == "geo-demand"
+    # The table: All US first, then a row per state, a column per category.
+    assert rows[0][:3] == ["Overall (US)", "", 4] and len(rows) == 3
+    assert len(heads) == len(rows[0]) and "Paint: Launch Green" in heads
+
+
+def test_region_lean_reads_the_biggest_regional_gap():
+    from render.specs import _region_lean
+    cats = [{"value": "a", "label": "A"}, {"value": "b", "label": "B"}]
+    counts = {"CA": [20, 0], "IL": [10, 10], "IN": [0, 10]}
+    assert _region_lean(counts, cats) == \
+        "A at 100% of West orders (60% across all orders)"
 
 
 def _run_all():

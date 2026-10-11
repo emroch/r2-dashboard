@@ -161,7 +161,7 @@ def test_frame_carries_title_summary_n_caveats_and_table():
     assert html.count("Location is self-reported.") == 1
     assert DIMENSIONS["state"]["small_n"]["note"] in html and "Extra note." in html
     assert DIMENSIONS["state"]["small_n"]["note"] not in frame(
-        "c-x", "All states", "", dims=["state"]), "§13 lists every state"
+        "c-x", "All states", "", dims=["state"]), "a state list lists every state"
     assert '<table id="c-test-data">' in html and "<td>Midnight</td>" in html
     assert 'data-table="c-test-data" data-file="c-test.csv" hidden' in html
 
@@ -201,7 +201,7 @@ def test_view_build_reconciles_and_renders_every_component():
     assert view.readouts["progress"] in view.aggregates
     assert view.readouts["progress"].counted == 2
     # Everything but the browser-drawn templates is rendered to HTML in Python.
-    drawn = ("geo", "scatter", "timeseries")
+    drawn = ("geo", "scatter", "statemix", "timeseries")
     static = {c for c, sp in COMPONENTS.items() if sp["template"] not in drawn}
     assert set(view.static) == static
     for cid in view.static:

@@ -30,7 +30,7 @@ from .components import bars, heatmap, mix, mount, range_strip, takerate
 from .specs import (build_cadence, delivery_latency,
                     delivery_vs_vin, dest_vs_delivery, fulfilment_by_week, geo_demand,
                     latency_coverage, orders_by_week, reservations_by_week,
-                    vin_by_config, vin_vs_order)
+                    state_mix, vin_by_config, vin_vs_order)
 
 VIEW_VERSION = 1
 
@@ -81,6 +81,7 @@ _SPECS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], tuple]] = {
     "delivery_vs_vin": lambda df, resv: delivery_vs_vin(df),
     "vin_vs_order": lambda df, resv: vin_vs_order(df),
     "geo_demand": geo_demand,
+    "state_mix": lambda df, resv: state_mix(df),
     "vin_by_config": lambda df, resv: vin_by_config(df),
     "dest_vs_delivery": lambda df, resv: dest_vs_delivery(df),
     "reservations_by_week": reservations_by_week,
