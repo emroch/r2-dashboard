@@ -123,9 +123,3 @@ sections:
       target="_blank" rel="noopener">Reagan National normal</a>), and <a
       href="https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html"
       target="_blank" rel="noopener">Census 2020</a> urban share.
-
-  - title: "Destination vs. delivery date"
-    components: [dest-vs-delivery]
-    desc: >-
-      Each order's delivery estimate by destination state, nearest the plant at
-      the bottom; whiskers span the quoted delivery window.
