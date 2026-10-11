@@ -140,15 +140,15 @@
 
 /* On the dark card the stages step darker instead, duller like the take-rate
    stages, rather than paler; in gentler steps, so the last (waiting, usually
-   the largest band) stays clear of the near-black card. */
+   the largest band) stays well clear of the near-black card. */
 html[data-theme="dark"] .tone-scheduled {
-  --tone: 78%;
+  --tone: 86%;
 }
 html[data-theme="dark"] .tone-vin {
-  --tone: 58%;
+  --tone: 70%;
 }
 html[data-theme="dark"] .tone-wait {
-  --tone: 42%;
+  --tone: 56%;
 }
 html[data-theme="dark"] .chart-svg [class*="tone-"] .bar {
   fill: color-mix(in oklab,var(--mark) var(--tone),black);
