@@ -100,9 +100,10 @@ test("the Weekly / Cumulative switch redraws in place, unclipped when cumulative
     .getAttribute("aria-pressed"), "true");
   // The last week's stack tops out at its running total, 1,684 on the fixed
   // 0–1,750 domain. linkedom has no layout, so the chart is its narrowest, 320
-  // wide and 260 high: the plot runs from y=212 (0) up to y=22.
+  // wide and 260 high, its y label above the axis: the plot runs from y=212
+  // (0) up to y=30.
   const lastTop = [...el.querySelectorAll("rect.bar")].at(-1);
-  assert.ok(Math.abs(Number(lastTop.getAttribute("y")) - (212 - (1684 / 1750) * 190)) < 0.01,
+  assert.ok(Math.abs(Number(lastTop.getAttribute("y")) - (212 - (1684 / 1750) * 182)) < 0.01,
     lastTop.getAttribute("y"));
   h.setView(false);
   assert.equal(count(), before, "switching back adds nothing and restores the clip label");

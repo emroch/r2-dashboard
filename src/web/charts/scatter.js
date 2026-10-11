@@ -111,6 +111,20 @@ export function boxStats(d3, ys) {
 // A box is at least this wide; narrower, weeks group into months.
 const BOX_MIN_PX = 8;
 
+// Under this width a chart is narrow: its y axis label sits above the axis,
+// level, rather than turned beside it (which cost the plot its width), and its
+// points are smaller.
+export const NARROW = 600;
+
+// The y axis label: turned beside the axis, or on a narrow chart (`m.t` left
+// room for it) level above the axis's numbers.
+export function yAxisLabel(svg, text, narrow, m, H) {
+  const t = svg.append("text").attr("class", "axis-label").text(text);
+  if (narrow) t.attr("text-anchor", "start").attr("x", 4).attr("y", 12);
+  else t.attr("text-anchor", "middle").attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`);
+  return t;
+}
+
 // The left margin a rows axis needs: its longest label at about 6.2 px a character
 // (the 11px axis font), clamped so the plot keeps at least half the width.
 export function rowsMargin(rows, width) {
@@ -178,9 +192,10 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   }
   const rows = layout ? layout.slots : null;
   // A wide chart labels each row with its short label beside its mark.
-  const rowText = Boolean(rows) && W >= 600;
-  const m = { t: 24, r: 16, b: 52,
-              l: !rows ? 64 : rowText ? rowsMargin(given.y.rows.map((r) => r.short), W) + 18 : 30 };
+  const rowText = Boolean(rows) && W >= NARROW;
+  const narrow = W < NARROW && !rows;
+  const m = { t: narrow ? 30 : 24, r: 16, b: 52,
+              l: !rows ? (narrow ? 40 : 64) : rowText ? rowsMargin(given.y.rows.map((r) => r.short), W) + 18 : 30 };
   // Rows get a fixed pitch, so a long list grows the chart instead of cramming
   // it, and a filtered one shrinks.
   const H = rows ? Math.max(160, rows.length * 20 + m.t + m.b) : (W < 600 ? 420 : 560);
@@ -229,8 +244,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   }
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("x", (m.l + W - m.r) / 2).attr("y", H - 10).text(spec.x.label);
-  svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
-    .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(rows ? "" : spec.y.label);
+  if (!rows) yAxisLabel(svg, spec.y.label, narrow, m, H);
   const plot = svg.append("g").attr("clip-path", `url(#${clip})`);
   // Points first, then the layers above them, so the build front stays visible.
   const whiskG = plot.append("g"), dotG = plot.append("g"), layerG = plot.append("g");
@@ -262,9 +276,15 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     .attr("data-name", (o) => o.s.name);
   const turn = (d) => (ROTATE[d.o.s.symbol] ? ` rotate(${ROTATE[d.o.s.symbol]})` : "");
   dots.selectAll("path").data((o) => o.s.points.map((p) => ({ p, o }))).join("path").attr("class", "pt")
-    .attr("d", (d) => d3.symbol(d3[SYMBOLS[d.o.s.symbol] || "symbolCircle"], ROTATE[d.o.s.symbol] ? 64 : 80)());
+    .attr("d", (d) => d3.symbol(d3[SYMBOLS[d.o.s.symbol] || "symbolCircle"],
+      (ROTATE[d.o.s.symbol] ? 64 : 80) * (W < NARROW ? 0.6 : 1))());
 
   let hidden = new Set(startHidden), showWhiskers = whiskersShown();
+  // Hidden: by its legend entry, or (a series with `parts`) by a filter on its
+  // paint or wheels.
+  const partsOf = new Map(spec.series.map((s) => [s.name, s.parts]));
+  const off = (name) => hidden.has(name) || Boolean(filters && partsOf.get(name)
+    && filters.some((f) => hidden.has(`${f.dim}:${partsOf.get(name)[f.dim]}`)));
 
   // Boxes (toggles.boxes): the grain that fits, and whether they're showing.
   const boxSpec = spec.toggles?.boxes;
@@ -281,7 +301,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     const by = new Map();
     inBox = new Set();
     for (const o of series) {
-      if (hidden.has(o.s.name)) continue;
+      if (off(o.s.name)) continue;
       for (const p of o.s.points) {
         const g = groupOf(date(p.x), boxGrain), wk = groupOf(date(p.x), "week").start;
         if (!by.has(g.key)) by.set(g.key, { ...g, first: wk, last: wk, pts: [] });
@@ -364,7 +384,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     whisk.selectAll("path.whisker").attr("d", (p) => whiskerPath(x(xv(p.lo)), x(xv(p.hi)), y(p.y)));
   }
   function visibility() {
-    svg.selectAll("[data-name]").style("display", function () { return hidden.has(this.dataset.name) ? "none" : null; });
+    svg.selectAll("[data-name]").style("display", function () { return off(this.dataset.name) ? "none" : null; });
     // Boxes summarize what's visible, so hiding a series redraws them.
     if (boxSpec) { computeBoxes(); place(); }
   }
@@ -372,23 +392,37 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   visibility();
 
   // Legend: every series, then one entry per layer group; or with `filters`, a
-  // chip group per dimension with more than one value. A filter change redraws
-  // the chart whole (its rows and height change), and focus returns to the chip.
-  // On a phone the chips (44px each) fold into a Filters disclosure, closed
-  // until opened, that says how many values are hidden.
+  // chip group per dimension with more than one value, and the layer groups'
+  // entries apart, outside it. A filter change on rows redraws the chart whole
+  // (its rows and height change), and focus returns to the chip; on points it
+  // hides their series. On a phone the chips (44px each) fold into a Filters
+  // disclosure, closed until opened, that says how many values are hidden.
   const legendEl = el.querySelector(".chart-legend");
   if (filters) {
     const doc = el.ownerDocument;
     const choosable = filters.filter((f) => f.values.length > 1);
-    const off = choosable.reduce((a, f) => a + f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).length, 0);
+    const sum = Object.assign(doc.createElement("summary"), { className: "fl-sum" });
+    const count = () => {
+      const n = choosable.reduce((a, f) => a + f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).length, 0);
+      sum.textContent = n ? `Filters (${n} hidden)` : "Filters (all shown)";
+    };
+    count();
     const box = Object.assign(doc.createElement("details"), { className: "fl-box" });
-    const sum = Object.assign(doc.createElement("summary"), { className: "fl-sum",
-      textContent: off ? `Filters (${off} hidden)` : "Filters (all shown)" });
     box.append(sum);
     const phone = doc.defaultView?.matchMedia?.("(width < 768px)").matches ?? false;
     box.open = !phone || Boolean(el.r2filtersOpen);
     box.addEventListener("toggle", () => { if (phone) el.r2filtersOpen = box.open; });
     legendEl.replaceChildren(box);
+    const layers = layerEntries(spec.layers);
+    if (layers.length) {
+      const host = Object.assign(doc.createElement("div"), { className: "fl-layers" });
+      legendEl.prepend(host);
+      const names = new Set(layers.map((l) => l.name));
+      legend(host, layers, (hs) => {
+        hidden = new Set([...[...hidden].filter((k) => !names.has(k)), ...hs]);
+        visibility();
+      }, new Set([...hidden].filter((k) => names.has(k))));
+    }
     for (const f of choosable) {
       const wrap = Object.assign(el.ownerDocument.createElement("div"), { className: "fl-group" });
       wrap.dataset.dim = f.dim;
@@ -403,6 +437,12 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
       legend(chips, f.values.map((v) => ({ name: v.label, cls: cls(v) })), (hs) => {
         const next = new Set([...hidden].filter((k) => !k.startsWith(`${f.dim}:`)));
         for (const label of hs) next.add(`${f.dim}:${valueOf.get(label)}`);
+        if (!rows) {
+          hidden = next;
+          count();
+          visibility();
+          return;
+        }
         const focused = el.ownerDocument.activeElement?.textContent;
         draw(d3, el, given, { hidden: next });
         [...el.querySelectorAll(`.fl-group[data-dim="${f.dim}"] .lg-item`)]
@@ -459,7 +499,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     const [px, py] = d3.pointer(ev);
     const cands = [];
     for (const o of series) {
-      if (hidden.has(o.s.name)) continue;
+      if (off(o.s.name)) continue;
       for (const p of o.s.points) if (!boxView || inBox.has(p)) cands.push({ x: x(xv(p.x)), y: y(p.y), tip: p.tip });
     }
     for (const l of lines) {

@@ -28,7 +28,7 @@ import { GRAINS, groupOf, heading, offered, pick } from "../lib/grain.js";
 import { loadD3 } from "../lib/load.js";
 import { tooltip } from "../lib/tooltip.js";
 import { get as getState, set as setState } from "../state.js";
-import { categoryClass } from "./scatter.js";
+import { categoryClass, NARROW, yAxisLabel } from "./scatter.js";
 
 const DAY = 864e5;
 const date = (iso) => new Date(`${iso}T00:00:00Z`);
@@ -193,7 +193,8 @@ export function draw(d3, el, weekly, { hidden: startHidden = new Set() } = {}) {
   const plotEl = el.querySelector(".chart-plot");
   plotEl.replaceChildren();
   const W = Math.max(320, plotEl.clientWidth || 0), H = W < 600 ? 260 : 320;   // 0 before layout (and in tests)
-  const m = { t: 22, r: 16, b: 48, l: 56 };
+  const narrow = W < NARROW;
+  const m = { t: narrow ? 30 : 22, r: 16, b: 48, l: narrow ? 42 : 56 };
   // The grain: the reader's choice, else the finest that reads at this width.
   const [lo, hi] = weekly.x.domain.map(date);
   const grains = groupable(weekly) ? offered(lo, hi) : ["week"];
@@ -232,8 +233,7 @@ export function draw(d3, el, weekly, { hidden: startHidden = new Set() } = {}) {
   yAxes(null);
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("x", (m.l + W - m.r) / 2).attr("y", H - 8).text(spec.x.label);
-  svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
-    .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
+  yAxisLabel(svg, spec.y.label, narrow, m, H);
 
   // A series with `stage` draws at that delivery stage's tone (.tone-*): its
   // color stepped toward white (or black on the dark card), since a faded color
@@ -322,9 +322,14 @@ export function draw(d3, el, weekly, { hidden: startHidden = new Set() } = {}) {
     const total = (i) => spec.series.reduce((a, s) => a + (hidden.has(s.name) ? 0 : s.values[i][1]), 0);
     const over = cap === Infinity ? []
       : spans.map((g, i) => ({ w: g.start, i, total: total(i) })).filter((d) => d.total > cap);
+    // Beside its column, under the top gridline: to the right, or to the left
+    // where the text (about 5.6px a character) would run out of the plot.
+    const label = (d) => `${fmt(d.total)} ↑ (axis cut at ${fmt(cap)})`;
+    const right = (d) => x(spans[d.i].end) + 4 + label(d).length * 5.6 <= W - m.r;
     markG.selectAll("text.clipped").data(over, (d) => d.i).join("text").attr("class", "clipped")
-      .attr("text-anchor", "start").attr("x", (d) => x(d.w) + 4).attr("y", m.t + 2)
-      .text((d) => `${fmt(d.total)} ↑ (axis cut at ${fmt(cap)})`);
+      .attr("text-anchor", (d) => (right(d) ? "start" : "end"))
+      .attr("x", (d) => (right(d) ? x(spans[d.i].end) + 4 : x(spans[d.i].start) - 4)).attr("y", m.t + 12)
+      .text(label);
   }
   function visibility(t = null) {
     const off = omitted();

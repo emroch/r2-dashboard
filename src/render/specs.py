@@ -97,12 +97,16 @@ def _reported(d: pd.DataFrame, *cols: str) -> pd.Series:
 
 
 def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], Any],
-                   y: Callable[[pd.Series], Any]) -> tuple[list[dict], list[dict]]:
+                   y: Callable[[pd.Series], Any],
+                   extra: Callable[[pd.Series], dict] | None = None,
+                   ) -> tuple[list[dict], list[dict]]:
     """One series per paint × wheel, paints in `paints` order, then the wheels in
     dimensions.yaml's: fill = paint, shape = wheels, the house config language.
     `true`: the points are the paint's true color, outlined (charts/scatter.js),
     as a paint's swatch is: clamped to the mark range, the greys and the darks
-    become indistinguishable at a point's size. Returns (series, cells)."""
+    become indistinguishable at a point's size. `parts` names the series' paint
+    and wheels, for the chart's filters (_config_filters); `extra(row)` adds to
+    a point (§9's window). Returns (series, cells)."""
     series, cells = [], []
     for color in paints:
         for wheel in _WHEEL_SYMBOL:
@@ -112,12 +116,26 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
             name = "%s · %s" % (color, wheel.split()[0])
             series.append({"name": name, "color": "color:%s" % color,
                            "shape": "wheels:%s" % wheel, "symbol": _WHEEL_SYMBOL[wheel],
-                           "true": True,
-                           "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r)}
+                           "true": True, "parts": {"color": color, "wheels": wheel},
+                           "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r),
+                                       **(extra(r) if extra else {})}
                                       for _, r in s.iterrows()]})
             cells.append({"value": name, "label": name, "n": len(s),
                           "ref": "color:%s" % color, "known": True})
     return series, cells
+
+
+def _config_filters(series: list[dict]) -> list[dict[str, Any]]:
+    """The paint and wheels filters for config series (charts/scatter.js
+    `filters`): each value present, paints in the series' order, wheels in
+    dimensions.yaml's, each wheel with its marker shape."""
+    paints = list(dict.fromkeys(s_["parts"]["color"] for s_ in series))
+    have = {s_["parts"]["wheels"] for s_ in series}
+    return [{"dim": "color", "label": "Paint",
+             "values": [{"value": c, "label": c} for c in paints]},
+            {"dim": "wheels", "label": "Wheels",
+             "values": [{"value": w, "label": WHEEL_ABBR.get(w, w), "symbol": sym}
+                        for w, sym in _WHEEL_SYMBOL.items() if w in have]}]
 
 
 def vin_vs_order(df: pd.DataFrame) -> tuple:
@@ -135,9 +153,10 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
     xs = list(d["order_date"]) + [AS_OF]
     spec = {"template": "scatter", "title": "VIN sequence vs. order date",
             "x": {"label": "R2 order date", "type": "date", "domain": _date_domain(xs)},
-            "y": {"label": "VIN sequence number", "type": "linear",
+            "y": {"label": "VIN", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
-            "legend": "Paint · wheels", "series": series, "layers": []}
+            "legend": "Paint · wheels", "series": series, "layers": [],
+            "filters": _config_filters(series)}
     rows = [[s_["name"], p["tip"][0], p["x"], format(p["y"], ",")]
             for s_ in series for p in s_["points"]]
     table = (["Paint · wheels", "Order", "Ordered", "VIN"], rows)
@@ -209,7 +228,7 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
                 "values": _values("interior", lambda i: INTERIOR_SHORT.get(i, i))},
                {"dim": "trim", "label": "Trim", "values": _values("trim", str)}]
     spec = {"template": "scatter", "title": "VIN sequence by configuration",
-            "x": {"label": "VIN sequence number (production order →)", "type": "linear",
+            "x": {"label": "VIN (production order →)", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
             "y": {"label": "Configuration", "type": "rows", "rows": rows,
                   "domain": [-0.6, len(rows) - 0.4]},
@@ -400,27 +419,15 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
         (df["vin_present"].astype(bool) & df["delivery_est"].isna()).sum())
     excluded["paint or wheels not reported"] = int(has.sum()) - len(d)
 
-    series, cells = [], []
-    for color in _paint_order(d):
-        for wheel in _WHEEL_SYMBOL:
-            s = d[(d["color"] == color) & (d["wheels_short"] == wheel)]
-            if s.empty:
-                continue
-            pts = []
-            for _, r in s.iterrows():
-                lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
-                pts.append({
-                    "x": _iso(r["delivery_est"]), "y": int(r["vin_seq"]),
-                    "lo": lo if lo and hi and hi > lo else None,
-                    "hi": hi if lo and hi and hi > lo else None,
-                    "firm": r["delivery_type"] == "explicit",
-                    "tip": _config_tip(r)})
-            name = "%s · %s" % (color, wheel.split()[0])
-            series.append({"name": name, "color": "color:%s" % color,
-                           "shape": "wheels:%s" % wheel,
-                           "symbol": _WHEEL_SYMBOL[wheel], "points": pts})
-            cells.append({"value": name, "label": name, "n": len(pts),
-                          "ref": "color:%s" % color, "known": True})
+    def _window(r: pd.Series) -> dict[str, Any]:
+        lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
+        ok = bool(lo and hi and hi > lo)
+        return {"lo": lo if ok else None, "hi": hi if ok else None,
+                "firm": r["delivery_type"] == "explicit"}
+
+    series, cells = _config_series(d, _paint_order(d),
+                                   lambda r: _iso(r["delivery_est"]),
+                                   lambda r: int(r["vin_seq"]), _window)
 
     layers: list[dict[str, Any]] = []
     proj = cadence_projection(df)
@@ -469,11 +476,11 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             "title": "Delivery date vs. VIN sequence",
             "x": {"label": "Estimated delivery date (whiskers = quoted window)",
                   "type": "date", "domain": _date_domain(xs)},
-            "y": {"label": "VIN sequence number (production order →)",
+            "y": {"label": "VIN (production order →)",
                   "type": "linear", "domain": _num_domain(ys)},
             "legend": "Paint · wheels",
             "series": series, "layers": layers,
-            "toggles": {"whiskers": True}}
+            "toggles": {"whiskers": True}, "filters": _config_filters(series)}
     rows = [[s_["name"], p["tip"][0], format(p["y"], ","), p["x"],
              "%s – %s" % (p["lo"], p["hi"]) if p.get("lo") else "",
              "firm" if p.get("firm") else ""]

@@ -348,3 +348,10 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
 .swatch.sym-triangle-up {
   clip-path: polygon(50% 0,100% 100%,0 100%);
 }
+/* A filtered chart's layer entries (§9's build front), beside the chips. */
+.fl-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  flex-basis: 100%;
+}
