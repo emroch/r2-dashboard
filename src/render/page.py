@@ -155,13 +155,17 @@ def _money(v):
 def _fmt_time(dt):
     """Render a timestamp as a <time> carrying the absolute instant (ISO 8601 with
     offset) so client JS can localize it to the viewer's timezone; the server text
-    is the build-timezone fallback shown when JS is off."""
+    is the build-timezone fallback shown when JS is off. Written as words ("Oct
+    10, 2026, 10:12 PM CDT"), which a screen reader reads as a date and time,
+    not as a run of numbers."""
     if dt is None:
         return "—"
     aware = dt.astimezone()  # naive build-local datetime -> attach local offset
+    text = "%s %d, %d, %d:%s %s" % (aware.strftime("%b"), aware.day, aware.year,
+                                    aware.hour % 12 or 12, aware.strftime("%M %p"),
+                                    aware.strftime("%Z"))
     return ('<time datetime="%s" data-r2time>%s</time>'
-            % (aware.isoformat(timespec="minutes"),
-               aware.strftime("%Y-%m-%d %H:%M %Z")))
+            % (aware.isoformat(timespec="minutes"), text.strip()))
 
 
 def _src_line(name, meta, extra, thread_url):

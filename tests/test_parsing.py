@@ -1936,6 +1936,22 @@ def test_page_scripts_are_published_assets():
         assert (WEB_DIR / name).is_file(), name
 
 
+def test_timestamps_are_words_with_the_instant_in_datetime():
+    # A screen reader reads "2026-10-10 22:12" as numbers; "Oct 10, 2026,
+    # 10:12 PM CDT" as a date and time. The datetime attribute keeps the
+    # absolute instant (with its offset) for nav.js to localize.
+    import re
+    from datetime import datetime, timedelta, timezone
+    from render.page import _fmt_time
+    cdt = timezone(timedelta(hours=-5), "CDT")
+    html = _fmt_time(datetime(2026, 10, 10, 22, 12, tzinfo=cdt))
+    assert '<time datetime="2026-10-10T22:12-05:00" data-r2time>' in html
+    assert ">Oct 10, 2026, 10:12 PM CDT</time>" in html
+    noon = _fmt_time(datetime(2026, 7, 4, 0, 5, tzinfo=cdt))
+    assert re.search(r">Jul 4, 2026, 12:05 AM CDT<", noon)
+    assert _fmt_time(None) == "—"
+
+
 def test_page_shell_has_its_landmarks():
     # #30: a language, a skip link to <main>, a labelled nav, and a menu button
     # that names what it controls (nav.js keeps aria-expanded current).
