@@ -37,13 +37,17 @@ FILES = [("output/r2_orders_dashboard.html", "index.html"),
          ("data/processed/r2_view.json", "r2_view.json")]
 
 
+def log(msg):
+    """A status line, stamped with the time, to tell how recent a rebuild is."""
+    print("%s serve: %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg), flush=True)
+
+
 def build(live):
     cmd = [os.path.join(ROOT, "ci_env"), "build"] + ([] if live else ["--offline"])
-    print("serve: building (%s) ..." % " ".join(cmd[1:]), flush=True)
+    log("building (%s) ..." % " ".join(cmd[1:]))
     t = time.time()
     ok = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.DEVNULL).returncode == 0
-    print("serve: build %s in %.0fs" % ("done" if ok else "FAILED", time.time() - t),
-          flush=True)
+    log("build %s in %.0fs" % ("done" if ok else "FAILED", time.time() - t))
     return ok
 
 
@@ -77,17 +81,29 @@ def snapshot():
     return out
 
 
+# How long src/ must stay unchanged before a rebuild, so a burst of saves (an
+# editor's save-all, a checkout) makes one build rather than several.
+QUIET = 5.0
+
+
 def watch(live):
     seen = snapshot()
     while True:
         time.sleep(1)
-        now = snapshot()
-        if now != seen:
-            time.sleep(0.3)  # let an editor finish saving a batch
-            seen = snapshot()
-            if build(live):
-                stage()
-                print("serve: updated, reload the page", flush=True)
+        if snapshot() == seen:
+            continue
+        # Debounce: wait out the burst, until a whole QUIET passes with no edit.
+        seen = snapshot()
+        while True:
+            time.sleep(QUIET)
+            now = snapshot()
+            if now == seen:
+                break
+            seen = now
+        # Edits made during the build are caught by the next pass (against `seen`).
+        if build(live):
+            stage()
+            log("updated, reload the page")
 
 
 class NoCache(http.server.SimpleHTTPRequestHandler):
@@ -114,7 +130,7 @@ def main():
         threading.Thread(target=watch, args=(a.live,), daemon=True).start()
     handler = functools.partial(NoCache, directory=SITE)
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), handler)
-    print("serve: http://127.0.0.1:%d/  (Ctrl-C to stop)" % a.port, flush=True)
+    log("http://127.0.0.1:%d/  (Ctrl-C to stop)" % a.port)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
