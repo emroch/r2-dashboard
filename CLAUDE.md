@@ -41,7 +41,7 @@ src/
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
   templates/        valid standalone page shell, filled at render time
     page.html       valid HTML shell — empty id'd slots, populated via the DOM
-    css/            the page stylesheet, one file per area (01-base … 07-map), joined in order into its <style> slot (theme vars separate)
+    css/            the page stylesheet, one file per area (01-base … 08-access), joined in order into its <style> slot (theme vars separate)
     head.js         pre-paint theme set (no flash) — inlined, since it must run before first paint
     _headers        Cloudflare Pages cache headers (copied into the deploy)
   web/              the page's browser code, served as static files (docs/presentation.md, "JS layout")

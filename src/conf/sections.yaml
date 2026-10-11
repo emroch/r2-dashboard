@@ -26,10 +26,10 @@ sections:
     components: [takerate-color, takerate-wheels, takerate-interior,
                  takerate-buylease, takerate-spare, takerate-r1]
     desc: >-
-      What the cohort ordered, each bar split by delivery stage. A panel counts
-      the orders that answered its question, except the compact spare, where no answer
-      counts as No. Trim, Launch Package, Autonomy+ and Tow are near-universal, so they
-      have no panel yet.
+      What the cohort ordered, separated by delivery stage. A panel counts the orders
+      that answered its question, except the compact spare, where no answer counts as
+      No. Trim, Launch Package, Autonomy+, and Tow Package are universal, so they have
+      no panel yet.
 
   - title: "Configuration combinations"
     components: [combo-wheels, combo-interior]
@@ -69,10 +69,10 @@ sections:
     components: [delivery-latency, latency-coverage]
     desc: >-
       How long orders with a firm delivery date wait between order and delivery.
-      <strong>Read the recent end with care:</strong> firm dates arrive close to
+      The chart below shows how much of each week's orders have a firm date.
+      <br><strong>Read the recent end with care:</strong> firm dates arrive close to
       delivery, so the latest order weeks show mostly their fastest deliveries, and
-      their median will rise as the rest are scheduled. The chart below shows how much
-      of each week's orders have a firm date.
+      their median will rise as the rest are scheduled.
 
   - title: "VIN sequence vs. order date"
     components: [vin-vs-order]
@@ -101,12 +101,11 @@ sections:
   - title: "Geographic demand"
     components: [geo-demand, state-mix]
     desc: >-
-      Demand by state around the Normal, IL plant, shaded on a square-root
-      scale. Below, a state's orders by status, paint, wheels or interior, against the
-      US overall.
+      Demand by state, shaded on a square-root scale. Below, a state's orders by
+      status, paint, wheels or interior, against the US overall.
     howto: >-
-      Select a state on the map, or pick one, to see its orders; <em>Show
-      all</em> lists every state with 10 or more.
+      Select a state on the map, or pick one using the dropdown, to see its orders;
+      <em>Show all</em> lists every state with 10 or more.
 
   - title: "Wheels by climate & terrain"
     components: [wheels-by-elevation, wheels-by-temperature, wheels-by-urban]

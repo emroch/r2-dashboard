@@ -1,0 +1,89 @@
+/* Access: the skip link, focus on jump targets, touch-sized controls, and
+   reduced motion. Last in the cascade, so these win a tie. */
+
+/* Skip to content: the first thing a keyboard reaches, hidden until focused. */
+.skip {
+  position: absolute;
+  left: 8px;
+  top: -100px;
+  z-index: 100;
+  padding: 13px 16px;
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--fg);
+  box-shadow: 0 2px 8px var(--tip-sh);
+}
+.skip:focus {
+  top: 8px;
+}
+
+/* Text for screen readers only (a stat card's phrase, components.py). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Where a jump puts focus (the main column, a section via the sidebar): the
+   page scrolls there, so the region itself needs no ring. */
+main:focus,
+section[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Touch screens and phone widths: every control at least 44px tall (WCAG 2.5.5),
+   by growing its box. The map's slider is the exception: each of its stops
+   has a 44px label button that does the same (WCAG's equivalent-control
+   exception), and links inside sentences are exempt. */
+@media (pointer: coarse), (width < 768px) {
+  .navbtn,
+  .pillbtn,
+  .lg-item,
+  .r2c-csv,
+  .mx-picker,
+  .map-stops button,
+  .hdrpop a,
+  .hdrpop button,
+  .sidebar a {
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+  .navbtn,
+  .pillbtn {
+    min-width: 44px;
+  }
+  .pillbtn,
+  .lg-item,
+  .r2c-csv {
+    display: inline-flex;
+    align-items: center;
+  }
+  .sidebar a {
+    display: flex;
+    align-items: center;
+  }
+  /* 16px text, so iOS doesn't zoom the page when the picker is focused. */
+  .mx-picker {
+    font-size: 16px;
+  }
+  /* A disclosure keeps its own display (a flex <summary> loses its marker), so
+     its one line is made 44px tall instead. */
+  .r2c-data > summary {
+    line-height: 44px;
+  }
+}
+
+/* Reduced motion: no transitions or animations anywhere (theme fades, the
+   sidebar slide, hover brightening), on top of the instant scrolling in
+   01-base.css. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

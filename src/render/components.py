@@ -318,7 +318,9 @@ def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) ->
         cells = "".join('<td class="hm-cell%s" style="--hm:%.3f">%s</td>'
                         % (" hm-hi" if k / peak > 0.55 else "", k / peak,
                            format(k, ",")) for k in counts)
-        body.append('<tr><th scope="row"%s>%s%s</th>%s<td class="hm-tot">%s</td></tr>'
+        # The swatch and name sit in a span: a flex <th> stops being a table cell.
+        body.append('<tr><th scope="row"%s><span class="hm-rh">%s%s</span></th>%s'
+                    '<td class="hm-tot">%s</td></tr>'
                     % (cls, sw, escape(str(r["label"])), cells,
                        format(int(r["n"]), ",")))
     foot = "".join('<td class="hm-tot">%s</td>' % format(int(c["n"]), ",")
@@ -499,17 +501,31 @@ def range_strip(cid: str, spec: dict, agg: Aggregate,
 
 # --- readout: a big number and its label; a list behind a disclosure ------------
 
+# The info mark on a readout that opens (and in the summary's prose naming it):
+# a filled circle in the text color with the "i" cut out, legible at text size,
+# where the ⓘ character was faint and read aloud as "latin small letter i".
+INFO_SVG = ('<svg class="info-svg" viewBox="0 0 16 16" aria-hidden="true">'
+            '<path fill="currentColor" fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 '
+            '0 0 0 8 1zm0 2.6a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1zM7.1 6.9h1.8'
+            'v5.4H7.1z"/></svg>')
+
+
 def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
             caption: str = "") -> str:
     """One summary number. With `rows` (the entries behind it: (#, user,
-    detail)) it is a disclosure, marked ⓘ: clicking opens the list inline,
-    under a caption naming the readout and saying what the list holds (the
-    list can land rows below its chip)."""
+    detail)) it is a disclosure, marked with the info mark (INFO_SVG): clicking
+    opens the list inline, under a caption naming the readout and saying what
+    the list holds (the list can land rows below its chip)."""
     chip = '<b class="ro-v">%s</b><span class="ro-l">%s%s</span>' % (
         escape(str(value)), escape(label),
-        '<span class="ro-i" aria-hidden="true">&#9432;</span>' if rows else "")
+        '<span class="ro-i" aria-hidden="true">%s</span>' % INFO_SVG if rows else "")
     if not rows:
-        return '<div class="ro-chip">%s</div>' % chip
+        # Read as one phrase ("711 Unique orders"): its number is a block of its
+        # own, which VoiceOver would otherwise stop on alone, without its label.
+        # (An opening readout is a <summary>, already read whole.)
+        return ('<div class="ro-chip"><span class="sr-only">%s %s</span>'
+                '<span aria-hidden="true">%s</span></div>'
+                % (escape(str(value)), escape(label), chip))
     body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
                    % tuple(escape(str(v)) for v in r) for r in rows)
     return ('<details class="ro-more"><summary class="ro-chip">%s</summary>'

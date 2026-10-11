@@ -6,14 +6,39 @@
  // (nav-hidden); 1072px+ always shown. Crossing a tier resets to its default.
  var narrowQ=window.matchMedia('(width < 768px)');
  var midQ=window.matchMedia('(768px <= width < 1072px)');
- function close(){el.classList.remove('nav-shown');}
- function reset(){el.classList.remove('nav-shown','nav-hidden');}
+ var side=document.getElementById('sidebar');
+ var tgl=document.getElementById('navToggle');
+ // Whether the sidebar is out of view: then it's inert, so its links can't take
+ // keyboard focus or be read while off screen, and the button says so.
+ function hidden(){
+  return narrowQ.matches?!el.classList.contains('nav-shown')
+   :midQ.matches&&el.classList.contains('nav-hidden');
+ }
+ function sync(){
+  var off=hidden();
+  if(side)side.inert=off;
+  if(tgl)tgl.setAttribute('aria-expanded',String(!off));
+ }
+ function close(){el.classList.remove('nav-shown');sync();}
+ function reset(){el.classList.remove('nav-shown','nav-hidden');sync();}
  narrowQ.addEventListener('change',reset);
  midQ.addEventListener('change',reset);
- var tgl=document.getElementById('navToggle');
  if(tgl)tgl.addEventListener('click',function(){
   el.classList.toggle(narrowQ.matches?'nav-shown':'nav-hidden');
+  sync();
+  // The overlay takes focus while open, on its current section's link.
+  if(narrowQ.matches&&!hidden()&&side){
+   var a=side.querySelector('a.active')||side.querySelector('a');
+   if(a)a.focus({preventScroll:true});
+  }
  });
+ // Escape closes the overlay, back to the button that opened it.
+ document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&narrowQ.matches&&el.classList.contains('nav-shown')){
+   close(); if(tgl)tgl.focus();
+  }
+ });
+ sync();
  var bd=document.getElementById('navBackdrop');
  if(bd)bd.addEventListener('click',close);
  var links={};
@@ -37,7 +62,11 @@
   secs.forEach(function(x){if(x.getBoundingClientRect().top<=line)cur=x;});
   var atEnd=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2;
   if(atEnd&&tripTo&&tripTo.getBoundingClientRect().top<window.innerHeight)cur=tripTo;
-  for(var k in links)links[k].classList.toggle('active',k===cur.id);
+  for(var k in links){
+   links[k].classList.toggle('active',k===cur.id);
+   if(k===cur.id)links[k].setAttribute('aria-current','location');
+   else links[k].removeAttribute('aria-current');
+  }
  }
  function spyLater(){if(!spyQueued){spyQueued=true;requestAnimationFrame(spy);}}
  window.addEventListener('scroll',function(){
@@ -103,10 +132,15 @@
    var s=d.querySelector('summary'); if(s)s.focus();}});
  });
  // Picking an item closes its menu: a report link opens a new tab, and the menu
- // shouldn't still be open on returning (#46); a theme applies at once.
+ // shouldn't still be open on returning (#46); a theme applies at once. Focus
+ // goes back to the menu's button, as with Escape, rather than being lost with
+ // the item that just disappeared.
  menus.forEach(function(d){
   d.querySelectorAll('.hdrpop a, .hdrpop button').forEach(function(a){
-   a.addEventListener('click',function(){d.open=false;});
+   a.addEventListener('click',function(){
+    d.open=false;
+    var s=d.querySelector('summary'); if(s)s.focus();
+   });
   });
  });
 })();
@@ -204,12 +238,12 @@
  // cut the scroll short. So the trip holds the section as its anchor: it
  // re-aims at the section's new place whenever the column resizes, and when
  // the scroll comes to rest it puts the section exactly where a jump would
- // (scroll-margin below the pinned header). The hash and history work as for
+ // (scroll-padding below the pinned header). The hash and history work as for
  // a plain link.
  var trip=null, rest=0;
  function smooth(){return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
  function aim(how){
-  var gap=parseFloat(getComputedStyle(trip).scrollMarginTop)||0;
+  var gap=parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop)||0;
   var y=window.scrollY+trip.getBoundingClientRect().top-gap;
   window.scrollTo({top:y,behavior:how||(smooth()?'smooth':'instant')});
  }
@@ -227,6 +261,8 @@
    e.preventDefault();
    if(location.hash!=='#'+t.id)history.pushState(null,'','#'+t.id);
    trip=t; aim(); tripScrolled();
+   // Keyboard focus goes with the reader, so the next Tab is in the section.
+   t.setAttribute('tabindex','-1'); t.focus({preventScroll:true});
    document.dispatchEvent(new CustomEvent('r2:trip',{detail:{id:t.id}}));
   });
  });
@@ -234,18 +270,36 @@
 })();
 
 (function(){
- // Localize the server-rendered <time data-r2time> stamps to the viewer's own
- // timezone (the datetime attr carries the absolute instant); falls back to the
- // build-timezone text if this doesn't run.
- var tzf; try{tzf=new Intl.DateTimeFormat(undefined,{timeZoneName:'short'});}catch{/* best effort */}
- function pad(n){return (n<10?'0':'')+n;}
- document.querySelectorAll('time[data-r2time]').forEach(function(t){
-  var d=new Date(t.getAttribute('datetime'));
-  if(isNaN(d.getTime()))return;
-  var tz='';
-  if(tzf){var p=tzf.formatToParts(d).filter(function(x){return x.type==='timeZoneName';});
-   if(p.length)tz=' '+p[0].value;}
-  t.textContent=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
-   ' '+pad(d.getHours())+':'+pad(d.getMinutes())+tz;
- });
+ // The server-rendered <time data-r2time> stamps (the datetime attr carries
+ // the absolute instant) read as relative times in the viewer's language ("3
+ // hours ago", "yesterday"), refreshed each minute, with the exact time in the
+ // viewer's own timezone ("Oct 10, 2026, 10:12 PM CDT") as the hover/tap
+ // popover (lib/barhover.js's data-tip). Words, which a screen reader reads as
+ // a time rather than as numbers. Without this, the build-timezone text the server wrote stays.
+ var fmt, rtf;
+ try{
+  fmt=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',
+   hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+  rtf=new Intl.RelativeTimeFormat(undefined,{numeric:'auto'});
+ }catch{/* best effort */}
+ // The largest unit that fits, rounded, as RelativeTimeFormat words it.
+ var UNITS=[['year',31536000],['month',2592000],['week',604800],['day',86400],
+  ['hour',3600],['minute',60]];
+ function ago(d){
+  var s=(d.getTime()-Date.now())/1000;
+  for(var i=0;i<UNITS.length;i++){
+   if(Math.abs(s)>=UNITS[i][1])return rtf.format(Math.round(s/UNITS[i][1]),UNITS[i][0]);
+  }
+  return rtf.format(0,'minute');
+ }
+ var stamps=[].slice.call(document.querySelectorAll('time[data-r2time]'));
+ function refresh(){
+  stamps.forEach(function(t){
+   var d=new Date(t.getAttribute('datetime'));
+   if(isNaN(d.getTime()))return;
+   t.textContent=ago(d);
+   t.dataset.tip=fmt.format(d);
+  });
+ }
+ if(fmt&&rtf&&stamps.length){refresh();setInterval(refresh,60000);}
 })();

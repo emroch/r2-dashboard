@@ -221,7 +221,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   controls.className = "chart-controls";
   if (spec.toggles?.whiskers) {
     const wb = Object.assign(el.ownerDocument.createElement("button"), { type: "button", className: "lg-item" });
-    const syncW = () => { wb.textContent = showWhiskers ? "Hide whiskers" : "Show whiskers"; wb.setAttribute("aria-pressed", String(showWhiskers)); };
+    const syncW = () => { wb.textContent = showWhiskers ? "Hide whiskers" : "Show whiskers"; };
     wb.addEventListener("click", () => { showWhiskers = !showWhiskers; setState("whiskers", showWhiskers ? null : "0"); syncW(); place(); });
     syncW();
     controls.append(wb);

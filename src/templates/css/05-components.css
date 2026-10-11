@@ -11,10 +11,12 @@
 
 /* A bar segment with a hover popover (web/lib/barhover.js) brightens a touch
    under the pointer: less than one stage step, so stages never blend. */
-[data-tip] {
+.tr-bar [data-tip],
+.mx-bar [data-tip] {
   transition: filter .12s;
 }
-[data-tip]:hover {
+.tr-bar [data-tip]:hover,
+.mx-bar [data-tip]:hover {
   filter: brightness(1.08);
 }
 .r2c figcaption {
@@ -277,7 +279,9 @@
   white-space: normal;
   text-align: center;
 }
-.hm tbody th {
+/* A row header's swatch and name (an inner span: the <th> stays a table cell,
+   so screen readers keep it in the grid). */
+.hm-rh {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -311,9 +315,11 @@
     padding: 6px 4px;
     min-width: 2.6em;
   }
+  .hm-rh {
+    gap: 4px;
+  }
   .hm tbody th,
   .hm tfoot th {
-    gap: 4px;
     white-space: normal;
   }
   .hm thead th.hm-ch {

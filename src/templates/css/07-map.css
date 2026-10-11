@@ -161,14 +161,21 @@
   gap: 6px;
   align-items: center;
 }
+/* The picker draws its own box and caret (Safari ignores a native select's
+   height and padding), so it can grow to a touch target in 08-access.css. */
 .mx-picker {
   font: inherit;
   font-size: 13px;
   color: var(--fg);
-  background: var(--card-bg);
+  -webkit-appearance: none;
+  appearance: none;
+  background:
+    linear-gradient(45deg,transparent 50%,var(--desc) 50%) calc(100% - 15px) 50% / 5px 5px no-repeat,
+    linear-gradient(135deg,var(--desc) 50%,transparent 50%) calc(100% - 10px) 50% / 5px 5px no-repeat,
+    var(--card-bg);
   border: 1px solid var(--card-bd);
   border-radius: 6px;
-  padding: 3px 6px;
+  padding: 5px 28px 5px 9px;
 }
 .mx-chip {
   display: inline-block;

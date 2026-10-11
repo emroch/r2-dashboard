@@ -33,7 +33,6 @@ css:
     btn-fg: "#eafff4"
     btn-bd: "rgba(255,255,255,.32)"
     link: "#2f6f9f"
-    warn: "#9a6a00"
     chg: "#2e7d32"
     stat-bg: "#ffb100"  # Compass Yellow (the Rivian emblem's yellow)
     # Mark lightness range (OKLCH L, 0-1) for category colors drawn as data marks
@@ -72,7 +71,6 @@ css:
     btn-fg: "#eafff4"
     btn-bd: "rgba(255,255,255,.24)"
     link: "#8fc9ef"
-    warn: "#ffd27f"
     chg: "#8fdf8f"
     stat-bg: "#ffb100"  # Compass Yellow (the Rivian emblem's yellow)
     # Dark card: marks lifted to at least 0.70, and pale ones capped at 0.92.

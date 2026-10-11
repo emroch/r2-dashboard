@@ -388,8 +388,9 @@ def test_heatmap_table_has_counts_shading_totals_and_csv():
     assert '<table class="hm" id="c-h-data" style="--hm-w:19ch;--hm-min:8ch">' in html
     assert html.count('<th scope="col" class="hm-ch">') == 2
     assert 'data-table="c-h-data"' in html
-    assert ('<th scope="row" class="cat-color-midnight"><span class="swatch"></span>'
-            'Midnight') in html
+    # The row header stays a table cell; its swatch and name lay out in a span.
+    assert ('<th scope="row" class="cat-color-midnight"><span class="hm-rh">'
+            '<span class="swatch"></span>Midnight</span></th>') in html
     assert 'class="hm-cell hm-hi" style="--hm:1.000">2</td>' in html, "the peak cell"
     assert 'style="--hm:0.000">0</td>' in html, "an empty pairing still has its cell"
     assert '<td class="hm-tot">3</td></tr></tfoot>' in html, "the grand total"
@@ -649,13 +650,15 @@ def test_stage_counts_partition_every_order_as_the_take_rate_bars_do():
 def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
     from render.components import readout, readout_group, stage_readouts
     from render.aggregates import stage_counts
-    assert readout(694, "Unique orders") == \
-        '<div class="ro-chip"><b class="ro-v">694</b><span class="ro-l">Unique orders' \
-        '</span></div>'
+    # Read as one phrase; the visual number and label are hidden from it.
+    assert readout(694, "Unique orders") == (
+        '<div class="ro-chip"><span class="sr-only">694 Unique orders</span>'
+        '<span aria-hidden="true"><b class="ro-v">694</b><span class="ro-l">'
+        'Unique orders</span></span></div>')
     html = readout(2, "Curated removals", [(310, "a<b", "cancelled")], "Why")
     assert html.startswith('<details class="ro-more"><summary class="ro-chip">')
-    assert ('Curated removals<span class="ro-i" aria-hidden="true">&#9432;</span>'
-            in html)
+    assert ('Curated removals<span class="ro-i" aria-hidden="true">'
+            '<svg class="info-svg"' in html)
     assert '<p class="ro-cap"><b>Curated removals</b> — Why</p>' in html
     assert "<td>#310</td><td>a&lt;b</td><td>cancelled</td>" in html
     g = readout_group("Delivery progress", stage_readouts(stage_counts(_orders(

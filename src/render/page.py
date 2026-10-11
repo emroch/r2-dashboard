@@ -15,10 +15,11 @@ from bs4 import BeautifulSoup, Tag
 
 from .assets import publish_assets
 from .categories import category_css
-from .components import (notes_html, readout, readout_group, shared_caveats,
-                         stage_key, stage_readouts)
-from config import (COLOR_HEX, DASHBOARD, DIMENSIONS, ORDERS_THREAD,
-                    RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF, COMPONENTS)
+from .components import (INFO_SVG, notes_html, readout, readout_group,
+                         shared_caveats, stage_key, stage_readouts)
+from config import (COLOR_HEX, DASHBOARD, DIMENSIONS, ORDER_DATE_MIN, ORDERS_THREAD,
+                    RESV_DATE_MIN, RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF,
+                    COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -40,7 +41,7 @@ def _tpl(name):
 def page_css():
     """The page stylesheet: templates/css/*.css, joined in file-name order. The
     files are numbered by area (base, header, sidebar, page, components, charts,
-    map) and the order is the cascade's, so a later file wins a tie."""
+    map, access) and the order is the cascade's, so a later file wins a tie."""
     return "\n".join(p.read_text(encoding="utf-8")
                      for p in sorted((_TPL_DIR / "css").glob("*.css")))
 
@@ -152,33 +153,56 @@ def _money(v):
     return "—" if v is None else "$%s" % format(round(v), ",")
 
 
+def _day_words(ts):
+    """A date as words ("June 9, 2026"), which a screen reader reads as a date."""
+    return "%s %d, %d" % (ts.strftime("%B"), ts.day, ts.year)
+
+
 def _fmt_time(dt):
     """Render a timestamp as a <time> carrying the absolute instant (ISO 8601 with
     offset) so client JS can localize it to the viewer's timezone; the server text
-    is the build-timezone fallback shown when JS is off."""
+    is the build-timezone fallback shown when JS is off. Written as words ("Oct
+    10, 2026, 10:12 PM CDT"), which a screen reader reads as a date and time,
+    not as a run of numbers."""
     if dt is None:
         return "—"
     aware = dt.astimezone()  # naive build-local datetime -> attach local offset
+    text = "%s %d, %d, %d:%s %s" % (aware.strftime("%b"), aware.day, aware.year,
+                                    aware.hour % 12 or 12, aware.strftime("%M %p"),
+                                    aware.strftime("%Z"))
     return ('<time datetime="%s" data-r2time>%s</time>'
-            % (aware.isoformat(timespec="minutes"),
-               aware.strftime("%Y-%m-%d %H:%M %Z")))
+            % (aware.isoformat(timespec="minutes"), text.strip()))
+
+
+# A warning sign: a filled triangle (the stat-card yellow, css .src-warn) with a
+# dark "!", legible at text size in both themes.
+_WARN_SVG = ('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2 15.4 14.3'
+             'H.6z" fill="currentColor"/><path d="M8 5.6v4.3" stroke="#1e2127" '
+             'stroke-width="1.9" stroke-linecap="round"/><circle cx="8" cy="12.1" '
+             'r="1.05" fill="#1e2127"/></svg>')
 
 
 def _src_line(name, meta, extra, thread_url):
-    """One header line: linked sheet name, count, fetched + last-updated times
-    (viewer-localized via <time>), the offline badge, and a link to the forum
-    thread where an entry is submitted or corrected — the sheet is the source of
-    truth, so that thread is the only route to changing any of these numbers."""
-    live = ("" if meta["live"]
-            else ' <span class="warn">(offline — showing cached copy)</span>')
+    """One header line: linked sheet name, count, when its data last changed
+    (viewer-localized via <time>), and a link to the forum thread where an entry
+    is submitted or corrected — the sheet is the source of truth, so that thread
+    is the only route to changing any of these numbers.
+
+    No "fetched" time: a recent fetch of an unchanged sheet reads the same as an
+    old update. A fetch that failed (the build fell back to the newest cache) is
+    the one case where an old time means a problem rather than a quiet sheet, so
+    a warning sign follows the time, saying so: its label, and the hover/tap
+    popover (web/lib/barhover.js)."""
+    warn = "Couldn&#8217;t check the sheet for newer data; this is the last copy fetched."
+    failed = ("" if meta["live"] or meta.get("offline")
+              else ' <span class="src-warn" role="img" aria-label="%s" data-tip="%s">'
+                   '%s</span>' % (warn, warn, _WARN_SVG))
     return ('<p class="src"><a href="%s" target="_blank" rel="noopener">%s</a> — %s '
-            '<span class="dim">·</span> fetched %s%s '
-            '<span class="dim">·</span> last updated %s '
+            '<span class="dim">·</span> last updated %s%s '
             '<span class="dim">·</span> <a href="%s" target="_blank" '
-            'rel="noopener">add or correct your entry</a></p>'
+            'rel="noopener">add/correct your entry</a></p>'
             % (meta["view_url"], _esc(name), _esc(extra),
-               _fmt_time(meta["fetched_at"]), live, _fmt_time(meta["updated_at"]),
-               thread_url))
+               _fmt_time(meta["updated_at"]), failed, thread_url))
 
 
 # Data-quality categories: (report["quality"] key, heading, one-line note).
@@ -450,16 +474,30 @@ def build_dashboard(df, report, resv, view):
         + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
           ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
           ' owner/reservation trackers are compiled from</p>'
-        + '<p class="meth">Relative delivery windows (&#8220;4&ndash;8 weeks&#8221;) '
-          'are measured from each order date. Order dates before 2026-06-09 and '
-          'reservations before 2024-03-07 are treated as invalid, and reservations '
-          'that also appear as orders are dropped. &#8220;Last updated&#8221; is '
-          'when a sheet last changed. Numbers marked &#9432; open the entries '
+        # How the data is read, and (with scripts) how the charts are used:
+        # reference, so it's folded away rather than standing between the
+        # sources and the numbers. Written to read the same aloud as on screen
+        # (dates and ranges in words, keys spelled out): an inline swap for a
+        # screen reader splits the sentence into separate stops.
+        + '<details class="intro-more"><summary>About this page</summary>'
+          '<p class="meth">Data collected from Rivian R2 reservation holders and '
+          'buyers on the Rivian forums, who track their reservations, orders, VINs '
+          'and deliveries in two community spreadsheets. This page cleans those '
+          'entries and charts what the cohort ordered, how orders are moving toward '
+          'delivery, how production is advancing by VIN, and where the cars are '
+          'going.</p>'
+          '<p class="meth">Relative delivery windows, such as &#8220;4 to 8 weeks&#8221;, '
+          'are measured from each order date. Order dates before %s and '
+          'reservations before %s are treated as invalid, and reservations that '
+          'also appear as orders are dropped. &#8220;Last updated&#8221; is when a '
+          'sheet last changed. Numbers marked with an info icon %s open the entries '
           'behind them.</p>'
+          % (_day_words(ORDER_DATE_MIN), _day_words(RESV_DATE_MIN), INFO_SVG)
         + _howto('Hover a chart for its values. Click a legend entry to hide it, '
-                 'or double-click to show it alone. On the scatter charts, pinch '
-                 'or &#8984;/Ctrl-scroll to zoom and drag to pan; double-click or '
-                 '<em>Reset view</em> to return.'))
+                 'or double-click to show it alone. On the scatter charts, pinch, '
+                 'or hold Command or Control and scroll, to zoom; drag to pan; '
+                 'double-click or <em>Reset view</em> to return.')
+        + '</details>')
 
     # Chart-navigation sidebar: the summary card (1), each chart (2..N+1), and
     # the QA panel (N+2), numbered by position to match the section headings.
@@ -505,7 +543,7 @@ def build_dashboard(df, report, resv, view):
     slot(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
     slot(id="sec-1").append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
-    slot("div", class_="wrap").append(
+    slot("main", class_="wrap").append(
         BeautifulSoup("".join(sections), "html.parser"))
 
     html = str(soup)

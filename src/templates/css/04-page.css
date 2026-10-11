@@ -21,15 +21,43 @@
 .intro p.src a:hover {
   filter: brightness(1.15);
 }
+/* A failed fetch's warning sign after a source's time (page.py _src_line), in
+   the stat-card yellow; its tooltip and label say what happened. */
+.src-warn {
+  color: var(--stat-bg);
+  cursor: help;
+}
+.src-warn svg {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -.2em;
+}
+/* The summary hosts the times' and warning's popovers (lib/barhover.js). */
+.intro {
+  position: relative;
+}
+/* A relative time ("3 hours ago", nav.js) carries the exact time as its hover
+   or tap popover; the dotted underline says there's more to see. */
+time[data-r2time][data-tip] {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+/* "About this page": the methodology and chart how-to, folded under the
+   sources (page.py). */
+.intro-more {
+  margin-top: 10px;
+}
+.intro-more > summary {
+  cursor: pointer;
+  color: var(--desc);
+  font-size: 13px;
+}
 .intro p.meth {
   margin: 10px 0 0;
   color: var(--desc);
   font-size: 12.5px;
   line-height: 1.5;
-}
-.intro .warn {
-  color: var(--warn);
-  font-weight: 600;
 }
 .intro .chg {
   color: var(--chg);
@@ -37,10 +65,6 @@
 }
 .intro .dim {
   color: var(--desc);
-}
-section,
-.r2c {
-  scroll-margin-top: calc(var(--header-pin,92px) + 8px);
 }
 /* The main column: cards at most 768px wide, 24px from the column's edges and
    from each other, and each card's content inset 24px from its outer edge (23px
@@ -139,9 +163,14 @@ section p.desc a:hover {
   line-height: 1.25;
 }
 .ro-i {
-  opacity: .55;
-  font-size: 11px;
-  margin-left: 3px;
+  opacity: .7;
+  margin-left: 4px;
+}
+/* The info mark (components.py INFO_SVG), at text size wherever it sits. */
+.info-svg {
+  width: .95em;
+  height: .95em;
+  vertical-align: -.12em;
 }
 .ro-more[open] {
   flex-basis: 100%;

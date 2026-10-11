@@ -1,10 +1,11 @@
-// Hover popovers for the HTML bars (take-rate and mix rows, render/components.py,
-// and the state mix): a segment with `data-tip` (lines separated by "\n": the
-// row, then the segment's count and share) shows it in the charts' tooltip,
-// placed in the segment's component frame. One delegated listener for the
-// whole page, so bars drawn later (the state mix) need no wiring of their own.
-// A tap shows it on touch screens; the next tap elsewhere hides it. The bars
-// are aria-hidden: the row text beside them says the same for assistive tech.
+// Hover popovers for anything with `data-tip` (lines separated by "\n"): the HTML
+// bars (take-rate and mix rows, render/components.py, and the state mix: the
+// row, then the segment's count and share), and the summary's source times and
+// failed-fetch warning (nav.js, page.py). It shows in the charts' tooltip, placed
+// in the element's component frame or the summary. One delegated listener for
+// the whole page, so things drawn later need no wiring of their own. A tap shows
+// it on touch screens; the next tap elsewhere hides it. Each carries the same
+// text for assistive tech another way (the row text, a label, hidden text).
 
 import { tooltip } from "./tooltip.js";
 
@@ -27,7 +28,7 @@ export function wireBarHover(root) {
   };
   const show = (ev) => {
     const lines = tipLines(ev.target);
-    const host = lines && ev.target.closest(".r2c");
+    const host = lines && ev.target.closest(".r2c, .intro");
     if (!host) { hide(); return; }
     const t = tipFor(host);
     if (shown && shown !== t) shown.hide();
