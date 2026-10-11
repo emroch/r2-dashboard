@@ -46,7 +46,7 @@ export function layerEntries(layers) {
   for (const l of layers) {
     if (!l.color) continue;
     const name = l.group || l.name;
-    if (!seen.has(name)) seen.set(name, { name, accent: l.color.slice(4), dash: Boolean(l.dash) });
+    if (!seen.has(name)) seen.set(name, { name, accent: l.color.slice(4) });
   }
   return [...seen.values()];
 }

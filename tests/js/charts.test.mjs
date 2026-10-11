@@ -52,10 +52,9 @@ test("grouped layers are one legend entry, in order", () => {
   const entries = layerEntries([
     { type: "line", name: "Front", group: "Build front", color: "var:a" },
     { type: "band", name: "Range", group: "Build front", color: "var:b" },
-    { type: "line", name: "Other", color: "var:c", dash: true },
+    { type: "line", name: "Other", color: "var:c" },
     { type: "rule", label: "Today" }]);
-  assert.deepEqual(entries, [{ name: "Build front", accent: "a", dash: false },
-                             { name: "Other", accent: "c", dash: true }]);
+  assert.deepEqual(entries, [{ name: "Build front", accent: "a" }, { name: "Other", accent: "c" }]);
 });
 
 test("a whisker is the window's line plus a cap at each end", () => {

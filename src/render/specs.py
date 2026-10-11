@@ -763,10 +763,8 @@ def latency_frame(df: pd.DataFrame) -> pd.DataFrame:
 def delivery_latency(df: pd.DataFrame) -> tuple:
     """§7: each order with a firm delivery date at (order date, days to
     delivery), filled once the date has passed and open while it's still
-    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more;
-    and, dashed, the weekly median over every order with a delivery estimate of
-    any kind (a window or range at its midpoint), as if every estimate holds,
-    which the recent weeks' firm dates alone can't show yet."""
+    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more,
+    as a curve."""
     d = latency_frame(df)
     passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
     series: list[dict[str, Any]] = []
@@ -795,16 +793,6 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
                        for w, v in med.items()],
             "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),
                       "%d orders" % g.size()[w]] for w, v in med.items()]})
-    every = df[df["order_date"].notna() & df["delivery_est"].notna()]
-    ga: Any = ((every["delivery_est"] - every["order_date"]).dt.days
-               .groupby(_week(every["order_date"])))
-    med_all: Any = ga.median()[ga.size() >= LATENCY_MIN_WEEK_N]
-    if len(med_all):
-        layers.append({
-            "type": "line", "name": "Median if every estimate holds",
-            "color": "var:latency-median", "curve": True, "dash": True,
-            "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
-                       for w, v in med_all.items()]})
     xs = [pd.Timestamp(p["x"]) for s_ in series for p in s_["points"]]
     ys = [0.0] + [float(p["y"]) for s_ in series for p in s_["points"]]
     spec = {"template": "scatter", "title": "Order-to-delivery time",

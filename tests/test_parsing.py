@@ -780,11 +780,6 @@ def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
     # Only the week with 3 firm dates gets a point, at its median (30 days).
     assert [pt[1] for pt in med[0]["points"]] == [30.0], med[0]["points"]
     assert med[0]["curve"] and not med[0].get("dash")
-    # Dashed: the median over every estimate, the window included, so the week
-    # of 8/10 (e 10, f 20, g's window 49 days) reaches three orders too.
-    every = [lay for lay in spec["layers"] if lay.get("dash")]
-    assert len(every) == 1 and every[0]["curve"]
-    assert [pt[1] for pt in every[0]["points"]] == [30.0, 20.0], every[0]["points"]
     cov = latency_coverage(_latency_frame_input())[0]["series"][0]
     # Coverage = shown / ALL orders placed that week, so the unknown-estimate,
     # windowed and impossible orders count against it rather than vanishing.
