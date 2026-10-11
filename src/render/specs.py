@@ -708,7 +708,8 @@ def latency_frame(df: pd.DataFrame) -> pd.DataFrame:
 def delivery_latency(df: pd.DataFrame) -> tuple:
     """§7: each order with a firm delivery date at (order date, days to
     delivery), filled once the date has passed and open while it's still
-    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more."""
+    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more,
+    as a curve."""
     d = latency_frame(df)
     passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
     series: list[dict[str, Any]] = []
@@ -732,7 +733,7 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     if len(med):
         layers.append({
             "type": "line", "name": "Weekly median (%d+ orders)" % LATENCY_MIN_WEEK_N,
-            "color": "var:latency-median",
+            "color": "var:latency-median", "curve": True,
             "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
                        for w, v in med.items()],
             "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),
