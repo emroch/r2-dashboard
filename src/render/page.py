@@ -200,7 +200,7 @@ def _src_line(name, meta, extra, thread_url):
     return ('<p class="src"><a href="%s" target="_blank" rel="noopener">%s</a> — %s '
             '<span class="dim">·</span> last updated %s%s '
             '<span class="dim">·</span> <a href="%s" target="_blank" '
-            'rel="noopener">add or correct your entry</a></p>'
+            'rel="noopener">add/correct your entry</a></p>'
             % (meta["view_url"], _esc(name), _esc(extra),
                _fmt_time(meta["updated_at"]), failed, thread_url))
 
