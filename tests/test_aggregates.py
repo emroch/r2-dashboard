@@ -413,6 +413,20 @@ def test_mix_rows_split_each_row_by_the_column_categories():
     assert "1 Firm date · 1 Relative window" in html
     assert "50% of orders with a VIN have a firm" in html
     assert "against 0% of those" in html
+    # Each segment carries its hover popover: the row, its count and share.
+    assert 'data-tip="VIN assigned\nFirm date: 1 of 2 (50%)"' in html
+
+
+def test_take_rate_segments_carry_their_stage_popover():
+    from render.aggregates import counts
+    from render.components import takerate
+    df = _orders(vin_present=[True, True, False],
+                 delivered_inferred=[True, False, False],
+                 delivery_type=["window", "window", "window"])
+    conf = {"template": "takerate", "title": "VIN", "dims": ["vin"]}
+    html = takerate("c-t", conf, counts(df, "vin", by_stage=True))
+    assert 'data-tip="VIN assigned\nDelivered: 1 of 2 (50%)"' in html
+    assert 'data-tip="VIN assigned\nWith a VIN: 1 of 2 (50%)"' in html
 
 
 def test_share_in_reads_a_column_share_within_a_row():

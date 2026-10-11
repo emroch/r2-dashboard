@@ -13,6 +13,7 @@
 // own only in a browser.
 
 import { templates } from "./charts/registry.js";
+import { wireBarHover } from "./lib/barhover.js";
 import { wireCsv } from "./lib/csv.js";
 
 export { templates };
@@ -58,5 +59,6 @@ export function boot(root, registry = templates, schedule = (el, fn) => fn()) {
 
 if (typeof document !== "undefined") {
   wireCsv(document);
+  wireBarHover(document);
   boot(document, templates, whenNear);
 }
