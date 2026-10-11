@@ -399,7 +399,7 @@ def state_mix(df: pd.DataFrame) -> tuple:
             "measures": measures, "states": states}
     heads = ["State", "Region", "Orders"] + [
         "%s: %s" % (m["label"], c["label"]) for m in measures for c in m["cats"]]
-    rows = [["All US", "", len(d)] + [v for m in measures for v in us_row[m["key"]]]]
+    rows = [["Overall (US)", "", len(d)] + [v for m in measures for v in us_row[m["key"]]]]
     rows += [[c, STATE_INFO[c][0], states[c]["n"]]
              + [v for m in measures for v in states[c][m["key"]]] for c in codes]
     cells = [{"value": c, "label": c, "n": states[c]["n"], "ref": None, "known": True}

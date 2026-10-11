@@ -79,7 +79,7 @@ export function draw(el, spec, names) {
   });
   const picker = make("select", "mx-picker");
   picker.setAttribute("aria-label", "State");
-  const all = make("option", "", "All US");
+  const all = make("option", "", "Overall (US)");
   all.value = "";
   picker.append(all);
   for (const code of Object.keys(names).sort((a, b) => names[a].localeCompare(names[b]))) {

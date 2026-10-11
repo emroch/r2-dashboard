@@ -402,7 +402,7 @@ def test_state_mix_splits_each_us_state_by_every_measure():
     assert "BC" not in spec["states"]
     assert spec["small_n"] == 10 and spec["map"] == "geo-demand"
     # The table: All US first, then a row per state, a column per category.
-    assert rows[0][:3] == ["All US", "", 4] and len(rows) == 3
+    assert rows[0][:3] == ["Overall (US)", "", 4] and len(rows) == 3
     assert len(heads) == len(rows[0]) and "Paint: Launch Green" in heads
 
 
