@@ -7,7 +7,7 @@
   left: 8px;
   top: -100px;
   z-index: 100;
-  padding: 10px 14px;
+  padding: 13px 16px;
   border-radius: 6px;
   background: var(--card-bg);
   color: var(--fg);
@@ -25,7 +25,9 @@ section[tabindex="-1"]:focus {
 }
 
 /* Touch screens and phone widths: every control at least 44px tall (WCAG 2.5.5),
-   most by growing its box, the bar of map stops by growing its labels. */
+   by growing its box. The map's slider is the exception: each of its stops
+   has a 44px label button that does the same (WCAG's equivalent-control
+   exception), and links inside sentences are exempt. */
 @media (pointer: coarse), (width < 768px) {
   .navbtn,
   .pillbtn,
@@ -52,6 +54,10 @@ section[tabindex="-1"]:focus {
   .sidebar a {
     display: flex;
     align-items: center;
+  }
+  /* 16px text, so iOS doesn't zoom the page when the picker is focused. */
+  .mx-picker {
+    font-size: 16px;
   }
   /* A disclosure keeps its own display (a flex <summary> loses its marker), so
      its one line is made 44px tall instead. */
