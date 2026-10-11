@@ -406,7 +406,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   // Controls: the whisker toggle (kept in the URL), when the spec has whiskers,
   // and Reset view.
   const controls = el.ownerDocument.createElement("div");
-  controls.className = "chart-controls";
+  controls.className = "chart-controls ts-controls";
   if (boxSpec) {
     const g = Object.assign(el.ownerDocument.createElement("div"), { className: "chart-switch seg" });
     g.setAttribute("role", "group");

@@ -250,8 +250,8 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   z-index: 3;
 }
 
-/* A timeseries' controls (charts/timeseries.js): the grain and the view, in a
-   row above the plot that wraps on a narrow screen, rather than over it. */
+/* A drawn chart's controls (a grain, a view, Reset view): in a row above the
+   plot that wraps on a narrow screen, rather than over it. */
 .ts-controls {
   position: static;
   flex-wrap: wrap;
@@ -300,6 +300,12 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   font-size: 12px;
   color: var(--desc);
   min-width: 4.5em;
+}
+/* On a phone each label heads its chips, so the groups line up. */
+@media (width < 768px) {
+  .fl-label {
+    flex-basis: 100%;
+  }
 }
 .fl-chips {
   display: flex;
