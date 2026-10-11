@@ -18,12 +18,22 @@
 // y is a number line, or rows with `y.type: "rows"`: `y.rows` lists the row labels
 // top to bottom, row i sits at y = i (a point's y is its row plus a jitter, set in
 // Python), and the axis labels each row instead of ticking numbers.
+//
+// With `toggles.boxes` ({min_n, unit}), Points / Boxes buttons swap the points
+// for a box per week (or month, when weeks are too narrow: lib/grain.js) of
+// the visible series' y values: the middle half, a median tick, whiskers to the
+// furthest value within 1.5 box-lengths, and the values beyond drawn as points.
+// A week with fewer than min_n values keeps its points, and an `open` series'
+// points stay over the boxes. The `median` line is drawn through the boxes'
+// medians. Boxes are the default, as they show the spread better; Points is
+// there to drill into single orders, kept in the URL (?<chart>=points).
 
 import { view } from "../data.js";
 import { legend } from "../lib/legend.js";
+import { groupOf, heading, offered, pick } from "../lib/grain.js";
 import { loadD3 } from "../lib/load.js";
 import { tooltip } from "../lib/tooltip.js";
-import { set as setState, whiskersShown } from "../state.js";
+import { get as getState, set as setState, whiskersShown } from "../state.js";
 
 // dimensions.yaml wheel symbols -> d3's. A diamond is a square
 // turned 45° (d3's own symbolDiamond is a tall rhombus), so it keeps a 1:1 shape.
@@ -80,6 +90,20 @@ export function nearest(candidates, px, py, radius = 18) {
 }
 
 const date = (s) => new Date(s + "T12:00:00");
+
+// A box's numbers for the values `ys`: quartiles by d3's linear rule (the same
+// as pandas', so the median matches the Python's), whiskers to the furthest
+// values within 1.5 box-lengths of the box. Pure, for the tests.
+export function boxStats(d3, ys) {
+  const v = [...ys].sort((a, b) => a - b);
+  const [q1, med, q3] = [0.25, 0.5, 0.75].map((q) => d3.quantileSorted(v, q));
+  const reach = 1.5 * (q3 - q1);
+  const inside = v.filter((y) => y >= q1 - reach && y <= q3 + reach);
+  return { n: v.length, q1, med, q3, lo: inside[0], hi: inside.at(-1), min: v[0], max: v.at(-1) };
+}
+
+// A box is at least this wide; narrower, weeks group into months.
+const BOX_MIN_PX = 8;
 
 // The left margin a rows axis needs: its longest label at about 6.2 px a character
 // (the 11px axis font), clamped so the plot keeps at least half the width.
@@ -175,6 +199,72 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     .attr("d", (d) => d3.symbol(d3[SYMBOLS[d.o.s.symbol] || "symbolCircle"], ROTATE[d.o.s.symbol] ? 64 : 80)());
 
   let hidden = new Set(startHidden), showWhiskers = whiskersShown();
+
+  // Boxes (toggles.boxes): the grain that fits, and whether they're showing.
+  const boxSpec = spec.toggles?.boxes;
+  const boxG = plot.insert("g", () => dotG.node())
+    .attr("class", spec.series.length ? categoryClass(spec.series[0].color) : null);
+  let boxView = Boolean(boxSpec) && getState(el.dataset.chart) !== "points", boxGrain = "week", boxes = [], inBox = new Set();
+  if (boxSpec) {
+    const [lo, hi] = spec.x.domain.map((v) => new Date(`${v}T00:00:00Z`));
+    boxGrain = pick(lo, hi, W - m.l - m.r, offered(lo, hi), BOX_MIN_PX);
+  }
+  // The boxes of the visible series, by group, and the points still drawn over
+  // them: a small group's, those beyond the whiskers, and an open series'.
+  function computeBoxes() {
+    const by = new Map();
+    inBox = new Set();
+    for (const o of series) {
+      if (hidden.has(o.s.name)) continue;
+      for (const p of o.s.points) {
+        const g = groupOf(date(p.x), boxGrain), wk = groupOf(date(p.x), "week").start;
+        if (!by.has(g.key)) by.set(g.key, { ...g, first: wk, last: wk, pts: [] });
+        const b = by.get(g.key);
+        if (wk < b.first) b.first = wk;
+        if (wk > b.last) b.last = wk;
+        b.pts.push({ p, open: o.s.open });
+      }
+    }
+    const r = (v) => Math.round(v);
+    boxes = [...by.values()].sort((a, b) => a.start - b.start).flatMap((b) => {
+      if (b.pts.length < boxSpec.min_n) {
+        for (const q of b.pts) inBox.add(q.p);
+        return [];
+      }
+      const st = boxStats(d3, b.pts.map((q) => q.p.y));
+      for (const q of b.pts) if (q.open || q.p.y < st.lo || q.p.y > st.hi) inBox.add(q.p);
+      const u = boxSpec.unit ? ` ${boxSpec.unit}` : "";
+      return [{ ...b, st, mid: new Date((b.start.getTime() + b.end.getTime()) / 2),
+        tip: [heading(boxGrain, b.first, b.last), `${st.n} orders`, `Median: ${r(st.med)}${u}`,
+              `Middle half: ${r(st.q1)}–${r(st.q3)}${u}`, `Range: ${r(st.min)}–${r(st.max)}${u}`] }];
+    });
+  }
+  if (boxSpec) computeBoxes();
+  // A line's points in pixels-to-be: as given, or for the median line in box
+  // view, the boxes' medians.
+  const linePts = (l) => (boxView && l.median ? boxes.map((b) => ({ x: b.mid, y: b.st.med, tip: b.tip }))
+    : l.points.map((pt, i) => ({ x: xv(pt[0]), y: pt[1], tip: l.tips?.[i] })));
+  function placeBoxes() {
+    boxG.style("display", boxView ? null : "none");
+    if (!boxView) return;
+    const g = boxG.selectAll("g.box").data(boxes).join((e) => {
+      const n = e.append("g").attr("class", "box");
+      n.append("path").attr("class", "box-whisk");
+      n.append("rect").attr("class", "box-iqr");
+      n.append("line").attr("class", "box-med");
+      return n;
+    });
+    g.each(function (b) {
+      const x0 = x(b.start), x1 = x(b.end), pad = Math.max(1, (x1 - x0) * 0.15);
+      const l = x0 + pad, rr = x1 - pad, c = (x0 + x1) / 2, cap = (rr - l) / 4;
+      const n = d3.select(this);
+      n.select("rect").attr("x", l).attr("width", Math.max(1, rr - l))
+        .attr("y", y(b.st.q3)).attr("height", Math.max(1, y(b.st.q1) - y(b.st.q3)));
+      n.select("line").attr("x1", l).attr("x2", rr).attr("y1", y(b.st.med)).attr("y2", y(b.st.med));
+      n.select("path").attr("d", `M${c},${y(b.st.q3)}V${y(b.st.hi)}M${c - cap},${y(b.st.hi)}H${c + cap}`
+        + `M${c},${y(b.st.q1)}V${y(b.st.lo)}M${c - cap},${y(b.st.lo)}H${c + cap}`);
+    });
+  }
   function place() {
     const xt = Math.max(3, W / 120);
     gridX.call(d3.axisBottom(x).ticks(xt).tickSize(-(H - m.t - m.b)).tickFormat(""));
@@ -194,17 +284,23 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     // `curve` smooths a line through its points (monotone, so it never
     // overshoots a week's value); the rest join them straight.
     lineSel.select("path").attr("d", (l) => d3.line().curve(l.curve ? d3.curveMonotoneX : d3.curveLinear)
-      .x((d) => x(xv(d[0]))).y((d) => y(d[1]))(l.points));
-    lineSel.selectAll("circle").attr("cx", (o) => x(xv(o.pt[0]))).attr("cy", (o) => y(o.pt[1]));
+      .x((d) => x(d.x)).y((d) => y(d.y))(linePts(l)));
+    // In box view the median's points are the boxes' median ticks.
+    lineSel.selectAll("circle").attr("cx", (o) => x(xv(o.pt[0]))).attr("cy", (o) => y(o.pt[1]))
+      .style("display", (o) => (boxView && o.l.median ? "none" : null));
     ruleSel.select("line").attr("x1", (l) => x(xv(l.value))).attr("x2", (l) => x(xv(l.value)))
       .attr("y1", m.t).attr("y2", H - m.b);
     ruleSel.select("text").attr("x", (l) => x(xv(l.value)) + 4).attr("y", m.t + 10);
-    dots.selectAll("path.pt").attr("transform", (d) => `translate(${x(xv(d.p.x))},${y(d.p.y)})${turn(d)}`);
+    dots.selectAll("path.pt").attr("transform", (d) => `translate(${x(xv(d.p.x))},${y(d.p.y)})${turn(d)}`)
+      .style("display", (d) => (boxView && !inBox.has(d.p) ? "none" : null));
+    placeBoxes();
     whiskG.style("display", showWhiskers ? null : "none");
     whisk.selectAll("path.whisker").attr("d", (p) => whiskerPath(x(xv(p.lo)), x(xv(p.hi)), y(p.y)));
   }
   function visibility() {
     svg.selectAll("[data-name]").style("display", function () { return hidden.has(this.dataset.name) ? "none" : null; });
+    // Boxes summarize what's visible, so hiding a series redraws them.
+    if (boxSpec) { computeBoxes(); place(); }
   }
   place();
   visibility();
@@ -219,6 +315,28 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   // and Reset view.
   const controls = el.ownerDocument.createElement("div");
   controls.className = "chart-controls";
+  if (boxSpec) {
+    const g = Object.assign(el.ownerDocument.createElement("div"), { className: "chart-switch seg" });
+    g.setAttribute("role", "group");
+    g.setAttribute("aria-label", "Show");
+    const views = [["points", "Points"], ["boxes", "Boxes"]].map(([v, label]) => {
+      const b = Object.assign(el.ownerDocument.createElement("button"), { type: "button", className: "lg-item", textContent: label });
+      b.dataset.view = v;
+      b.addEventListener("click", () => {
+        if ((v === "boxes") === boxView) return;
+        boxView = v === "boxes";
+        setState(el.dataset.chart, v === "boxes" ? null : v);
+        sync();
+        place();
+        tip.hide();
+      });
+      g.append(b);
+      return b;
+    });
+    const sync = () => views.forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.view === "boxes") === boxView)));
+    sync();
+    controls.append(g);
+  }
   if (spec.toggles?.whiskers) {
     const wb = Object.assign(el.ownerDocument.createElement("button"), { type: "button", className: "lg-item" });
     const syncW = () => { wb.textContent = showWhiskers ? "Hide whiskers" : "Show whiskers"; };
@@ -235,9 +353,16 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   svg.on("pointermove", (ev) => {
     const [px, py] = d3.pointer(ev);
     const cands = [];
-    for (const o of series) if (!hidden.has(o.s.name)) for (const p of o.s.points) cands.push({ x: x(xv(p.x)), y: y(p.y), tip: p.tip });
-    for (const l of lines) if (l.tips && !hidden.has(layerName(l))) l.points.forEach((pt, i) => cands.push({ x: x(xv(pt[0])), y: y(pt[1]), tip: l.tips[i] }));
-    const hit = nearest(cands, px, py);
+    for (const o of series) {
+      if (hidden.has(o.s.name)) continue;
+      for (const p of o.s.points) if (!boxView || inBox.has(p)) cands.push({ x: x(xv(p.x)), y: y(p.y), tip: p.tip });
+    }
+    for (const l of lines) {
+      if (!hidden.has(layerName(l))) for (const q of linePts(l)) if (q.tip) cands.push({ x: x(q.x), y: y(q.y), tip: q.tip });
+    }
+    // Else the box under the pointer, whiskers included.
+    const hit = nearest(cands, px, py) || (boxView ? boxes.find((b) => px >= x(b.start) && px < x(b.end)
+      && py >= y(b.st.hi) - 4 && py <= y(b.st.lo) + 4) : null);
     const [hx, hy] = d3.pointer(ev, plotEl);
     if (hit) tip.show(hit.tip, hx, hy); else tip.hide();
   }).on("pointerleave", () => tip.hide());
@@ -256,5 +381,6 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     redraw: place,                                 // what a whisker toggle does
     hidden: () => new Set(hidden),
     reset: () => svg.call(zoom.transform, d3.zoomIdentity),
+    boxes: () => (boxView ? boxes : null),
   };
 }

@@ -259,3 +259,20 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   gap: 6px 12px;
   margin-bottom: 6px;
 }
+
+/* Box view (charts/scatter.js toggles.boxes): the middle half filled lightly,
+   the median a solid tick, the whiskers thin. */
+.chart-svg .box-iqr {
+  fill: color-mix(in oklab,var(--mark) 22%,transparent);
+  stroke: var(--mark);
+  stroke-width: 1.2;
+}
+.chart-svg .box-med {
+  stroke: var(--mark);
+  stroke-width: 2.4;
+}
+.chart-svg .box-whisk {
+  stroke: var(--mark);
+  stroke-width: 1.2;
+  fill: none;
+}

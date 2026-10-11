@@ -69,8 +69,8 @@ export function offered(lo, hi) {
   return GRAINS.filter((g, i) => !i || count(lo, hi, g.key) >= MIN_GROUPS).map((g) => g.key);
 }
 
-// The default: the finest offered grain whose columns are MIN_PX wide across
-// `px` pixels, else the coarsest.
-export function pick(lo, hi, px, grains = offered(lo, hi)) {
-  return grains.find((g) => px / count(lo, hi, g) >= MIN_PX) || grains.at(-1);
+// The default: the finest offered grain whose columns are `min` pixels wide
+// across `px` pixels, else the coarsest.
+export function pick(lo, hi, px, grains = offered(lo, hi), min = MIN_PX) {
+  return grains.find((g) => px / count(lo, hi, g) >= min) || grains.at(-1);
 }

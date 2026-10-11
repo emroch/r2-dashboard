@@ -155,3 +155,46 @@ test("a rows axis labels each row, top to bottom, over a linear x", { timeout: 5
   h.zoomTo(3);
   assert.ok(labels().length < 3, "rows outside the zoomed view lose their labels");
 });
+
+test("a box's quartiles, median and whiskers, the furthest values within 1.5 box-lengths", async () => {
+  const { boxStats } = await import("../../src/web/charts/scatter.js");
+  const st = boxStats(d3, [40, 10, 30, 200, 20, 30]);
+  assert.deepEqual([st.q1, st.med, st.q3, st.lo, st.hi, st.min, st.max], [22.5, 30, 37.5, 10, 40, 10, 200]);
+});
+
+test("box view: a box per week of min_n+, the rest as points, the median through the boxes", async () => {
+  const { draw } = await import("../../src/web/charts/scatter.js");
+  const el = mountPoint();
+  const latency = {
+    template: "scatter", title: "l",
+    x: { label: "Order date", type: "date", domain: ["2026-06-01", "2026-08-31"] },
+    y: { label: "days", type: "linear", domain: [0, 250] },
+    series: [
+      { name: "Passed", color: "acc:primary", points: [10, 20, 40, 200].map((y) => ({ x: "2026-06-02", y, tip: [`p${y}`] }))
+        .concat([50, 60].map((y) => ({ x: "2026-06-09", y, tip: [`q${y}`] }))) },
+      { name: "Scheduled", color: "acc:primary", open: true, points: [{ x: "2026-06-03", y: 30, tip: ["s"] }] }],
+    layers: [{ type: "line", name: "Median", color: "var:highlight", curve: true, median: true,
+               points: [["2026-06-04", 30]], tips: [["m"]] }],
+    toggles: { boxes: { min_n: 3, unit: "days" } },
+  };
+  // Boxes by default, at any width.
+  const h = draw(d3, el, latency);
+  const boxes = h.boxes();
+  assert.equal(boxes.length, 1, "the second week has two orders: points, not a box");
+  assert.deepEqual([boxes[0].st.med, boxes[0].st.lo, boxes[0].st.hi], [30, 10, 40]);
+  assert.deepEqual(boxes[0].tip, ["Week of Jun 1, 2026", "5 orders", "Median: 30 days",
+    "Middle half: 20–40 days", "Range: 10–200 days"]);
+  const shown = () => [...el.querySelectorAll("path.pt")].filter((p) => p.style.display !== "none").length;
+  assert.equal(shown(), 4, "the outlier, the scheduled order and the small week's two");
+  assert.equal(el.querySelectorAll("g.box").length, 1);
+  assert.equal(el.querySelector("g.line circle").style.display, "none", "the box's tick marks the median");
+  // Points: every point back, the boxes hidden; and back, nothing added.
+  el.querySelector('[data-view="points"]').dispatchEvent(new globalThis.window.Event("click"));
+  assert.equal(h.boxes(), null);
+  assert.equal(shown(), 7);
+  el.querySelector('[data-view="boxes"]').dispatchEvent(new globalThis.window.Event("click"));
+  assert.equal(el.querySelectorAll("g.box").length, 1);
+  // Isolating the passed series recomputes the box from what's left.
+  el.querySelector(".chart-legend .lg-item").dispatchEvent(new globalThis.window.Event("dblclick"));
+  assert.equal(h.boxes()[0].st.n, 4);
+});
