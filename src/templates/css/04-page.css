@@ -65,11 +65,25 @@ section h2 {
   font-size: 19px;
   color: var(--sec-title);
 }
-section p.desc {
+section p.desc,
+.intro p.howto {
   margin: 0 0 8px;
   color: var(--desc);
   font-size: 13.5px;
   line-height: 1.45;
+}
+
+/* How to use the charts (page.py _howto): only when scripts run (head.js sets
+   html.js), since without them the charts are static. */
+p.howto {
+  display: none;
+}
+html.js p.howto {
+  display: block;
+}
+.intro p.howto {
+  margin-top: 8px;
+  font-size: 12.5px;
 }
 
 /* Source links in a section's description, treated like the header's source

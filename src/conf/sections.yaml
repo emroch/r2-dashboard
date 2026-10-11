@@ -6,9 +6,12 @@
 # (section 1) and the data-quality panel (last) are built by page.py around these.
 #
 #   title   heading and sidebar label
-#   desc    the prose under the heading. HTML, so <strong>, <em>, <br> and links
-#           work and & must be written &amp;. Folded (">-"), so line breaks here
-#           are just spaces in the page.
+#   desc    what the section shows, under the heading: brief, no design rationale,
+#           nothing the charts already say. HTML, so <strong>, <em>, <br> and
+#           links work and & must be written &amp;. Folded (">-"), so line breaks
+#           here are just spaces in the page.
+#   howto   optional: how to use the section's own controls, shown only when
+#           scripts run. Hovering, legends and zoom are explained once, in §1.
 #   components  presentation-layer components, by id (charts.yaml), in order
 #   layout  how the components sit: grid (default: two across when there's room),
 #           fit (side by side at equal widths until a panel's content wouldn't
@@ -23,179 +26,107 @@ sections:
     components: [takerate-color, takerate-wheels, takerate-interior,
                  takerate-buylease, takerate-spare, takerate-r1]
     desc: >-
-      What this cohort ordered. Each panel counts the orders that answered its
-      question, so an unanswered one sits out rather than forming a blank row; the
-      data-quality panel lists the orders that never reported their build. Every
-      bar is split by how far those orders have got: delivered, delivery
-      scheduled, assigned a VIN, or still waiting for one. Paints are ordered by
-      how many chose them; wheels, interiors and the yes/no answers keep their
-      natural order. For the compact spare an unanswered question means not opted
-      in, so those count as No. Trim, Launch Package, Autonomy+ and Tow are ~100%
-      uniform across the cohort, so they have no panel yet.
+      What the cohort ordered, each bar split by delivery stage. A panel counts
+      the orders that answered its question, except the compact spare, where no answer
+      counts as No. Trim, Launch Package, Autonomy+ and Tow are near-universal, so they
+      have no panel yet.
 
   - title: "Configuration combinations"
     components: [combo-wheels, combo-interior]
     layout: fit
     desc: >-
-      Which options people pair together, as counts per pairing: exterior paint
-      against wheels, then against interior. Each cell gives its count as well as
-      its shade, since at these volumes a 1 and a 3 look alike by color alone, and
-      the totals sit at the edges. Paints run most-ordered first, as everywhere on
-      the page. Only options that have actually been ordered get a column, so the
-      grid fills out as trims and configs open up rather than showing empty rows in
-      advance. A pairing needs both halves, so an order that hasn't reported one of
-      them isn't in that grid.
+      Which options are ordered together: paint with wheels, and paint with
+      interior.
 
   - title: "Configured price"
     components: [price-distribution, price-options, price-by-trim]
     layout: single
     desc: >-
-      What this cohort is paying, from published trim and option prices — the
-      configured vehicle only, with no destination, doc fees, taxes, or incentives.
-      The first panel gives one bar per exact price, highest first (the cohort lands
-      on a small set of totals, so binning would hide real structure), with the
-      median's row highlighted. The second covers the option spend alone — the base is
-      a constant per trim, so the choices are the interesting part — with each
-      category's take rate alongside, since a big average means something different
-      when everyone pays a little rather than a few paying a lot. The last is a strip
-      per trim: the whiskers span the cheapest to the dearest order, the box the
-      middle half, with the median and mean marked and every value written out. It
-      fills in as Premium and Standard ship. Orders whose configuration hits a price
-      Rivian hasn't published are excluded rather than counted as zero — see the
-      data-quality panel.
+      What the cohort is paying for the configured vehicle, from Rivian's
+      published trim and option prices, without destination, doc fees, taxes or
+      incentives. Orders with an option Rivian hasn't priced are left out and listed in
+      the data-quality panel.
 
   - title: "Reservation & order timeline"
     components: [reservations-by-week, orders-by-week]
     desc: >-
-      Reservations by the week they were made: <em>outstanding</em> ones, whose
-      holders haven't ordered yet (from the separate reservations sheet), stacked on
-      <em>converted</em> ones, whose holders have since locked an order. The 3/7/2024
-      reveal week is many times the next-biggest week, so the axis is cut just above
-      the rest to keep the two-year trickle readable, and that week's column is
-      labelled with its true total. Below, orders by the week the configuration was
-      finalized, each week split by how far its orders have got today, so it shows how
-      each week's cohort is doing (§6 has the pipeline over time). Weeks run Monday to
-      Sunday; hover a week for its counts.
+      Reservations by the week they were made, split by whether the holder has
+      ordered since; then orders by the week they were placed, split by how far each has
+      got today.
 
   - title: "Fulfilment"
     components: [fulfilment-by-week]
     desc: >-
-      How the orders are getting through, from each order's own dates.
-      <em>Cumulative</em> (the default) stacks every order placed by each week's end
-      by how far it had got by then — delivered, delivery scheduled, assigned a VIN,
-      or still waiting for one — so the last column is today's delivery progress;
-      <em>Weekly</em> shows what happened that week instead: orders placed, VINs
-      assigned, deliveries scheduled and deliveries made. A VIN or date reported
-      without a date of its own shows from the last week on. An order counts as
-      delivered once its estimate has passed; the data-quality panel lists those
-      whose estimate was only a window, range or month. Hover a week for its counts.
+      Every order's progress, week by week, from the dates it was given a VIN,
+      had its delivery scheduled and was delivered. A VIN or date with no known date of
+      its own counts from the latest week. <strong>Deliveries are inferred, not
+      reported:</strong> an order counts as delivered once its whole delivery estimate
+      has passed, VIN or not. That errs both ways: a delayed car still looks delivered,
+      and one that arrived early against a vague estimate doesn't. The data-quality
+      panel lists the deliveries inferred from a window, range or month.
 
   - title: "Order-to-delivery time"
     components: [delivery-latency, latency-coverage]
     desc: >-
-      How long people wait between placing an order and delivery, for orders with a
-      firm delivery date — a range or window is a guess, so its midpoint would claim
-      precision it doesn't have. Each point is one order, at its order date; filled
-      points are dates that have passed (presumed delivered) and open points are
-      scheduled in the future. The line is the weekly median, drawn only for weeks
-      with at least three firm dates. <strong>Read the recent end with care.</strong>
-      A firm date usually only appears once delivery is close, so the latest order
-      weeks are represented mainly by their <em>fast</em> deliveries — their slower
-      orders haven't been scheduled yet. The coverage chart below shows how much of
-      each week's orders the points above actually cover; where it is low, the median
-      is biased short and will likely rise as the rest report. Estimates that
-      contradict the order date are left out and listed in the data-quality panel.
+      How long orders with a firm delivery date wait between order and delivery.
+      <strong>Read the recent end with care:</strong> firm dates arrive close to
+      delivery, so the latest order weeks show mostly their fastest deliveries, and
+      their median will rise as the rest are scheduled. The chart below shows how much
+      of each week's orders have a firm date.
 
   - title: "VIN sequence vs. order date"
     components: [vin-vs-order]
     desc: >-
-      Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how
-      tightly production sequence tracks order timing. Click a config in the legend
-      to hide it, or double-click to isolate one.
+      Each order's VIN against its order date: whether ordering earlier gets an
+      earlier build slot.
 
   - title: "Delivery date vs. VIN sequence"
     components: [delivery-vs-vin, build-cadence]
     desc: >-
-      Each point is an order with both a VIN and a delivery estimate. Color = paint,
-      marker shape = wheels; whiskers span the quoted delivery window. Clusters of
-      one color across a VIN range hint at same-config cars built in sequence. Click
-      a legend entry to hide it, or double-click to isolate it; pinch (or hold ⌘/Ctrl
-      and scroll) to zoom, drag to pan, and double-click the chart (or Reset view)
-      to return.
-      <br><br>The
-      yellow line is the <em>build front</em>: the 90th-percentile VIN delivered
-      each finished week, from firm delivery dates only. Delivery stands in for
-      build date — the lag between them moves where a VIN appears but not the slope,
-      which is the build rate — and the high percentile tracks the newest cars
-      arriving rather than the held-back ones still trickling in. The dashed line
-      projects the front a few weeks ahead at the current rate, and the shaded band
-      is how far off that same projection has actually been, measured by re-running
-      it from earlier weeks on every build. It is an aggregate only: where the front
-      is heading, not when any particular order will arrive. <br><br><strong>The
-      band leans upward on purpose.</strong> Production is still ramping, and so far
-      it has ramped in steps — cadence more than doubled in two weeks in mid-August
-      — so past projections have almost always fallen <em>behind</em> what actually
-      happened, rarely ahead. Each side of the band is the typical miss in that
-      direction, so the upper side is the room for another step up. The line itself
-      stays at the current rate deliberately: models that extrapolate the ramp were
-      tested and did worse, carrying August's jump into September's plateau. The
-      band narrows on its own as weeks at a steady rate accumulate. Below, the rate
-      itself over time.
+      Each order with a VIN and a delivery estimate; whiskers span its quoted
+      delivery window. The <em>build front</em> is the 90th-percentile VIN delivered each
+      finished week, from firm dates: roughly how far production has reached. The
+      dashed line projects it at the current rate, and the band is how far that
+      projection has missed before. It leans upward because production has ramped in
+      steps, so past projections have mostly fallen behind. It shows where production
+      is heading, not when any one order will arrive. Below, the build rate over
+      time.
 
   - title: "VIN sequence by configuration"
     components: [vin-by-config]
     desc: >-
-      Each VIN-assigned order at its production sequence (x), grouped into rows by
-      full configuration (trim · color · wheels · interior); marker fill = paint,
-      shape = wheels. Clusters along a row suggest same-config cars were built in a
-      batch. Interior is part of the row key rather than a third marker encoding,
-      since fill and shape are already taken and a third cue on a 10px marker would
-      be guesswork; rows appear only for configurations that have a VIN, so the
-      newer cabins show up here as their orders get assigned.
+      Each order with a VIN at its place in the build sequence, in a row per
+      full configuration: trim, paint, wheels and interior.
 
   - title: "Geographic demand"
     components: [geo-demand, state-mix]
     desc: >-
-      Demand by state around the Normal, IL plant (marked with Rivian's emblem). The
-      slider steps down the pipeline, each stop a subset of the one before: total
-      demand (orders plus outstanding reservations), orders, orders with a VIN (or
-      further along), orders with a delivery scheduled (or delivered), and
-      deliveries. Colors run on a square-root scale, so a state with a quarter of
-      the leader's count reads half as strong; a state with none is hatched. Select
-      a state to see its orders below, split by status, paint, wheels or interior,
-      against the whole US, or <em>Show all</em> to compare every state with 10 or
-      more orders at once; a state with fewer says so when shown, since one order
-      swings its mix. Only US orders are mapped for now, since the R2 isn't on sale
-      elsewhere yet.
+      Demand by state around the Normal, IL plant, shaded on a square-root
+      scale. Below, a state's orders by status, paint, wheels or interior, against the
+      US overall. Only US orders are mapped, since the R2 isn't on sale elsewhere
+      yet.
+    howto: >-
+      Select a state on the map, or pick one, to see its orders; <em>Show
+      all</em> lists every state with 10 or more.
 
   - title: "Wheels by climate & terrain"
     components: [wheels-by-elevation, wheels-by-temperature, wheels-by-urban]
     desc: >-
-      Wheel choice by the state each order is going to, grouped by that state's
-      elevation, climate and urban share, as 100% rows so groups compare regardless
-      of order volume; each panel's <em>All orders</em> row is the whole cohort, a
-      baseline to read the others against, and rows run in order of value. Sources, all per-state published
-      figures: <a href="https://pubs.usgs.gov/pp/1200us/report.pdf" target="_blank"
-      rel="noopener">USGS</a> mean state elevation (area-weighted), <a
+      Wheel choice by the destination state's mean elevation, average
+      temperature and urban share. Every order takes its state's average, so a
+      difference here can't say why: terrain, driving mix and when each wheel was
+      orderable all play a part. Sources: <a href="https://pubs.usgs.gov/pp/1200us/report.pdf"
+      target="_blank" rel="noopener">USGS</a> mean elevation, <a
       href="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/"
-      target="_blank" rel="noopener">NOAA</a> statewide annual mean temperature over
-      the 1991&ndash;2020 normals, and the <a
-      href="https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html"
-      target="_blank" rel="noopener">Census 2020</a> urban share of population
-      &mdash; except DC, which has no NOAA statewide series and uses the <a
+      target="_blank" rel="noopener">NOAA</a> 1991&ndash;2020 annual mean temperature
+      (DC: the <a
       href="https://www.ncei.noaa.gov/access/services/data/v1?dataset=normals-monthly-1991-2020&amp;stations=USW00013743&amp;format=pdf&amp;startDate=0001-01-01&amp;endDate=9996-12-31"
-      target="_blank" rel="noopener">Reagan National station normal</a> instead.
-      Because every order sits at its state's average rather than its own location,
-      these panels can show <em>that</em> a group's mix differs &mdash; not why.
-      Read any lean as a prompt to look closer, not a finding: the all-season versus
-      all-terrain efficiency argument carries confounds &mdash; local terrain,
-      driving mix, when each wheel was orderable &mdash; that state averages cannot
-      separate.
+      target="_blank" rel="noopener">Reagan National normal</a>), and <a
+      href="https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html"
+      target="_blank" rel="noopener">Census 2020</a> urban share.
 
   - title: "Destination vs. delivery date"
     components: [dest-vs-delivery]
     desc: >-
-      States ordered by distance from the Normal, IL plant (closest at bottom). An
-      upward-right tilt would mean farther destinations deliver later. Whiskers span
-      each order's quoted delivery window. Click a region in the legend to hide it,
-      or double-click to isolate one.
+      Each order's delivery estimate by destination state, nearest the plant at
+      the bottom; whiskers span the quoted delivery window.

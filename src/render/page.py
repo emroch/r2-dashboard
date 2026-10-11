@@ -46,12 +46,20 @@ def page_css():
 
 
 def _section(entry):
-    """(title, desc_html) from a sections.yaml entry, checking its components."""
+    """(title, desc_html, howto_html) from a sections.yaml entry, checking its
+    components. howto is "" for a section with nothing to explain."""
     unknown = [c for c in entry.get("components", []) if c not in COMPONENTS]
     if unknown:
         raise LookupError("sections.yaml: %r names unknown components %s"
                           % (entry["title"], unknown))
-    return entry["title"], entry["desc"]
+    return entry["title"], entry["desc"], entry.get("howto", "")
+
+
+def _howto(html):
+    """How to use a section's interactive charts: shown only when scripts run
+    (css/04-page.css .howto, under head.js's html.js), since without them there
+    is nothing to hover, click or drag."""
+    return '<p class="desc howto">%s</p>' % html if html else ""
 
 
 # sections.yaml `layout` -> the component grid's extra class (css/05-components.css).
@@ -327,21 +335,20 @@ def _quality_section(quality, num, cap=40):
         '%s</table></div>'
         % (len(conv), conv_body))
     return ('<section id="sec-%d"><h2>%d · Data quality &amp; anomalies</h2>'
-            '<p class="desc">Rows flagged for human review — surfaced here, not '
-            'auto-corrected. An empty category means nothing tripped that '
-            'check.</p><div class="qa">%s</div>%s</section>'
+            '<p class="desc">Entries flagged for review. Nothing here is '
+            'corrected automatically.</p><div class="qa">%s</div>%s</section>'
             % (num, num, "".join(blocks), conv_html))
 
 
 def build_dashboard(df, report, resv, view):
     # Numbering (DOM order): the summary card is 1, sections 2..N+1, QA N+2.
     sections = []
-    for i, (title, desc) in enumerate(SECTIONS):
+    for i, (title, desc, howto) in enumerate(SECTIONS):
         n = i + 2
         comps = _components_html(SECTION_COMPONENTS[i], view, SECTION_LAYOUTS[i])
         sections.append(
-            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
-            '%s</section>' % (n, n, _esc(title), desc, comps))
+            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>%s'
+            '%s</section>' % (n, n, _esc(title), desc, _howto(howto), comps))
     sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
 
     dc = report["delivery_counts"]
@@ -443,21 +450,22 @@ def build_dashboard(df, report, resv, view):
         + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
           ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
           ' owner/reservation trackers are compiled from</p>'
-        + '<p class="meth">Delivery windows are measured from each customer&#8217;s '
-          'R2 order date. Order dates before 2026-06-09 and reservations before '
-          '2024-03-07 are treated as invalid; reservations already present in the '
-          'orders sheet are dropped as duplicates. &#8220;Last updated&#8221; is '
-          'when a sheet&#8217;s contents last changed between fetches. Click a '
-          'number marked &#9432; to see the entries behind it. Charts with '
-          'a legend are interactive &mdash; click an entry to hide that series, '
-          'double-click to isolate one; see each chart&#8217;s note for its '
-          'paint, region, and wheel filters.</p>')
+        + '<p class="meth">Relative delivery windows (&#8220;4&ndash;8 weeks&#8221;) '
+          'are measured from each order date. Order dates before 2026-06-09 and '
+          'reservations before 2024-03-07 are treated as invalid, and reservations '
+          'that also appear as orders are dropped. &#8220;Last updated&#8221; is '
+          'when a sheet last changed. Numbers marked &#9432; open the entries '
+          'behind them.</p>'
+        + _howto('Hover a chart for its values. Click a legend entry to hide it, '
+                 'or double-click to show it alone. On the scatter charts, pinch '
+                 'or &#8984;/Ctrl-scroll to zoom and drag to pan; double-click or '
+                 '<em>Reset view</em> to return.'))
 
     # Chart-navigation sidebar: the summary card (1), each chart (2..N+1), and
     # the QA panel (N+2), numbered by position to match the section headings.
     nav_items = [("sec-1", "1 · Sources & summary")]
     nav_items += [("sec-%d" % (i + 2), "%d · %s" % (i + 2, t))
-                  for i, (t, _) in enumerate(SECTIONS)]
+                  for i, (t, _, _) in enumerate(SECTIONS)]
     qa_num = len(SECTIONS) + 2
     nav_items.append(("sec-%d" % qa_num, "%d · Data quality & anomalies" % qa_num))
     nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
