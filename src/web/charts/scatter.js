@@ -372,11 +372,22 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   // Legend: every series, then one entry per layer group; or with `filters`, a
   // chip group per dimension with more than one value. A filter change redraws
   // the chart whole (its rows and height change), and focus returns to the chip.
+  // On a phone the chips (44px each) fold into a Filters disclosure, closed
+  // until opened, that says how many values are hidden.
   const legendEl = el.querySelector(".chart-legend");
   if (filters) {
-    legendEl.replaceChildren();
-    for (const f of filters) {
-      if (f.values.length < 2) continue;
+    const doc = el.ownerDocument;
+    const choosable = filters.filter((f) => f.values.length > 1);
+    const off = choosable.reduce((a, f) => a + f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).length, 0);
+    const box = Object.assign(doc.createElement("details"), { className: "fl-box" });
+    const sum = Object.assign(doc.createElement("summary"), { className: "fl-sum",
+      textContent: off ? `Filters (${off} hidden)` : "Filters (all shown)" });
+    box.append(sum);
+    const phone = doc.defaultView?.matchMedia?.("(width < 768px)").matches ?? false;
+    box.open = !phone || Boolean(el.r2filtersOpen);
+    box.addEventListener("toggle", () => { if (phone) el.r2filtersOpen = box.open; });
+    legendEl.replaceChildren(box);
+    for (const f of choosable) {
       const wrap = Object.assign(el.ownerDocument.createElement("div"), { className: "fl-group" });
       wrap.dataset.dim = f.dim;
       const name = Object.assign(el.ownerDocument.createElement("span"), { className: "fl-label", textContent: f.label });
@@ -384,7 +395,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
       chips.setAttribute("role", "group");
       chips.setAttribute("aria-label", f.label);
       wrap.append(name, chips);
-      legendEl.append(wrap);
+      box.append(wrap);
       const valueOf = new Map(f.values.map((v) => [v.label, v.value]));
       const cls = (v) => (v.symbol ? `tr-neutral swatch-sym sym-${v.symbol}` : categoryClass(`${f.dim}:${v.value}`));
       legend(chips, f.values.map((v) => ({ name: v.label, cls: cls(v) })), (hs) => {

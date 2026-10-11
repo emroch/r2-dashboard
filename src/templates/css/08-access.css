@@ -71,7 +71,8 @@ section[tabindex="-1"]:focus {
   }
   /* A disclosure keeps its own display (a flex <summary> loses its marker), so
      its one line is made 44px tall instead. */
-  .r2c-data > summary {
+  .r2c-data > summary,
+  .fl-sum {
     line-height: 44px;
   }
 }

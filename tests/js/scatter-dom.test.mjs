@@ -246,6 +246,7 @@ test("filters: a chip group per dimension with a choice; hiding drops rows and r
   assert.equal(el.querySelectorAll(".rows-axis .row-head").length, 2);
   assert.equal(el.querySelectorAll(".rows-axis .row-label").length, 0, "narrow: marks only");
   assert.equal(el.querySelectorAll(".rows-axis .pt").length, 4);
+  assert.equal(el.querySelector(".fl-sum").textContent, "Filters (all shown)");
   assert.equal(el.querySelectorAll("g[data-name] path.pt").length, 4);
   // Isolating Coastal Cloud leaves its group: one heading, two rows, two points.
   const cc = [...el.querySelectorAll('.fl-group[data-dim="interior"] .lg-item')].find((b) => b.textContent === "Coastal Cloud Sig");
@@ -258,4 +259,8 @@ test("filters: a chip group per dimension with a choice; hiding drops rows and r
   assert.equal(el.querySelectorAll(".fl-group").length, 2, "redrawn, not added to");
   assert.equal([...el.querySelectorAll('.fl-group[data-dim="interior"] .lg-item')]
     .find((b) => b.textContent === "Black Crater Sig").getAttribute("aria-pressed"), "false");
+  // The phone's disclosure says how many values are hidden (open here: no media
+  // queries, so not a phone).
+  assert.equal(el.querySelector(".fl-sum").textContent, "Filters (1 hidden)");
+  assert.equal(el.querySelector(".fl-box").open, true);
 });

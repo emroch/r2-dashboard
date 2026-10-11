@@ -301,6 +301,22 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   color: var(--desc);
   min-width: 4.5em;
 }
+/* The chips' disclosure: only a phone shows its summary (and closes it). */
+.fl-box {
+  flex-basis: 100%;
+}
+.fl-box > .fl-group + .fl-group {
+  margin-top: 4px;
+}
+.fl-sum {
+  font-size: 13px;
+  cursor: pointer;
+}
+@media (width >= 768px) {
+  .fl-sum {
+    display: none;
+  }
+}
 /* On a phone each label heads its chips, so the groups line up. */
 @media (width < 768px) {
   .fl-label {
