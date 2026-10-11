@@ -133,14 +133,9 @@ TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
               if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
 
 # --- Chart fills (palette.yaml) --------------------------------------------
-# Single-series chart fills (bars/histograms).
-TIMELINE_COLORS = dict(_PALETTE["timeline"])
-# Configured-price charts: neutral bar + Compass Yellow accent.
-PRICE_COLORS = dict(_PALETTE["price"])
-# Order-to-delivery time: order markers, weekly median, coverage bars.
-LATENCY_COLORS = dict(_PALETTE["latency"])
-# Build front / projection overlay and the cadence companion chart.
-CADENCE_COLORS = dict(_PALETTE["cadence"])
+# Chart roles: primary (the chart color), highlight (Compass Yellow) and
+# highlight_band.
+CHART_COLORS = dict(_PALETTE["chart"])
 # Fulfilment over time: the weekly view's event lines.
 FULFILMENT_COLORS = dict(_PALETTE["fulfilment"])
 

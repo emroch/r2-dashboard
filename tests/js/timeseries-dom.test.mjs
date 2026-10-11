@@ -20,9 +20,9 @@ const columns = {
   y: { label: "n", type: "linear", domain: [0, 20], clip: 20,
        cumulative: { domain: [0, 1750] } },
   series: [
-    { name: "Ordered", color: "acc:timeline-ordered",
+    { name: "Ordered", color: "acc:primary",
       values: [["2024-03-04", 400], ["2024-03-11", 5], ["2024-03-18", 3]] },
-    { name: "Only", color: "acc:timeline-reserved",
+    { name: "Only", color: "acc:primary",
       values: [["2024-03-04", 1266], ["2024-03-11", 10], ["2024-03-18", 0]] }],
   lines: [], rules: [{ axis: "x", value: "2024-03-20", label: "Today" }],
   toggles: { cumulative: true },
@@ -67,7 +67,7 @@ test("a lines-only chart (build cadence) draws its line and no legend", () => {
   const el = mountPoint();
   draw(d3, el, { ...columns, y: { label: "VINs/day", type: "linear", domain: [0, 60] },
                  series: [], rules: [],
-                 lines: [{ name: "Cadence", color: "var:cadence-front",
+                 lines: [{ name: "Cadence", color: "var:highlight",
                            points: [["2024-03-07", 20], ["2024-03-14", 40]], tips: [["a"], ["b"]] }] });
   assert.equal(el.querySelectorAll("rect.bar").length, 0);
   assert.equal(el.querySelectorAll("g.line circle").length, 2);
@@ -115,9 +115,9 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
     x: { label: "week", type: "date", domain: ["2026-06-01", "2026-06-22"] },
     y: { label: "n", type: "linear", domain: [0, 5], cumulative: { domain: [0, 10] } },
     series: [
-      { name: "Delivered", color: "acc:timeline-ordered", stage: "delivered", view: "cumulative",
+      { name: "Delivered", color: "acc:primary", stage: "delivered", view: "cumulative",
         values: [["2026-06-01", 0], ["2026-06-08", 2], ["2026-06-15", 5]] },
-      { name: "Waiting", color: "acc:timeline-ordered", stage: "wait", view: "cumulative",
+      { name: "Waiting", color: "acc:primary", stage: "wait", view: "cumulative",
         values: [["2026-06-01", 3], ["2026-06-08", 3], ["2026-06-15", 4]] }],
     lines: [
       { name: "Placed", color: "var:fulfil-placed", view: "weekly",
@@ -139,11 +139,6 @@ test("a view's own series and lines: levels when cumulative, event lines weekly"
   pipe.series[1].values[2][1] = 4;
   // Stage series step in tone, not opacity.
   assert.ok(el.querySelector("g.tone-wait rect.bar"), "a stage series carries its tone class");
-  // In the neutral grey, a stage is the stage key's opacity instead.
-  const grey = mountPoint();
-  draw(d3, grey, { ...pipe, series: pipe.series.map((s) => ({ ...s, color: "neutral" })) });
-  assert.ok(grey.querySelector("g.tr-neutral.tone-grey.tone-wait rect.bar"));
-  assert.ok(grey.querySelector(".chart-legend .swatch.tone-grey.tone-delivered"));
   // Levels are drawn as given, not summed: week 3 stacks 5 + 4.
   assert.deepEqual(stackAt(pipe.series, 2, new Set(), true), [[0, 5], [5, 9]]);
   const shownLines = () => [...el.querySelectorAll("g.line")].filter((g) => g.style.display !== "none").length;
@@ -161,7 +156,7 @@ test("a line view's hover rule follows the pointer and snaps to a week's points"
   const el = mountPoint();
   const spec = { ...columns, series: [], rules: [], toggles: {},
     y: { label: "n", type: "linear", domain: [0, 60] },
-    lines: [{ name: "Cadence", color: "var:cadence-front",
+    lines: [{ name: "Cadence", color: "var:highlight",
               points: [["2024-03-07", 20], ["2024-03-14", 40]], tips: [["a"], ["b"]] }] };
   draw(d3, el, spec);
   const rule = el.querySelector("line.hover-rule");

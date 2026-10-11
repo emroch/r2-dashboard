@@ -374,8 +374,9 @@ def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str
     out += [row(str(r["label"]), int(r["n"]),
                 [(c, by[(r["value"], c["value"])]) for c in cols], "mx-row")
             for r in rows]
-    key = "".join('<span><i class="swatch %s"></i>%s</span>'
-                  % (category_class(c["ref"]) if c["ref"] else "",
+    key = "".join('<span><i class="swatch%s %s"></i>%s</span>'
+                  % (" swatch-true" if true and c["ref"] else "",
+                     category_class(c["ref"]) if c["ref"] else "",
                      escape(str(c["label"]))) for c in keyed)
     head = spec.get("row_label") or DIMENSIONS[agg.meta["row_dim"]]["label"]
     bv = {c["value"]: int(c["n"]) for c in base or ()}
@@ -416,7 +417,7 @@ def bars(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> st
                ' <b class="br-tag">%s</b>' % escape(c["note"]) if hi and c.get("note")
                else "",
                escape(str(c.get("display", format(int(c["n"]), ",")))),
-               "acc-price-accent" if hi or spec.get("accent") else "acc-price-bar",
+               "acc-highlight" if hi or spec.get("accent") else "acc-primary",
                100.0 * float(c[field]) / widest,
                '<span class="tr-split">%s</span>' % escape(c["note"])
                if c.get("note") and not hi else ""))
@@ -468,7 +469,7 @@ def range_strip(cid: str, spec: dict, agg: Aggregate,
             continue
         strip = ('<span class="rg-strip" aria-hidden="true">'
                  '<i class="rg-whisker" style="left:%s;right:calc(100%% - %s)"></i>'
-                 '<i class="rg-box mark acc-price-bar" style="left:%s;'
+                 '<i class="rg-box mark acc-primary" style="left:%s;'
                  'right:calc(100%% - %s)"></i><i class="rg-median" style="left:%s"></i>'
                  '<i class="rg-mean" style="left:%s"></i></span>'
                  % (at(st["min"]), at(st["max"]), at(st["q1"]), at(st["q3"]),
@@ -488,7 +489,7 @@ def range_strip(cid: str, spec: dict, agg: Aggregate,
     summary = (summarize(spec["summary"], agg.cells, meta=agg.meta)
                if spec.get("summary") and agg.counted else None)
     key = ('<p class="mx-key" aria-hidden="true"><span><i class="rg-key-box '
-           'acc-price-bar"></i>middle half</span><span><i class="rg-key-median">'
+           'acc-primary"></i>middle half</span><span><i class="rg-key-median">'
            '</i>median</span><span><i class="rg-key-mean"></i>mean</span>'
            '<span>whiskers: min–max</span></p>')
     return frame(cid, spec["title"], key + '<ol class="tr">%s</ol>' % "".join(rows),

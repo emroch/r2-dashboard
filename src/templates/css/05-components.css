@@ -71,21 +71,27 @@
   cursor: pointer;
 }
 
-/* Category colors (render/categories.py). A swatch identifies a category, so it
-   shows the true color (--paint), ringed so white and black chips read on either
-   card. A mark encodes data, so it uses the theme-clamped --mark, except for a
-   mix bar of a true-color dimension (paints, cabins: .mark-true), where
-   categories are compared and the true color is the point; the bar's mark-edge
-   border separates them from the card. Delivery stages are the same mark at the
-   stage opacities. */
+/* Category colors (render/categories.py). A mark encodes data, so it uses the
+   theme-clamped --mark, except for a mix bar of a true-color dimension (paints,
+   cabins: .mark-true), where categories are compared and the true color is the
+   point; the bar's mark-edge border separates them from the card. Delivery
+   stages are the same mark at the stage opacities. A swatch matches the marks it
+   labels (--mark; a true-color mix's key, .swatch-true: --paint), ringed so
+   white and black chips read on either card, except a paint's, which is always
+   its true color: the swatch is how a reader knows the paint. */
 .swatch {
   display: inline-block;
   width: .8em;
   height: .8em;
   border-radius: 50%;
-  background: var(--paint);
+  background: var(--mark);
   box-shadow: 0 0 0 1px var(--card-bd);
   vertical-align: -.05em;
+}
+.swatch.swatch-true,
+.swatch[class*="cat-color-"],
+[class*="cat-color-"] .swatch {
+  background: var(--paint);
 }
 .mark {
   background: var(--mark);
@@ -235,8 +241,9 @@
   margin-top: 2px;
 }
 
-/* Rows whose category has no color of its own (purchase/lease, yes/no) get a
-   neutral mark: color is kept for what it identifies. */
+/* Rows whose category has no color of its own (purchase/lease, yes/no), the
+   stage key and the state mix's status bars get a neutral grey: in panels where
+   color is data (a paint), a themed color would read as one more category. */
 .tr-neutral {
   --mark: var(--desc);
 }
