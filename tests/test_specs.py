@@ -319,13 +319,14 @@ def test_vin_by_config_rows_group_by_trim_then_paint_order():
     assert agg.excluded == {"no VIN": 0, "configuration not reported": 1}
     rows = spec["y"]["rows"]
     # The most-ordered paint's row first, then the next.
-    assert [r.split(" · ")[1] for r in rows] == [COLOR_ORDER[1], COLOR_ORDER[0]], rows
+    assert [r["color"] for r in rows] == [COLOR_ORDER[1], COLOR_ORDER[0]], rows
     assert spec["y"]["type"] == "rows" and spec["x"]["type"] == "linear"
     assert agg.meta["rows"] == 2
     for s in spec["series"]:
         for p in s["points"]:
-            row = rows.index(" · ".join(["Performance", s["color"].split(":", 1)[1],
-                                         '21" AS', "Black Crater Sig"]))
+            paint = s["color"].split(":", 1)[1]
+            row = [r["label"] for r in rows].index(" · ".join(
+                ["Performance", paint, '21" AS', "Black Crater Sig"]))
             assert abs(p["y"] - row) < 0.2, (p["y"], row)
 
 

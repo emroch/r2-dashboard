@@ -97,10 +97,16 @@ def _reported(d: pd.DataFrame, *cols: str) -> pd.Series:
 
 
 def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], Any],
-                   y: Callable[[pd.Series], Any]) -> tuple[list[dict], list[dict]]:
+                   y: Callable[[pd.Series], Any],
+                   extra: Callable[[pd.Series], dict] | None = None,
+                   ) -> tuple[list[dict], list[dict]]:
     """One series per paint × wheel, paints in `paints` order, then the wheels in
     dimensions.yaml's: fill = paint, shape = wheels, the house config language.
-    Returns (series, cells)."""
+    `true`: the points are the paint's true color, outlined (charts/scatter.js),
+    as a paint's swatch is: clamped to the mark range, the greys and the darks
+    become indistinguishable at a point's size. `parts` names the series' paint
+    and wheels, for the chart's filters (_config_filters); `extra(row)` adds to
+    a point (§9's window). Returns (series, cells)."""
     series, cells = [], []
     for color in paints:
         for wheel in _WHEEL_SYMBOL:
@@ -110,11 +116,26 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
             name = "%s · %s" % (color, wheel.split()[0])
             series.append({"name": name, "color": "color:%s" % color,
                            "shape": "wheels:%s" % wheel, "symbol": _WHEEL_SYMBOL[wheel],
-                           "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r)}
+                           "true": True, "parts": {"color": color, "wheels": wheel},
+                           "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r),
+                                       **(extra(r) if extra else {})}
                                       for _, r in s.iterrows()]})
             cells.append({"value": name, "label": name, "n": len(s),
                           "ref": "color:%s" % color, "known": True})
     return series, cells
+
+
+def _config_filters(series: list[dict]) -> list[dict[str, Any]]:
+    """The paint and wheels filters for config series (charts/scatter.js
+    `filters`): each value present, paints in the series' order, wheels in
+    dimensions.yaml's, each wheel with its marker shape."""
+    paints = list(dict.fromkeys(s_["parts"]["color"] for s_ in series))
+    have = {s_["parts"]["wheels"] for s_ in series}
+    return [{"dim": "color", "label": "Paint",
+             "values": [{"value": c, "label": c} for c in paints]},
+            {"dim": "wheels", "label": "Wheels",
+             "values": [{"value": w, "label": WHEEL_ABBR.get(w, w), "symbol": sym}
+                        for w, sym in _WHEEL_SYMBOL.items() if w in have]}]
 
 
 def vin_vs_order(df: pd.DataFrame) -> tuple:
@@ -132,9 +153,10 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
     xs = list(d["order_date"]) + [AS_OF]
     spec = {"template": "scatter", "title": "VIN sequence vs. order date",
             "x": {"label": "R2 order date", "type": "date", "domain": _date_domain(xs)},
-            "y": {"label": "VIN sequence number", "type": "linear",
+            "y": {"label": "VIN", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
-            "legend": "Paint · wheels", "series": series, "layers": []}
+            "legend": "Paint · wheels", "series": series, "layers": [],
+            "filters": _config_filters(series)}
     rows = [[s_["name"], p["tip"][0], p["x"], format(p["y"], ",")]
             for s_ in series for p in s_["points"]]
     table = (["Paint · wheels", "Order", "Ordered", "VIN"], rows)
@@ -144,7 +166,12 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
 def vin_by_config(df: pd.DataFrame) -> tuple:
     """§10: each order with a VIN at its sequence (x), in a row per full
     configuration (trim · paint · wheels · interior). Interior joins the row key
-    rather than becoming a third marker channel: fill and shape are taken."""
+    rather than becoming a third marker channel: fill and shape are taken.
+
+    Rows group by trim, then interior (`group`, a heading over its rows), then
+    run by paint and wheels; each row names its parts, so the chart labels it
+    with its mark (paint fill, wheel shape) and filters rows by any of them
+    (`filters`: the values present, per dimension, in this order)."""
     vin = df["vin_present"].astype(bool)
     d = df[vin & _reported(df, "color", "wheels_short", "interior")]
     excluded = {"no VIN": int((~vin).sum()),
@@ -152,38 +179,62 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
     # The cohort's paint order, not the VIN-assigned rows', so rows group the way
     # every other paint chart on the page does.
     paints = _paint_order(df)
-    paint_rank = {c: i for i, c in enumerate(paints)}
-    interior_rank = {v: i for i, v in enumerate(INTERIOR_ORDER)}
-    keys = {}
-    for _, r in d.iterrows():
-        label = " · ".join([str(r["trim"]), r["color"],
-                            WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
-                            INTERIOR_SHORT.get(r["interior"], r["interior"])])
-        keys[label] = (str(r["trim"]), paint_rank.get(r["color"], len(paint_rank)),
-                       WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
-                       interior_rank.get(r["interior"], len(interior_rank)))
-    rows = sorted(keys, key=keys.__getitem__)
-    row_of = {k: i for i, k in enumerate(rows)}
+    trims = [c["value"] for c in DIMENSIONS["trim"]["categories"]]
+    rank = {"trim": {t: i for i, t in enumerate(trims)},
+            "color": {c: i for i, c in enumerate(paints)},
+            "wheels": {w: i for i, w in enumerate(_WHEEL_SYMBOL)},
+            "interior": {v: i for i, v in enumerate(INTERIOR_ORDER)}}
+
+    def _parts(r: pd.Series) -> tuple[str, str, str, str]:
+        return str(r["trim"]), r["color"], r["wheels_short"], r["interior"]
+
+    def _label(t: str, c: str, w: str, i: str) -> str:
+        return " · ".join([t, c, WHEEL_ABBR.get(w, w), INTERIOR_SHORT.get(i, i)])
+
+    def _key(parts: tuple[str, str, str, str]) -> tuple:
+        t, c, w, i = parts
+        return tuple(rank[k].get(v, len(rank[k])) for k, v in
+                     (("trim", t), ("interior", i), ("color", c), ("wheels", w)))
+
+    configs = sorted({_parts(r) for _, r in d.iterrows()}, key=_key)
+    row_of = {p: n for n, p in enumerate(configs)}
+    rows = [{"label": _label(t, c, w, i),
+             "short": "%s · %s" % (c, WHEEL_ABBR.get(w, w)),
+             "group": "%s · %s" % (t, INTERIOR_SHORT.get(i, i)),
+             "trim": t, "color": c, "wheels": w, "interior": i,
+             "mark": "color:%s" % c, "symbol": _WHEEL_SYMBOL.get(w, "circle")}
+            for t, c, w, i in configs]
     # A fixed jitter within the row, so stacked points separate, and the same on
     # every build.
     rng = np.random.RandomState(11)
     jitter = dict(zip(d.index, (rng.rand(len(d)) - 0.5) * 0.36))
 
     def _row(r: pd.Series) -> float:
-        label = " · ".join([str(r["trim"]), r["color"],
-                            WHEEL_ABBR.get(r["wheels_short"], r["wheels_short"]),
-                            INTERIOR_SHORT.get(r["interior"], r["interior"])])
-        return round(row_of[label] + float(jitter[r.name]), 3)
+        return round(row_of[_parts(r)] + float(jitter[r.name]), 3)
 
     series, cells = _config_series(d, [p for p in paints if p in set(d["color"])],
                                    lambda r: int(r["vin_seq"]), _row)
+
+    def _values(dim: str, label: Callable[[str], str]) -> list[dict[str, Any]]:
+        order = rank[dim]
+        present = sorted({r[dim] for r in rows}, key=lambda v: order.get(v, len(order)))
+        return [{"value": v, "label": label(v)} for v in present]
+
+    filters = [{"dim": "color", "label": "Paint", "values": _values("color", str)},
+               {"dim": "wheels", "label": "Wheels",
+                "values": [{**v, "symbol": _WHEEL_SYMBOL.get(v["value"], "circle")}
+                           for v in _values("wheels", lambda w: WHEEL_ABBR.get(w, w))]},
+               {"dim": "interior", "label": "Interior",
+                "values": _values("interior", lambda i: INTERIOR_SHORT.get(i, i))},
+               {"dim": "trim", "label": "Trim", "values": _values("trim", str)}]
     spec = {"template": "scatter", "title": "VIN sequence by configuration",
-            "x": {"label": "VIN sequence number (production order →)", "type": "linear",
+            "x": {"label": "VIN (production order →)", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
             "y": {"label": "Configuration", "type": "rows", "rows": rows,
                   "domain": [-0.6, len(rows) - 0.4]},
-            "legend": "Paint · wheels", "series": series, "layers": []}
-    table_rows = [[rows[round(p["y"])], p["tip"][0], format(p["x"], ",")]
+            "legend": "Paint · wheels", "series": series, "layers": [],
+            "filters": filters}
+    table_rows = [[rows[round(p["y"])]["label"], p["tip"][0], format(p["x"], ",")]
                   for s_ in series for p in s_["points"]]
     table = (["Configuration", "Order", "VIN"], table_rows)
     agg = Aggregate("vin-by-config points", "orders", cells, excluded,
@@ -368,27 +419,15 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
         (df["vin_present"].astype(bool) & df["delivery_est"].isna()).sum())
     excluded["paint or wheels not reported"] = int(has.sum()) - len(d)
 
-    series, cells = [], []
-    for color in _paint_order(d):
-        for wheel in _WHEEL_SYMBOL:
-            s = d[(d["color"] == color) & (d["wheels_short"] == wheel)]
-            if s.empty:
-                continue
-            pts = []
-            for _, r in s.iterrows():
-                lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
-                pts.append({
-                    "x": _iso(r["delivery_est"]), "y": int(r["vin_seq"]),
-                    "lo": lo if lo and hi and hi > lo else None,
-                    "hi": hi if lo and hi and hi > lo else None,
-                    "firm": r["delivery_type"] == "explicit",
-                    "tip": _config_tip(r)})
-            name = "%s · %s" % (color, wheel.split()[0])
-            series.append({"name": name, "color": "color:%s" % color,
-                           "shape": "wheels:%s" % wheel,
-                           "symbol": _WHEEL_SYMBOL[wheel], "points": pts})
-            cells.append({"value": name, "label": name, "n": len(pts),
-                          "ref": "color:%s" % color, "known": True})
+    def _window(r: pd.Series) -> dict[str, Any]:
+        lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
+        ok = bool(lo and hi and hi > lo)
+        return {"lo": lo if ok else None, "hi": hi if ok else None,
+                "firm": r["delivery_type"] == "explicit"}
+
+    series, cells = _config_series(d, _paint_order(d),
+                                   lambda r: _iso(r["delivery_est"]),
+                                   lambda r: int(r["vin_seq"]), _window)
 
     layers: list[dict[str, Any]] = []
     proj = cadence_projection(df)
@@ -437,11 +476,11 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             "title": "Delivery date vs. VIN sequence",
             "x": {"label": "Estimated delivery date (whiskers = quoted window)",
                   "type": "date", "domain": _date_domain(xs)},
-            "y": {"label": "VIN sequence number (production order →)",
+            "y": {"label": "VIN (production order →)",
                   "type": "linear", "domain": _num_domain(ys)},
             "legend": "Paint · wheels",
             "series": series, "layers": layers,
-            "toggles": {"whiskers": True}}
+            "toggles": {"whiskers": True}, "filters": _config_filters(series)}
     rows = [[s_["name"], p["tip"][0], format(p["y"], ","), p["x"],
              "%s – %s" % (p["lo"], p["hi"]) if p.get("lo") else "",
              "firm" if p.get("firm") else ""]
@@ -712,7 +751,9 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     """§7: each order with a firm delivery date at (order date, days to
     delivery), filled once the date has passed and open while it's still
     scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more,
-    as a curve."""
+    as a curve. `toggles.boxes` offers the same as a box per week (the chart
+    computes them from the points; weeks under min_n stay points), the curve
+    (`median`) then drawn through the boxes' medians."""
     d = latency_frame(df)
     passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
     series: list[dict[str, Any]] = []
@@ -736,7 +777,7 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     if len(med):
         layers.append({
             "type": "line", "name": "Weekly median (%d+ orders)" % LATENCY_MIN_WEEK_N,
-            "color": "var:highlight", "curve": True,
+            "color": "var:highlight", "curve": True, "median": True,
             "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
                        for w, v in med.items()],
             "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),
@@ -747,7 +788,8 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
             "x": {"label": "Order date", "type": "date", "domain": _date_domain(xs)},
             "y": {"label": "Days from order to delivery", "type": "linear",
                   "domain": [0.0, (_num_domain(ys) or [0, 1])[1]]},
-            "legend": "Orders", "series": series, "layers": layers, "toggles": {}}
+            "legend": "Orders", "series": series, "layers": layers,
+            "toggles": {"boxes": {"min_n": LATENCY_MIN_WEEK_N}}}
     rows = [[s_["name"], p["tip"][0], p["x"], p["tip"][2][len("Delivery "):], p["y"]]
             for s_ in series for p in s_["points"]]
     excluded = {"no order date": int(df["order_date"].isna().sum())}
@@ -774,11 +816,13 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
             "y": {"label": "Orders with a firm date", "type": "linear",
                   "domain": [0, 100], "format": "pct"},
             "legend": None, "lines": [], "rules": [],
+            # A share, so the chart's month and quarter groups re-divide the
+            # counts (charts/timeseries.js regroup) and word the tips from `tip`.
             "series": [{"name": "Coverage", "color": "acc:primary",
                         "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
-                        "tips": ["%d of %d orders have a firm date"
-                                 % (int(num.get(w, 0)), int(den[w]))
-                                 for w in den.index]}]}
+                        "counts": [[int(num.get(w, 0)), int(den[w])]
+                                   for w in den.index],
+                        "tip": "{0} of {1} orders have a firm date"}]}
     rows = [[_iso(w), int(num.get(w, 0)), int(den[w]), "%.0f%%" % p]
             for w, p in zip(weeks, pct)]
     agg = Aggregate("firm-date coverage", "orders",

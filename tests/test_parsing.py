@@ -787,7 +787,7 @@ def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
     # window doesn't count as shown). Week of 8/17: h's impossible estimate leaves
     # it 0 of 1 — not in the scatter, but still counted as an order placed.
     assert [round(v) for _, v in cov["values"]] == [75, 67, 0], cov["values"]
-    assert [t.split(" of ")[1].split()[0] for t in cov["tips"]] == ["4", "3", "1"]
+    assert cov["counts"] == [[3, 4], [2, 3], [0, 1]], cov["counts"]
 
 
 # --- Build cadence (#33) ----------------------------------------------------
@@ -1380,20 +1380,29 @@ def test_wheel_heatmap_covers_every_ordered_wheel():
 
 
 def test_vin_by_config_rows_carry_interior_and_stay_ordered():
-    from config import INTERIOR_ORDER, INTERIOR_SHORT
-    from render.specs import _paint_order, vin_by_config
+    from config import INTERIOR_ORDER
+    from render.specs import _WHEEL_SYMBOL, _paint_order, vin_by_config
     df = _interior_frame()
-    rows = vin_by_config(df)[0]["y"]["rows"]
+    spec = vin_by_config(df)[0]
+    rows = spec["y"]["rows"]
     assert len(rows) == len(df), "one row per distinct configuration"
     for r in rows:
-        assert len(r.split(" · ")) == 4, r
-    # Rows sort by paint (most-ordered first) then wheel then interior, so a reader
-    # scanning down sees a stable, meaningful sequence.
+        assert len(r["label"].split(" · ")) == 4, r
+        assert r["group"] == "%s · %s" % (r["trim"], r["label"].split(" · ")[3])
+        assert r["mark"] == "color:" + r["color"]
+    # Rows group by trim then interior (a heading each), then run by paint
+    # (most-ordered first) and wheel, so a reader scanning down sees a stable,
+    # meaningful sequence.
     paints = _paint_order(df)
-    rank = {INTERIOR_SHORT[i]: n for n, i in enumerate(INTERIOR_ORDER)}
-    keys = [(paints.index(r.split(" · ")[1]), r.split(" · ")[2],
-             rank[r.split(" · ")[3]]) for r in rows]
+    wheels = list(_WHEEL_SYMBOL)
+    keys = [(r["trim"], INTERIOR_ORDER.index(r["interior"]), paints.index(r["color"]),
+             wheels.index(r["wheels"])) for r in rows]
     assert keys == sorted(keys)
+    # Every value a row has can be filtered, once each, in row order.
+    by = {f["dim"]: [v["value"] for v in f["values"]] for f in spec["filters"]}
+    for dim in ("color", "wheels", "interior", "trim"):
+        assert set(by[dim]) == {r[dim] for r in rows}, dim
+    assert by["interior"] == sorted(by["interior"], key=INTERIOR_ORDER.index)
 
 
 def _paint_rank_frame():

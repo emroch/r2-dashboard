@@ -8,7 +8,11 @@
 // the columns but never rescales. A y axis with `clip` stops there, and a column
 // taller than it is cut at the top and labelled with its total, so one spike (the
 // reveal week) doesn't flatten every other week. No zoom: a week is the finest
-// grain there is. Hovering a week lists its counts. With `toggles.cumulative`,
+// grain there is. Hovering a week lists its counts. A long span groups its
+// weeks into months or quarters (lib/grain.js) so the columns stay readable:
+// Week / Month / Quarter buttons, defaulting to the finest grain whose columns
+// are wide enough at the chart's width, and a choice kept in the URL as
+// ?<chart>-grain=month, where it holds at any width. With `toggles.cumulative`,
 // Weekly / Cumulative buttons switch the columns to running totals, animating to
 // the other view's fixed domain (y.cumulative), kept in the URL as
 // ?<chart>=cumulative. A series or line with `view` belongs to that view only
@@ -20,13 +24,15 @@
 
 import { view } from "../data.js";
 import { legend } from "../lib/legend.js";
+import { GRAINS, groupOf, heading, offered, pick } from "../lib/grain.js";
 import { loadD3 } from "../lib/load.js";
 import { tooltip } from "../lib/tooltip.js";
 import { get as getState, set as setState } from "../state.js";
-import { categoryClass } from "./scatter.js";
+import { categoryClass, NARROW, yAxisLabel } from "./scatter.js";
 
 const DAY = 864e5;
 const date = (iso) => new Date(`${iso}T00:00:00Z`);
+const isoOf = (d) => d.toISOString().slice(0, 10);
 const fmt = (n) => n.toLocaleString("en-US");
 const signed = (n) => (n < 0 ? `−${fmt(-n)}` : `+${fmt(n)}`);
 
@@ -60,11 +66,10 @@ export function stackAt(series, i, hidden, cumulative = false) {
 // `running` the running total through that week. Cumulative: what the column
 // shows, each series' running total with the week's change ("Converted: 1,276
 // (+10)"), then the same for the total.
-export function weekTip(series, i, hidden, running = false, cumulative = false, partial = null) {
+export function weekTip(series, i, hidden, running = false, cumulative = false, partial = null, head = null) {
   const shown = series.filter((s) => !hidden.has(s.name));
   const iso = series[0].values[i][0];
-  const week = date(iso);
-  const lines = [`Week of ${week.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}${iso === partial ? " (so far)" : ""}`];
+  const lines = [head ?? heading("week", date(iso), date(iso), iso === partial)];
   const sum = (f) => shown.reduce((a, s) => a + f(s), 0);
   const week_ = (s) => s.values[i][1], run = (s) => valueAt(s, i, true);
   if (cumulative) {
@@ -84,6 +89,86 @@ export function weekTip(series, i, hidden, running = false, cumulative = false, 
   return lines;
 }
 
+// Can the chart be grouped coarser than a week? Not with a line that carries
+// its own tooltips (§9's cadence, a rate over a trailing window: summing it
+// means nothing), nor with no columns to group.
+export const groupable = (spec) => spec.series.length > 0 && !spec.lines.some((l) => l.tips);
+
+// The y axis for grouped columns, as render/specs.py _columns fits a weekly
+// one: 5% headroom over the tallest stack (10% over a line's peak), clipped
+// just above the rest when one stack is more than three times the next.
+export function axisFor(totals, peaks = []) {
+  const top = Math.max(1, Math.max(0, ...totals) * 1.05, Math.max(0, ...peaks) * 1.1);
+  const ranked = [...totals].sort((a, b) => b - a);
+  if (ranked.length > 1 && ranked[0] > 3 * Math.max(ranked[1], 1)) {
+    const cut = ranked[1] * 1.15, step = 10 ** Math.max(Math.floor(Math.log10(cut)), 0);
+    const clip = Math.ceil(cut / step) * step;
+    return { domain: [0, clip], clip };
+  }
+  return { domain: [0, top] };
+}
+
+// `spec` at `grain`: each group's bounds and tooltip heading (`groups`), and its
+// series and lines summed into the groups. A cumulative view's levels take
+// their last week instead, and a series with `counts` ([part, whole] a week, a
+// percentage) re-divides its summed counts and words its tips from `tip`
+// ("{0} of {1} …"). A group is clamped to the x domain, so the first and last
+// columns span only the weeks there are. Coarser than a week, the y axis is
+// refit (axisFor); the cumulative view's never needs it. Pure, for the tests.
+export function regroup(spec, grain) {
+  const [lo, hi] = spec.x.domain.map(date);
+  const partial = spec.x.partial ? date(spec.x.partial) : null;
+  const regroupLines = grain !== "week";
+  const weeksOf = (pts) => pts.map((p) => groupOf(date(p[0]), "week").start);
+  const all = [...spec.series.flatMap((s) => weeksOf(s.values)),
+               ...(regroupLines ? spec.lines.flatMap((l) => weeksOf(l.points)) : [])];
+  const raw = new Map();
+  for (const w of all.sort((a, b) => a - b)) {
+    const g = groupOf(w, grain);
+    if (!raw.has(g.key)) raw.set(g.key, { ...g, first: w, last: w });
+    else if (w > raw.get(g.key).last) raw.get(g.key).last = w;
+  }
+  const keys = [...raw.keys()], at = new Map(keys.map((k, i) => [k, i]));
+  const groups = [...raw.values()].map((g) => {
+    const start = new Date(Math.max(g.start, lo)), end = new Date(Math.min(g.end, hi));
+    const sofar = Boolean(partial && g.last.getTime() === partial.getTime());
+    return { start, end, sofar, heading: heading(grain, g.first, g.last, sofar) };
+  });
+  const fold = (pts, last = false) => {
+    const out = groups.map(() => 0);
+    for (const [iso, v] of pts) {
+      const i = at.get(groupOf(date(iso), grain).key);
+      out[i] = last ? v : out[i] + v;
+    }
+    return out;
+  };
+  const starts = groups.map((g) => isoOf(g.start));
+  const series = spec.series.map((s) => {
+    if (!s.counts) {
+      return { ...s, values: fold(s.values, s.view === "cumulative").map((v, i) => [starts[i], v]) };
+    }
+    const part = fold(s.values.map((v, i) => [v[0], s.counts[i][0]]));
+    const whole = fold(s.values.map((v, i) => [v[0], s.counts[i][1]]));
+    return { ...s,
+      values: part.map((p, i) => [starts[i], whole[i] ? Math.round((1000 * p) / whole[i]) / 10 : 0]),
+      tips: part.map((p, i) => s.tip.replace("{0}", fmt(p)).replace("{1}", fmt(whole[i]))) };
+  });
+  const lines = !regroupLines ? spec.lines : spec.lines.map((l) => ({ ...l,
+    points: fold(l.points).map((v, i) => [isoOf(new Date((groups[i].start.getTime() + groups[i].end.getTime()) / 2)), v]) }));
+  const last = groups.at(-1);
+  const x = { ...spec.x, partial: last?.sofar ? isoOf(last.start) : null };
+  let y = spec.y;
+  if (grain !== "week" && spec.y.format !== "pct") {
+    const cols = series.filter((s) => s.view !== "cumulative");
+    const totals = cols.length ? groups.map((_, i) => cols.reduce((a, s) => a + s.values[i][1], 0)) : [];
+    const peaks = lines.filter((l) => l.view !== "cumulative").flatMap((l) => l.points.map((p) => p[1]));
+    const fit = axisFor(totals, peaks);
+    y = { ...spec.y, ...fit };
+    if (fit.clip == null) delete y.clip;
+  }
+  return { ...spec, x, y, series, lines, groups };
+}
+
 export async function mount(el) {
   const [d3, data] = await Promise.all([loadD3(), view()]);
   const spec = data.components[el.dataset.chart];
@@ -97,18 +182,25 @@ export async function mount(el) {
       clearTimeout(timer);
       timer = setTimeout(() => {
         width = plotEl.clientWidth;
-        h = draw(d3, el, spec, { hidden: h.hidden() });
+        h = draw(d3, el, spec, { hidden: (el.r2ts || h).hidden() });
       }, 150);
     }).observe(plotEl);
   }
 }
 
 // Draw `spec` into the mount `el`. Returns a handle for tests.
-export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
+export function draw(d3, el, weekly, { hidden: startHidden = new Set() } = {}) {
   const plotEl = el.querySelector(".chart-plot");
   plotEl.replaceChildren();
-  const W = Math.max(320, plotEl.clientWidth), H = W < 600 ? 260 : 320;
-  const m = { t: 22, r: 16, b: 48, l: 56 };
+  const W = Math.max(320, plotEl.clientWidth || 0), H = W < 600 ? 260 : 320;   // 0 before layout (and in tests)
+  const narrow = W < NARROW;
+  const m = { t: narrow ? 30 : 22, r: 16, b: 48, l: narrow ? 42 : 56 };
+  // The grain: the reader's choice, else the finest that reads at this width.
+  const [lo, hi] = weekly.x.domain.map(date);
+  const grains = groupable(weekly) ? offered(lo, hi) : ["week"];
+  const grainKey = `${el.dataset.chart}-grain`;
+  const grain = grains.includes(getState(grainKey)) ? getState(grainKey) : pick(lo, hi, W - m.l - m.r, grains);
+  const spec = regroup(weekly, grain);
   const x = d3.scaleUtc().domain(spec.x.domain.map(date)).range([m.l, W - m.r]);
   const toggled = Boolean(spec.toggles?.cumulative);
   const initial = spec.toggles?.default || "weekly";
@@ -141,8 +233,7 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   yAxes(null);
   svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
     .attr("x", (m.l + W - m.r) / 2).attr("y", H - 8).text(spec.x.label);
-  svg.append("text").attr("class", "axis-label").attr("text-anchor", "middle")
-    .attr("transform", `translate(14,${(m.t + H - m.b) / 2}) rotate(-90)`).text(spec.y.label);
+  yAxisLabel(svg, spec.y.label, narrow, m, H);
 
   // A series with `stage` draws at that delivery stage's tone (.tone-*): its
   // color stepped toward white (or black on the dark card), since a faded color
@@ -151,7 +242,8 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
   const stageCls = (s) => ` tone-${s.stage}`;
   const series = spec.series.map((s) => ({
     s, cls: categoryClass(s.color) + (s.stage ? stageCls(s) : "") }));
-  const weeks = spec.series.length ? spec.series[0].values.map((v) => date(v[0])) : [];
+  // Each column's span: a week, or a group of weeks.
+  const spans = spec.groups;
   const colG = svg.append("g"), lineG = svg.append("g"), markG = svg.append("g");
   const groups = colG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
@@ -214,14 +306,14 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     const cap = top();
     groups.selectAll("rect.bar").each(function ({ o, i }) {
       const seg = stackAt(spec.series, i, omitted(), cumulative)[spec.series.indexOf(o.s)];
-      const x0 = x(weeks[i]), x1 = x(new Date(weeks[i].getTime() + 7 * DAY));
+      const x0 = x(spans[i].start), x1 = x(spans[i].end);
       const r = d3.select(this).attr("x", x0 + 0.5).attr("width", Math.max(1, x1 - x0 - 1));
       (t ? r.transition(t) : r)
         .attr("y", seg ? y(Math.min(seg[1], cap)) : y(0))
         .attr("height", seg ? Math.max(0, y(Math.min(seg[0], cap)) - y(Math.min(seg[1], cap))) : 0);
     });
     if (pi >= 0 && !cumulative) {
-      const x0 = x(weeks[pi]), x1 = x(new Date(weeks[pi].getTime() + 7 * DAY));
+      const x0 = x(spans[pi].start), x1 = x(spans[pi].end);
       const tot = stackAt(spec.series, pi, omitted(), false).filter(Boolean).reduce((a, s) => Math.max(a, s[1]), 0);
       hatchRect.attr("display", null).attr("x", x0 + 0.5).attr("width", Math.max(1, x1 - x0 - 1))
         .attr("y", y(Math.min(tot, cap))).attr("height", Math.max(0, y(0) - y(Math.min(tot, cap))));
@@ -229,10 +321,15 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     // A column cut off by the clipped axis says how tall it really is.
     const total = (i) => spec.series.reduce((a, s) => a + (hidden.has(s.name) ? 0 : s.values[i][1]), 0);
     const over = cap === Infinity ? []
-      : weeks.map((w, i) => ({ w, i, total: total(i) })).filter((d) => d.total > cap);
+      : spans.map((g, i) => ({ w: g.start, i, total: total(i) })).filter((d) => d.total > cap);
+    // Beside its column, under the top gridline: to the right, or to the left
+    // where the text (about 5.6px a character) would run out of the plot.
+    const label = (d) => `${fmt(d.total)} ↑ (axis cut at ${fmt(cap)})`;
+    const right = (d) => x(spans[d.i].end) + 4 + label(d).length * 5.6 <= W - m.r;
     markG.selectAll("text.clipped").data(over, (d) => d.i).join("text").attr("class", "clipped")
-      .attr("text-anchor", "start").attr("x", (d) => x(d.w) + 4).attr("y", m.t + 2)
-      .text((d) => `${fmt(d.total)} ↑ (axis cut at ${fmt(cap)})`);
+      .attr("text-anchor", (d) => (right(d) ? "start" : "end"))
+      .attr("x", (d) => (right(d) ? x(spans[d.i].end) + 4 : x(spans[d.i].start) - 4)).attr("y", m.t + 12)
+      .text(label);
   }
   function visibility(t = null) {
     const off = omitted();
@@ -265,13 +362,41 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     visibility(t);
     legendFor();
   }
+  // Controls, in a row above the plot: the grain (when there's a choice), then
+  // the view, its first choice named for the grain ("Monthly").
+  const doc = el.ownerDocument;
+  const controls = doc.createElement("div");
+  controls.className = "chart-controls ts-controls";
+  const group = (label) => {
+    const g = Object.assign(doc.createElement("div"), { className: "chart-switch seg" });
+    g.setAttribute("role", "group");
+    g.setAttribute("aria-label", label);
+    controls.append(g);
+    return g;
+  };
+  if (grains.length > 1) {
+    const g = group("Group by");
+    for (const k of grains) {
+      const b = Object.assign(doc.createElement("button"),
+        { type: "button", className: "lg-item", textContent: GRAINS.find((x_) => x_.key === k).label });
+      b.dataset.grain = k;
+      b.setAttribute("aria-pressed", String(k === grain));
+      b.addEventListener("click", () => {
+        if (k === grain) return;
+        setState(grainKey, k);
+        // Redrawn whole at the new grain, keeping what the legend hides; focus
+        // stays on the button that was pressed.
+        draw(d3, el, weekly, { hidden });
+        el.querySelector(`[data-grain="${k}"]`)?.focus();
+      });
+      g.append(b);
+    }
+  }
   if (toggled) {
-    const controls = el.ownerDocument.createElement("div");
-    controls.className = "chart-controls chart-switch";
-    controls.setAttribute("role", "group");
-    controls.setAttribute("aria-label", "View");
-    for (const [view_, label] of [["weekly", "Weekly"], ["cumulative", "Cumulative"]]) {
-      const b = Object.assign(el.ownerDocument.createElement("button"),
+    const g = group("View");
+    const every = GRAINS.find((x_) => x_.key === grain).every;
+    for (const [view_, label] of [["weekly", every], ["cumulative", "Cumulative"]]) {
+      const b = Object.assign(doc.createElement("button"),
         { type: "button", className: "lg-item", textContent: label });
       b.dataset.view = view_;
       b.setAttribute("aria-pressed", String((view_ === "cumulative") === cumulative));
@@ -281,10 +406,10 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
         setView(view_ === "cumulative");
       });
       buttons.push(b);
-      controls.append(b);
+      g.append(b);
     }
-    plotEl.prepend(controls);
   }
+  if (controls.childElementCount) plotEl.prepend(controls);
 
   // Tooltips: the week under the pointer (columns), or the nearest line point.
   const tip = tooltip(plotEl);
@@ -308,20 +433,20 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     const off = omitted();
     const shownLines = spec.lines.filter((l) => !off.has(l.name));
     const inPlot = px >= m.l && px <= W - m.r;
-    if (weeks.length) {
+    if (spans.length) {
       const t = x.invert(px).getTime();
-      const i = weeks.findIndex((w) => t >= w.getTime() && t < w.getTime() + 7 * DAY);
+      const i = spans.findIndex((g) => t >= g.start.getTime() && t < g.end.getTime());
       // A view drawn as weekly lines (§6's events) lists each line's week.
       const weekLines = shownLines.filter((l) => l.view);
       if (weekLines.length) {
         if (i < 0) { tip.hide(); return ruleAt(inPlot ? px : null); }
         ruleAt(x(date(weekLines[0].points[i][0])));
-        return tip.show([weekTip(spec.series, i, new Set(spec.series.map((s) => s.name)), false, false, partial)[0],
+        return tip.show([spans[i].heading,
           ...weekLines.map((l) => `${l.name}: ${fmt(l.points[i][1])}`)], hx, hy);
       }
       ruleAt(null);
       activate(i);
-      if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative, partial), hx, hy);
+      if (i >= 0) return tip.show(weekTip(spec.series, i, off, toggled, cumulative, partial, spans[i].heading), hx, hy);
     }
     const pts = shownLines.filter((l) => l.tips)
       .flatMap((l) => l.points.map((pt, i) => ({ px: x(date(pt[0])), tip: l.tips[i] })));
@@ -330,6 +455,8 @@ export function draw(d3, el, spec, { hidden: startHidden = new Set() } = {}) {
     else { ruleAt(pts.length && inPlot ? px : null); tip.hide(); }
   }).on("pointerleave", () => { tip.hide(); activate(-1); ruleAt(null); });
 
-  return { svg: svg.node(), hidden: () => new Set(hidden), redraw: () => place(),
-           setView: (cum, animate = false) => setView(cum, animate), cumulative: () => cumulative };
+  const handle = { svg: svg.node(), hidden: () => new Set(hidden), redraw: () => place(), grain,
+                   setView: (cum, animate = false) => setView(cum, animate), cumulative: () => cumulative };
+  el.r2ts = handle;
+  return handle;
 }

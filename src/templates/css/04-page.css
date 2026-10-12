@@ -84,6 +84,17 @@ section {
   box-shadow: 0 1px 3px var(--card-sh);
   transition: background .5s ease,border-color .5s ease;
 }
+/* A phone's gutters and card padding are half as wide, so a chart gets about
+   40px more of the screen's 390. */
+@media (width < 768px) {
+  .wrap {
+    padding: 12px;
+  }
+  section {
+    margin-bottom: 12px;
+    padding: 13px;
+  }
+}
 section h2 {
   margin: 0 0 4px;
   font-size: 19px;
@@ -187,6 +198,25 @@ section p.desc a:hover {
 @supports not selector(::details-content) {
   .ro-rows {
     margin-top: 8px;
+  }
+}
+/* On a phone the chips are a two-column grid of equal cards, wrapping their
+   labels, rather than a ragged column of one or two; an opened list spans both. */
+@media (width < 768px) {
+  .ro-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 8px;
+    align-items: stretch;
+  }
+  .ro-chip {
+    min-width: 0;
+    white-space: normal;
+    padding: 10px 12px;
+  }
+  .ro-more[open],
+  .ro-rows {
+    grid-column: 1 / -1;
   }
 }
 .ro-more > summary {

@@ -229,6 +229,7 @@ src/web/
   lib/load.js          lazy loading of the vendored d3
   lib/legend.js        the house legend (click hides, double-click isolates)
   lib/tooltip.js       a live-region tooltip for drawn charts
+  lib/grain.js         week / month / quarter groups for the weekly charts
   charts/<template>.js one module per mounted template
   vendor/<lib>-<ver>.min.js   the chart library, committed; version and checksum recorded
 tests/js/*.test.mjs    node --test

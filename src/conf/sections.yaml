@@ -73,6 +73,9 @@ sections:
       <br><strong>Read the recent end with care:</strong> firm dates arrive close to
       delivery, so the latest order weeks show mostly their fastest deliveries, and
       their median will rise as the rest are scheduled.
+    howto: >-
+      In the box view, a box spans the middle half of a week's waits, with a line at
+      the median; whiskers reach the rest, except unusual waits, which stay as points.
 
   - title: "VIN sequence vs. order date"
     components: [vin-vs-order]
@@ -97,6 +100,9 @@ sections:
     desc: >-
       Each order with a VIN at its place in the build sequence, in a row per
       full configuration: trim, paint, wheels and interior.
+    howto: >-
+      Rows are grouped by trim and interior, and marked by paint and wheel shape.
+      The chips above hide or show rows by any part of the configuration.
 
   - title: "Geographic demand"
     components: [geo-demand, state-mix]

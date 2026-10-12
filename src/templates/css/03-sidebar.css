@@ -1,18 +1,15 @@
 /* Sidebar: the section nav rail, its backdrop, and the main column beside it.
-   Three tiers, by what hiding the rail would buy:
+   Two tiers, by what the rail costs:
 
      1072px+    768px of cards + the 256px rail + 24px gutters fit, so hiding the
                 rail would only re-center the content: always shown, no menu
                 button.
-     768-1071   the rail costs the content width: shown by default, beside the
-                main column; the menu button (☰) hides it (nav-hidden on <html>)
-                and the content takes the room.
-     under 768  off-canvas; ☰ opens it as a temporary overlay above a backdrop
-                (nav-shown on <html>). Following a link or tapping the backdrop
-                closes it.
+     under 1072 the rail would take the content's width (a tablet's 768px left
+                charts about 420px): off-canvas; ☰ opens it as a temporary
+                overlay above a backdrop (nav-shown on <html>). Following a link
+                or tapping the backdrop closes it.
 
-   Crossing a tier resets it to that tier's default (nav.js); nothing is
-   remembered between visits. */
+   Crossing the tier closes it (nav.js); nothing is remembered between visits. */
 
 :root {
   --side-w: 256px;
@@ -82,7 +79,7 @@
   transform: translateX(calc(var(--side-open) - var(--side-w)));
 }
 
-@media (width >= 768px) {
+@media (width >= 1072px) {
   .sidebar,
   .main {
     --side-open: var(--side-w);
@@ -90,22 +87,14 @@
   .main {
     margin-left: var(--side-open);
   }
-}
-@media (width >= 1072px) {
   .navbtn {
     display: none;
   }
 }
-@media (768px <= width < 1072px) {
-  html.nav-hidden .sidebar,
-  html.nav-hidden .main {
-    --side-open: 0px;
-  }
-}
 
-/* Under 768px the rail overlays the page: it slides in by the same value, and
+/* Under 1072px the rail overlays the page: it slides in by the same value, and
    the main column never moves. */
-@media (width < 768px) {
+@media (width < 1072px) {
   html.nav-shown .sidebar {
     --side-open: var(--side-w);
   }

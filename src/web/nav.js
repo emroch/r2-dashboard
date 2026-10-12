@@ -1,18 +1,17 @@
 
 (function(){
  var el=document.documentElement;
- // The sidebar's tiers (css/03-sidebar.css): under 768px an overlay the menu
- // button opens (nav-shown); 768-1071px shown, and the button hides it
- // (nav-hidden); 1072px+ always shown. Crossing a tier resets to its default.
+ // The sidebar's tiers (css/03-sidebar.css): under 1072px an overlay the menu
+ // button opens (nav-shown); 1072px+ always shown. Crossing them closes it.
+ // The header (narrowQ) re-flows at 768px instead.
+ var overlayQ=window.matchMedia('(width < 1072px)');
  var narrowQ=window.matchMedia('(width < 768px)');
- var midQ=window.matchMedia('(768px <= width < 1072px)');
  var side=document.getElementById('sidebar');
  var tgl=document.getElementById('navToggle');
  // Whether the sidebar is out of view: then it's inert, so its links can't take
  // keyboard focus or be read while off screen, and the button says so.
  function hidden(){
-  return narrowQ.matches?!el.classList.contains('nav-shown')
-   :midQ.matches&&el.classList.contains('nav-hidden');
+  return overlayQ.matches&&!el.classList.contains('nav-shown');
  }
  function sync(){
   var off=hidden();
@@ -20,21 +19,19 @@
   if(tgl)tgl.setAttribute('aria-expanded',String(!off));
  }
  function close(){el.classList.remove('nav-shown');sync();}
- function reset(){el.classList.remove('nav-shown','nav-hidden');sync();}
- narrowQ.addEventListener('change',reset);
- midQ.addEventListener('change',reset);
+ overlayQ.addEventListener('change',close);
  if(tgl)tgl.addEventListener('click',function(){
-  el.classList.toggle(narrowQ.matches?'nav-shown':'nav-hidden');
+  el.classList.toggle('nav-shown');
   sync();
   // The overlay takes focus while open, on its current section's link.
-  if(narrowQ.matches&&!hidden()&&side){
+  if(overlayQ.matches&&!hidden()&&side){
    var a=side.querySelector('a.active')||side.querySelector('a');
    if(a)a.focus({preventScroll:true});
   }
  });
  // Escape closes the overlay, back to the button that opened it.
  document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&narrowQ.matches&&el.classList.contains('nav-shown')){
+  if(e.key==='Escape'&&overlayQ.matches&&el.classList.contains('nav-shown')){
    close(); if(tgl)tgl.focus();
   }
  });
@@ -44,7 +41,7 @@
  var links={};
  document.querySelectorAll('.sidebar a[data-sec]').forEach(function(a){
   links[a.getAttribute('data-sec')]=a;
-  a.addEventListener('click',function(){if(narrowQ.matches)close();});
+  a.addEventListener('click',function(){if(overlayQ.matches)close();});
  });
  // Scroll-spy: the current section is the last one whose top has reached the
  // header (within a few px of where a jump puts it), so a jump to a short

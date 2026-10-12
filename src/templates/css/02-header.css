@@ -19,7 +19,7 @@
    keep their intrinsic width: the spacer absorbs slack, then the (wrappable)
    disclaimer gives way. A `1fr` actions column would instead collapse to zero
    and let the pills overlap the disclaimer. The menu button exists below
-   1072px (03-sidebar.css), where hiding the sidebar gives the content room.
+   1072px (03-sidebar.css), where the sidebar is an overlay it opens.
 
    Below 768px the bar also tucks up as the page scrolls (top: -tuck, measured
    by nav.js): the title and disclaimer scroll away and only the last row stays
