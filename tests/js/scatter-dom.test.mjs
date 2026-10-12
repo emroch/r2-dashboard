@@ -265,7 +265,7 @@ test("filters: a chip group per dimension with a choice; hiding drops rows and r
   assert.equal(el.querySelector(".fl-box").open, true);
 });
 
-test("filters on points: a series hides by its paint or wheels; layers keep their own entries", async () => {
+test("filters on points: a series hides by its paint or wheels; layers get an Overlays group", async () => {
   const { draw } = await import("../../src/web/charts/scatter.js");
   const el = mountPoint();
   const parts = (s, color, wheels) => ({ ...s, parts: { color, wheels }, true: true });
@@ -276,7 +276,8 @@ test("filters on points: a series hides by its paint or wheels; layers keep thei
       { dim: "wheels", label: "Wheels", values: [{ value: "20\" Black Sand", label: "20\" AT", symbol: "diamond" },
                                                  { value: "21\" Liquid Tungsten", label: "21\" AS", symbol: "circle" }] }] };
   const h = draw(d3, el, pts);
-  assert.deepEqual([...el.querySelectorAll(".fl-layers .lg-item")].map((b) => b.textContent), ["Build front"]);
+  assert.deepEqual([...el.querySelectorAll('.fl-group[data-dim="layers"] .lg-item')].map((b) => b.textContent), ["Build front"]);
+  assert.equal(el.querySelector('.fl-group[data-dim="layers"] .fl-label').textContent, "Overlays");
   assert.ok(el.querySelector("g.pt-true"), "true-color points");
   const svgBefore = h.svg;
   const at = [...el.querySelectorAll('.fl-group[data-dim="wheels"] .lg-item')].find((b) => b.textContent === "20\" AT");

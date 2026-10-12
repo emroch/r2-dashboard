@@ -392,8 +392,8 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   visibility();
 
   // Legend: every series, then one entry per layer group; or with `filters`, a
-  // chip group per dimension with more than one value, and the layer groups'
-  // entries apart, outside it. A filter change on rows redraws the chart whole
+  // chip group per dimension with more than one value, then the layer groups'
+  // entries as one more, "Overlays" (§9's build front). A filter change on rows redraws the chart whole
   // (its rows and height change), and focus returns to the chip; on points it
   // hides their series. On a phone the chips (44px each) fold into a Filters
   // disclosure, closed until opened, that says how many values are hidden.
@@ -402,8 +402,10 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     const doc = el.ownerDocument;
     const choosable = filters.filter((f) => f.values.length > 1);
     const sum = Object.assign(doc.createElement("summary"), { className: "fl-sum" });
+    const layers = layerEntries(spec.layers);
     const count = () => {
-      const n = choosable.reduce((a, f) => a + f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).length, 0);
+      const n = choosable.reduce((a, f) => a + f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).length, 0)
+        + layers.filter((l) => hidden.has(l.name)).length;
       sum.textContent = n ? `Filters (${n} hidden)` : "Filters (all shown)";
     };
     count();
@@ -413,25 +415,20 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     box.open = !phone || Boolean(el.r2filtersOpen);
     box.addEventListener("toggle", () => { if (phone) el.r2filtersOpen = box.open; });
     legendEl.replaceChildren(box);
-    const layers = layerEntries(spec.layers);
-    if (layers.length) {
-      const host = Object.assign(doc.createElement("div"), { className: "fl-layers" });
-      legendEl.prepend(host);
-      const names = new Set(layers.map((l) => l.name));
-      legend(host, layers, (hs) => {
-        hidden = new Set([...[...hidden].filter((k) => !names.has(k)), ...hs]);
-        visibility();
-      }, new Set([...hidden].filter((k) => names.has(k))));
-    }
-    for (const f of choosable) {
-      const wrap = Object.assign(el.ownerDocument.createElement("div"), { className: "fl-group" });
-      wrap.dataset.dim = f.dim;
-      const name = Object.assign(el.ownerDocument.createElement("span"), { className: "fl-label", textContent: f.label });
-      const chips = Object.assign(el.ownerDocument.createElement("div"), { className: "fl-chips" });
+    // A labelled row of chips in the disclosure.
+    const group = (dim, label) => {
+      const wrap = Object.assign(doc.createElement("div"), { className: "fl-group" });
+      wrap.dataset.dim = dim;
+      const name = Object.assign(doc.createElement("span"), { className: "fl-label", textContent: label });
+      const chips = Object.assign(doc.createElement("div"), { className: "fl-chips" });
       chips.setAttribute("role", "group");
-      chips.setAttribute("aria-label", f.label);
+      chips.setAttribute("aria-label", label);
       wrap.append(name, chips);
       box.append(wrap);
+      return chips;
+    };
+    for (const f of choosable) {
+      const chips = group(f.dim, f.label);
       const valueOf = new Map(f.values.map((v) => [v.label, v.value]));
       const cls = (v) => (v.symbol ? `tr-neutral swatch-sym sym-${v.symbol}` : categoryClass(`${f.dim}:${v.value}`));
       legend(chips, f.values.map((v) => ({ name: v.label, cls: cls(v) })), (hs) => {
@@ -448,6 +445,14 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
         [...el.querySelectorAll(`.fl-group[data-dim="${f.dim}"] .lg-item`)]
           .find((b) => b.textContent === focused)?.focus();
       }, new Set(f.values.filter((v) => hidden.has(`${f.dim}:${v.value}`)).map((v) => v.label)));
+    }
+    if (layers.length) {
+      const names = new Set(layers.map((l) => l.name));
+      legend(group("layers", "Overlays"), layers, (hs) => {
+        hidden = new Set([...[...hidden].filter((k) => !names.has(k)), ...hs]);
+        count();
+        visibility();
+      }, new Set([...hidden].filter((k) => names.has(k))));
     }
   } else {
     legend(legendEl,
