@@ -1,14 +1,15 @@
 # Presentation layer design
 
-Status: **proposed**. This is part of the dashboard revamp (#65), tracked in #102. It
-follows the data layer (#80, `docs/data-layer.md`), whose published contract it builds on,
-and turns the research in #66 into a plan. It is a design, not a commitment to an
-implementation; each stage below becomes its own issue and PR.
+Status: **implemented** on `dev/presentation` (stages 1–9, below); the cutover to
+`main` is #113. This is part of the dashboard revamp (#65), tracked in #102. It follows
+the data layer (#80, `docs/data-layer.md`), whose published contract it builds on, and
+turned the research in #66 into a plan. The sections below record the design as
+adopted, with notes where the build went another way; *Stages* records what shipped.
 
 ## Why
 
-Every chart on the page today is a Plotly figure, built in Python with its data and
-styling baked in:
+Before this work, every chart on the page was a Plotly figure, built in Python with its
+data and styling baked in:
 
 - **Weight.** About 19 `fig_*` builders (`src/render/charts.py`, 1,675 lines) put
   roughly 716 KB of figure JSON into an 860 KB page. `plotly.min.js` (4.85 MB decoded,
@@ -83,23 +84,30 @@ Every section is made of components, and every component has the same frame:
 
 | Kind | Template | Body | Rendered by |
 |---|---|---|---|
-| static | `readout` | big number, n, caveat | Python |
+| static | `readout` | big number, n, caveat (the summary's cards) | Python |
 | static | `takerate` | rows: swatch, name, count/%, a bar segmented by delivery stage | Python |
-| static | `mix` | 100%-stacked rows (by region, state, bin) | Python |
+| static | `mix` | 100%-stacked rows (by a binned state figure: elevation, temperature, urban share) | Python |
 | static | `heatmap` | a `<table>` with shaded cells | Python |
-| static | `range` | median / IQR strip | Python |
-| mounted | `timeseries` | lines or stacked columns over dates | JS |
-| mounted | `scatter` | points, plus `line`, `whisker` and `band` layers | JS |
-| mounted | `geo` | US states choropleth, selectable | JS |
+| static | `bars` | one bar per row (price distribution, option money) | Python |
+| static | `range` | min–max strip per row, with the IQR, median and mean | Python |
+| mounted | `timeseries` | lines or stacked columns over weeks, grouped into months or quarters to fit | JS |
+| mounted | `scatter` | points, plus `line`, `whisker`, `band` and `rule` layers; rows; a box view | JS |
+| mounted | `geo` | US states choropleth, selectable, with a measure slider | JS |
+| mounted | `statemix` | one state's (or every state's) mix by a picked measure, linked to the map | JS |
 
 A mounted component is `<div data-chart="id">` inside the same frame. The page boots,
 and when the mount nears the viewport the template module and its library are imported.
 
 ### Where each section starts
 
-A starting point, not a spec: each section may be redesigned in its stage.
+A starting point, not a spec: each section may be redesigned in its stage. The page
+shipped with 13 sections (the summary, §2–12 below as renumbered, and data quality as
+§13). Dropped along the way: the estimated-delivery histogram and the certainty donuts
+(#138, §6 became *Fulfilment*), orders by state and the region and state preference
+panels (replaced by the state mix under the map, #141; the climate and terrain mixes
+stayed as §12), and destination vs. delivery (#143).
 
-| Section | Today | Becomes |
+| Section | Before | Planned |
 |---|---|---|
 | Summary stat cards | HTML cards with hover tables | `readout`s |
 | §2 Configuration take-rates | 2×3 Plotly bar subplots | `takerate` rows |
@@ -131,19 +139,17 @@ Building on the data layer's published set (`docs/data-layer.md`, *Data contract
   delivery-vs-vin:
     template: scatter
     title: Delivery date vs. VIN sequence
-    aggregate: delivery_vs_vin        # a function in render/aggregates.py
-    encodings: {x: vin_seq, y: delivery_est, color: color, shape: wheels}
-    layers: [whisker, build_front, band]
-    toggles: {whiskers: false}
-    lib: {}                           # passthrough: library-native options
+    dims: [color, wheels, delivery_type]   # their caveats compose into the meta line
+    aggregate: delivery_vs_vin             # the spec builder (render/specs.py)
+    summary: "{n} orders with both a VIN and a delivery estimate."
   ```
 
-  `lib` is the escape hatch RivianRoamer's schema has: the common cases stay
-  declarative and library-agnostic, and a rare need doesn't grow the house schema.
+  As built, encodings, layers and toggles live in the spec the aggregate's builder
+  returns rather than in the YAML, and the planned `lib` passthrough wasn't needed.
 - **`r2_view.json`**, published: for each mounted component, its spec plus the data
   its aggregate produced. Colors are **category references** (`"color:Launch Green"`),
   never hex, so CSS owns every actual color. The page fetches it once.
-- **`r2_cube.json`**, published with the explore view (#51): a sparse cube of counts
+- **`r2_cube.json`**, deferred to the explore view (#114, from #51): a sparse cube of counts
   over the low-cardinality dimensions, indexed into `r2_dimensions.json` categories.
   The client only sums over dimensions it isn't showing. It reveals nothing the CSV
   doesn't.
@@ -177,40 +183,53 @@ theme. What changes is the mechanism, from JS re-tinting to CSS that can't drift
   Opacity on the segment rather than an alpha channel in the color, so the fallback
   path needs nothing extra. "Scheduled" is a firm delivery date not yet passed; Rivian
   schedules delivery only after a VIN is assigned, so a scheduled order with no VIN
-  reported counts as scheduled (the VIN is just unreported).
+  reported counts as scheduled (the VIN is just unreported). The drawn charts' stacked
+  columns (§5–6) step each stage's tone toward the card instead (`.tone-*`, a
+  `color-mix`), since a faded color over gridlines turns muddy. As built, the take-rate
+  stages and the stage key are neutral grey; color is kept for the categories.
 - **Fallback.** Browsers without relative color syntax (before Safari 18) get an
   `@supports not (color: oklch(from red l c h))` block of clamped colors that Python
-  precomputes (`colors.py`'s OKLCH functions; the HLS whisker tints stay until the
-  Plotly charts that use them are gone).
-- **JS charts** resolve category colors through computed style, and re-render from
-  their spec on an `r2:themechange` event fired by the theme toggle (`theme.js`, once
-  at load and on every toggle). Nothing is re-tinted by index; the Plotly charts'
-  retint now lives in its own `plotly-theme.js`, a listener for the same event, and is
-  deleted with them.
+  precomputes (`colors.py`'s OKLCH functions).
+- **True color where it's the point.** A paint mix bar (`.mark-true`) and the
+  configuration scatters' points (§8–10) use `--paint` with a `mark-edge` outline that
+  carries the 3:1, since the clamp makes the greys and darks indistinguishable at a
+  point's size (#151).
+- **JS charts** are colored by category classes and custom properties, so a theme
+  change restyles them with no redraw; `theme.js` fires `r2:themechange` for anything
+  that needs to know. Nothing is re-tinted by index.
 - **Retired:** `CHART.edge` borders on near-surface fills, the HLS whisker tints, and
-  most of `palette.yaml`. With legibility handled by the clamp, `dimensions.yaml` can
-  record the **real** paint colors, as a separate, reviewable data edit.
+  the old `palette.yaml`, which now holds only the chart roles (`primary`, `highlight`,
+  `highlight_band`) and the fulfilment event lines. With legibility handled by the
+  clamp, `dimensions.yaml` can record the **real** paint colors.
 
 ## Accessibility and responsive baseline
 
-Built into the components rather than added later (#30):
+Built into the components rather than added later (#30, completed in #147 and #151;
+the color-blind mode is #152):
 
 - **Page:** a `viewport` meta, and a `theme-color` meta per theme that `theme.js`
-  keeps in step with the toggle. That gives Safari's tab bar a solid tint, the
+  keeps in step with the theme menu. That gives Safari's tab bar a solid tint, the
   simplest fix for #41.
 - **Charts:** each component is a labelled group; the drawn canvas or SVG is
-  `aria-hidden`, and the data table is the accessible form. Tooltips are a
-  `role="status"` live region. `prefers-reduced-motion` is honored.
-- **Layout:** charts size with `ResizeObserver`, components re-flow with container
-  queries, and every stage is checked at 390 px.
-- **Navigation:** an ARIA-labelled nav, and touch targets of at least 44 px.
+  `aria-hidden`, and the data table is the accessible form. The visible tooltip is
+  hidden from screen readers; one shared, visually hidden live region speaks a readout
+  once the pointer has rested on it (600 ms), counts first. `prefers-reduced-motion`
+  is honored.
+- **Layout:** charts size with `ResizeObserver` and redraw at their width; the page
+  re-flows with media queries (the sidebar an overlay under 1072px, the compact header
+  under 768px, narrower gutters on phones), and is checked at 390, 768 and 1072px.
+- **Navigation:** landmarks and a skip link, an ARIA-labelled nav (inert while hidden),
+  and touch targets of at least 44 px on touch screens and phone widths.
 
 ## URL state
 
-- **Anchors** (`#sec-10`) keep working as they do today.
+- **Anchors** are `#sec-N`, by position in `sections.yaml`, so reordering sections
+  renumbers them (durable links: #139).
 - **View state** lives in the query string through `src/web/state.js`
-  (`URLSearchParams` and `replaceState`): today's whisker toggles (`?whiskers=1`), and
-  later the explore view's picks. Every view is then a link that can be posted on the
+  (`URLSearchParams` and `replaceState`): `?whiskers=0`, a timeseries' view
+  (`?<chart>=cumulative`) and grain (`?<chart>-grain=month`), §7's
+  `?delivery-latency=points`, the state mix's `?state=` and `?by=`, and later the
+  explore view's picks. Every view is then a link that can be posted on the
   forum, which #66 found to be the single most useful detail on both sites.
 
 ## JS layout
@@ -223,14 +242,15 @@ src/web/
   data.js              fetches r2_view.json once
   state.js             URL view state
   theme.js  nav.js     page scripts (moved from src/templates/)
-  lib/format.js        number/date/percent formatting           (pure, unit-tested)
-  lib/cube.js          cube marginalization, small-n handling    (pure, unit-tested)
   charts/registry.js   template name -> () => import('./scatter.js')
-  lib/load.js          lazy loading of the vendored d3
+  charts/<template>.js one module per mounted template (scatter, timeseries, geo, statemix)
+  lib/load.js          lazy loading of the vendored d3 and the map atlas
   lib/legend.js        the house legend (click hides, double-click isolates)
-  lib/tooltip.js       a live-region tooltip for drawn charts
+  lib/tooltip.js       the drawn charts' tooltip, spoken once the pointer rests
+  lib/barhover.js      hover popovers for the HTML bars (data-tip)
+  lib/csv.js           a data table -> CSV download
   lib/grain.js         week / month / quarter groups for the weekly charts
-  charts/<template>.js one module per mounted template
+  img/                 the header logo
   vendor/<lib>-<ver>.min.js   the chart library, committed; version and checksum recorded
 tests/js/*.test.mjs    node --test
 package.json, package-lock.json, eslint.config.js   at the repo root
@@ -249,20 +269,20 @@ it with d3. There is no separate adapter: d3 is a toolkit rather than a chart
 configuration format, so the templates are the d3 code, and replacing the library
 would mean rewriting templates, not specs.
 
-## What replaces `page.py` and `charts.py`
+## What replaced `page.py` and `charts.py`
 
-- **`src/render/aggregates.py`** (new): pure `DataFrame -> dict` functions, one per
-  component. It absorbs the counting logic now spread through `charts.py`
-  (`_paint_order`, `_ordered_counts`, `_stable_counts`, `delivery_progress`, the latency
-  and geo counts). `cadence.py` stays as the model behind §10.
-- **`src/render/components.py`** (new): the HTML renderers for the static templates.
-- **`src/render/view.py`** (new): reads the registry, runs the aggregates, renders the
-  static components, and writes `r2_view.json` (and later the cube).
-- **`src/render/page.py`** shrinks to assembling the shell. It keeps the `slot()`
-  mechanism and the data-quality panel.
-- **`src/render/charts.py`** loses each `fig_*` builder in the stage that replaces it,
-  and is deleted in the last library stage together with the plotly pin, the retint
-  code in `theme.js`, and plotly's rules in `_headers` and `worker/worker.js`.
+- **`src/render/aggregates.py`**: pure `DataFrame -> dict` functions, one per
+  component, each reconciled against its cohort. It absorbed the counting logic that
+  was spread through `charts.py`; `cadence.py` stayed as the model behind §9.
+- **`src/render/specs.py`**: the browser-drawn components' specs.
+- **`src/render/components.py`**: the HTML renderers for the static templates.
+- **`src/render/view.py`**: reads the registry, runs the aggregates and spec builders,
+  renders the static components, and builds `r2_view.json`.
+- **`src/render/page.py`** assembles the shell. It keeps the `slot()` mechanism, the
+  summary and the data-quality panel.
+- **`src/render/charts.py`** lost each `fig_*` builder in the stage that replaced it,
+  and was deleted in the last library stage (#133) together with the plotly pin, the
+  retint code in `theme.js`, and plotly's rules in `_headers` and `worker/worker.js`.
 
 ## Deploy and caching
 
@@ -270,16 +290,16 @@ would mean rewriting templates, not specs.
   page references it there. `_headers` serves `/assets/*` as
   `max-age=31536000, immutable` and the JSON files as `max-age=0, must-revalidate`.
   The published file URLs (`r2_orders_clean.csv`, the JSONs) don't move.
-- **wrangler-action and npm.** Today the action installs wrangler into the checkout,
-  creating `package.json` and `node_modules`, which `.gitignore` hides. Once the repo
-  has a real `package.json`, wrangler is pinned as a devDependency, `npm ci` runs
-  before the action, and the action's `wranglerVersion` matches the pin, so the action
-  finds wrangler and installs nothing. Stage 1 verifies that the tree stays clean on a
-  preview; if it doesn't, the JS tooling moves to a subdirectory instead.
-- **The Worker.** `worker/worker.js` drops its plotly caching rule. It deploys on its
-  own (`worker.yml`), so that change ships before the cutover.
+- **wrangler-action and npm.** wrangler is pinned as a devDependency, and
+  `npm ci --ignore-scripts` runs before the action, whose `wranglerVersion` matches the
+  pin, so the action finds wrangler and installs nothing (the action used to install
+  its own into the checkout).
+- **The Worker.** `worker/worker.js` dropped its plotly caching rule, adds the trailing
+  slash the page's relative URLs need, and edge-caches only the hashed assets. It
+  deploys on its own (`worker.yml`) and is already on `main`.
 - **Budgets.** The HTML page under 250 KB; no chart library before the first chart
-  nears the viewport.
+  nears the viewport. The second holds; the page is about 425 KB (from 860 KB), so
+  page-weight tuning is a follow-up (see *Stages*).
 
 ## Correctness and tests
 
@@ -293,62 +313,79 @@ Redesigning means the old figures can't be the reference. Instead:
 - **Cross-checks** between components that show the same thing: heatmap marginals
   equal the take-rate counts; state totals equal the state-known orders; the last
   point of `r2_series.json` equals the readouts.
-- **Python tests.** The roughly 25 tests in `tests/test_parsing.py` that assert on
-  Plotly figure internals move to `tests/test_aggregates.py`, keeping each test's
-  intent (e.g. every paint chart uses the same paint order). A new `tests/test_view.py`
-  parses the built page: every registry id has its component and data table, and every
-  category reference resolves to a CSS class.
-- **JS tests.** `node --test` covers formatting, cube marginalization and small-n
-  handling, the templates' pure helpers, and URL-state round trips.
+- **Python tests.** The tests that asserted on Plotly figure internals moved to
+  `tests/test_aggregates.py` and `tests/test_specs.py`, keeping each test's intent
+  (e.g. every paint chart uses the same paint order). `tests/test_view.py` checks the
+  registries and the built view: every registry id has its component and data table,
+  every category reference resolves to a CSS class, and every category mark holds 3:1
+  in both themes.
+- **JS tests.** `node --test` covers the templates' pure helpers and DOM behavior in
+  linkedom (redraws add nothing, legends and filters hide in place, grouping and box
+  statistics), the CSV export, the grain arithmetic, the hover popovers, the vendored
+  libraries' checksums and the lockfile's registry.
 - **Spot checks.** Where a redesigned section keeps a quantity the old figure showed,
   its stage PR records a one-off comparison with the old number.
 
 ## Stages
 
 Each stage is one issue and one PR, from `presentation/<stage>` into `dev/presentation`,
-tracked under **#102**. Blockers are also set as issue dependencies.
+tracked under **#102**. Blockers are also set as issue dependencies. Section numbers in
+stages 1–8 are the old page's. Stages 1–9 are done; the cutover (stage 10) is next.
 
-1. **#104 Tooling** (`tooling`). `package.json` (eslint and wrangler pinned),
+1. **#104 Tooling** (`tooling`). **Done (#116).** `package.json` (eslint and wrangler pinned),
    `eslint.config.js`, `tests/js/`, a `js` job in `checks.yml`, the `.gitignore` and
    wrangler-action changes, the `src/web/` skeleton, the hashed asset copy and
    `_headers`.
    - *Acceptance:* the preview deploys from a clean tree.
    - *Acceptance:* the page is unchanged apart from its script tags.
-   - *Acceptance:* the `js` check is added to the ruleset's required checks.
-2. **#105 Theming and scaffolding** (`scaffold`). Category CSS, the OKLCH mark rule and its
+   - *Acceptance:* the `js` check is added to the ruleset's required checks. Still to
+     do: it can only be required on `main` once `main` runs it, so it's made required
+     after the cutover (#113).
+2. **#105 Theming and scaffolding** (`scaffold`). **Done (#119).** Category CSS, the OKLCH mark rule and its
    fallback, `theme.js` reduced to the toggle and `r2:themechange`, `components.py`,
    the `aggregates.reconcile` skeleton, `sections.yaml`, and `r2_view.json`. Blocked
    by 1.
    - *Acceptance:* reconciliation runs in the pipeline.
    - *Acceptance:* Glacier White and Midnight marks stay visible in both themes.
 3. **#106 §2 HTML spike** (`takerate`). §2 as take-rate rows, shown beside the Plotly
-   version on the preview. Blocked by 2. **Done: the direction is adopted (see
+   version on the preview. Blocked by 2. **Done (#121): the direction is adopted (see
    Decisions).**
    - *Acceptance:* the direction decision is recorded here, with evidence on payload,
      VoiceOver and theming.
    - *Acceptance:* `fig_config_dashboard` and its tests are migrated.
-4. **#107 Library spike** (`lib-spike`). **Done: d3 alone (see Decisions).** §10 and §12 in each candidate library. Blocked by
+4. **#107 Library spike** (`lib-spike`). **Done (#125): d3 alone (see Decisions).** §10 and §12 in each candidate library. Blocked by
    2; can run alongside 3.
    - *Acceptance:* the library decision is recorded here.
    - *Acceptance:* the `scatter` template (no adapter, see The chart library) is merged, and §10 is live
      with its whisker toggle in the URL.
    - *Acceptance:* the library is fetched only when a chart nears the viewport.
 5. **#108 Static group A** (`static-a`). §3, §4, §8 and the summary readouts. Blocked by 3.
-6. **#109 Static group B** (`static-b`). §13–16. Blocked by 3.
-7. **#110 Time charts** (`lib-time`). §5, §6, §7. Blocked by 4.
+   **Done (#130).**
+6. **#109 Static group B** (`static-b`). §13–16. Blocked by 3. **Done (#131).**
+7. **#110 Time charts** (`lib-time`). §5, §6, §7. Blocked by 4. **Done (#132).**
 8. **#111 Remaining library charts** (`lib-rest`). §9, §11, §12, §17; then delete
-   `charts.py`, plotly and the retint code. Blocked by 4–7.
+   `charts.py`, plotly and the retint code. Blocked by 4–7. **Done (#133).**
    - *Acceptance:* no plotly remains in the repo, and the budgets are met.
    - *Budget deferred (2026-10-07):* the page is ~510 KB without Plotly, ~200 KB of
      it the per-point no-JS tables. Rather than tune to the 250 KB figure, the
      page is to be optimized from measured performance in #112. The leaning: render
      the per-point tables from `r2_view.json` when the reader opens them, with
      pre-rendered static chart images as the no-JS fallback.
-9. **#112 Polish** (`polish`). Blocked by 5–8.
-   - **#41:** header behavior on narrow screens.
-   - **#46:** close the report menu when one of its links is clicked.
-   - **#30:** the 390 px pass, ARIA, and a color-blind palette option.
-   - **#29:** the remainder, a sortable table of the cleaned rows.
+9. **#112 Polish** (`polish`). Blocked by 5–8. **Done**, apart from the follow-ups
+   below.
+   - **#41** (header on narrow screens) and **#46** (report menu dismissal): #135.
+   - The stylesheet split by area (#136); layout sizing, the theme menu and scroll
+     anchoring (#137).
+   - The page's sections reworked: §6 *Fulfilment* (#138), the state mix under the map
+     (#141), the prose pass (#142), the geography tidy-up (#143), §7's median curve
+     (#144), chart color roles (#145), hover popovers on the HTML bars (#146).
+   - **#30:** accessibility (#147) and the narrow-width review (#151: grouped
+     timeseries, §7's box view, §8–10's filters and true-color points, the sidebar an
+     overlay under 1072px, the phone layout). The color-blind mode moved to #152.
+   - `./serve` for local builds (#148).
+   - *Follow-ups, after the cutover:* page-weight tuning (the budget deferred in stage
+     8); **#29**'s remainder, a sortable table of the cleaned rows; the §4 price-gaps
+     follow-up; **#140**, what counts as delivered; **#152**, the color-blind mode.
 10. **#113 Cutover.** `dev/presentation` into `main` in one PR, after the Worker change is
     deployed.
     - *Acceptance:* every reconciliation passes, and the preview is reviewed section by
@@ -414,15 +451,15 @@ Recorded as each stage settles them.
 
 - **Relative color syntax** needs Safari 18+; older browsers rely on the precomputed
   fallback, which the theming stage must test.
-- **Transition weight.** Old and new sections ship side by side until stage 8, so the
-  page grows before it shrinks. Only previews and the cutover see it.
-- **PNG export goes away** with Plotly's modebar. SVG export is cheap if the chosen
-  library draws SVG; otherwise the data table and CSV cover the need.
+- **Transition weight.** Old and new sections shipped side by side until stage 8, so
+  the page grew before it shrank; only previews saw it.
+- **PNG export went away** with Plotly's modebar. The data table and CSV cover the
+  need; SVG export would be cheap to add, since d3 draws SVG.
 - **Redesign creep.** One section group per PR, with its prose changes inside it.
 - **Open: true paint colors.** Where do the real hexes come from (Rivian's
   configurator, owner photos)?
-- **Open: color-blind palette.** How far should the alternate palette go, given that
-  paint colors are identities?
+- **Open: color-blind mode (#152).** How far should the alternate palette go, given
+  that paint colors are identities?
 - **Not planned: `as_of` link pinning.** SixColors pins a post to its period; for us
   that would need published history, which the privacy rule excludes.
 
@@ -440,5 +477,6 @@ deploys to the live site) never carries a half-migrated page.
   before each stage PR; merge rather than rebase, because the branch is shared.
   Conflicts should be rare, since `main` mostly changes `data/raw/` and
   `overrides.yaml` while this work changes `src/render/`, `src/web/` and the templates.
-- **Into `main`:** one cutover PR once stages 1–9 are done (stage 10).
+- **Into `main`:** one cutover PR (stage 10, #113), now that stages 1–9 are done;
+  stage 9's remaining items are follow-ups.
 - **After the cutover:** the explore view (#51) and then #85.

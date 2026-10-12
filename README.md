@@ -11,7 +11,11 @@ tidy CSV plus the HTML dashboard.
 
 ```
 r2_dashboard          run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
+serve                 build offline and serve the page locally, as deployed (--watch rebuilds)
+curate                ship a curation edit to main via an auto-checked, auto-merged PR
+ci_env                run lint, types, tests and the build under the CI stack (pinned venv)
 requirements.txt      pandas, numpy, PyYAML, beautifulsoup4
+requirements-dev.txt  + pytest, ruff, mypy (what ./ci_env installs)
 package.json          JS dev tools (eslint, pinned wrangler); Node version in .nvmrc
 src/
   config.py           paths, run timestamps + loaders for the conf/ YAML files
@@ -20,42 +24,56 @@ src/
     fetch.py          live-sheet fetch with caching + change detection
     parsing.py        pure parsing / VIN / date / geo helpers
     schema_check.py   locates columns by name; verifies them against schema.yaml
+    outliers.py       likely entry errors, set aside rather than corrected
     loaders.py        load_and_clean, load_reservations
+    pricing.py        configured price from an order's configuration (pricing.yaml)
+    history.py        snapshot replay: every raw cache -> order keys + field history
+    curation.py       overrides.yaml provenance and effective dates
+    timeline.py       cross-snapshot checks (VIN/order-date changes, rows that left)
+    milestones.py     when each order's final VIN and delivery date took hold
+    contract.py       the published data contract (r2_dimensions.json, r2_series.json)
   render/             build the webpage
     colors.py         color transforms (OKLCH, for marks and contrast)
     categories.py     category colors as CSS classes (true swatch + theme-clamped mark)
     aggregates.py     reconciled counts behind the components
-    components.py     the shared component frame (summary, n, caveats, data table)
-    view.py           builds the aggregates; writes r2_view.json
-    specs.py          specs for the browser-drawn charts (points, layers, map counts)
+    components.py     the component frame (summary, n, caveats, data table) + HTML templates
+    view.py           builds and reconciles the aggregates; builds r2_view.json
+    specs.py          specs for the browser-drawn charts (points, layers, map and state counts)
+    cadence.py        the build-front model behind §9 (rate, projection, back-tested band)
     page.py           BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
     assets.py         publishes src/web/ as content-hashed static assets
   templates/          valid standalone page shell, filled at render time
     page.html         valid HTML shell (empty id'd slots, populated via the DOM)
-    css/              page stylesheet, one file per area, joined in order
+    css/              page stylesheet, one file per area (01-base … 08-access), joined in order
     head.js           pre-paint theme set (no flash), inlined
   web/                browser code, served as static files (no build step)
-    main.js           boots browser-drawn components (ES module), lazily
-    charts/           d3 chart templates (scatter, timeseries, geo) + registry.js
+    main.js           boots browser-drawn components (ES module), lazily; CSV buttons, bar popovers
+    data.js           fetches r2_view.json once
+    state.js          view state in the URL query (whiskers, a chart's view and grain, state)
+    charts/           d3 chart templates (scatter, timeseries, geo, statemix) + registry.js
+    lib/              csv.js, legend.js, tooltip.js, load.js (lazy d3), barhover.js, grain.js
     vendor/           d3 7.9.0, topojson-client, us-atlas (versions + checksums in its README)
-    lib/csv.js        data table -> CSV download
-    theme.js          light/dark toggle (fires r2:themechange)
-    nav.js            sidebar hamburger + scroll-spy
+    img/              the header logo
+    theme.js          theme menu (Light/Dark/System; fires r2:themechange)
+    nav.js            sidebar overlay (under 1072px) + scroll-spy, header menus, local times
   conf/               data/config YAML (loaded by config.py)
     dimensions.yaml   category vocabulary: each column's label, order, blank handling, caveat, and
                       per-category label/color/marker (paints, wheels, interiors, regions, ...);
                       published as r2_dimensions.json
-    palette.yaml      chart fills that don't name a category (take-rate, timeline, accents)
+    palette.yaml      chart colors that name no category: roles (primary, highlight,
+                      highlight_band) and the fulfilment event lines
     theme.yaml        page & chart chrome for light/dark (CSS variables)
-    sections.yaml     the page's sections: order, title, prose, components, charts
+    sections.yaml     the page's sections: order, title, prose, components
     charts.yaml       the presentation-layer components (template, title, summary)
     schema.yaml       sheet sources, column maps, sanitize bounds, option vocab
     geo.yaml          state/province -> region + coordinates, factory, province aliases
     delivery.yaml     delivery-estimate normalization (tokens, overrides, month names)
-    overrides.yaml    manual curation: overrides (edit existing rows) + additions (forum-only orders)
+    pricing.yaml      configured-price tables (trims, options, paints, wheels)
+    overrides.yaml    manual curation: overrides, additions (forum-only orders),
+                      deletions, verified
 data/
   raw/                timestamped live caches (committed as dated fetch history)
-  processed/          cleaned CSV output
+  processed/          cleaned CSV, data contract and the page's view data
 output/               dashboard HTML output
 tests/
   test_parsing.py     unit tests (run via pytest OR plain python3)
@@ -87,6 +105,8 @@ It's a run-in-place project (no install step). Dependencies are listed in
   orders, final VINs assigned, final delivery dates set, deliveries, outstanding and
   converted reservations, each counted on its own event date from today's data, so
   late reports revise past points. Aggregates only; no per-order history.
+- `data/processed/r2_view.json` — the specs and data of the browser-drawn charts,
+  fetched by the page.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped
   live caches. A new cache is written only when the fetched content differs from
@@ -126,12 +146,13 @@ data-quality panel instead, as a nudge that new data is available.
 The dashboard is published at **https://emroch.com/r2-dashboard** on Cloudflare's
 free tier, refreshed automatically:
 
-- **GitHub Actions** (`.github/workflows/deploy.yml`) runs the pipeline daily (and
-  on demand / on push), deploys the static output to a **Cloudflare Pages** project
+- **GitHub Actions** (`.github/workflows/deploy.yml`) runs the pipeline every 6
+  hours (and on demand / on push), deploys the static output to a **Cloudflare Pages** project
   via Wrangler, and commits any refreshed `data/raw/` caches back so the fetch
   history accrues.
 - A small **Cloudflare Worker** (`worker/`) routes `emroch.com/r2-dashboard*` to
-  that Pages project (the HTML is self-contained, so no asset rewriting is needed).
+  that Pages project, adding the trailing slash the page's relative asset and data
+  URLs need, and caching only the content-hashed assets at the edge.
   `.github/workflows/worker.yml` deploys it whenever anything under `worker/`
   lands on `main` — validating the bundle on PRs first, and smoke-testing the live
   route afterwards, since the Worker has no preview environment.
@@ -155,8 +176,10 @@ npx eslint . && npm test          # JS lint + node --test
 
 `./ci_env check` runs all of it, plus the pipeline, under the CI stack.
 
-To view a local build with its scripts, serve `output/` (`python3 -m http.server -d
-output`): browsers don't load ES modules from a `file://` page.
+To view a local build, run `./serve`: it builds offline, stages what the deploy
+publishes into `output/site/`, and serves it on http://127.0.0.1:8000/ (`--watch`
+rebuilds on edits). Opened as a `file://` page the charts never draw: browsers
+don't load ES modules from `file://`, and the charts fetch `r2_view.json`.
 
 ## Reporting a problem
 

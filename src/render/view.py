@@ -4,7 +4,7 @@ docs/presentation.md, "Data contract additions". build() computes every
 aggregate the page's components use, reconciles them against their cohorts
 (render/aggregates.py), keeps the static components' aggregates for page.py to render
 (View.render, render/components.py), and collects the spec + data of each browser-drawn
-component for r2_view.json, which the page fetches (none yet).
+component for r2_view.json, which the page fetches (src/web/data.js).
 
 The components are declared in src/conf/charts.yaml. The build also counts every
 dimension in dimensions.yaml and reconciles those counts, so a value the

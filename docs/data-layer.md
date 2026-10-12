@@ -1,8 +1,9 @@
 # Data layer design
 
-Status: **proposed**. This is part of the dashboard revamp (#65), tracked in #80, and it
-comes before the presentation work (#66). It is a design, not a commitment to an implementation;
-each stage below becomes its own issue and PR.
+Status: **implemented**, merged into `main` in #97. This is part of the dashboard revamp
+(#65), tracked in #80, and it came before the presentation work (#66,
+`docs/presentation.md`). The sections below record the design as adopted; what remains is
+#85, after the presentation cutover.
 
 ## Why
 
@@ -129,8 +130,8 @@ This settles how a correction targets an order:
 
 - **`username`** keeps working unchanged for the large majority of users, who have
   one order.
-- **`username#n`** is accepted when a user holds several. Today an override on such a
-  user lands on their latest row and only warns (`_apply_overrides`).
+- **`username#n`** is accepted when a user holds several. Before v2, an override on
+  such a user landed on their latest row and only warned (`_apply_overrides`).
 
 ## Sanitization over time
 
@@ -186,7 +187,7 @@ overrides:
 This is the hand-off to #66 and #51. Alongside the rows, the pipeline publishes
 **dimension metadata**, so the page no longer hard-codes per-chart conventions:
 
-- **Ordering and labels:** each dimension's label and its category order (today
+- **Ordering and labels:** each dimension's label and its category order (formerly
   scattered across `palette.yaml` and `charts.py`; now one file, `dimensions.yaml`,
   published as-is).
 - **Missing values:** the bucket each dimension uses for them ("Unknown",
@@ -317,5 +318,5 @@ live site) never carries a partial data layer.
 - **After the merge:** #85 is sequenced after the presentation work. It is planned
   with that stage and is not part of the `dev/data-layer` merge.
 
-After this, presentation (#66, with #29 and #30) and then the UI nits (#41, #46) get
-their own planning stage.
+Presentation (#66, with #29, #30, #41 and #46) followed as its own planned stage, in #102
+(`docs/presentation.md`).

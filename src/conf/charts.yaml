@@ -5,7 +5,8 @@
 #   template   how it is drawn: takerate (rows with a stage-split bar), heatmap
 #              (a table with shaded cells), mix (100% rows), bars (one bar per
 #              row), range (a min..max strip per row) — HTML, drawn by
-#              render/components.py; scatter — d3, in the browser
+#              render/components.py; scatter, timeseries, geo, statemix — d3,
+#              in the browser (src/web/charts/)
 #   title      its heading
 #   dims       the dimensions it shows (dimensions.yaml). Their caveats and
 #              small-n notes are composed into the component's caveat line.
