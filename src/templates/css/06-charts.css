@@ -308,6 +308,15 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   color: var(--desc);
   min-width: 4.5em;
 }
+/* Wider, each label is a column of its own and its chips start beside it,
+   wrapping under the first chip, so every group lines up whatever its length. */
+@media (width >= 768px) {
+  .fl-group {
+    display: grid;
+    grid-template-columns: 4.5em minmax(0,1fr);
+    align-items: baseline;
+  }
+}
 /* The chips' disclosure: only a phone shows its summary (and closes it). */
 .fl-box {
   flex-basis: 100%;
