@@ -285,6 +285,12 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   const partsOf = new Map(spec.series.map((s) => [s.name, s.parts]));
   const off = (name) => hidden.has(name) || Boolean(filters && partsOf.get(name)
     && filters.some((f) => hidden.has(`${f.dim}:${partsOf.get(name)[f.dim]}`)));
+  // A point with its own category (`cat`, filtered by `point_filter`) hides by
+  // it, kept in `hidden` as the category ref ("color:Midnight"); one with none
+  // (an unreported paint) hides once any is filtered, so "Midnight alone" is.
+  const catRefs = new Set((spec.point_filter?.values || []).map((v) => v.ref));
+  const catFiltered = () => [...hidden].some((k) => catRefs.has(k));
+  const pointOff = (p) => (p.cat ? hidden.has(p.cat) : catFiltered());
 
   // Boxes (toggles.boxes): the grain that fits, and whether they're showing.
   const boxSpec = spec.toggles?.boxes;
@@ -303,6 +309,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     for (const o of series) {
       if (off(o.s.name)) continue;
       for (const p of o.s.points) {
+        if (pointOff(p)) continue;
         const g = groupOf(date(p.x), boxGrain), wk = groupOf(date(p.x), "week").start;
         if (!by.has(g.key)) by.set(g.key, { ...g, first: wk, last: wk, pts: [] });
         const b = by.get(g.key);
@@ -328,7 +335,11 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   if (boxSpec) computeBoxes();
   // A line's points in pixels-to-be: as given, or for the median line in box
   // view, the boxes' medians.
-  const linePts = (l) => (boxView && l.median ? boxes.map((b) => ({ x: b.mid, y: b.st.med, tip: b.tip }))
+  // With some categories filtered out, the median follows what's left (the
+  // boxes' medians) in either view: the weekly median over every order would
+  // describe points that aren't there.
+  const throughBoxes = (l) => l.median && (boxView || catFiltered());
+  const linePts = (l) => (throughBoxes(l) ? boxes.map((b) => ({ x: b.mid, y: b.st.med, tip: b.tip }))
     : l.points.map((pt, i) => ({ x: xv(pt[0]), y: pt[1], tip: l.tips?.[i] })));
   function placeBoxes() {
     boxG.style("display", boxView ? null : "none");
@@ -373,12 +384,16 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
       .x((d) => x(d.x)).y((d) => y(d.y))(linePts(l)));
     // In box view the median's points are the boxes' median ticks.
     lineSel.selectAll("circle").attr("cx", (o) => x(xv(o.pt[0]))).attr("cy", (o) => y(o.pt[1]))
-      .style("display", (o) => (boxView && o.l.median ? "none" : null));
+      .style("display", (o) => (throughBoxes(o.l) ? "none" : null));
     ruleSel.select("line").attr("x1", (l) => x(xv(l.value))).attr("x2", (l) => x(xv(l.value)))
       .attr("y1", m.t).attr("y2", H - m.b);
     ruleSel.select("text").attr("x", (l) => x(xv(l.value)) + 4).attr("y", m.t + 10);
+    // A point with its own category (`cat`: §order-to-delivery's paint) wears
+    // its color in the points view; in the box view it takes its series' color
+    // again, so the boxes and the points left over them read as one.
     dots.selectAll("path.pt").attr("transform", (d) => `translate(${x(xv(d.p.x))},${y(d.p.y)})${turn(d)}`)
-      .style("display", (d) => (boxView && !inBox.has(d.p) ? "none" : null));
+      .attr("class", (d) => (d.p.cat && !boxView ? `pt pt-cat ${categoryClass(d.p.cat)}` : "pt"))
+      .style("display", (d) => (pointOff(d.p) || (boxView && !inBox.has(d.p)) ? "none" : null));
     placeBoxes();
     whiskG.style("display", showWhiskers ? null : "none");
     whisk.selectAll("path.whisker").attr("d", (p) => whiskerPath(x(xv(p.lo)), x(xv(p.hi)), y(p.y)));
@@ -455,10 +470,60 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
       }, new Set([...hidden].filter((k) => names.has(k))));
     }
   } else {
-    legend(legendEl,
+    // Beside point filters, the legend is a labelled row too (spec.legend:
+    // "Orders"), so its chips line up with the filters' under one label column.
+    let host = legendEl;
+    if (spec.point_filter) {
+      const doc = el.ownerDocument;
+      legendEl.replaceChildren();
+      const wrap = Object.assign(doc.createElement("div"), { className: "fl-group" });
+      wrap.dataset.dim = "series";
+      host = Object.assign(doc.createElement("div"), { className: "fl-chips" });
+      host.setAttribute("role", "group");
+      host.setAttribute("aria-label", spec.legend || "Series");
+      wrap.append(Object.assign(doc.createElement("span"), { className: "fl-label", textContent: spec.legend || "Series" }), host);
+      legendEl.append(wrap);
+    }
+    // The point filters' own entries live in `hidden` too; the legend keeps them.
+    const own = new Set([...series.map((o) => o.s.name), ...layerEntries(spec.layers).map((l) => l.name)]);
+    legend(host,
       [...series.map((o) => ({ name: o.s.name, cls: o.s.open ? `${o.cls} swatch-open` : o.cls })),
        ...layerEntries(spec.layers)],
-      (h) => { hidden = h; visibility(); }, hidden);
+      (h) => { hidden = new Set([...[...hidden].filter((k) => !own.has(k)), ...h]); visibility(); },
+      new Set([...hidden].filter((k) => own.has(k))));
+  }
+  // Filters on the points' own categories (`point_filter`: §order-to-delivery's
+  // paints), under the legend, in the phone's Filters disclosure as the series
+  // filters are. A change hides the points in place and recomputes the boxes.
+  if (spec.point_filter) {
+    const doc = el.ownerDocument, f = spec.point_filter;
+    const refs = new Set(f.values.map((v) => v.ref));
+    const sum = Object.assign(doc.createElement("summary"), { className: "fl-sum" });
+    const count = () => {
+      const n = [...hidden].filter((k) => refs.has(k)).length;
+      sum.textContent = n ? `Filters (${n} hidden)` : "Filters (all shown)";
+    };
+    count();
+    const box = Object.assign(doc.createElement("details"), { className: "fl-box" });
+    const phone = doc.defaultView?.matchMedia?.("(width < 768px)").matches ?? false;
+    box.open = !phone || Boolean(el.r2filtersOpen);
+    box.addEventListener("toggle", () => { if (phone) el.r2filtersOpen = box.open; });
+    const wrap = Object.assign(doc.createElement("div"), { className: "fl-group" });
+    wrap.dataset.dim = "cat";
+    const chips = Object.assign(doc.createElement("div"), { className: "fl-chips" });
+    chips.setAttribute("role", "group");
+    chips.setAttribute("aria-label", f.label);
+    wrap.append(Object.assign(doc.createElement("span"), { className: "fl-label", textContent: f.label }), chips);
+    box.append(sum, wrap);
+    legendEl.append(box);
+    const refOf = new Map(f.values.map((v) => [v.label, v.ref]));
+    legend(chips, f.values.map((v) => ({ name: v.label, cls: categoryClass(v.ref) })), (hs) => {
+      hidden = new Set([...[...hidden].filter((k) => !refs.has(k)), ...[...hs].map((l) => refOf.get(l))]);
+      count();
+      if (boxSpec) computeBoxes();
+      place();
+      tip.hide();
+    }, new Set(f.values.filter((v) => hidden.has(v.ref)).map((v) => v.label)));
   }
 
   // Controls: the whisker toggle (kept in the URL), when the spec has whiskers,
@@ -505,7 +570,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
     const cands = [];
     for (const o of series) {
       if (off(o.s.name)) continue;
-      for (const p of o.s.points) if (!boxView || inBox.has(p)) cands.push({ x: x(xv(p.x)), y: y(p.y), tip: p.tip });
+      for (const p of o.s.points) if (!pointOff(p) && (!boxView || inBox.has(p))) cands.push({ x: x(xv(p.x)), y: y(p.y), tip: p.tip });
     }
     for (const l of lines) {
       if (!hidden.has(layerName(l))) for (const q of linePts(l)) if (q.tip) cands.push({ x: x(q.x), y: y(q.y), tip: q.tip });

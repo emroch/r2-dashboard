@@ -136,6 +136,19 @@
   stroke: var(--mark-edge);
   stroke-width: 1;
 }
+/* A point in its own category's color (§order-to-delivery's paints, points
+   view): the paint itself, outlined; hollow (scheduled), its theme-clamped mark,
+   so a white paint's ring still shows on the white card. */
+.chart-svg .pt.pt-cat {
+  fill: var(--paint);
+  stroke: var(--mark-edge);
+  stroke-width: 1;
+}
+.chart-svg .pt-open .pt.pt-cat {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1.6;
+}
 .chart-svg .pt-open .pt {
   fill: none;
   stroke: var(--mark);
@@ -321,6 +334,7 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
 .fl-box {
   flex-basis: 100%;
 }
+.fl-group + .fl-box > .fl-group:first-of-type,
 .fl-box > .fl-group + .fl-group {
   margin-top: 4px;
 }
