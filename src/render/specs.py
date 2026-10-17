@@ -759,7 +759,10 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more,
     as a curve. `toggles.boxes` offers the same as a box per week (the chart
     computes them from the points; weeks under min_n stay points), the curve
-    (`median`) then drawn through the boxes' medians."""
+    (`median`) then drawn through the boxes' medians. In the points view each
+    point is its paint's color (`cat`), and the points filter by paint
+    (`point_filter`), for the forum's question of whether some paints arrive
+    faster."""
     d = latency_frame(df)
     passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
     series: list[dict[str, Any]] = []
@@ -772,9 +775,12 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
         series.append({"name": name, "color": "acc:primary", "open": open_,
                        "points": [{"x": _iso(o), "y": int(n),
                                    "tip": [str(u), "Ordered %s" % _day(o),
-                                           "Delivery %s" % _day(e), "%d days" % n]}
-                                  for u, o, e, n in zip(s["user"], s["order_date"],
-                                                        s["delivery_est"], s["days"])]})
+                                           "Delivery %s" % _day(e), "%d days" % n]
+                                   + ([] if _blank(c) else [str(c)]),
+                                   **({} if _blank(c) else {"cat": "color:%s" % c})}
+                                  for u, o, e, n, c in zip(
+                                      s["user"], s["order_date"], s["delivery_est"],
+                                      s["days"], s.get("color", [""] * len(s)))]})
         cells.append({"value": name, "label": name, "n": len(s), "known": True,
                       "ref": None})
     g: Any = d.groupby("order_week")["days"]
@@ -795,8 +801,13 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
             "y": {"label": "Days from order to delivery", "type": "linear",
                   "domain": [0.0, (_num_domain(ys) or [0, 1])[1]]},
             "legend": "Orders", "series": series, "layers": layers,
-            "toggles": {"boxes": {"min_n": LATENCY_MIN_WEEK_N}}}
-    rows = [[s_["name"], p["tip"][0], p["x"], p["tip"][2][len("Delivery "):], p["y"]]
+            "toggles": {"boxes": {"min_n": LATENCY_MIN_WEEK_N}},
+            "point_filter": {"label": "Paint",
+                             "values": [{"ref": "color:%s" % c, "label": c}
+                                        for c in (_paint_order(d) if "color" in d
+                                                  else [])]}}
+    rows = [[s_["name"], p["tip"][0], p["cat"].split(":", 1)[1] if "cat" in p else "",
+             p["x"], p["tip"][2][len("Delivery "):], p["y"]]
             for s_ in series for p in s_["points"]]
     # A firm date with no order date is the gap worth saying; an order with no
     # firm date isn't plotted whatever its order date (the chart's own rule).
@@ -806,7 +817,8 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
     agg = Aggregate("order-to-delivery points", "orders", cells,
                     {k: v for k, v in excluded.items() if v},
                     meta={"median": "%.0f" % d["days"].median()} if len(d) else {})
-    return spec, agg, (["Status", "Order", "Ordered", "Delivery", "Days"], rows)
+    return spec, agg, (["Status", "Order", "Paint", "Ordered", "Delivery", "Days"],
+                       rows)
 
 
 def latency_coverage(df: pd.DataFrame) -> tuple:

@@ -76,6 +76,8 @@ sections:
     howto: >-
       In the box view, a box spans the middle half of a week's waits, with a line at
       the median; whiskers reach the rest, except unusual waits, which stay as points.
+      In the points view, each order is colored by its paint; the paint chips show
+      or hide orders by paint in either view.
 
   - title: "VIN vs. order date"
     id: vin-vs-order

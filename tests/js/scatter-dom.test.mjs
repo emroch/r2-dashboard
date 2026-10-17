@@ -196,6 +196,10 @@ test("box view: a box per week of min_n+, the rest as points, the median through
   assert.equal(shown(), 7);
   el.querySelector('[data-view="boxes"]').dispatchEvent(new globalThis.window.Event("click"));
   assert.equal(el.querySelectorAll("g.box").length, 1);
+  // Paint colors only in the points view: boxes and their leftover points stay
+  // the series' color.
+  assert.equal(el.querySelectorAll("path.pt-cat").length, 0, "box view: no paint colors");
+  assert.equal(el.querySelector('.fl-group[data-dim="cat"]'), null, "no paint filter without point_filter");
   // Isolating the passed series recomputes the box from what's left.
   el.querySelector(".chart-legend .lg-item").dispatchEvent(new globalThis.window.Event("dblclick"));
   assert.equal(h.boxes()[0].st.n, 4);
@@ -287,4 +291,46 @@ test("filters on points: a series hides by its paint or wheels; layers get an Ov
   assert.equal(shown("Midnight · 21\""), false, "its wheels are filtered out");
   assert.equal(el.querySelector(".fl-sum").textContent, "Filters (1 hidden)");
   assert.equal(el.r2sc.svg, svgBefore, "points hide in place: no redraw");
+});
+
+test("points with their own category: colored in the points view, filterable, plain in boxes", async () => {
+  const { draw } = await import("../../src/web/charts/scatter.js");
+  const el = mountPoint();
+  const pts = [[10, "Midnight"], [20, "Midnight"], [30, "Borealis"], [40, null]];
+  const spec = {
+    template: "scatter", title: "l",
+    x: { label: "Order date", type: "date", domain: ["2026-06-01", "2026-08-31"] },
+    y: { label: "days", type: "linear", domain: [0, 100] },
+    series: [{ name: "Passed", color: "acc:primary", points: pts.map(([y, c]) => ({
+      x: "2026-06-02", y, tip: ["t"], ...(c ? { cat: `color:${c}` } : {}) })) }],
+    layers: [{ type: "line", name: "Median", color: "var:highlight", curve: true, median: true,
+               points: [["2026-06-04", 25]], tips: [["m"]] }],
+    toggles: { boxes: { min_n: 3 } },
+    point_filter: { label: "Paint", values: [{ ref: "color:Midnight", label: "Midnight" },
+                                             { ref: "color:Borealis", label: "Borealis" }] },
+  };
+  globalThis.location = { href: "http://x/?t=points", search: "?t=points" };  // the mount is "t"
+  const h = draw(d3, el, spec);
+  assert.equal(el.querySelectorAll("path.pt-cat.cat-color-midnight").length, 2);
+  const shown = () => [...el.querySelectorAll("g[data-name] path.pt")].filter((p) => p.style.display !== "none").length;
+  assert.equal(shown(), 4);
+  // Hiding Borealis hides its point, says so, and the median follows what's left.
+  const bor = [...el.querySelectorAll('.fl-group[data-dim="cat"] .lg-item')].find((b) => b.textContent === "Borealis");
+  bor.dispatchEvent(new globalThis.window.Event("dblclick"));   // isolate Borealis …
+  bor.dispatchEvent(new globalThis.window.Event("dblclick"));   // … and back to all
+  const mid = [...el.querySelectorAll('.fl-group[data-dim="cat"] .lg-item')].find((b) => b.textContent === "Midnight");
+  mid.dispatchEvent(new globalThis.window.Event("dblclick"));   // Midnight alone
+  assert.equal(shown(), 2, "only Midnight's two: Borealis and the unpainted one are filtered");
+  assert.equal(el.querySelector(".fl-sum").textContent, "Filters (1 hidden)");
+  assert.equal(el.querySelector("g.line circle").style.display, "none", "the median follows the boxes once filtered");
+  assert.ok(h.hidden().has("color:Borealis"));
+  // The series legend is a labelled row beside the paints, and toggling it
+  // leaves the paint filters alone.
+  const series = el.querySelector('.fl-group[data-dim="series"]');
+  assert.equal(series.querySelector(".fl-label").textContent, "Series");
+  series.querySelector(".lg-item").dispatchEvent(new globalThis.window.Event("dblclick"));
+  assert.ok(h.hidden().has("color:Borealis") && h.hidden().has("Median"));
+  el.querySelector('[data-view="boxes"]').dispatchEvent(new globalThis.window.Event("click"));
+  assert.equal(el.querySelectorAll("path.pt-cat").length, 0, "boxes: the series' color again");
+  assert.equal(h.boxes().length, 0, "two Midnight orders are too few for a box");
 });
