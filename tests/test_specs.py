@@ -342,6 +342,11 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     reconcile([agg], cohort_sizes(df))
     assert agg.excluded == {"outside the US (not mapped)": 1, "no known state": 1}
     assert agg.meta["left"] == "1 order and 1 reservation"
+    # States with orders, not counting a reservation-only one (WA).
+    assert agg.meta["states"] == "1 state"
+    dc = geo_demand(_orders(2, state=["CA", "DC"], price=[None] * 2, lat=[None] * 2),
+                    resv)
+    assert dc[1].meta["states"] == "1 state and DC", "DC is mapped, but isn't a state"
     ca = spec["states"]["CA"]
     assert (ca["demand"], ca["orders"], ca["vin"], ca["scheduled"], ca["delivered"]) \
         == (3, 2, 2, 1, 1)

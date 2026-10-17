@@ -325,8 +325,12 @@ def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
     table = (["State", "Region"] + [lbl for _, lbl in _MEASURES],
              [[c, v["region"]] + [v[k] for k, _ in _MEASURES]
               for c, v in states.items()])
+    # "47 states and DC": DC is on the map but isn't a state.
+    ordered = [c for c, v in states.items() if v["orders"]]
+    n_states = sum(1 for c in ordered if c != "DC")
+    where = "%s%s" % (_count(n_states, "state"), " and DC" if "DC" in ordered else "")
     agg = Aggregate("orders by US state", "orders", cells, excluded, "state",
-                    meta={"states": sum(1 for v in states.values() if v["orders"]),
+                    meta={"states": where,
                           "left": "%s and %s" % (_count(left["orders"], "order"),
                                                  _count(left["resv"], "reservation"))})
     return spec, agg, table

@@ -214,7 +214,7 @@ components:
     title: Geographic demand
     dims: [state]
     aggregate: geo_demand
-    summary: "{n} orders across {meta:states} states. Only US orders are mapped:
+    summary: "{n} orders across {meta:states}. Only US orders are mapped:
       {meta:left} elsewhere are left out."
   state-mix:
     template: statemix
