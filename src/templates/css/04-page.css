@@ -288,6 +288,41 @@ section p.desc a:hover {
 }
 /* The data-quality categories: as many 300px-plus columns as fit, down to one
    card-wide column on a phone, where each category's table scrolls inside it. */
+/* The page's groups (sections.yaml): a label over a group's first card. */
+.sec-group {
+  margin: 30px 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--desc);
+}
+.sec-group span {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+/* An old anchor (#sec-N) that lands on a section: an empty target at its top. */
+.anchor-alias {
+  display: block;
+}
+/* A headline readout that links to its section: the chip, not link-blue text. */
+a.ro-chip {
+  color: var(--chip-fg);
+  text-decoration: none;
+}
+a.ro-chip:hover {
+  filter: brightness(1.06);
+}
+.ro-link .ro-l::after {
+  content: " \2192";
+  opacity: .6;
+}
+/* The data-quality panel's cleanup readouts, above its flagged entries. */
+.qa-clean {
+  margin-bottom: 16px;
+}
 .qa {
   display: grid;
   grid-template-columns: repeat(auto-fit,minmax(min(300px,100%),1fr));

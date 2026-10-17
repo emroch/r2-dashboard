@@ -511,11 +511,12 @@ INFO_SVG = ('<svg class="info-svg" viewBox="0 0 16 16" aria-hidden="true">'
 
 
 def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
-            caption: str = "") -> str:
+            caption: str = "", href: str = "") -> str:
     """One summary number. With `rows` (the entries behind it: (#, user,
     detail)) it is a disclosure, marked with the info mark (INFO_SVG): clicking
     opens the list inline, under a caption naming the readout and saying what
-    the list holds (the list can land rows below its chip)."""
+    the list holds (the list can land rows below its chip). With `href` (and no
+    rows) it links to the section behind the number."""
     chip = '<b class="ro-v">%s</b><span class="ro-l">%s%s</span>' % (
         escape(str(value)), escape(label),
         '<span class="ro-i" aria-hidden="true">%s</span>' % INFO_SVG if rows else "")
@@ -523,9 +524,11 @@ def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
         # Read as one phrase ("711 Unique orders"): its number is a block of its
         # own, which VoiceOver would otherwise stop on alone, without its label.
         # (An opening readout is a <summary>, already read whole.)
-        return ('<div class="ro-chip"><span class="sr-only">%s %s</span>'
-                '<span aria-hidden="true">%s</span></div>'
-                % (escape(str(value)), escape(label), chip))
+        tag = ('a class="ro-chip ro-link" href="%s"' % escape(href) if href
+               else 'div class="ro-chip"')
+        return ('<%s><span class="sr-only">%s %s</span>'
+                '<span aria-hidden="true">%s</span></%s>'
+                % (tag, escape(str(value)), escape(label), chip, tag.split()[0]))
     body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
                    % tuple(escape(str(v)) for v in r) for r in rows)
     return ('<details class="ro-more"><summary class="ro-chip">%s</summary>'
@@ -544,10 +547,3 @@ def readout_group(title: str, readouts: Sequence[str], note: str = "",
             '%s</span>%s<div class="ro-row">%s</div>%s</div>'
             % (escape(title), escape(title), key, "".join(readouts),
                '<p class="ro-note">%s</p>' % escape(note) if note else ""))
-
-
-def stage_readouts(agg: Aggregate) -> list[str]:
-    """The Delivery progress readouts: one per stage, named as in the take-rate
-    bars' stage key."""
-    return [readout(format(int(c["n"]), ","), c["label"][:1].upper() + c["label"][1:])
-            for c in agg.cells]

@@ -369,7 +369,7 @@ def lean(rows: list[dict], cells: list[dict], baseline: list[dict]) -> str:
         "%.0f%%" % (100.0 * base[c["col"]]))
 
 
-# --- Configured price (§4) --------------------------------------------------------
+# --- Configured price (§price) --------------------------------------------------------
 # Over the "priced" cohort: orders whose whole configuration has a published
 # price. An unpriced order is counted in the report and the data-quality panel,
 # never here as zero.

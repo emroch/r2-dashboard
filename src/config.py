@@ -56,8 +56,11 @@ _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
 _THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
 _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
-# The page's section registry: order, title, prose, and what each section draws.
-SECTIONS_CONF = _load("sections.yaml")["sections"]
+# The page's section registry: order, title, prose, and what each section draws,
+# and the groups they fall in (group key -> its description).
+_SECTIONS = _load("sections.yaml")
+SECTIONS_CONF = _SECTIONS["sections"]
+SECTION_GROUPS = _SECTIONS.get("groups", {})
 # The presentation layer's components, by id (what each draws and says).
 COMPONENTS = _load("charts.yaml")["components"]
 

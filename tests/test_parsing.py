@@ -1354,7 +1354,8 @@ def test_interior_labels_keep_the_two_black_craters_apart():
 
 def test_interior_heatmap_columns_are_distinct_and_present_only():
     # One column per interior that has an order, labelled distinctly, and every
-    # order counted exactly once. (The §3 heatmap, render/aggregates.crosstab.)
+    # order counted exactly once. (The §combinations heatmap,
+    # render/aggregates.crosstab.)
     from config import INTERIOR_ORDER, INTERIOR_SHORT
     from render.aggregates import crosstab
     df = _interior_frame()
@@ -1465,10 +1466,10 @@ def test_every_paint_chart_uses_the_same_order():
     # Issue #58: the heatmap followed the palette's curated sequence, so Forest
     # Green sat near the top on 25 orders while Catalina Cove's 186 landed
     # mid-grid. Each of these read that sequence independently; they must now all
-    # follow one popularity ranking, or a reader learns an order in §2 that fails
-    # them in §3.
-    # (The §2 take-rate rows follow it too: test_aggregates.py.)
-    # (§9's delivery-vs-VIN scatter follows it too: test_specs.py.)
+    # follow one popularity ranking, or a reader learns an order in §take-rates
+    # that fails them in §combinations.
+    # (The §take-rates take-rate rows follow it too: test_aggregates.py.)
+    # (§delivery-vs-vin's delivery-vs-VIN scatter follows it too: test_specs.py.)
     from render.aggregates import crosstab
     from render.specs import _paint_order, vin_vs_order
     from render.view import _crosstab
@@ -1476,10 +1477,10 @@ def test_every_paint_chart_uses_the_same_order():
     want = _paint_order(df)
     assert want == _expected_paint_rank()
 
-    # §3 heatmap rows, top-down.
+    # §combinations heatmap rows, top-down.
     assert [r["value"] for r in crosstab(df, "color", "wheels").meta["rows"]] == want
 
-    # §8 scatter legend: one entry per paint × wheel, paints in rank order.
+    # §vin-vs-order scatter legend: one entry per paint × wheel, paints in rank order.
     seen = []
     for s in vin_vs_order(df)[0]["series"]:
         paint = s["name"].split(" · ")[0]
@@ -1862,7 +1863,7 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     # Taking the CATEGORY out while leaving the ROWS in would be the subtle bug: the
     # 100%-stacked panels divide by each bar's own total, so the stack would quietly
     # stop adding up to 100.
-    # (The §2 take-rate rows: test_aggregates.py.)
+    # (The §take-rates take-rate rows: test_aggregates.py.)
     from render.aggregates import crosstab
     from render.specs import _paint_order
     from render.view import _crosstab

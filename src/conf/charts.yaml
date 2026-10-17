@@ -75,7 +75,7 @@ components:
     aggregate: crosstab
     summary: "{top} is the most common pairing, at {top_share} of {n} orders."
 
-  # Location (§12), over the orders with a known location (cohort: located).
+  # Location (§wheels-climate), over the orders with a known location (cohort: located).
   #   cohort    the aggregate's cohort (aggregates.COHORTS; default orders)
   #   total     takerate: a first row summing every row, on its own scale
   #   row_label the row heading in the data table (default: the dimension's label)
@@ -151,7 +151,7 @@ components:
   # (render/specs.py, into r2_view.json) and the page draws it with d3
   # (src/web/charts/<template>.js), lazily, when it nears the viewport.
   #   aggregate  the spec builder in render/specs.py
-  # Time (§5–7, §9's cadence): weekly columns and lines, Monday weeks.
+  # Time (§timeline, §fulfilment, §order-to-delivery, §delivery-vs-vin's cadence): weekly columns and lines, Monday weeks.
   reservations-by-week:
     template: timeseries
     title: Reservations by week

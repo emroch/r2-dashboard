@@ -284,7 +284,7 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   fill: none;
 }
 
-/* A rows axis (§10): a group's heading line, and each row's short label. */
+/* A rows axis (§vin-by-config): a group's heading line, and each row's short label. */
 .chart-svg .row-head {
   fill: var(--fg);
   font-size: 11px;

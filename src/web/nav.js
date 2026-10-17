@@ -263,7 +263,17 @@
    document.dispatchEvent(new CustomEvent('r2:trip',{detail:{id:t.id}}));
   });
  });
- pick();
+ // Arriving with a hash (a posted link, or an old #sec-N alias) is a trip too:
+ // the browser's jump would otherwise be pushed away by the charts mounting
+ // above the target. So is a hash change the page didn't make (typed, or Back).
+ function arrive(){
+  var t=location.hash&&document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  if(!t)return false;
+  trip=t.closest('section')||t; aim('instant'); tripScrolled();
+  return true;
+ }
+ window.addEventListener('hashchange',arrive);
+ if(!arrive())pick();
 })();
 
 (function(){

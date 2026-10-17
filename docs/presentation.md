@@ -223,8 +223,10 @@ the color-blind mode is #152):
 
 ## URL state
 
-- **Anchors** are `#sec-N`, by position in `sections.yaml`, so reordering sections
-  renumbers them (durable links: #139).
+- **Anchors** are each section's stable `id` in `sections.yaml` (`#fulfilment`), so
+  reordering renumbers the headings but never breaks a link (#139). A section's
+  `aliases` keep older anchors working: the live page's `#sec-N` before the cutover
+  (main's 18-section numbering) each land on the section that replaced it.
 - **View state** lives in the query string through `src/web/state.js`
   (`URLSearchParams` and `replaceState`): `?whiskers=0`, a timeseries' view
   (`?<chart>=cumulative`) and grain (`?<chart>-grain=month`), §7's

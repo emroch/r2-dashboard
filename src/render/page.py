@@ -16,10 +16,10 @@ from bs4 import BeautifulSoup, Tag
 from .assets import publish_assets
 from .categories import category_css
 from .components import (INFO_SVG, notes_html, readout, readout_group,
-                         shared_caveats, stage_key, stage_readouts)
-from config import (COLOR_HEX, DASHBOARD, DIMENSIONS, ORDER_DATE_MIN, ORDERS_THREAD,
-                    RESV_DATE_MIN, RESV_THREAD, SECTIONS_CONF, THEME_CSS, AS_OF,
-                    COMPONENTS)
+                         shared_caveats, stage_key)
+from config import (COLOR_HEX, DASHBOARD, ORDER_DATE_MIN, ORDERS_THREAD,
+                    RESV_DATE_MIN, RESV_THREAD, SECTIONS_CONF, SECTION_GROUPS,
+                    THEME_CSS, AS_OF, COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -87,6 +87,24 @@ SECTIONS = [_section(e) for e in SECTIONS_CONF]
 # Each section's presentation-layer component ids (charts.yaml), by position.
 SECTION_COMPONENTS = [list(e.get("components", [])) for e in SECTIONS_CONF]
 SECTION_LAYOUTS = [e.get("layout", "grid") for e in SECTIONS_CONF]
+# Each section's anchor, the group it starts (or None) and the old anchors that
+# land on it (sections.yaml `id`, `group`, `aliases`). The summary and the
+# data-quality panel, built here, have theirs too: the live page's #sec-1 and
+# #sec-18 before stable anchors (#139).
+SECTION_IDS = [e["id"] for e in SECTIONS_CONF]
+SECTION_GROUP = [e.get("group") for e in SECTIONS_CONF]
+SECTION_ALIASES = [list(e.get("aliases", [])) for e in SECTIONS_CONF]
+SUMMARY_ID, SUMMARY_ALIASES = "summary", ["sec-1"]
+QA_ID, QA_ALIASES = "data-quality", ["sec-18"]
+_anchors = ([SUMMARY_ID, QA_ID] + SECTION_IDS + SUMMARY_ALIASES + QA_ALIASES
+            + [a for al in SECTION_ALIASES for a in al])
+_dupes = sorted({a for a in _anchors if _anchors.count(a) > 1})
+if _dupes:
+    raise LookupError("sections.yaml: anchors used twice: %s" % _dupes)
+_ungrouped = sorted({g for g in SECTION_GROUP if g} - set(SECTION_GROUPS))
+if _ungrouped:
+    raise LookupError("sections.yaml: unknown group %s (one of %s)"
+                      % (_ungrouped, sorted(SECTION_GROUPS)))
 _bad = sorted(set(SECTION_LAYOUTS) - set(_LAYOUTS))
 if _bad:
     raise LookupError("sections.yaml: unknown layout %s (one of %s)"
@@ -325,9 +343,21 @@ def _qa_id(num):
     return text if text == "—" else "#" + text
 
 
-def _quality_section(quality, num, cap=40):
-    """The data-quality / anomaly panel: things flagged for human review rather
-    than auto-corrected. Each category lists the affected (#, user, detail)."""
+# Roamer's R2 Tracker, which this page's design follows (credited in the intro
+# and the footer, page.html), through the owner's referral link.
+ROAMER_URL = "https://rivianroamer.com/join?with=emroch"
+
+
+def _aliases(ids):
+    """Old anchors that land on a section: empty targets at its top."""
+    return "".join('<span class="anchor-alias" id="%s"></span>' % a for a in ids)
+
+
+def _quality_section(quality, num, cleaning="", cap=40):
+    """The data-quality / anomaly panel: how the data was cleaned (`cleaning`,
+    the readout groups that used to head the page), then the things flagged for
+    human review rather than auto-corrected, each listing the affected (#, user,
+    detail)."""
     blocks = []
     for key, name, note in _QA_CATS:
         rows = quality.get(key, [])
@@ -358,23 +388,14 @@ def _quality_section(quality, num, cap=40):
         '<table><tr><th>raw</th><th>type</th><th>anchor</th><th>parsed</th></tr>'
         '%s</table></div>'
         % (len(conv), conv_body))
-    return ('<section id="sec-%d"><h2>%d · Data quality &amp; anomalies</h2>'
-            '<p class="desc">Entries flagged for review. Nothing here is '
-            'corrected automatically.</p><div class="qa">%s</div>%s</section>'
-            % (num, num, "".join(blocks), conv_html))
+    return ('<section id="%s">%s<h2>%d · Data quality &amp; anomalies</h2>'
+            '<p class="desc">How the sheets were cleaned, then the entries flagged '
+            'for review. Nothing flagged is corrected automatically.</p>%s'
+            '<div class="qa">%s</div>%s</section>'
+            % (QA_ID, _aliases(QA_ALIASES), num, cleaning, "".join(blocks), conv_html))
 
 
 def build_dashboard(df, report, resv, view):
-    # Numbering (DOM order): the summary card is 1, sections 2..N+1, QA N+2.
-    sections = []
-    for i, (title, desc, howto) in enumerate(SECTIONS):
-        n = i + 2
-        comps = _components_html(SECTION_COMPONENTS[i], view, SECTION_LAYOUTS[i])
-        sections.append(
-            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>%s'
-            '%s</section>' % (n, n, _esc(title), desc, _howto(howto), comps))
-    sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
-
     dc = report["delivery_counts"]
     firm = dc.get("explicit", 0)
     rangewin = dc.get("window", 0) + dc.get("range", 0) + dc.get("month", 0)
@@ -403,13 +424,10 @@ def build_dashboard(df, report, resv, view):
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
         "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
     }
-    stat_groups = [
-        ("Cohort", [
-            ("Unique orders", report["n_dedup"], None),
-            ("Manual additions", report["n_added"], san["Manual additions"]),
-            ("Incomplete reservations", rr["n_incomplete"], None),
-            ("Total demand", report["n_dedup"] + rr["n_incomplete"], None),
-        ]),
+    # How the data was cleaned: the cleanup readouts, at the top of the
+    # data-quality panel rather than the page's (they matter to anyone checking
+    # the numbers, not to a first look).
+    cleaning_groups = [
         ("Cleaned / removed", [
             ("Order duplicates", len(san["Duplicates removed"]),
              san["Duplicates removed"]),
@@ -425,14 +443,26 @@ def build_dashboard(df, report, resv, view):
              san["Likely entry errors set aside"]),
             ("Curated removals", len(san["Removed by curation"]),
              san["Removed by curation"]),
-            ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
         ]),
-        ("VIN recovery", [
+        ("Added or corrected", [
+            ("Manual additions", report["n_added"], san["Manual additions"]),
+            ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
             ("VINs recovered", report["vin_present"], san["VINs recovered"]),
             ("VINs de-obfuscated", report["vin_obfuscated"], san["VINs de-obfuscated"]),
+            # Configured price leaves these out (no published price yet).
+            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
         ]),
-        # Partitions all orders: firm + range/window + no date + unparseable + set
-        # aside = total.
+    ]
+
+    def _groups(spec):
+        return "".join(readout_group(gtitle, [readout(v, k, rows or (), captions.get(k, ""))
+                                              for k, v, rows in cards])
+                       for gtitle, cards in spec)
+
+    # Each order's delivery estimate, in Order-to-delivery time, which charts
+    # only the firm ones. Partitions all orders: firm + range/window + no date +
+    # unparseable + set aside = total.
+    callouts = {"order-to-delivery": _groups([
         ("Delivery estimate (of %d orders)" % report["n_dedup"], [
             ("Firm date", firm, None),
             ("Range / window", rangewin, None),
@@ -441,31 +471,42 @@ def build_dashboard(df, report, resv, view):
             ("Set aside as errors", set_aside,
              [r for r in san["Likely entry errors set aside"]
               if r[2].startswith("delivery ")]),
-        ]),
-        # Delivery progress goes here, from the view (below).
-        # Configured vehicle price (no destination/doc/taxes). "Unpriced" keeps the
-        # mean/median honest by showing what they were NOT computed over.
-        ("Configured price (of %d priced)" % pz["n_priced"], [
-            ("Mean", _money(pz["mean"]), None),
-            ("Median", _money(pz["median"]), None),
-            ("Range", "%s–%s" % (_money(pz["min"]), _money(pz["max"])), None),
-            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
-        ]),
-    ]
-    groups = [readout_group(gtitle, [readout(v, k, rows or (), captions.get(k, ""))
-                                     for k, v, rows in cards])
-              for gtitle, cards in stat_groups]
-    # Every order by delivery stage: the split the take-rate bars draw, from the
-    # same aggregate (reconciled with the rest of the view). Delivered is inferred, not reported, which the caveat says. It
-    # follows the delivery estimates (stat_groups[3]).
+        ])])}
+
+    # The summary's headline numbers, each linking to the section behind it.
+    # Delivered is the summary progress aggregate's (reconciled with the view);
+    # the build rate is the cadence chart's latest.
     progress = view.readouts["progress"]
-    groups.insert(4, readout_group(
-        "Delivery progress (of %s orders)" % format(progress.counted, ","),
-        stage_readouts(progress), note=DIMENSIONS["delivered"]["caveat"]))
-    stat_html = "".join(groups)
+    delivered = next(int(c["n"]) for c in progress.cells if c["value"] == "delivered")
+    share = round(100 * delivered / progress.counted) if progress.counted else 0
+    rate = view.mounted["build-cadence"].meta.get("rate") if "build-cadence" in view.mounted else None
+    headline = [
+        readout(format(report["n_dedup"], ","), "Orders", href="#timeline"),
+        readout(format(rr["n_incomplete"], ","), "Reservations not yet ordered",
+                href="#timeline"),
+        readout(format(delivered, ","), "Delivered (%d%%)" % share, href="#fulfilment"),
+    ] + ([readout("≈ %s" % rate, "VINs a day, lately", href="#delivery-vs-vin")]
+         if rate else [])
+    stat_html = '<div class="ro-group ro-head"><div class="ro-row">%s</div></div>' % "".join(headline)
+
+    # Sections, in sections.yaml order, numbered from 2 (the summary is 1). A
+    # section that starts a group is preceded by the group's label.
+    sections = []
+    for i, (title, desc, howto) in enumerate(SECTIONS):
+        n, sid, group = i + 2, SECTION_IDS[i], SECTION_GROUP[i]
+        comps = _components_html(SECTION_COMPONENTS[i], view, SECTION_LAYOUTS[i])
+        label = ('<p class="sec-group">%s <span>%s</span></p>'
+                 % (_esc(group), _esc(SECTION_GROUPS[group])) if group else "")
+        sections.append(
+            '%s<section id="%s">%s<h2>%d · %s</h2><p class="desc">%s</p>%s%s'
+            '%s</section>' % (label, sid, _aliases(SECTION_ALIASES[i]), n, _esc(title),
+                              desc, _howto(howto), callouts.get(sid, ""), comps))
+    sections.append(_quality_section(report["quality"], len(SECTIONS) + 2,
+                                     cleaning='<div class="qa-clean">%s</div>'
+                                     % _groups(cleaning_groups)))
 
     intro_html = (
-        '<h2>1 · Sources &amp; summary</h2>'
+        _aliases(SUMMARY_ALIASES) + '<h2>1 · Sources &amp; summary</h2>'
         + _src_line("Orders & Deliveries sheet", om,
                     "%d unique orders" % report["n_dedup"], ORDERS_THREAD)
         + _src_line("Reservations sheet", rm,
@@ -474,6 +515,9 @@ def build_dashboard(df, report, resv, view):
         + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
           ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
           ' owner/reservation trackers are compiled from</p>'
+        # The design's credit, asked for by Roamer's owner, who okayed it.
+        + '<p class="src">Design inspired by <a href="%s" target="_blank"'
+          ' rel="noopener">Roamer&#8217;s R2 Tracker</a></p>' % ROAMER_URL
         # How the data is read, and (with scripts) how the charts are used:
         # reference, so it's folded away rather than standing between the
         # sources and the numbers. Written to read the same aloud as on screen
@@ -499,15 +543,19 @@ def build_dashboard(df, report, resv, view):
                  'double-click or <em>Reset view</em> to return.')
         + '</details>')
 
-    # Chart-navigation sidebar: the summary card (1), each chart (2..N+1), and
-    # the QA panel (N+2), numbered by position to match the section headings.
-    nav_items = [("sec-1", "1 · Sources & summary")]
-    nav_items += [("sec-%d" % (i + 2), "%d · %s" % (i + 2, t))
-                  for i, (t, _, _) in enumerate(SECTIONS)]
+    # Chart-navigation sidebar: the summary (1), each section (2..N+1) under its
+    # group's heading, and the QA panel (N+2), numbered as the headings are.
+    nav = ['<a href="#%s" data-sec="%s">1 · Sources &amp; summary</a>' % (SUMMARY_ID, SUMMARY_ID)]
+    for i, (t, _, _) in enumerate(SECTIONS):
+        if SECTION_GROUP[i]:
+            nav.append('<div class="side-group">%s</div>' % _esc(SECTION_GROUP[i]))
+        nav.append('<a href="#%s" data-sec="%s">%d · %s</a>'
+                   % (SECTION_IDS[i], SECTION_IDS[i], i + 2, _esc(t)))
     qa_num = len(SECTIONS) + 2
-    nav_items.append(("sec-%d" % qa_num, "%d · Data quality & anomalies" % qa_num))
-    nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
-                        for sid, t in nav_items)
+    nav.append('<div class="side-group">Data</div>')
+    nav.append('<a href="#%s" data-sec="%s">%d · Data quality &amp; anomalies</a>'
+               % (QA_ID, QA_ID, qa_num))
+    nav_links = "".join(nav)
     # Header/sidebar chrome takes its greens from the palette (a nod to the
     # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
     header_bg = COLOR_HEX.get("Forest Green", "#226222")
@@ -541,7 +589,7 @@ def build_dashboard(df, report, resv, view):
     slot(id="reportGithub")["href"] = _report_url(report)
     slot(id="reportForum")["href"] = FORUM_DM_URL
     slot(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
-    slot(id="sec-1").append(BeautifulSoup(
+    slot(id=SUMMARY_ID).append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
     slot("main", class_="wrap").append(
         BeautifulSoup("".join(sections), "html.parser"))

@@ -115,7 +115,7 @@ def _aggregate(df: pd.DataFrame, spec: dict[str, Any]) -> Aggregate:
 
 def build(df: pd.DataFrame, resv: pd.DataFrame | None = None) -> View:
     """Compute and reconcile the page's aggregates, and render its static
-    components. `resv` is the outstanding reservations (§5 counts them).
+    components. `resv` is the outstanding reservations (§timeline counts them).
     Raises ReconcileError."""
     if resv is None:
         resv = pd.DataFrame({"resv_date": pd.Series([], dtype="datetime64[ns]")})

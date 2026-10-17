@@ -14,8 +14,8 @@
 // entry and draw above the points. Whiskers follow ?whiskers= (state.js). The
 // chart redraws when its width changes, keeping what the legend hides.
 //
-// x is a date axis, or a number line with `x.type: "linear"` (§10: VIN sequence).
-// y is a number line, or rows with `y.type: "rows"` (§10): `y.rows` lists the
+// x is a date axis, or a number line with `x.type: "linear"` (§vin-by-config: VIN sequence).
+// y is a number line, or rows with `y.type: "rows"` (§vin-by-config): `y.rows` lists the
 // rows top to bottom ({label, short, group, mark, symbol, and a value per
 // filtered dimension}), and a point's y is its row's index plus a jitter (set in
 // Python). Each run of rows sharing a `group` gets a heading line above it; a
@@ -269,8 +269,8 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
   const whisk = whiskG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls).attr("data-name", (o) => o.s.name);
   whisk.selectAll("path").data((o) => o.s.points.filter((p) => p.lo)).join("path").attr("class", "whisker");
-  // A series with `open` draws hollow points (§7: a delivery still scheduled);
-  // one with `true`, its category's true color, outlined (§8–10's paints).
+  // A series with `open` draws hollow points (§order-to-delivery: a delivery still scheduled);
+  // one with `true`, its category's true color, outlined (the configuration scatters' paints).
   const dots = dotG.selectAll("g").data(series).join("g")
     .attr("class", (o) => o.cls + (o.s.open ? " pt-open" : "") + (o.s.true ? " pt-true" : ""))
     .attr("data-name", (o) => o.s.name);
@@ -393,7 +393,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
 
   // Legend: every series, then one entry per layer group; or with `filters`, a
   // chip group per dimension with more than one value, then the layer groups'
-  // entries as one more, "Overlays" (§9's build front). A filter change on rows redraws the chart whole
+  // entries as one more, "Overlays" (§delivery-vs-vin's build front). A filter change on rows redraws the chart whole
   // (its rows and height change), and focus returns to the chip; on points it
   // hides their series. On a phone the chips (44px each) fold into a Filters
   // disclosure, closed until opened, that says how many values are hidden.

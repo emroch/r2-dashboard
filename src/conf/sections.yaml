@@ -1,17 +1,25 @@
 # R2 Orders — the page's sections, in display order.
 #
-# Each section's number (its heading and the sidebar link, and the #sec-N anchor
-# people link to) comes from its position here, so reordering this list is all it
-# takes; grouped as build -> timing -> production/VIN -> geography. The summary
-# (section 1) and the data-quality panel (last) are built by page.py around these.
+# Each section's number (its heading and sidebar link) comes from its position
+# here, and its anchor from its `id`, so reordering this list renumbers sections
+# but never breaks a link. Grouped by `groups` below: when (production and
+# delivery), what (configuration and price), where (geography). The summary
+# (section 1, #summary) and the data-quality panel (last, #data-quality) are
+# built by page.py around these.
 #
 #   title   heading and sidebar label
+#   id      the section's anchor (#fulfilment): stable, so links people post keep
+#           working; never reuse one for a different section
+#   group   starts a group here (a key of `groups`): a heading over it in the
+#           sidebar and a label above it on the page
+#   aliases old anchors that should land here (the live page's #sec-N before
+#           #139, a removed section's id), so old links still go somewhere close
 #   desc    what the section shows, under the heading: brief, no design rationale,
 #           nothing the charts already say. HTML, so <strong>, <em>, <br> and
 #           links work and & must be written &amp;. Folded (">-"), so line breaks
 #           here are just spaces in the page.
 #   howto   optional: how to use the section's own controls, shown only when
-#           scripts run. Hovering, legends and zoom are explained once, in §1.
+#           scripts run. Hovering, legends and zoom are explained once, in the summary.
 #   components  presentation-layer components, by id (charts.yaml), in order
 #   layout  how the components sit: grid (default: two across when there's room),
 #           fit (side by side at equal widths until a panel's content wouldn't
@@ -20,41 +28,17 @@
 #
 # Editing prose or order is a data edit here, not a code change.
 
+groups:
+  When: Production and delivery
+  What: Configuration and price
+  Where: Geography
+
 sections:
 
-  - title: "Configuration take-rates"
-    components: [takerate-color, takerate-wheels, takerate-interior,
-                 takerate-buylease, takerate-spare, takerate-r1]
-    desc: >-
-      What the cohort ordered, separated by delivery stage. A panel counts the orders
-      that answered its question, except the compact spare, where no answer counts as
-      No. Trim, Launch Package, Autonomy+, and Tow Package are universal, so they have
-      no panel yet.
-
-  - title: "Configuration combinations"
-    components: [combo-wheels, combo-interior]
-    layout: fit
-    desc: >-
-      Which options are ordered together: paint with wheels, and paint with
-      interior.
-
-  - title: "Configured price"
-    components: [price-distribution, price-options, price-by-trim]
-    layout: single
-    desc: >-
-      What the cohort is paying for the configured vehicle, from Rivian's
-      published trim and option prices, without destination, doc fees, taxes or
-      incentives. Orders with an option Rivian hasn't priced are left out and listed in
-      the data-quality panel.
-
-  - title: "Reservation & order timeline"
-    components: [reservations-by-week, orders-by-week]
-    desc: >-
-      Reservations by the week they were made, split by whether the holder has
-      ordered since; then orders by the week they were placed, split by how far each has
-      got today.
-
   - title: "Fulfilment"
+    id: fulfilment
+    group: When
+    aliases: [sec-6, sec-8]
     components: [fulfilment-by-week]
     desc: >-
       Every order's progress, week by week, from the dates it was given a VIN,
@@ -65,7 +49,23 @@ sections:
       and one that arrived early against a vague estimate doesn't. The data-quality
       panel lists the deliveries inferred from a window, range or month.
 
+  - title: "Delivery date vs. VIN sequence"
+    id: delivery-vs-vin
+    aliases: [sec-10]
+    components: [delivery-vs-vin, build-cadence]
+    desc: >-
+      Each order with a VIN and a delivery estimate; whiskers span its quoted
+      delivery window. The <em>build front</em> is the 90th-percentile VIN delivered each
+      finished week, from firm dates: roughly how far production has reached. The
+      dashed line projects it at the current rate, and the band is how far that
+      projection has missed before. It leans upward because production has ramped in
+      steps, so past projections have mostly fallen behind. It shows where production
+      is heading, not when any one order will arrive. Below, the build rate over
+      time.
+
   - title: "Order-to-delivery time"
+    id: order-to-delivery
+    aliases: [sec-7]
     components: [delivery-latency, latency-coverage]
     desc: >-
       How long orders with a firm delivery date wait between order and delivery.
@@ -78,24 +78,26 @@ sections:
       the median; whiskers reach the rest, except unusual waits, which stay as points.
 
   - title: "VIN sequence vs. order date"
+    id: vin-vs-order
+    aliases: [sec-9]
     components: [vin-vs-order]
     desc: >-
       Each order's VIN against its order date: whether ordering earlier gets an
       earlier build slot.
 
-  - title: "Delivery date vs. VIN sequence"
-    components: [delivery-vs-vin, build-cadence]
+  - title: "Reservation & order timeline"
+    id: timeline
+    aliases: [sec-5]
+    components: [reservations-by-week, orders-by-week]
     desc: >-
-      Each order with a VIN and a delivery estimate; whiskers span its quoted
-      delivery window. The <em>build front</em> is the 90th-percentile VIN delivered each
-      finished week, from firm dates: roughly how far production has reached. The
-      dashed line projects it at the current rate, and the band is how far that
-      projection has missed before. It leans upward because production has ramped in
-      steps, so past projections have mostly fallen behind. It shows where production
-      is heading, not when any one order will arrive. Below, the build rate over
-      time.
+      Reservations by the week they were made, split by whether the holder has
+      ordered since; then orders by the week they were placed, split by how far each has
+      got today.
 
   - title: "VIN sequence by configuration"
+    id: vin-by-config
+    group: What
+    aliases: [sec-11]
     components: [vin-by-config]
     desc: >-
       Each order with a VIN at its place in the build sequence, in a row per
@@ -104,7 +106,41 @@ sections:
       Rows are grouped by trim and interior, and marked by paint and wheel shape.
       The chips above hide or show rows by any part of the configuration.
 
+  - title: "Configuration take-rates"
+    id: take-rates
+    aliases: [sec-2]
+    components: [takerate-color, takerate-wheels, takerate-interior,
+                 takerate-buylease, takerate-spare, takerate-r1]
+    desc: >-
+      What the cohort ordered, separated by delivery stage. A panel counts the orders
+      that answered its question, except the compact spare, where no answer counts as
+      No. Trim, Launch Package, Autonomy+, and Tow Package are universal, so they have
+      no panel yet.
+
+  - title: "Configuration combinations"
+    id: combinations
+    aliases: [sec-3]
+    components: [combo-wheels, combo-interior]
+    layout: fit
+    desc: >-
+      Which options are ordered together: paint with wheels, and paint with
+      interior.
+
+  - title: "Configured price"
+    id: price
+    aliases: [sec-4]
+    components: [price-distribution, price-options, price-by-trim]
+    layout: single
+    desc: >-
+      What the cohort is paying for the configured vehicle, from Rivian's
+      published trim and option prices, without destination, doc fees, taxes or
+      incentives. Orders with an option Rivian hasn't priced are left out and listed in
+      the data-quality panel.
+
   - title: "Geographic demand"
+    id: geography
+    group: Where
+    aliases: [sec-12, sec-13, sec-14, sec-16, sec-17]
     components: [geo-demand, state-mix]
     desc: >-
       Demand by state, shaded on a square-root scale. Below, a state's orders by
@@ -114,6 +150,8 @@ sections:
       <em>Show all</em> lists every state with 10 or more.
 
   - title: "Wheels by climate & terrain"
+    id: wheels-climate
+    aliases: [sec-15]
     components: [wheels-by-elevation, wheels-by-temperature, wheels-by-urban]
     desc: >-
       Wheel choice by the destination state's mean elevation, average

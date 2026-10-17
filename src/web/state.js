@@ -1,5 +1,5 @@
 // View state in the URL's query string (docs/presentation.md, "URL state"), so
-// any view is a link someone can post. Anchors (#sec-10) are left alone.
+// any view is a link someone can post. Anchors (#fulfilment) are left alone.
 //
 //   whiskers  "0" hides the delivery-window whiskers; shown otherwise
 //   <chart>   a timeseries' view, when not its first ("cumulative")
