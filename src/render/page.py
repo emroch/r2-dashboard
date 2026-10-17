@@ -486,11 +486,11 @@ def build_dashboard(df, report, resv, view):
     share = round(100 * delivered / progress.counted) if progress.counted else 0
     rate = view.mounted["build-cadence"].meta.get("rate") if "build-cadence" in view.mounted else None
     headline = [
-        readout(format(report["n_dedup"], ","), "Orders", href="#timeline"),
+        readout(format(report["n_dedup"], ","), "Orders", href="#reservations-orders"),
         readout(format(rr["n_incomplete"], ","), "Reservations not yet ordered",
-                href="#timeline"),
-        readout(format(delivered, ","), "Delivered (%d%%)" % share, href="#fulfilment"),
-    ] + ([readout("≈ %s" % rate, "VINs a day, lately", href="#delivery-vs-vin")]
+                href="#reservations-orders"),
+        readout(format(delivered, ","), "Delivered (%d%%)" % share, href="#delivery-progress"),
+    ] + ([readout("≈ %s" % rate, "VINs a day, lately", href="#build-front")]
          if rate else [])
     stat_html = '<div class="ro-group ro-head"><div class="ro-row">%s</div></div>' % "".join(headline)
 

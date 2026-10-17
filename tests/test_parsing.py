@@ -1469,7 +1469,7 @@ def test_every_paint_chart_uses_the_same_order():
     # follow one popularity ranking, or a reader learns an order in §take-rates
     # that fails them in §combinations.
     # (The §take-rates take-rate rows follow it too: test_aggregates.py.)
-    # (§delivery-vs-vin's delivery-vs-VIN scatter follows it too: test_specs.py.)
+    # (§build-front's delivery-vs-VIN scatter follows it too: test_specs.py.)
     from render.aggregates import crosstab
     from render.specs import _paint_order, vin_vs_order
     from render.view import _crosstab

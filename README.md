@@ -39,7 +39,7 @@ src/
     components.py     the component frame (summary, n, caveats, data table) + HTML templates
     view.py           builds and reconciles the aggregates; builds r2_view.json
     specs.py          specs for the browser-drawn charts (points, layers, map and state counts)
-    cadence.py        the build-front model behind §delivery-vs-vin (rate, projection, back-tested band)
+    cadence.py        the build-front model behind §build-front (rate, projection, back-tested band)
     page.py           BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
     assets.py         publishes src/web/ as content-hashed static assets
   templates/          valid standalone page shell, filled at render time

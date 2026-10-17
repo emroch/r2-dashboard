@@ -23,7 +23,7 @@ chart:
   highlight_band: "rgba(243, 174, 61, 0.18)"
 
 # ---------------------------------------------------------------------------
-# Fulfilment over time (§fulfilment), its weekly view: one line per pipeline event. Order
+# Fulfilment over time (§delivery-progress), its weekly view: one line per pipeline event. Order
 # placed in orange; the rest step toward delivery.
 # ---------------------------------------------------------------------------
 fulfilment:

@@ -77,7 +77,7 @@ def _paint_order(d: pd.DataFrame) -> list[str]:
 
 def _config_tip(r: pd.Series) -> list[str]:
     """An order's tooltip in the configuration scatters (§vin-vs-order,
-    §delivery-vs-vin, §vin-by-config)."""
+    §build-front, §vin-by-config)."""
     return [str(r["user"]),
             "%s · %s" % (r["color"], r["wheels_short"]),
             "%s · %s" % (r["interior"], r["buylease"]),
@@ -107,7 +107,7 @@ def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], 
     as a paint's swatch is: clamped to the mark range, the greys and the darks
     become indistinguishable at a point's size. `parts` names the series' paint
     and wheels, for the chart's filters (_config_filters); `extra(row)` adds to
-    a point (§delivery-vs-vin's window). Returns (series, cells)."""
+    a point (§build-front's window). Returns (series, cells)."""
     series, cells = [], []
     for color in paints:
         for wheel in _WHEEL_SYMBOL:
@@ -141,7 +141,7 @@ def _config_filters(series: list[dict]) -> list[dict[str, Any]]:
 
 def vin_vs_order(df: pd.DataFrame) -> tuple:
     """§vin-vs-order: each order with a VIN at (order date, VIN), one series per paint ×
-    wheel, as §delivery-vs-vin."""
+    wheel, as §build-front."""
     vin = df["vin_present"].astype(bool)
     has = vin & df["order_date"].notna()
     d = df[has & _reported(df, "color", "wheels_short")]
@@ -152,7 +152,7 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
                                    lambda r: _iso(r["order_date"]),
                                    lambda r: int(r["vin_seq"]))
     xs = list(d["order_date"]) + [AS_OF]
-    spec = {"template": "scatter", "title": "VIN sequence vs. order date",
+    spec = {"template": "scatter", "title": "VIN vs. order date",
             "x": {"label": "R2 order date", "type": "date", "domain": _date_domain(xs)},
             "y": {"label": "VIN", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
@@ -228,7 +228,7 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
                {"dim": "interior", "label": "Interior",
                 "values": _values("interior", lambda i: INTERIOR_SHORT.get(i, i))},
                {"dim": "trim", "label": "Trim", "values": _values("trim", str)}]
-    spec = {"template": "scatter", "title": "VIN sequence by configuration",
+    spec = {"template": "scatter", "title": "VINs by configuration",
             "x": {"label": "VIN (production order →)", "type": "linear",
                   "domain": _num_domain([float(v) for v in d["vin_seq"]])},
             "y": {"label": "Configuration", "type": "rows", "rows": rows,
@@ -415,7 +415,7 @@ def state_mix(df: pd.DataFrame) -> tuple:
 
 
 def delivery_vs_vin(df: pd.DataFrame) -> tuple:
-    """§delivery-vs-vin: each order with a VIN and a delivery estimate, at (estimated
+    """§build-front: each order with a VIN and a delivery estimate, at (estimated
     delivery date, VIN), one series per paint × wheel, with the quoted window
     as a whisker; the build front, its projection and band; and today."""
     has = df["vin_present"].astype(bool) & df["delivery_est"].notna()
@@ -479,7 +479,7 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             ys += [float(v) for pt in layer["points"] for v in pt[1:]]
 
     spec = {"template": "scatter",
-            "title": "Delivery date vs. VIN sequence",
+            "title": "Delivery date vs. VIN",
             "x": {"label": "Estimated delivery date (whiskers = quoted window)",
                   "type": "date", "domain": _date_domain(xs)},
             "y": {"label": "VIN (production order →)",
@@ -577,9 +577,9 @@ def _column_table(first: str, cols: dict[str, Any]) -> tuple[list[str], list[lis
 
 
 def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
-    """§timeline, top: reservations by the week they were made, stacked: outstanding
-    (holders still waiting to order, from the reservations sheet) on top of
-    converted (every order with a reservation date)."""
+    """§reservations-orders, top: reservations by the week they were made,
+    stacked: outstanding (holders still waiting to order, from the reservations
+    sheet) on top of converted (every order with a reservation date)."""
     ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
     cols = _columns([("Converted", "acc:primary", ordered),
                      ("Outstanding", "acc:primary", only)], cumulative=True)
@@ -614,10 +614,10 @@ def _stage_names() -> list[tuple[str, str]]:
 
 
 def orders_by_week(df: pd.DataFrame) -> tuple:
-    """§timeline, bottom: orders by the week the configuration was finalized, each
-    split by how far it has got today (the four delivery stages, delivered at
-    the bottom): how each week's cohort is doing. The primary chart color,
-    stepped by stage (`stage`)."""
+    """§reservations-orders, bottom: orders by the week the configuration was
+    finalized, each split by how far it has got today (the four delivery
+    stages, delivered at the bottom): how each week's cohort is doing. The
+    primary chart color, stepped by stage (`stage`)."""
     st = stages(df)
     cols = _columns([(label, "acc:primary",
                       _weekly(df.loc[st == stage, "order_date"]))
@@ -669,7 +669,7 @@ def _event_dates(df: pd.DataFrame) -> dict[str, pd.Series]:
 
 
 def fulfilment_by_week(df: pd.DataFrame) -> tuple:
-    """§fulfilment: the whole pipeline over time, from each order's event dates.
+    """§delivery-progress: the whole pipeline over time, from each order's event dates.
 
     Cumulative (the default view): each week's column is every order placed by
     the week's end, split by the stage it had reached by then, stacked
@@ -712,7 +712,7 @@ def fulfilment_by_week(df: pd.DataFrame) -> tuple:
     totals = [sum(levels[st][i] for st in STAGES) for i in range(len(weeks))]
     peak = max([int(c) for by in events.values() for c in by.values()] or [1])
     today = now.normalize()
-    spec = {"template": "timeseries", "title": "Fulfilment over time",
+    spec = {"template": "timeseries", "title": "Delivery progress over time",
             "x": {"label": "Week", "type": "date",
                   "domain": _weeks_domain(weeks, [today]) if weeks else None,
                   "partial": _partial(weeks)},
@@ -728,7 +728,7 @@ def fulfilment_by_week(df: pd.DataFrame) -> tuple:
             for i, w in enumerate(weeks)]
     cells = [{"value": st, "label": label, "n": levels[st][-1] if weeks else 0,
               "known": True, "ref": None} for st, label in _stage_names()]
-    agg = Aggregate("fulfilment over time", "orders", cells,
+    agg = Aggregate("delivery progress over time", "orders", cells,
                     {"no order date": len(df) - len(d)} if len(df) - len(d) else {})
     return spec, agg, (heads, rows)
 
@@ -843,7 +843,7 @@ def latency_coverage(df: pd.DataFrame) -> tuple:
 
 
 def build_cadence(df: pd.DataFrame) -> tuple:
-    """§delivery-vs-vin, beneath: the build front's rate over time, VINs per
+    """§build-front, beneath: the build front's rate over time, VINs per
     day, as of each front week (render/cadence.py rate_history), at the week's
     middle."""
     from config import CADENCE_WINDOW_WEEKS

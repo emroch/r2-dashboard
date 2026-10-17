@@ -38,7 +38,7 @@ src/
     components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate, heatmap, mix, bars, range, readout)
     view.py         builds + reconciles the page's aggregates, renders the components; builds r2_view.json (browser-drawn components' specs; pipeline.py writes it)
     specs.py        house-schema specs for the browser-drawn components (scatter, timeseries, geo, statemix): points, layers, fixed domains, map and state counts; no colors
-    cadence.py      the build-front model behind §delivery-vs-vin: VIN rate, projection, back-tested band
+    cadence.py      the build-front model behind §build-front: VIN rate, projection, back-tested band
     page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
   templates/        valid standalone page shell, filled at render time

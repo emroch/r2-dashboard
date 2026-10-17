@@ -8,7 +8,7 @@
 # built by page.py around these.
 #
 #   title   heading and sidebar label
-#   id      the section's anchor (#fulfilment): stable, so links people post keep
+#   id      the section's anchor (#delivery-progress): stable, so links people post keep
 #           working; never reuse one for a different section
 #   group   starts a group here (a key of `groups`): a heading over it in the
 #           sidebar and a label above it on the page
@@ -35,11 +35,11 @@ groups:
 
 sections:
 
-  - title: "Fulfilment"
-    id: fulfilment
+  - title: "Delivery progress"
+    id: delivery-progress
     group: When
     aliases: [sec-6, sec-8]
-    components: [fulfilment-by-week]
+    components: [delivery-progress-by-week]
     desc: >-
       Every order's progress, week by week, from the dates it was given a VIN,
       had its delivery scheduled and was delivered. A VIN or date with no known date of
@@ -49,8 +49,8 @@ sections:
       and one that arrived early against a vague estimate doesn't. The data-quality
       panel lists the deliveries inferred from a window, range or month.
 
-  - title: "Delivery date vs. VIN sequence"
-    id: delivery-vs-vin
+  - title: "Build front"
+    id: build-front
     aliases: [sec-10]
     components: [delivery-vs-vin, build-cadence]
     desc: >-
@@ -77,7 +77,7 @@ sections:
       In the box view, a box spans the middle half of a week's waits, with a line at
       the median; whiskers reach the rest, except unusual waits, which stay as points.
 
-  - title: "VIN sequence vs. order date"
+  - title: "VIN vs. order date"
     id: vin-vs-order
     aliases: [sec-9]
     components: [vin-vs-order]
@@ -86,7 +86,7 @@ sections:
       earlier build slot.
 
   - title: "Reservation & order timeline"
-    id: timeline
+    id: reservations-orders
     aliases: [sec-5]
     components: [reservations-by-week, orders-by-week]
     desc: >-
@@ -94,7 +94,7 @@ sections:
       ordered since; then orders by the week they were placed, split by how far each has
       got today.
 
-  - title: "VIN sequence by configuration"
+  - title: "VINs by configuration"
     id: vin-by-config
     group: What
     aliases: [sec-11]
@@ -150,7 +150,7 @@ sections:
       <em>Show all</em> lists every state with 10 or more.
 
   - title: "Wheels by climate & terrain"
-    id: wheels-climate
+    id: wheels-by-geo
     aliases: [sec-15]
     components: [wheels-by-elevation, wheels-by-temperature, wheels-by-urban]
     desc: >-

@@ -223,7 +223,7 @@ the color-blind mode is #152):
 
 ## URL state
 
-- **Anchors** are each section's stable `id` in `sections.yaml` (`#fulfilment`), so
+- **Anchors** are each section's stable `id` in `sections.yaml` (`#delivery-progress`), so
   reordering renumbers the headings but never breaks a link (#139). A section's
   `aliases` keep older anchors working: the live page's `#sec-N` before the cutover
   (main's 18-section numbering) each land on the section that replaced it.

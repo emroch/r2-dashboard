@@ -393,7 +393,7 @@ export function draw(d3, el, given, { hidden: startHidden = new Set() } = {}) {
 
   // Legend: every series, then one entry per layer group; or with `filters`, a
   // chip group per dimension with more than one value, then the layer groups'
-  // entries as one more, "Overlays" (§delivery-vs-vin's build front). A filter change on rows redraws the chart whole
+  // entries as one more, "Overlays" (§build-front's build front). A filter change on rows redraws the chart whole
   // (its rows and height change), and focus returns to the chip; on points it
   // hides their series. On a phone the chips (44px each) fold into a Filters
   // disclosure, closed until opened, that says how many values are hidden.
