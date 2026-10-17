@@ -51,8 +51,3 @@ explicit_package_bases = true
 # signature carries hints.
 check_untyped_defs = true
 warn_unused_ignores = true
-
-# plotly ships no type information.
-[[tool.mypy.overrides]]
-module = ["plotly", "plotly.*"]
-ignore_missing_imports = true

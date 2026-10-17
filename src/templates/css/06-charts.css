@@ -1,0 +1,359 @@
+/* Browser-drawn charts (src/web/charts/scatter.js, timeseries.js): legend,
+   controls, axes, marks, stage tones, hover and tooltips. */
+
+/* Browser-drawn charts (src/web/charts/). Every color is a custom property, so a
+   theme change restyles a drawn chart without redrawing it: series groups carry
+   their category class and fill with var(--mark). */
+.r2c-chart {
+  position: relative;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 0;
+}
+.lg-item {
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  color: var(--fg);
+  border: 1px solid var(--card-bd);
+  border-radius: 12px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.lg-item[aria-pressed=false] {
+  opacity: .38;
+}
+.lg-item .swatch {
+  width: .75em;
+  height: .75em;
+}
+
+/* An open series' swatch is hollow, like its points. */
+.swatch.swatch-open {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--paint);
+}
+.chart-plot {
+  position: relative;
+}
+.chart-controls {
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+/* A view switch (Weekly / Cumulative): both choices look clickable, and the
+   current one is filled, unlike a legend entry, whose unpressed state means
+   hidden. */
+.chart-switch .lg-item[aria-pressed=false] {
+  opacity: 1;
+}
+.chart-switch .lg-item[aria-pressed=true] {
+  background: var(--fg);
+  color: var(--card-bg);
+  border-color: var(--fg);
+}
+/* Mutually exclusive choices (.seg: a grain, a view, a measure) are one
+   segmented control: the buttons share their borders, rounded only at the
+   ends, and the pressed one sits on top so its border shows whole. */
+.chart-switch.seg {
+  display: inline-flex;
+  gap: 0;
+}
+.seg .lg-item {
+  position: relative;
+  border-radius: 0;
+}
+.seg .lg-item + .lg-item {
+  margin-left: -1px;
+}
+.seg .lg-item:first-child {
+  border-radius: 12px 0 0 12px;
+}
+.seg .lg-item:last-child {
+  border-radius: 0 12px 12px 0;
+}
+.seg .lg-item[aria-pressed=true],
+.seg .lg-item:focus-visible {
+  z-index: 1;
+}
+.chart-loading {
+  margin: 0;
+  padding: 40px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--desc);
+}
+
+/* One finger scrolls the page (the browser keeps panning); two pinch and pan
+   the chart (charts/scatter.js filters its zoom to match). */
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-x pan-y;
+  cursor: grab;
+}
+.chart-svg:active {
+  cursor: grabbing;
+}
+.chart-svg .axis text {
+  fill: var(--desc);
+  font-size: 11px;
+}
+.chart-svg .axis path,
+.chart-svg .axis line {
+  stroke: var(--desc);
+}
+.chart-svg .grid line {
+  stroke: var(--card-bd);
+}
+.chart-svg .grid path {
+  display: none;
+}
+.chart-svg .axis-label {
+  fill: var(--fg);
+  font-size: 12px;
+}
+.chart-svg .pt {
+  fill: var(--mark);
+  stroke: var(--desc);
+  stroke-width: .8;
+}
+/* A true-color point (a paint): the fill is the paint itself, so the greys
+   and darks stay apart, and the mark-edge outline holds 3:1 on the card. */
+.chart-svg .pt-true .pt {
+  fill: var(--paint);
+  stroke: var(--mark-edge);
+  stroke-width: 1;
+}
+.chart-svg .pt-open .pt {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1.6;
+}
+
+/* timeseries columns; a column cut off by a clipped axis is labelled. */
+.chart-svg .bar {
+  fill: var(--mark);
+}
+
+/* Delivery stages in a chart's columns (timeseries `stage`): the color stepped
+   paler toward white rather than faded by opacity, which on the dark card turns
+   every stage brown. Legend swatches step the same way, from the same --mark as
+   the bars, so a swatch matches its band in both themes. */
+.tone-delivered {
+  --tone: 100%;
+}
+.tone-scheduled {
+  --tone: 75%;
+}
+.tone-vin {
+  --tone: 52%;
+}
+.tone-wait {
+  --tone: 30%;
+}
+.chart-svg [class*="tone-"] .bar {
+  fill: color-mix(in oklab,var(--mark) var(--tone),white);
+}
+.lg-item .swatch[class*="tone-"] {
+  background: color-mix(in oklab,var(--mark) var(--tone),white);
+}
+
+/* On the dark card the stages step darker instead, duller like the take-rate
+   stages, rather than paler; in gentler steps, so the last (waiting, usually
+   the largest band) stays well clear of the near-black card. */
+html[data-theme="dark"] .tone-scheduled {
+  --tone: 86%;
+}
+html[data-theme="dark"] .tone-vin {
+  --tone: 70%;
+}
+html[data-theme="dark"] .tone-wait {
+  --tone: 56%;
+}
+html[data-theme="dark"] .chart-svg [class*="tone-"] .bar {
+  fill: color-mix(in oklab,var(--mark) var(--tone),black);
+}
+html[data-theme="dark"] .lg-item .swatch[class*="tone-"] {
+  background: color-mix(in oklab,var(--mark) var(--tone),black);
+}
+
+/* The current week, still under way (timeseries x.partial), crosshatched in the
+   weekly view. */
+.chart-svg .hatch {
+  stroke: var(--card-bg);
+  stroke-width: 1.5;
+}
+.chart-svg .bar-partial {
+  pointer-events: none;
+}
+
+/* The hovered week (timeseries .active) in Compass Yellow, stepped by stage
+   toward white, or black on the dark card. */
+.chart-svg .bar.active {
+  fill: var(--stat-bg);
+}
+.chart-svg [class*="tone-"] .bar.active {
+  fill: color-mix(in oklab,var(--stat-bg) var(--tone),white);
+}
+html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
+  fill: color-mix(in oklab,var(--stat-bg) var(--tone),black);
+}
+
+/* The hover rule over a line chart (timeseries). */
+.chart-svg .hover-rule {
+  stroke: var(--desc);
+  stroke-width: 1;
+  stroke-dasharray: 3,3;
+  pointer-events: none;
+}
+
+/* A rule between a tooltip's values and its totals. */
+.chart-tip .tip-rule {
+  border: 0;
+  border-top: 1px solid var(--tip-bd);
+  margin: 4px 0;
+}
+.chart-svg .clipped {
+  fill: var(--desc);
+  font-size: 11px;
+}
+.chart-svg .whisker {
+  stroke: var(--mark);
+  stroke-opacity: .55;
+  stroke-width: 1.4;
+  fill: none;
+}
+.chart-svg .rule line {
+  stroke: var(--desc);
+  stroke-dasharray: 4,3;
+}
+.chart-svg .rule text {
+  fill: var(--desc);
+  font-size: 10px;
+}
+.chart-tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--tip-bg);
+  color: var(--tip-fg);
+  border: 1px solid var(--tip-bd);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px var(--tip-sh);
+  white-space: nowrap;
+  z-index: 3;
+}
+
+/* A drawn chart's controls (a grain, a view, Reset view): in a row above the
+   plot that wraps on a narrow screen, rather than over it. */
+.ts-controls {
+  position: static;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 12px;
+  margin-bottom: 6px;
+}
+
+/* Box view (charts/scatter.js toggles.boxes): the middle half filled lightly,
+   the median a solid tick, the whiskers thin. */
+.chart-svg .box-iqr {
+  fill: color-mix(in oklab,var(--mark) 22%,transparent);
+  stroke: var(--mark);
+  stroke-width: 1.2;
+}
+.chart-svg .box-med {
+  stroke: var(--mark);
+  stroke-width: 2.4;
+}
+.chart-svg .box-whisk {
+  stroke: var(--mark);
+  stroke-width: 1.2;
+  fill: none;
+}
+
+/* A rows axis (§vin-by-config): a group's heading line, and each row's short label. */
+.chart-svg .row-head {
+  fill: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+.chart-svg .row-label {
+  fill: var(--desc);
+  font-size: 11px;
+}
+
+/* Filter chips (charts/scatter.js `filters`): a labelled group per dimension. */
+.fl-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  flex-basis: 100%;
+}
+.fl-label {
+  font-size: 12px;
+  color: var(--desc);
+  min-width: 4.5em;
+}
+/* Wider, each label is a column of its own and its chips start beside it,
+   wrapping under the first chip, so every group lines up whatever its length. */
+@media (width >= 768px) {
+  .fl-group {
+    display: grid;
+    grid-template-columns: 4.5em minmax(0,1fr);
+    align-items: baseline;
+  }
+}
+/* The chips' disclosure: only a phone shows its summary (and closes it). */
+.fl-box {
+  flex-basis: 100%;
+}
+.fl-box > .fl-group + .fl-group {
+  margin-top: 4px;
+}
+.fl-sum {
+  font-size: 13px;
+  cursor: pointer;
+}
+@media (width >= 768px) {
+  .fl-sum {
+    display: none;
+  }
+}
+/* On a phone each label heads its chips, so the groups line up. */
+@media (width < 768px) {
+  .fl-label {
+    flex-basis: 100%;
+  }
+}
+.fl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+/* A wheel chip's swatch is its marker shape, in neutral grey. */
+.swatch.swatch-sym {
+  border-radius: 0;
+}
+.swatch.sym-circle {
+  border-radius: 50%;
+}
+.swatch.sym-diamond {
+  transform: rotate(45deg) scale(.85);
+}
+.swatch.sym-triangle-up {
+  clip-path: polygon(50% 0,100% 100%,0 100%);
+}

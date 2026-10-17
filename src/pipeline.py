@@ -11,8 +11,11 @@ import pandas as pd
 from config import (CLEAN_CSV, DASHBOARD, DIMENSIONS_JSON, ORDER_DATE_MIN,
                     ORDERS_GID, ORDERS_KEY, ORDERS_LABEL, ORDERS_SLUG,
                     OVERRIDES, RESV_GID, RESV_KEY, RESV_LABEL, RESV_SLUG,
-                    SERIES_JSON)
+                    SERIES_JSON, VIEW_JSON)
+from render.aggregates import ReconcileError
 from render.page import build_dashboard
+from render.view import build as build_view
+from render.view import unknown_categories, view_json
 from ingest.fetch import fetch_sheet
 from ingest.history import (current_keys, current_runs, orders_history,
                             reservations_history, summary)
@@ -98,13 +101,21 @@ def main(argv=None):
         out[c] = out[c].dt.strftime("%Y-%m-%d")
     out.to_csv(CLEAN_CSV, index=False)
 
-    build_dashboard(df, report, resv)
+    # The presentation layer's aggregates and components (render/view.py): every
+    # aggregate must add back up to the cohort it counts, or the build stops,
+    # the same rule as the series check below.
+    try:
+        view = build_view(df, resv)
+    except ReconcileError as exc:
+        raise SystemExit(str(exc)) from exc
+    build_dashboard(df, report, resv, view)
 
     # The published data contract (ingest/contract.py): dimension metadata plus
     # the event-dated daily series, built from this build's cleaned data. Its last
     # point plus what has no date must add up to this build's totals; a mismatch
     # means the series no longer describes the dashboard, which is worth a failed
-    # build rather than a silently wrong file.
+    # build rather than a silently wrong file. Delivered is the summary's
+    # Delivered readout itself, so the series and the readouts can't disagree.
     converted = {str(u).lower() for _, u, _ in resv_report["matched_records"]}
     t0 = time.perf_counter()
     ser = series(df, resv, converted,
@@ -113,7 +124,8 @@ def main(argv=None):
     series_secs = time.perf_counter() - t0
     totals = {"orders": report["n_dedup"],
               "vin_assigned": int(df["vin_present"].sum()),
-              "delivered": int(df["delivered_inferred"].astype(bool).sum())}
+              "delivered": next(int(c["n"]) for c in view.readouts["progress"].cells
+                                if c["value"] == "delivered")}
     for name, total in totals.items():
         got = ser["values"][name][-1] + ser["undated"][name]
         if got != total:
@@ -123,6 +135,8 @@ def main(argv=None):
         json.dump(dimensions(), fh, indent=1)
     with open(SERIES_JSON, "w") as fh:
         json.dump(ser, fh, indent=1)
+    with open(VIEW_JSON, "w") as fh:
+        json.dump(view_json(view), fh, indent=1)
 
 
     def _fmt(meta):
@@ -217,9 +231,14 @@ def main(argv=None):
             print("Cached (new data)  : %s" % os.path.basename(m["cache"]))
     print("Data contract: %d daily series points (%.2fs), %d dimensions"
           % (len(ser["dates"]), series_secs, len(dimensions()["dimensions"])))
+    unknown = unknown_categories(view)
+    print("View: %d aggregates reconciled, %d HTML + %d browser-drawn components%s"
+          % (len(view.aggregates), len(view.static), len(view.components),
+             "; NOT IN dimensions.yaml: " + ", ".join(unknown) if unknown else ""))
     print("Wrote: %s" % os.path.basename(CLEAN_CSV))
-    print("Wrote: %s, %s" % (os.path.basename(DIMENSIONS_JSON),
-                             os.path.basename(SERIES_JSON)))
+    print("Wrote: %s, %s, %s" % (os.path.basename(DIMENSIONS_JSON),
+                                 os.path.basename(SERIES_JSON),
+                                 os.path.basename(VIEW_JSON)))
     print("Wrote: %s" % os.path.basename(DASHBOARD))
 
 

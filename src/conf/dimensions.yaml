@@ -29,6 +29,12 @@
 #                 bucket    shown as its own category, named by `label`
 #                 category  already one of the categories (`value`)
 #   small_n     a minimum count for a category to be drawn on its own
+#   true_color  true: where its categories are compared side by side (a mix
+#               bar's segments), they draw in their true color instead of the
+#               theme-clamped mark color; the bar's border (the theme's mark-edge)
+#               separates them from the card. A take-rate bar, whose segments are
+#               delivery stages of one category, keeps the clamped mark. For colors that ARE the data (paints,
+#               cabins), where clamping makes silver, grey and white alike.
 #   categories  value (exactly as it appears in the CSV) + label, color, ...
 
 dimensions:
@@ -45,6 +51,7 @@ dimensions:
     column: color
     label: Paint
     order: count
+    true_color: true
     note: Most-ordered first.
     missing: {policy: omit}
     categories:
@@ -66,7 +73,8 @@ dimensions:
   #   value  — display label, and what the CSV's wheels_short holds
   #   abbr   — compact label for dense axes; size + All-Season/All-Terrain, which
   #            is unique across all four and is the distinction people argue about
-  #   symbol — Plotly marker, dual-encoding with paint color on the scatter charts
+  #   symbol — marker shape, dual-encoding with paint color on the scatter charts
+  #            (circle, square, diamond, triangle-up; charts/scatter.js maps them)
   #   color  — fill for the wheel-mix bars. Listed in ascending size, which is the
   #            stack order; validated for CVD separation and contrast in both
   #            light and dark against that order.
@@ -124,8 +132,8 @@ dimensions:
   # The one thing worth keeping in view when tuning: each of these sits near one of
   # the two chart surfaces (the dark cabins near the dark card, the light one near
   # the white card), so a fill on its own doesn't delineate a segment in both
-  # themes. The interior charts draw a border in CHART.edge, which the theme flips
-  # (#2b2b2b light / #aab0b8 dark), and that border is what holds the edge. Pushing
+  # themes. The interior mix bars draw a border in mark-edge (theme.yaml), which
+  # the theme flips, and that border is what holds the edge. Pushing
   # the colors further apart from each other tends to push each one closer to its
   # weaker surface, so it's worth a look in both themes after a change.
   # ---------------------------------------------------------------------------
@@ -133,6 +141,7 @@ dimensions:
     column: interior
     label: Interior
     order: fixed
+    true_color: true
     note: Plainest first.
     missing: {policy: omit}
     categories:
@@ -224,8 +233,9 @@ dimensions:
     order: count
     missing: {policy: bucket, label: No state data}
     small_n:
-      min_orders: 5
-      note: States with fewer orders are summarized by region only.
+      min_orders: 10
+      note: States with fewer orders are left out of a list of states, and carry a
+        note when shown on their own.
     caveat: Location is self-reported.
     categories: []              # the states present; geo.yaml has the full list
 
@@ -250,12 +260,21 @@ dimensions:
       - {value: month,    label: Month,           color: "#9467bd", opacity: 1.0}
       - {value: unknown,  label: No date given,   color: "#bbbbbb", opacity: 1.0}
 
+  vin:
+    column: vin_present
+    label: VIN
+    order: fixed
+    note: A VIN is the sequence number of the build slot an order is given.
+    categories:
+      - {value: true,  label: VIN assigned}
+      - {value: false, label: No VIN yet}
+
   delivered:
     column: delivered_inferred
     label: Delivered (est.)
     order: fixed
-    caveat: Inferred, not reported. An estimate whose whole window has passed
-      counts as delivered, which can be wrong both ways.
+    caveat: Delivery status is inferred from each order's estimated delivery
+      window.
     categories:
       - {value: true,  label: Delivered (est.)}
       - {value: false, label: Awaiting delivery}

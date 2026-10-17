@@ -1,0 +1,231 @@
+# R2 Orders — the presentation layer's components (docs/presentation.md).
+#
+# One entry per component, by id. A section lists the ids it shows in
+# sections.yaml (`components:`), in display order. Per entry:
+#   template   how it is drawn: takerate (rows with a stage-split bar), heatmap
+#              (a table with shaded cells), mix (100% rows), bars (one bar per
+#              row), range (a min..max strip per row) — HTML, drawn by
+#              render/components.py; scatter, timeseries, geo, statemix — d3,
+#              in the browser (src/web/charts/)
+#   title      its heading
+#   dims       the dimensions it shows (dimensions.yaml). Their caveats and
+#              small-n notes are composed into the component's caveat line.
+#   aggregate  what it counts (render/aggregates.py). Default: the counts of
+#              its first dimension. r1_models: R1 ownership as one list.
+#   summary    the one-sentence finding above it, with placeholders filled from
+#              the counts:
+#                {n}               orders counted (the answered ones)
+#                {top}             the largest row's label
+#                {top_share}       its share of {n}
+#                {share:LABEL}     a row's share of {n}, by label
+#                {count:LABEL}     a row's count
+#                {share_except:LABEL}  everyone else's share
+#              Shares are whole percentages ("<1%" for a sliver).
+#
+# Editing a title, a summary or which panels exist is a data edit here.
+
+components:
+  takerate-color:
+    template: takerate
+    title: Paint
+    dims: [color]
+    summary: "{top} leads, with {top_share} of {n} orders."
+  takerate-wheels:
+    template: takerate
+    title: Wheels
+    dims: [wheels]
+    summary: "{top} leads, with {top_share} of {n} orders."
+  takerate-interior:
+    template: takerate
+    title: Interior
+    dims: [interior]
+    summary: "{top} leads, with {top_share} of {n} orders."
+  takerate-buylease:
+    template: takerate
+    title: Purchase or lease
+    dims: [buylease]
+    summary: "{share:Purchase} of {n} orders are purchases."
+  takerate-spare:
+    template: takerate
+    title: Compact spare tire
+    dims: [opted_spare]
+    summary: "{share:Yes} of {n} orders added the compact spare."
+  takerate-r1:
+    template: takerate
+    title: R1 ownership
+    dims: [r1_owner, r1_model]
+    aggregate: r1_models
+    summary: "{share_except:No R1} of {n} orders are from current R1 owners."
+
+  # Crosstabs (aggregate: crosstab, over dims [row, column]): every pairing of
+  # two dimensions, for the orders that reported both. `heatmap` draws it as a
+  # table with shaded cells and totals; `mix` as 100% rows. Placeholders as above,
+  # where a cell's label is "<row> · <column>", plus {share_in:ROW|COLUMN}: that
+  # column's share within that row.
+  combo-wheels:
+    template: heatmap
+    title: Exterior paint × wheels
+    dims: [color, wheels]
+    aggregate: crosstab
+    summary: "{top} is the most common pairing, at {top_share} of {n} orders."
+  combo-interior:
+    template: heatmap
+    title: Exterior paint × interior
+    dims: [color, interior]
+    aggregate: crosstab
+    summary: "{top} is the most common pairing, at {top_share} of {n} orders."
+
+  # Location (§wheels-by-geo), over the orders with a known location (cohort: located).
+  #   cohort    the aggregate's cohort (aggregates.COHORTS; default orders)
+  #   total     takerate: a first row summing every row, on its own scale
+  #   row_label the row heading in the data table (default: the dimension's label)
+  #   baseline  mix: a first row with the column mix over every cohort order that
+  #             reported the column, labelled with this text
+  #   small_n   apply the row dimension's small_n rule (dimensions.yaml): rows
+  #             under its min_orders are left out, and its note is shown
+  #   bins      mix with dims [column]: rows are bins of a per-state reference
+  #             figure instead of a dimension: {column, edges (geo.yaml
+  #             state_reference_bins), unit}
+  # Mix summaries may use {meta:lean}: the row and column furthest from the
+  # baseline, among rows of 20+ orders.
+  wheels-by-elevation:
+    template: mix
+    title: Wheels by the state's mean elevation
+    dims: [wheels]
+    aggregate: crosstab
+    cohort: located
+    bins: {column: elev_ft, edges: elevation_ft, unit: " ft"}
+    row_label: Mean elevation
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  wheels-by-temperature:
+    template: mix
+    title: Wheels by the state's average temperature
+    dims: [wheels]
+    aggregate: crosstab
+    cohort: located
+    bins: {column: temp_f, edges: temperature_f, unit: " °F"}
+    row_label: Average annual temperature
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+  wheels-by-urban:
+    template: mix
+    title: Wheels by the state's urban share
+    dims: [wheels]
+    aggregate: crosstab
+    cohort: located
+    bins: {column: urban_pct, edges: urban_pct, unit: "% urban"}
+    row_label: Urban share of population
+    baseline: All orders
+    summary: "The biggest lean: {meta:lean}."
+
+  # Configured price, over the orders with a computable price (the "priced"
+  # cohort). Placeholders as above, plus {meta:KEY}: a statistic the aggregate
+  # computed (price_distribution: median, mean, min, max; price_options:
+  # options_mean, options_share; price_by_trim: medians).
+  #   amount   bars: the cell field a bar measures (default: the count)
+  #   table    bars: the data table's column headings
+  price-distribution:
+    template: bars
+    title: Price distribution
+    aggregate: price_distribution
+    table: [Price, Orders, Note]
+    summary: "The median configured price is {meta:median} and the mean
+      {meta:mean}, across {n} orders from {meta:min} to {meta:max}."
+  price-options:
+    template: bars
+    title: Where the option money goes
+    aggregate: price_options
+    amount: amount
+    accent: true
+    table: [Option, Average per order, Take rate]
+    summary: "Options add {meta:options_mean} per order on average,
+      {meta:options_share} of the price."
+  price-by-trim:
+    template: range
+    title: Configured price by trim
+    aggregate: price_by_trim
+    summary: "Median configured price by trim: {meta:medians}."
+
+  # Browser-drawn (mounted) components: Python builds the spec + data
+  # (render/specs.py, into r2_view.json) and the page draws it with d3
+  # (src/web/charts/<template>.js), lazily, when it nears the viewport.
+  #   aggregate  the spec builder in render/specs.py
+  # Time (§reservations-orders, §delivery-progress, §order-to-delivery, §build-front's cadence): weekly columns and lines, Monday weeks.
+  reservations-by-week:
+    template: timeseries
+    title: Reservations by week
+    dims: []
+    aggregate: reservations_by_week
+    summary: "{meta:outstanding} reservations are outstanding, and {count:Converted}
+      have converted to an order."
+  orders-by-week:
+    template: timeseries
+    title: Orders by week
+    dims: [delivered]
+    aggregate: orders_by_week
+    summary: "{n} orders by the week they were placed, {count:Delivered} of them
+      delivered so far; the busiest was the week of {meta:peak}."
+  delivery-progress-by-week:
+    template: timeseries
+    title: Delivery progress over time
+    dims: [delivered]
+    aggregate: fulfilment_by_week
+    summary: "Of {n} orders placed so far, {count:Delivered} are delivered and
+      {count:Waiting for a VIN} are still waiting for a VIN."
+  delivery-latency:
+    template: scatter
+    title: Order-to-delivery time
+    dims: []
+    aggregate: delivery_latency
+    summary: "Half of the {n} orders with a firm delivery date wait {meta:median}
+      days or less from order to delivery."
+  latency-coverage:
+    template: timeseries
+    title: Firm-date coverage by order week
+    dims: []
+    aggregate: latency_coverage
+    summary: "How much of each order week the points above cover: where it is
+      low, the median is biased short."
+  build-cadence:
+    template: timeseries
+    title: Build cadence
+    dims: []
+    aggregate: build_cadence
+    summary: "The build front is moving at about {meta:rate} VINs a day, over its
+      last {meta:window} weeks."
+
+  vin-vs-order:
+    template: scatter
+    title: VIN vs. order date
+    dims: [color, wheels]
+    aggregate: vin_vs_order
+    summary: "{n} orders with both a VIN and an order date."
+
+  vin-by-config:
+    template: scatter
+    title: VINs by configuration
+    dims: [trim, color, wheels, interior]
+    aggregate: vin_by_config
+    summary: "{n} orders with a VIN, in {meta:rows} configurations."
+
+  geo-demand:
+    template: geo
+    title: Geographic demand
+    dims: [state]
+    aggregate: geo_demand
+    summary: "{n} orders across {meta:states}. Only US orders are mapped:
+      {meta:left} elsewhere are left out."
+  state-mix:
+    template: statemix
+    title: Orders by state
+    dims: [state]
+    aggregate: state_mix
+    summary: "{n} US orders, by state."
+
+  delivery-vs-vin:
+    template: scatter
+    title: Delivery date vs. VIN
+    dims: [color, wheels, delivery_type]
+    aggregate: delivery_vs_vin
+    summary: "{n} orders with both a VIN and a delivery estimate."

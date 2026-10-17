@@ -11,8 +11,11 @@ Structure:
 ```
 r2_dashboard        run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
 curate              ship a curation edit to main via an auto-checked, auto-merged PR
-requirements.txt    pandas, numpy, plotly, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
+serve               build offline and serve the page locally, as deployed (--watch rebuilds on edits)
+requirements.txt    pandas, numpy, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
 requirements-dev.txt  -r requirements.txt + dev tools (pytest, ruff, mypy + stubs); ./ci_env installs it
+package.json        JS dev tools only (eslint, the wrangler the deploys use), pinned in package-lock.json; Node version in .nvmrc
+eslint.config.js    JS lint settings (src/web/, tests/js/, worker/)
 src/
   config.py         paths, run timestamps (NOW/AS_OF) + loaders for the conf/ YAML files below
   pipeline.py       main() orchestration + report printing (fetch -> clean -> render)
@@ -22,35 +25,56 @@ src/
     schema_check.py column location by name + verification against schema.yaml
     outliers.py     likely entry errors (values that contradict the order date or their cohort) — set aside, not corrected
     loaders.py      load_and_clean, load_reservations
+    pricing.py      configured price from an order's configuration (pricing.yaml); destination, fees and taxes excluded
     history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
     curation.py     overrides.yaml provenance: source/as_of/reason, effective dates, v2 enforcement
     timeline.py     cross-snapshot QA checks (VIN/order-date changes, firm->vague, rows that left the sheet)
     milestones.py   when each order's final VIN / final delivery date took hold (curated `dates:` or first snapshot showing it); internal
     contract.py     published data contract: dimension metadata + event-dated daily series (r2_dimensions.json / r2_series.json)
   render/           BUILD THE WEBPAGE
-    colors.py       color-transform helpers + derived display palettes (COLOR_DISPLAY / WHISKER_HEX)
-    charts.py       the ten fig_* chart builders + helpers
-    page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS, build_dashboard
-  templates/        valid standalone page shell + assets, filled at render time
+    colors.py       color transforms: OKLCH math (marks, contrast)
+    categories.py   category colors as CSS: a .cat-<dim>-<slug> class per colored category (--paint true color, --mark theme-clamped) + fallback
+    aggregates.py   counts for components, each reconciled against its cohort (cells + excluded == cohort, or the build stops)
+    components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate, heatmap, mix, bars, range, readout)
+    view.py         builds + reconciles the page's aggregates, renders the components; builds r2_view.json (browser-drawn components' specs; pipeline.py writes it)
+    specs.py        house-schema specs for the browser-drawn components (scatter, timeseries, geo, statemix): points, layers, fixed domains, map and state counts; no colors
+    cadence.py      the build-front model behind §build-front: VIN rate, projection, back-tested band
+    page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
+    assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
+  templates/        valid standalone page shell, filled at render time
     page.html       valid HTML shell — empty id'd slots, populated via the DOM
-    styles.css      the page stylesheet (its own <style> slot; theme vars separate)
-    head.js         pre-paint theme set (no flash); theme.js re-tints charts on toggle; nav.js sidebar scroll-spy
+    css/            the page stylesheet, one file per area (01-base … 08-access), joined in order into its <style> slot (theme vars separate)
+    head.js         pre-paint theme set (no flash) — inlined, since it must run before first paint
+    _headers        Cloudflare Pages cache headers (copied into the deploy)
+  web/              the page's browser code, served as static files (docs/presentation.md, "JS layout")
+    main.js         ES module: boots browser-drawn components at [data-chart] mounts, each when it nears the viewport; wires CSV buttons and bar hover popovers
+    charts/         d3 templates (scatter.js, timeseries.js, geo.js, statemix.js: the state mix under the map) + registry.js (template -> lazy import)
+    lib/            csv.js (table -> CSV), legend.js (house legend), tooltip.js, load.js (lazy d3 + map atlas), barhover.js (data-tip popovers), grain.js (week/month/quarter groups)
+    state.js        view state in the URL query (whiskers, a timeseries' view and grain, the state mix's state/by)
+    data.js         fetches r2_view.json once
+    vendor/         d3 7.9.0, topojson-client 3.1.0, us-atlas 3.0.1 states, committed; README records versions + SHA-256 (a test checks it)
+    img/            the header logo
+    theme.js        theme menu (Light/Dark/System); fires r2:themechange, keeps the theme-color meta in step (classic script)
+    nav.js          sidebar overlay (under 1072px) + scroll-spy, header tuck (under 768px), header-menu dismissal, relative times (classic script)
   conf/             the data/config YAML (loaded by config.py at import)
     dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
-    palette.yaml    chart fills that don't name a category (take-rate/timeline tints, accents, heatmap scale)
-    theme.yaml      page & chart chrome for light/dark — CSS custom properties + chart retint colors + static chart accents
+    palette.yaml    chart colors that name no category: roles (primary, highlight, highlight_band), so re-theming is one edit, and the fulfilment event lines
+    theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities, map land and borders)
+    sections.yaml   the page's sections in order, in groups (when / what / where): title, a stable anchor `id`, `aliases` (old anchors, e.g. the pre-cutover #sec-N, that land there), desc (HTML), optional howto (shown with scripts), layout, and the components each draws; page.py adds the summary (#summary) first and data quality (#data-quality) last
+    charts.yaml     the presentation-layer components by id: template, title, dims, aggregate, summary sentence
     schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
     delivery.yaml   delivery-estimate normalization — unknown tokens/substrings, explicit overrides, month names
-    overrides.yaml  manual curation applied after fetch — `overrides` (edit fields on existing rows) + `additions` (append forum-only orders)
+    pricing.yaml    configured-price tables: trims, drive systems, options, paints, wheels, interiors
+    overrides.yaml  manual curation applied after fetch — `overrides` (edit fields on existing rows), `additions` (append forum-only orders), `deletions`, `verified`
 data/raw/           timestamped live caches (auto change-detected)
-data/processed/     cleaned CSV output
+data/processed/     cleaned CSV, the data contract, r2_view.json
 output/             dashboard HTML output
-tests/              unit tests (test_parsing.py)
+tests/              unit tests: test_parsing.py, test_aggregates.py, test_specs.py, test_view.py (Python); js/*.test.mjs (node --test)
 tools/              one-off maintenance scripts (migrate_curation.py)
 ```
 
-The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds a 10-chart interactive Plotly dashboard.
+The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds the interactive dashboard (HTML components, plus charts the browser draws with d3).
 
 ## Working with the data
 
@@ -63,13 +87,14 @@ Run the pipeline from the project root:
 
 Outputs:
 - `data/processed/r2_orders_clean.csv` — the cleaned, tidy dataset.
+- `data/processed/r2_view.json` — the page's view data (`render/view.py`): spec + data of each browser-drawn component. Fetched by the page.
 - `data/processed/r2_dimensions.json`, `r2_series.json` — the published data contract (`ingest/contract.py`): `dimensions.yaml` as JSON, and daily counts of what was true by each date (event-dated, from today's data). Aggregates only.
 - `output/r2_orders_dashboard.html` — the interactive dashboard.
 - `data/raw/r2_orders_live_*.csv`, `data/raw/r2_reservations_live_*.csv` — timestamped live caches. A new cache is written **only when the fetched content differs** from the newest known cache (change detection, since the export sends no Last-Modified/ETag), so a cache's timestamp marks when the data last changed. "Known" means on disk **or committed on `origin/main`** (read through git, no network): a branch that hasn't merged `main` lately would otherwise re-write data `main` already has, and the history replay reads the same set, so the newest snapshot it replays is the one being cleaned. If a live fetch fails, or with `--offline` (`R2_OFFLINE=1`), the newest known cache is used and nothing is written.
 
 Shipping a curation edit (`src/conf/*.yaml`, new `data/raw` caches): `./curate "message"` runs `./ci_env check`, then branches, commits, opens a PR, waits for its checks and squash-merges it (one linear data commit, no merge commit; rebase merges are refused because `main` requires signed commits) — `main`'s ruleset blocks direct pushes. It refuses changes outside those paths.
 
-Tests: `python3 tests/test_parsing.py` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
+Tests: each `tests/test_*.py` runs on its own with `python3` (no pytest required) or `pytest tests/` (pytest is in `requirements-dev.txt`; `./ci_env python -m pytest tests` runs it under the CI stack).
 
 ### Matching CI locally (`./ci_env`)
 
@@ -80,8 +105,9 @@ year 1326 raises `OutOfBoundsDatetime` on pandas 1.x but coerces to `NaT` on 2.x
 gitignored) from the pinned requirements via `uv` and runs against it:
 
 ```sh
-./ci_env check          # lint + types + tests + full pipeline under the CI stack (what CI does)
-./ci_env lint           # ruff check + mypy (pyproject.toml; lint, not format)
+./ci_env check          # lint + types + tests (Python and JS) + full pipeline under the CI stack (what CI does)
+./ci_env lint           # ruff check + mypy (pyproject.toml) + eslint (eslint.config.js); lint, not format
+./ci_env js             # just the JS: eslint + the node --test suite
 ./ci_env test --both    # run the suite under BOTH stacks — catches version-dependent behavior
 ./ci_env build          # just the pipeline (add --offline: no live fetch, no new cache)
 ./ci_env python …       # any command under the CI stack
@@ -93,7 +119,7 @@ newest local `python3.x` if that download is unavailable (the library versions a
 matter for parity). **Run `./ci_env check` before pushing** anything that touches parsing
 or rendering.
 
-Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
+Dependencies (`requirements.txt`: pandas, numpy, PyYAML, beautifulsoup4) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
 
 ## CSV structure and quirks
 
@@ -115,7 +141,11 @@ Dependencies (`requirements.txt`: pandas, numpy, plotly, PyYAML, beautifulsoup4)
 ## Guidance
 
 - Data is always pulled live from the source sheets and cached under `data/raw/` (timestamped, change-detected) — there are **no hand-maintained snapshots**, so do not add or rely on manual CSV copies. Write cleaned/derived data to `data/processed/`; never mutate the raw caches.
-- Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `dimensions.yaml` (the category vocabulary: labels, order, colors/markers, caveats; published verbatim as `r2_dimensions.json`), `palette.yaml` (chart fills), `theme.yaml` (page & chart chrome for light/dark), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
+- Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `dimensions.yaml` (the category vocabulary: labels, order, colors/markers, caveats; published verbatim as `r2_dimensions.json`), `palette.yaml` (chart color roles), `theme.yaml` (page & chart chrome for light/dark), `sections.yaml` (the page's sections and prose), `charts.yaml` (its components), `pricing.yaml` (configured-price tables), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.
 - Both sheets' columns are located **by name** (`ingest/schema_check.py`), and only the columns listed in `schema.yaml` are read at all — so reordering a sheet or adding a question to the form changes nothing here. Every run verifies each mapped column is present exactly once; a renamed/removed/duplicated one raises `SchemaDrift` and **stops the pipeline**, because it would otherwise read as empty (or ambiguously) for every row. The fix is to edit `orders_columns` / `reservations_columns` to match the sheet. A new *unmapped* column is only reported in the data-quality panel; add it to `ignored_columns` once it's knowingly unused, or map it to use it.
+- **JS tooling.** The browser code under `src/web/` is plain ES modules and classic scripts, served as-is with no build step. `package.json` exists only for the dev tools: eslint (correctness rules, no formatter), `node --test` for `tests/js/`, and a pinned `wrangler` that the deploy workflows install with `npm ci --ignore-scripts` before `cloudflare/wrangler-action`, which then uses it instead of installing its own (that used to rewrite `package.json` in the checkout). Both files are tracked; `node_modules/` is not. The `js` job in `checks.yml` runs eslint and the tests; `./ci_env js` / `lint` / `check` run them locally. A module imported by a test must not touch the DOM at import time. `package-lock.json` must resolve every package from the public registry (`https://registry.npmjs.org/`); `tests/js/lockfile.test.mjs` fails otherwise, since an `npm install` on a machine configured with a private npm mirror records that mirror's URLs, which CI can't reach.
+- **Category colors and marks.** A component never writes a hex color: it refers to a category as `"<dimension>:<value>"`, and `render/categories.py` turns that into a CSS class (`category_class`, which fails on a category without a color). The swatch that identifies a category uses `var(--paint)` (the true color); a data mark uses `var(--mark)`, the same hue and chroma with lightness clamped to the theme's `mark-lmin`/`mark-lmax` (theme.yaml), so every category holds 3:1 against the card in both themes (`tests/test_view.py` checks it). Where the true color is the point (a paint mix bar, `.mark-true`; the configuration scatters' points, a series with `true`), the mark uses `var(--paint)` and a `mark-edge` outline carries the contrast, since clamping makes the greys and the darks indistinguishable. Changing a category color or the bounds: rerun the tests.
+- **Reconciled aggregates.** Numbers a component shows come from `render/aggregates.py`, and each declares the cohort it counts; `cells + excluded` must equal that cohort or the build stops (`ReconcileError`), the same rule as the series totals check. Leave a row out on purpose by putting it in `excluded` with a reason, never by dropping it.
+- **Viewing a local build.** `./serve` builds offline under the CI stack, stages what the deploy publishes (the page as `index.html`, `r2_view.json` and the other data files, `assets/`) into `output/site/`, and serves it uncached on http://127.0.0.1:8000/; `--watch` rebuilds when `src/` changes, `--no-build` serves the last build, `--live` fetches. Opened as a `file://` URL the charts never draw: browsers refuse ES modules from `file://`, and the charts fetch `r2_view.json`, which isn't beside `output/r2_orders_dashboard.html`.
 - Lint is `ruff check` (no `ruff format`, no import sorting — the hand-aligned continuation style is deliberate) and types are `mypy` with `check_untyped_defs`, both via `./ci_env lint` and the `Static checks` PR workflow. The code must still run on the system 3.9, so a module using `X | None` hints needs `from __future__ import annotations`, and names used only in hints (e.g. pandas' `NaTType`) are imported under `TYPE_CHECKING`.

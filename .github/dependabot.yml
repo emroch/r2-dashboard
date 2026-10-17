@@ -1,7 +1,7 @@
 # Keep the GitHub Actions used by the workflows current — their runtimes get
 # deprecated roughly yearly (e.g. the Node 20 -> 24 bump), and a dormant repo
-# would otherwise silently fail a scheduled deploy. Scoped to actions ONLY: the
-# pinned pip deps are left alone on purpose (pandas et al. break across majors,
+# would otherwise silently fail a scheduled deploy. Also the JS dev tools (see
+# the npm entry below). The pinned pip deps are left alone on purpose (pandas et al. break across majors,
 # and the deploy workflow has no pre-merge test of a bump), so those get bumped
 # deliberately, not automatically. Security advisories are handled separately by
 # Dependabot alerts (repo Settings), which stay on.
@@ -17,3 +17,15 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # The JS dev tools in package.json (eslint, and the wrangler the deploys use).
+  # Unlike the pip pins these are build tools, not runtime dependencies: an
+  # eslint bump is checked by the `js` job. A wrangler bump is only exercised by
+  # the worker validate job on its PR (Dependabot PRs get no preview deploy), so
+  # review those against wrangler's changelog. Grouped into one monthly PR.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      js-tools:
+        patterns: ["*"]

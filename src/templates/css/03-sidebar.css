@@ -1,0 +1,126 @@
+/* Sidebar: the section nav rail, its backdrop, and the main column beside it.
+   Two tiers, by what the rail costs:
+
+     1072px+    768px of cards + the 256px rail + 24px gutters fit, so hiding the
+                rail would only re-center the content: always shown, no menu
+                button.
+     under 1072 the rail would take the content's width (a tablet's 768px left
+                charts about 420px): off-canvas; ☰ opens it as a temporary
+                overlay above a backdrop (nav-shown on <html>). Following a link
+                or tapping the backdrop closes it.
+
+   Crossing the tier closes it (nav.js); nothing is remembered between visits. */
+
+:root {
+  --side-w: 256px;
+}
+
+/* How much of the rail is showing, 0 to --side-w: the rail's slide and the
+   main column's margin both read it, so on every frame the margin is exactly
+   the rail's visible width and the cards stay centered in what's left. It's
+   registered as a length so it can transition, and doesn't inherit: only the
+   rail and the main column hold it, each with the same transition, so a frame
+   restyles those two elements rather than the whole page (an inherited value
+   on <html> made every element recompute on every frame). */
+@property --side-open {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.sidebar,
+.main {
+  --side-open: 0px;
+  transition: --side-open .3s ease;
+}
+
+.sidebar {
+  position: fixed;
+  top: var(--header-h,92px);
+  left: 0;
+  bottom: 0;
+  width: var(--side-w);
+  box-sizing: border-box;
+  overflow-y: auto;
+  z-index: 55;
+  background: var(--side-bg,#8C9A83);
+  border-right: 1px solid var(--side-bd);
+  box-shadow: 2px 0 10px var(--side-sh);
+}
+.side-title {
+  padding: 14px 16px 8px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--side-title);
+}
+/* A group's heading (sections.yaml groups): When, What, Where, Data. */
+.side-group {
+  padding: 12px 16px 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--side-title);
+}
+.sidebar a {
+  display: block;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  color: var(--side-fg);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  line-height: 1.35;
+}
+.sidebar a:hover {
+  background: var(--side-hover);
+}
+.sidebar a.active {
+  border-left-color: var(--side-active-bd);
+  color: var(--side-active-fg);
+  font-weight: 600;
+  background: var(--side-active-bg);
+}
+.nav-backdrop {
+  display: none;
+}
+
+.sidebar {
+  transform: translateX(calc(var(--side-open) - var(--side-w)));
+}
+
+@media (width >= 1072px) {
+  .sidebar,
+  .main {
+    --side-open: var(--side-w);
+  }
+  .main {
+    margin-left: var(--side-open);
+  }
+  .navbtn {
+    display: none;
+  }
+}
+
+/* Under 1072px the rail overlays the page: it slides in by the same value, and
+   the main column never moves. */
+@media (width < 1072px) {
+  html.nav-shown .sidebar {
+    --side-open: var(--side-w);
+  }
+  html.nav-shown .nav-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 54;
+    top: var(--header-h,92px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--backdrop);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .main {
+    transition: none;
+  }
+}

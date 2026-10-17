@@ -1,35 +1,25 @@
 """Dashboard assembly: the section registry, template loading, HTML helpers,
 and the build_dashboard entry point that renders every chart into one HTML file.
 
-The page's static assets live as real files under templates/ — page.html (a
-valid, standalone HTML shell with id'd slots) plus styles.css and the
-head/theme/nav scripts. build_dashboard parses the shell with BeautifulSoup and
-populates it by element id (theme vars, stat cards, nav links, chart sections),
-then splices Plotly's fragments into their <!--PLOT:n--> placeholders verbatim.
+The page shell lives under templates/ — page.html (a valid, standalone HTML
+shell with id'd slots) plus the stylesheet (templates/css/) and the inlined head.js. The page scripts
+live under web/ and are published as hashed static assets (render/assets.py).
+build_dashboard parses the shell with BeautifulSoup and populates it by element
+id (theme vars, stat cards, nav links, chart sections, script URLs).
 """
-import json
 import os
 from pathlib import Path
-from textwrap import dedent
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, Tag
-from plotly.offline import get_plotlyjs
 
-from .charts import (delivery_progress,
-                     fig_certainty_by_vin, fig_color_interior_heatmap,
-                     fig_color_wheel_heatmap,
-                     fig_config_dashboard, fig_delivery_timeline,
-                     fig_delivery_latency, fig_delivery_vs_vin,
-                     fig_dest_vs_delivery, fig_geo,
-                     fig_interior_by_location,
-                     fig_order_timeline, fig_paint_by_location,
-                     fig_price_by_trim, fig_price_distribution,
-                     fig_price_options, fig_state_totals, fig_vin_by_config,
-                     fig_vin_cadence,
-                     fig_vin_vs_order, fig_wheels_by_location)
-from config import (CHART_CHROME, COLOR_HEX, DASHBOARD, ORDERS_THREAD,
-                    RESV_THREAD, THEME_CSS, AS_OF)
+from .assets import publish_assets
+from .categories import category_css
+from .components import (INFO_SVG, notes_html, readout, readout_group,
+                         shared_caveats, stage_key)
+from config import (COLOR_HEX, DASHBOARD, ORDER_DATE_MIN, ORDERS_THREAD,
+                    RESV_DATE_MIN, RESV_THREAD, SECTIONS_CONF, SECTION_GROUPS,
+                    THEME_CSS, AS_OF, COMPONENTS)
 
 # templates/ sits alongside this render/ package, under the src/ root.
 _TPL_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -48,153 +38,78 @@ def _tpl(name):
     return (_TPL_DIR / name).read_text(encoding="utf-8")
 
 
-# Display order = list order. Section numbers (chart titles + sidebar links) are
-# assigned from position at render time, so reordering this list is all it takes;
-# grouped here as build -> timing -> production/VIN -> geography.
-SECTIONS = [
-    ("Configuration take-rates",
-     dedent("""What this cohort ordered. (Trim, Launch Package, Autonomy+ and Tow are ~100% uniform across the cohort,
-               so they are omitted here.) Every panel covers the orders that answered the question it charts, so an
-               unanswered one sits out rather than forming a blank bar — a few people skipped purchase-vs-lease, and a
-               few orders are known from a forum post that gave a date and a location without stating the build. They
-               still count in the cohort total, and the data-quality panel lists the ones held back from the price
-               stats. Options are ordered by how many chose them; the yes/no answers keep their natural reading order
-               instead, since which one leads there isn't a finding. The compact spare is the exception to the rule
-               above: for the option columns an unanswered question means not opted in, so those count as No."""),
-     fig_config_dashboard),
-    ("Configuration combinations",
-     dedent("""Which options people pair together, as counts per pairing: exterior paint against wheels, then
-               against interior. Cells carry the count as well as the shade, since at these volumes a 1 and a 3
-               look alike by color alone. Only options that have actually been ordered get a column, so the grid
-               fills out as trims and configs open up rather than showing empty rows in advance. A pairing needs
-               both halves, so an order that hasn't reported one of them isn't in this grid."""),
-     (fig_color_wheel_heatmap, fig_color_interior_heatmap)),
-    ("Configured price",
-     dedent("""What this cohort is paying, from published trim and option prices — the configured vehicle only, with no
-               destination, doc fees, taxes, or incentives. The top panel gives one bar per exact price (the cohort lands
-               on a small set of totals, so binning would hide real structure), with the median's own label highlighted
-               and the mean shown as a stat. The middle panel covers the option spend alone — the base is a constant per
-               trim, so the choices are the interesting part — with each category's take rate alongside, since a big
-               average means something different when everyone pays a little rather than a few paying a lot. The bottom
-               panel is a box per trim, and fills in as Premium and Standard ship. Orders whose configuration hits a
-               price Rivian hasn't published are excluded rather than counted as zero — see the data-quality panel."""),
-     (fig_price_distribution, fig_price_options, fig_price_by_trim)),
-    ("Reservation & order timeline",
-     dedent("""The top panel stacks reservation-only holders (incomplete orders, from the separate reservations sheet)
-               above those who have since locked an order. The 3/7/2024 reveal week is ~20x the next-biggest week, so
-               the y-axis is clipped just above the tail to keep the 2-year trickle readable. The bottom shows when
-               orders were finalized."""),
-     fig_order_timeline),
-    ("Estimated delivery timeline",
-     dedent("""When the cohort expects delivery, stacked by how firm the estimate is."""),
-     fig_delivery_timeline),
-    ("Order-to-delivery time",
-     dedent("""How long people wait between placing an order and delivery, for orders with a firm delivery date
-               — a range or window is a guess, so its midpoint would claim precision it doesn't have. Each point is
-               one order, at its order date; filled points are dates that have passed (presumed delivered) and open
-               points are scheduled in the future. The line is the weekly median, drawn only for weeks with at least
-               three firm dates. <strong>Read the recent end with care.</strong> A firm date usually only appears
-               once delivery is close, so the latest order weeks are represented mainly by their <em>fast</em>
-               deliveries — their slower orders haven't been scheduled yet. The bottom panel shows how much of each
-               week's orders the points above actually cover; where it is low, the median is biased short and will
-               likely rise as the rest report. Estimates that contradict the order date are left out and listed in
-               the data-quality panel."""),
-     fig_delivery_latency),
-    ("Estimate certainty vs. VIN status",
-     dedent("""Share of orders with known delivery dates."""),
-     fig_certainty_by_vin),
-    ("VIN sequence vs. order date",
-     dedent("""Does ordering earlier win a lower (earlier-built) VIN? Slope/scatter shows how tightly production
-               sequence tracks order timing. Click a config in the legend to hide it, or double-click to isolate
-               one."""),
-     fig_vin_vs_order),
-    ("Delivery date vs. VIN sequence",
-     dedent("""Each point is an order with both a VIN and a delivery estimate. Color = paint, marker shape = wheels;
-               whiskers span the quoted delivery window. Clusters of one color across a VIN range hint at same-config
-               cars built in sequence. Click a config in the legend to hide it, or double-click to isolate one.
-               <br><br>The yellow line is the <em>build front</em>: the 90th-percentile VIN delivered each finished
-               week, from firm delivery dates only. Delivery stands in for build date — the lag between them moves
-               where a VIN appears but not the slope, which is the build rate — and the high percentile tracks the
-               newest cars arriving rather than the held-back ones still trickling in. The dashed line projects the
-               front a few weeks ahead at the current rate, and the shaded band is how far off that same projection
-               has actually been, measured by re-running it from earlier weeks on every build. It is an aggregate
-               only: where the front is heading, not when any particular order will arrive.
-               <br><br><strong>The band leans upward on purpose.</strong> Production is still ramping, and so far it
-               has ramped in steps — cadence more than doubled in two weeks in mid-August — so past projections have
-               almost always fallen <em>behind</em> what actually happened, rarely ahead. Each side of the band is the
-               typical miss in that direction, so the upper side is the room for another step up. The line itself
-               stays at the current rate deliberately: models that extrapolate the ramp were tested and did worse,
-               carrying August's jump into September's plateau. The band narrows on its own as weeks at a steady rate
-               accumulate. Below, the rate itself over time."""),
-     (fig_delivery_vs_vin, fig_vin_cadence)),
-    ("VIN sequence by configuration",
-     dedent("""Each VIN-assigned order at its production sequence (x), grouped into rows by full configuration (trim ·
-               color · wheels · interior); marker fill = paint, shape = wheels. Clusters along a row suggest
-               same-config cars were built in a batch. Interior is part of the row key rather than a third marker
-               encoding, since fill and shape are already taken and a third cue on a 10px marker would be
-               guesswork; rows appear only for configurations that have a VIN, so the newer cabins show up here as
-               their orders get assigned."""),
-     fig_vin_by_config),
-    ("Geographic demand",
-     dedent("""Three stacked maps of demand around the Normal, IL plant: orders with an assigned VIN, all orders, and
-               total demand (orders + incomplete reservations). Bubble area = count; the first two share a scale, while
-               total demand (~20x larger) scales to its own. The bars beside each map give that panel's per-region
-               total."""),
-     fig_geo),
-    ("Orders by state",
-     dedent("""Every state that has ordered, sorted by total, as a delivery pipeline: assumed delivered, then awaiting
-               delivery with a VIN known, then no VIN yet. The three stack to the state's full count, so bar length is
-               the state total. Deliveries are <em>inferred</em>, not reported — an order whose whole delivery estimate
-               has passed is assumed to have arrived, on the theory that people rarely come back to update the sheet
-               afterwards. That is rough and errs both ways: a delayed car still looks delivered, and one that arrived
-               early against a vague estimate does not. Any estimate with a known end date counts, including a relative
-               window that finished a while ago; orders with no estimate never do. Deliveries count whether or not a VIN
-               is known, since some people post about taking delivery without ever updating their VIN. The top row sums
-               every state on its own scale — at the shared one it would flatten every other bar. It is the same split as
-               the summary's delivery-progress cards, counted over the orders with a known state."""),
-     fig_state_totals),
-    ("Paint preference by location",
-     dedent("""Does color taste vary geographically? All three panels are 100% stacked, so each row's paint mix is
-               comparable regardless of order volume — the West has ~70x Canada's. The overall row on top is the
-               baseline: read a region against it to see which paints it over- or under-indexes on. Bar labels carry the
-               sample size (n=), and hover gives the underlying counts. The state panel is limited to states with enough
-               orders to be meaningful; below that a single order swings the mix by 100 points, so the rest stay
-               summarized in the region panel."""),
-     fig_paint_by_location),
-    ("Wheel preference by location",
-     dedent("""Wheel choice for every order with a known state, as a 100% stacked mix per group so rows stay
-               comparable regardless of order volume; the top row is the whole cohort, a baseline to read the others
-               against, and each bar label carries its sample size (n=). The lower three panels order their bars by
-               <em>value</em> rather than by volume. Sources, all per-state published figures:
-               <a href="https://pubs.usgs.gov/pp/1200us/report.pdf" target="_blank" rel="noopener">USGS</a> mean
-               state elevation (area-weighted),
-               <a href="https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/" target="_blank"
-               rel="noopener">NOAA</a> statewide annual mean temperature over the 1991&ndash;2020 normals, and the
-               <a href="https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural.html"
-               target="_blank" rel="noopener">Census 2020</a> urban share of population &mdash; except DC, which has
-               no NOAA statewide series and uses the
-               <a href="https://www.ncei.noaa.gov/access/services/data/v1?dataset=normals-monthly-1991-2020&amp;stations=USW00013743&amp;format=pdf&amp;startDate=0001-01-01&amp;endDate=9996-12-31"
-               target="_blank" rel="noopener">Reagan National station normal</a> instead. Because every order sits at
-               its state's average rather than its own location, these panels can show <em>that</em> a group's mix
-               differs &mdash; not why. Read any lean as a prompt to look closer, not a finding: the all-season
-               versus all-terrain efficiency argument carries confounds &mdash; local terrain, driving mix, when each
-               wheel was orderable &mdash; that state averages cannot separate."""),
-     fig_wheels_by_location),
-    ("Interior preference by location",
-     dedent("""Interior mix overall and by region, read the same way as the paint and wheel panels above: each row is
-               100% stacked so a region's mix is comparable regardless of order volume, the overall row on top is the
-               baseline, and every bar carries its sample size (n=). Region only, no per-state row &mdash; the newer
-               cabins are a small share of orders, and split by state most rows would hold one or two of them, where a
-               single order swings the mix by 100 points. Segment fills are sampled from Rivian's own configurator
-               renders, so a bar shows roughly the real cabin color; since charcoal and smoke each come close to one of
-               the two page themes, the segments carry a border that follows the theme rather than the data."""),
-     fig_interior_by_location),
-    ("Destination vs. delivery date",
-     dedent("""States ordered by distance from the Normal, IL plant (closest at bottom). An upward-right tilt would mean
-               farther destinations deliver later. Whiskers span each order's quoted delivery window. Click a region in
-               the legend to hide it, or double-click to isolate one."""),
-     fig_dest_vs_delivery),
-]
+def page_css():
+    """The page stylesheet: templates/css/*.css, joined in file-name order. The
+    files are numbered by area (base, header, sidebar, page, components, charts,
+    map, access) and the order is the cascade's, so a later file wins a tie."""
+    return "\n".join(p.read_text(encoding="utf-8")
+                     for p in sorted((_TPL_DIR / "css").glob("*.css")))
+
+
+def _section(entry):
+    """(title, desc_html, howto_html) from a sections.yaml entry, checking its
+    components. howto is "" for a section with nothing to explain."""
+    unknown = [c for c in entry.get("components", []) if c not in COMPONENTS]
+    if unknown:
+        raise LookupError("sections.yaml: %r names unknown components %s"
+                          % (entry["title"], unknown))
+    return entry["title"], entry["desc"], entry.get("howto", "")
+
+
+def _howto(html):
+    """How to use a section's interactive charts: shown only when scripts run
+    (css/04-page.css .howto, under head.js's html.js), since without them there
+    is nothing to hover, click or drag."""
+    return '<p class="desc howto">%s</p>' % html if html else ""
+
+
+# sections.yaml `layout` -> the component grid's extra class (css/05-components.css).
+_LAYOUTS = {"grid": "", "fit": " r2c-fit", "single": " r2c-single"}
+
+
+def _components_html(cids, view, layout="grid"):
+    """A section's components, in a grid. Take-rates get the stage key once, and
+    the caveats every component in the group carries are said once, under the
+    key (for take-rates that is the delivery-status note the key needs)."""
+    if not cids:
+        return ""
+    key = (stage_key() if any(COMPONENTS[c]["template"] == "takerate" for c in cids)
+           else "")
+    shared = shared_caveats([COMPONENTS[c] for c in cids]) if len(cids) > 1 else []
+    return '<div class="r2c-group">%s%s<div class="r2c-grid%s">%s</div></div>' % (
+        key, notes_html(shared), _LAYOUTS[layout],
+        "".join(view.render(c, shared) for c in cids))
+
+
+# Display order = list order (src/conf/sections.yaml). Section numbers (chart
+# titles + sidebar links) are assigned from position at render time.
+SECTIONS = [_section(e) for e in SECTIONS_CONF]
+# Each section's presentation-layer component ids (charts.yaml), by position.
+SECTION_COMPONENTS = [list(e.get("components", [])) for e in SECTIONS_CONF]
+SECTION_LAYOUTS = [e.get("layout", "grid") for e in SECTIONS_CONF]
+# Each section's anchor, the group it starts (or None) and the old anchors that
+# land on it (sections.yaml `id`, `group`, `aliases`). The summary and the
+# data-quality panel, built here, have theirs too: the live page's #sec-1 and
+# #sec-18 before stable anchors (#139).
+SECTION_IDS = [e["id"] for e in SECTIONS_CONF]
+SECTION_GROUP = [e.get("group") for e in SECTIONS_CONF]
+SECTION_ALIASES = [list(e.get("aliases", [])) for e in SECTIONS_CONF]
+SUMMARY_ID, SUMMARY_ALIASES = "summary", ["sec-1"]
+QA_ID, QA_ALIASES = "data-quality", ["sec-18"]
+_anchors = ([SUMMARY_ID, QA_ID] + SECTION_IDS + SUMMARY_ALIASES + QA_ALIASES
+            + [a for al in SECTION_ALIASES for a in al])
+_dupes = sorted({a for a in _anchors if _anchors.count(a) > 1})
+if _dupes:
+    raise LookupError("sections.yaml: anchors used twice: %s" % _dupes)
+_ungrouped = sorted({g for g in SECTION_GROUP if g} - set(SECTION_GROUPS))
+if _ungrouped:
+    raise LookupError("sections.yaml: unknown group %s (one of %s)"
+                      % (_ungrouped, sorted(SECTION_GROUPS)))
+_bad = sorted(set(SECTION_LAYOUTS) - set(_LAYOUTS))
+if _bad:
+    raise LookupError("sections.yaml: unknown layout %s (one of %s)"
+                      % (_bad, sorted(_LAYOUTS)))
+
 
 def _css_block(sel, vars_):
     """One CSS rule of `--name:value;` custom properties from a {name: value} map."""
@@ -212,37 +127,13 @@ _THEME_VARS_CSS = "\n%s\n%s\n" % (
 # the page chrome never flashes the wrong colors.
 HEAD_JS = _tpl("head.js")
 
-# The light/dark chart-chrome objects come from theme.yaml (config.CHART_CHROME),
-# injected into the script below so THEME_JS and the baked-in chart colors agree.
-_CHROME_JS = "var LIGHT=%s;var DARK=%s;" % (
-    json.dumps(CHART_CHROME["light"], separators=(",", ":")),
-    json.dumps(CHART_CHROME["dark"], separators=(",", ":")))
-
-# Runs at end of <body>: wire the toggle and re-theme the (already-rendered)
-# Plotly charts. Data-encoding colors (markers/bars/paints) are left untouched;
-# only chart chrome — text, gridlines, geo land/borders, legend boxes, and the
-# transparent backgrounds that let the themed card show through — is swapped.
-THEME_JS = _tpl("theme.js").replace("/*__CHROME_JS__*/", _CHROME_JS)
-
-# Chart-navigation sidebar: hamburger toggle (narrow screens) + scroll-spy that
-# highlights the section currently in view via IntersectionObserver.
-NAV_JS = _tpl("nav.js")
-
-# Plotly toolbar, applied to every figure. Box- and lasso-select mark points for
-# a selection this dashboard never reads, so they only add width to a bar that
-# has to fit in a chart's top margin; dropping them takes it from 272px to 200px.
-# The logo goes too — it links off-site and earns none of that space. Zoom, pan
-# and reset stay, since they're the ones worth having on the denser charts.
-PLOTLY_CONFIG = {
-    "displaylogo": False,
-    "modeBarButtonsToRemove": ["select2d", "lasso2d"],
-}
-
-# Arbitrates the scroll wheel between zooming a map and scrolling the page
-# (see scrollzoom.js). Separate from nav.js so the scroll-spy and the wheel
-# arbitration stay independently readable.
-ZOOM_JS = _tpl("scrollzoom.js")
-
+# The page scripts are static assets under src/web/, published content-hashed by
+# render/assets.py and loaded at the end of <body> in page.html's order:
+#   theme.js         the toggle; fires r2:themechange, keeps theme-color in step
+#   nav.js           sidebar toggle + scroll-spy, report-menu dismissal, local times
+#   main.js          the module that boots browser-drawn components
+PAGE_SCRIPTS = {"theme-script": "theme.js", "nav-script": "nav.js",
+                "main-script": "main.js"}
 
 def _report_url(report):
     """The "Report issue" button's target: the repo's dashboard-report issue form
@@ -275,56 +166,61 @@ def _esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _stat_card(label, value, rows=None, caption="", cap=60):
-    """A header stat card; with `rows` it gains a hover tooltip listing the
-    affected entries (original #, username, what changed). Long lists are
-    truncated to `cap` rows with a '… and N more' footer."""
-    if not rows:
-        return '<div class="stat"><b>%s</b>%s</div>' % (_esc(value), _esc(label))
-    body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
-                   % (_esc(i), _esc(u), _esc(d)) for i, u, d in rows[:cap])
-    if len(rows) > cap:
-        body += ('<tr><td></td><td></td><td>&hellip; and %d more</td></tr>'
-                 % (len(rows) - cap))
-    tip = ('<div class="tip"><div class="tipcap">%s</div><table>'
-           "<tr><th>#</th><th>user</th><th>detail</th></tr>%s</table></div>"
-           % (_esc(caption), body))
-    return ('<div class="stat has-tip"><b>%s</b>%s<span class="i">&#9432;</span>%s</div>'
-            % (_esc(value), _esc(label), tip))
-
-
 def _money(v):
     """Whole-dollar money for the stat cards; em dash when there's nothing to show."""
     return "—" if v is None else "$%s" % format(round(v), ",")
 
 
+def _day_words(ts):
+    """A date as words ("June 9, 2026"), which a screen reader reads as a date."""
+    return "%s %d, %d" % (ts.strftime("%B"), ts.day, ts.year)
+
+
 def _fmt_time(dt):
     """Render a timestamp as a <time> carrying the absolute instant (ISO 8601 with
     offset) so client JS can localize it to the viewer's timezone; the server text
-    is the build-timezone fallback shown when JS is off."""
+    is the build-timezone fallback shown when JS is off. Written as words ("Oct
+    10, 2026, 10:12 PM CDT"), which a screen reader reads as a date and time,
+    not as a run of numbers."""
     if dt is None:
         return "—"
     aware = dt.astimezone()  # naive build-local datetime -> attach local offset
+    text = "%s %d, %d, %d:%s %s" % (aware.strftime("%b"), aware.day, aware.year,
+                                    aware.hour % 12 or 12, aware.strftime("%M %p"),
+                                    aware.strftime("%Z"))
     return ('<time datetime="%s" data-r2time>%s</time>'
-            % (aware.isoformat(timespec="minutes"),
-               aware.strftime("%Y-%m-%d %H:%M %Z")))
+            % (aware.isoformat(timespec="minutes"), text.strip()))
+
+
+# A warning sign: a filled triangle (the stat-card yellow, css .src-warn) with a
+# dark "!", legible at text size in both themes.
+_WARN_SVG = ('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2 15.4 14.3'
+             'H.6z" fill="currentColor"/><path d="M8 5.6v4.3" stroke="#1e2127" '
+             'stroke-width="1.9" stroke-linecap="round"/><circle cx="8" cy="12.1" '
+             'r="1.05" fill="#1e2127"/></svg>')
 
 
 def _src_line(name, meta, extra, thread_url):
-    """One header line: linked sheet name, count, fetched + last-updated times
-    (viewer-localized via <time>), the offline badge, and a link to the forum
-    thread where an entry is submitted or corrected — the sheet is the source of
-    truth, so that thread is the only route to changing any of these numbers."""
-    live = ("" if meta["live"]
-            else ' <span class="warn">(offline — showing cached copy)</span>')
+    """One header line: linked sheet name, count, when its data last changed
+    (viewer-localized via <time>), and a link to the forum thread where an entry
+    is submitted or corrected — the sheet is the source of truth, so that thread
+    is the only route to changing any of these numbers.
+
+    No "fetched" time: a recent fetch of an unchanged sheet reads the same as an
+    old update. A fetch that failed (the build fell back to the newest cache) is
+    the one case where an old time means a problem rather than a quiet sheet, so
+    a warning sign follows the time, saying so: its label, and the hover/tap
+    popover (web/lib/barhover.js)."""
+    warn = "Couldn&#8217;t check the sheet for newer data; this is the last copy fetched."
+    failed = ("" if meta["live"] or meta.get("offline")
+              else ' <span class="src-warn" role="img" aria-label="%s" data-tip="%s">'
+                   '%s</span>' % (warn, warn, _WARN_SVG))
     return ('<p class="src"><a href="%s" target="_blank" rel="noopener">%s</a> — %s '
-            '<span class="dim">·</span> fetched %s%s '
-            '<span class="dim">·</span> last updated %s '
+            '<span class="dim">·</span> last updated %s%s '
             '<span class="dim">·</span> <a href="%s" target="_blank" '
-            'rel="noopener">add or correct your entry</a></p>'
+            'rel="noopener">add/correct your entry</a></p>'
             % (meta["view_url"], _esc(name), _esc(extra),
-               _fmt_time(meta["fetched_at"]), live, _fmt_time(meta["updated_at"]),
-               thread_url))
+               _fmt_time(meta["updated_at"]), failed, thread_url))
 
 
 # Data-quality categories: (report["quality"] key, heading, one-line note).
@@ -341,6 +237,16 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("no_order_date", "Order date missing",
+     "Orders with no order date, blank or cleared as out of range. They count "
+     "everywhere an order date isn't needed, and are left out of the charts by "
+     "order week. One with a VIN or a delivery estimate is an order that skipped "
+     "the field; one with neither may be a reservation entered early."),
+    ("inferred_delivery", "Delivery inferred, missing confirmed date",
+     "Orders counted as delivered because their estimate has passed, though it "
+     "was only a window, range or month, never a firm date. Most were probably "
+     "delivered, but some are likely stale estimates their owners never updated. "
+     "They still count as delivered; a firm date in the sheet confirms one."),
     ("entry_errors", "Likely entry errors set aside",
      "Values that parse fine on their own but can't be right against the rest of "
      "the data. Each one is set aside as unknown, so it isn't charted or counted. "
@@ -442,9 +348,21 @@ def _qa_id(num):
     return text if text == "—" else "#" + text
 
 
-def _quality_section(quality, num, cap=40):
-    """The data-quality / anomaly panel: things flagged for human review rather
-    than auto-corrected. Each category lists the affected (#, user, detail)."""
+# Roamer's R2 Tracker, which this page's design follows (credited in the intro
+# and the footer, page.html), through the owner's referral link.
+ROAMER_URL = "https://rivianroamer.com/join?with=emroch"
+
+
+def _aliases(ids):
+    """Old anchors that land on a section: empty targets at its top."""
+    return "".join('<span class="anchor-alias" id="%s"></span>' % a for a in ids)
+
+
+def _quality_section(quality, num, cleaning="", cap=40):
+    """The data-quality / anomaly panel: how the data was cleaned (`cleaning`,
+    the readout groups that used to head the page), then the things flagged for
+    human review rather than auto-corrected, each listing the affected (#, user,
+    detail)."""
     blocks = []
     for key, name, note in _QA_CATS:
         rows = quality.get(key, [])
@@ -475,50 +393,14 @@ def _quality_section(quality, num, cap=40):
         '<table><tr><th>raw</th><th>type</th><th>anchor</th><th>parsed</th></tr>'
         '%s</table></div>'
         % (len(conv), conv_body))
-    return ('<section id="sec-%d"><h2>%d · Data quality &amp; anomalies</h2>'
-            '<p class="desc">Rows flagged for human review — surfaced here, not '
-            'auto-corrected. An empty category means nothing tripped that '
-            'check.</p><div class="qa">%s</div>%s</section>'
-            % (num, num, "".join(blocks), conv_html))
+    return ('<section id="%s">%s<h2>%d · Data quality &amp; anomalies</h2>'
+            '<p class="desc">How the sheets were cleaned, then the entries flagged '
+            'for review. Nothing flagged is corrected automatically.</p>%s'
+            '<div class="qa">%s</div>%s</section>'
+            % (QA_ID, _aliases(QA_ALIASES), num, cleaning, "".join(blocks), conv_html))
 
 
-def build_dashboard(df, report, resv):
-    # Each chart section wraps one <!--PLOT:n--> comment placeholder per figure;
-    # the Plotly fragments are spliced in verbatim after the DOM is serialized
-    # (never re-parsed). Plotly.js is emitted as a separate plotly.min.js (not
-    # inlined) so browsers cache it — see the first figure below + the write at
-    # the end. Numbering (DOM order): summary card is 1, charts 2..N+1, QA N+2.
-    #
-    # A section's builder may be a TUPLE of builders, which renders as several
-    # separate plots under one heading. Separate figures (rather than subplot rows
-    # of one figure) give each chart its own zoom/pan and modebar, so panning one
-    # doesn't drag the others, and let CSS space them apart.
-    plots, sections = {}, []
-    pid = 0
-    for i, (title, desc, builder) in enumerate(SECTIONS):
-        builders = builder if isinstance(builder, tuple) else (builder,)
-        frags = []
-        for b in builders:
-            fig = (b(df, resv) if b in (fig_geo, fig_order_timeline) else b(df))
-            # Transparent backgrounds let the themed section card show through, so
-            # the charts adapt to light/dark (chrome is re-tinted by THEME_JS).
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)")
-            pid += 1
-            # The first figure on the page references an external plotly.min.js
-            # (written next to the page below) instead of inlining ~5 MB; the rest
-            # reuse window.Plotly.
-            plots[pid] = fig.to_html(
-                full_html=False,
-                include_plotlyjs=("directory" if pid == 1 else False),
-                default_width="100%", config=PLOTLY_CONFIG)
-            frags.append('<div class="plot"><!--PLOT:%d--></div>' % pid)
-        n = i + 2
-        sections.append(
-            '<section id="sec-%d"><h2>%d · %s</h2><p class="desc">%s</p>'
-            '%s</section>' % (n, n, _esc(title), desc, "".join(frags)))
-    sections.append(_quality_section(report["quality"], len(SECTIONS) + 2))
-
+def build_dashboard(df, report, resv, view):
     dc = report["delivery_counts"]
     firm = dc.get("explicit", 0)
     rangewin = dc.get("window", 0) + dc.get("range", 0) + dc.get("month", 0)
@@ -547,13 +429,10 @@ def build_dashboard(df, report, resv):
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
         "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
     }
-    stat_groups = [
-        ("Cohort", [
-            ("Unique orders", report["n_dedup"], None),
-            ("Manual additions", report["n_added"], san["Manual additions"]),
-            ("Incomplete reservations", rr["n_incomplete"], None),
-            ("Total demand", report["n_dedup"] + rr["n_incomplete"], None),
-        ]),
+    # How the data was cleaned: the cleanup readouts, at the top of the
+    # data-quality panel rather than the page's (they matter to anyone checking
+    # the numbers, not to a first look).
+    cleaning_groups = [
         ("Cleaned / removed", [
             ("Order duplicates", len(san["Duplicates removed"]),
              san["Duplicates removed"]),
@@ -569,14 +448,26 @@ def build_dashboard(df, report, resv):
              san["Likely entry errors set aside"]),
             ("Curated removals", len(san["Removed by curation"]),
              san["Removed by curation"]),
-            ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
         ]),
-        ("VIN recovery", [
+        ("Added or corrected", [
+            ("Manual additions", report["n_added"], san["Manual additions"]),
+            ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
             ("VINs recovered", report["vin_present"], san["VINs recovered"]),
             ("VINs de-obfuscated", report["vin_obfuscated"], san["VINs de-obfuscated"]),
+            # Configured price leaves these out (no published price yet).
+            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
         ]),
-        # Partitions all orders: firm + range/window + no date + unparseable + set
-        # aside = total.
+    ]
+
+    def _groups(spec):
+        return "".join(readout_group(gtitle, [readout(v, k, rows or (), captions.get(k, ""))
+                                              for k, v, rows in cards])
+                       for gtitle, cards in spec)
+
+    # Each order's delivery estimate, in Order-to-delivery time, which charts
+    # only the firm ones. Partitions all orders: firm + range/window + no date +
+    # unparseable + set aside = total.
+    callouts = {"order-to-delivery": _groups([
         ("Delivery estimate (of %d orders)" % report["n_dedup"], [
             ("Firm date", firm, None),
             ("Range / window", rangewin, None),
@@ -585,34 +476,42 @@ def build_dashboard(df, report, resv):
             ("Set aside as errors", set_aside,
              [r for r in san["Likely entry errors set aside"]
               if r[2].startswith("delivery ")]),
-        ]),
-        # The same three-way split §12 draws per state, from the same helper, so the
-        # card and that chart's all-states row can't disagree. A strict partition of
-        # every order. "Delivered" is inferred from a passed estimate, not reported —
-        # the group title says so, since these cards carry no caption of their own.
-        ("Delivery progress (inferred, of %d orders)" % len(df), [
-            (label, int(mask.sum()), None)
-            for label, mask in zip(("Delivered", "Awaiting · VIN", "Awaiting · no VIN"),
-                                   delivery_progress(df).values())
-        ]),
-        # Configured vehicle price (no destination/doc/taxes). "Unpriced" keeps the
-        # mean/median honest by showing what they were NOT computed over.
-        ("Configured price (of %d priced)" % pz["n_priced"], [
-            ("Mean", _money(pz["mean"]), None),
-            ("Median", _money(pz["median"]), None),
-            ("Range", "%s–%s" % (_money(pz["min"]), _money(pz["max"])), None),
-            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
-        ]),
-    ]
-    stat_html = "".join(
-        '<div class="statgroup"><span class="sglabel">%s</span>'
-        '<div class="stats">%s</div></div>'
-        % (_esc(gtitle), "".join(_stat_card(k, v, rows, captions.get(k, ""))
-                                 for k, v, rows in cards))
-        for gtitle, cards in stat_groups)
+        ])])}
+
+    # The summary's headline numbers, each linking to the section behind it.
+    # Delivered is the summary progress aggregate's (reconciled with the view);
+    # the build rate is the cadence chart's latest.
+    progress = view.readouts["progress"]
+    delivered = next(int(c["n"]) for c in progress.cells if c["value"] == "delivered")
+    share = round(100 * delivered / progress.counted) if progress.counted else 0
+    rate = view.mounted["build-cadence"].meta.get("rate") if "build-cadence" in view.mounted else None
+    headline = [
+        readout(format(report["n_dedup"], ","), "Orders", href="#reservations-orders"),
+        readout(format(rr["n_incomplete"], ","), "Reservations not yet ordered",
+                href="#reservations-orders"),
+        readout(format(delivered, ","), "Delivered (%d%%)" % share, href="#delivery-progress"),
+    ] + ([readout("≈ %s" % rate, "VINs a day, lately", href="#build-front")]
+         if rate else [])
+    stat_html = '<div class="ro-group ro-head"><div class="ro-row">%s</div></div>' % "".join(headline)
+
+    # Sections, in sections.yaml order, numbered from 2 (the summary is 1). A
+    # section that starts a group is preceded by the group's label.
+    sections = []
+    for i, (title, desc, howto) in enumerate(SECTIONS):
+        n, sid, group = i + 2, SECTION_IDS[i], SECTION_GROUP[i]
+        comps = _components_html(SECTION_COMPONENTS[i], view, SECTION_LAYOUTS[i])
+        label = ('<p class="sec-group">%s <span>%s</span></p>'
+                 % (_esc(group), _esc(SECTION_GROUPS[group])) if group else "")
+        sections.append(
+            '%s<section id="%s">%s<h2>%d · %s</h2><p class="desc">%s</p>%s%s'
+            '%s</section>' % (label, sid, _aliases(SECTION_ALIASES[i]), n, _esc(title),
+                              desc, _howto(howto), callouts.get(sid, ""), comps))
+    sections.append(_quality_section(report["quality"], len(SECTIONS) + 2,
+                                     cleaning='<div class="qa-clean">%s</div>'
+                                     % _groups(cleaning_groups)))
 
     intro_html = (
-        '<h2>1 · Sources &amp; summary</h2>'
+        _aliases(SUMMARY_ALIASES) + '<h2>1 · Sources &amp; summary</h2>'
         + _src_line("Orders & Deliveries sheet", om,
                     "%d unique orders" % report["n_dedup"], ORDERS_THREAD)
         + _src_line("Reservations sheet", rm,
@@ -621,34 +520,55 @@ def build_dashboard(df, report, resv):
         + '<p class="src"><a href="https://www.rivianforums.com/forum/forums/r2-forum.8/"'
           ' target="_blank" rel="noopener">Rivian R2 forum</a> — the community these'
           ' owner/reservation trackers are compiled from</p>'
-        + '<p class="meth">Delivery windows are measured from each customer&#8217;s '
-          'R2 order date. Order dates before 2026-06-09 and reservations before '
-          '2024-03-07 are treated as invalid; reservations already present in the '
-          'orders sheet are dropped as duplicates. &#8220;Last updated&#8221; is '
-          'when a sheet&#8217;s contents last changed between fetches. Hover the '
-          'highlighted stat cards (&#9432;) for the sanitized entries. Charts with '
-          'a legend are interactive &mdash; click an entry to hide that series, '
-          'double-click to isolate one; see each chart&#8217;s note for its '
-          'paint, region, and wheel filters.</p>')
+        # The design's credit, asked for by Roamer's owner, who okayed it.
+        + '<p class="src">Design inspired by <a href="%s" target="_blank"'
+          ' rel="noopener">Roamer&#8217;s R2 Tracker</a></p>' % ROAMER_URL
+        # How the data is read, and (with scripts) how the charts are used:
+        # reference, so it's folded away rather than standing between the
+        # sources and the numbers. Written to read the same aloud as on screen
+        # (dates and ranges in words, keys spelled out): an inline swap for a
+        # screen reader splits the sentence into separate stops.
+        + '<details class="intro-more"><summary>About this page</summary>'
+          '<p class="meth">Data collected from Rivian R2 reservation holders and '
+          'buyers on the Rivian forums, who track their reservations, orders, VINs '
+          'and deliveries in two community spreadsheets. This page cleans those '
+          'entries and charts what the cohort ordered, how orders are moving toward '
+          'delivery, how production is advancing by VIN, and where the cars are '
+          'going.</p>'
+          '<p class="meth">Relative delivery windows, such as &#8220;4 to 8 weeks&#8221;, '
+          'are measured from each order date. Order dates before %s and '
+          'reservations before %s are treated as invalid, and reservations that '
+          'also appear as orders are dropped. &#8220;Last updated&#8221; is when a '
+          'sheet last changed. Numbers marked with an info icon %s open the entries '
+          'behind them.</p>'
+          % (_day_words(ORDER_DATE_MIN), _day_words(RESV_DATE_MIN), INFO_SVG)
+        + _howto('Hover a chart for its values. Click a legend entry to hide it, '
+                 'or double-click to show it alone. On the scatter charts, pinch, '
+                 'or hold Command or Control and scroll, to zoom; drag to pan; '
+                 'double-click or <em>Reset view</em> to return.')
+        + '</details>')
 
-    # Chart-navigation sidebar: the summary card (1), each chart (2..N+1), and
-    # the QA panel (N+2), numbered by position to match the section headings.
-    nav_items = [("sec-1", "1 · Sources & summary")]
-    nav_items += [("sec-%d" % (i + 2), "%d · %s" % (i + 2, t))
-                  for i, (t, _, _) in enumerate(SECTIONS)]
+    # Chart-navigation sidebar: the summary (1), each section (2..N+1) under its
+    # group's heading, and the QA panel (N+2), numbered as the headings are.
+    nav = ['<a href="#%s" data-sec="%s">1 · Sources &amp; summary</a>' % (SUMMARY_ID, SUMMARY_ID)]
+    for i, (t, _, _) in enumerate(SECTIONS):
+        if SECTION_GROUP[i]:
+            nav.append('<div class="side-group">%s</div>' % _esc(SECTION_GROUP[i]))
+        nav.append('<a href="#%s" data-sec="%s">%d · %s</a>'
+                   % (SECTION_IDS[i], SECTION_IDS[i], i + 2, _esc(t)))
     qa_num = len(SECTIONS) + 2
-    nav_items.append(("sec-%d" % qa_num, "%d · Data quality & anomalies" % qa_num))
-    nav_links = "".join('<a href="#%s" data-sec="%s">%s</a>' % (sid, sid, _esc(t))
-                        for sid, t in nav_items)
+    nav.append('<div class="side-group">Data</div>')
+    nav.append('<a href="#%s" data-sec="%s">%d · Data quality &amp; anomalies</a>'
+               % (QA_ID, QA_ID, qa_num))
+    nav_links = "".join(nav)
     # Header/sidebar chrome takes its greens from the palette (a nod to the
     # Rivian paints): Forest Green for the header, Launch Green for the sidebar.
+    header_bg = COLOR_HEX.get("Forest Green", "#226222")
     chrome_css = ":root{--header-bg:%s;--side-bg:%s;}" % (
-        COLOR_HEX.get("Forest Green", "#226222"),
-        COLOR_HEX.get("Launch Green", "#91aa81"))
+        header_bg, COLOR_HEX.get("Launch Green", "#91aa81"))
 
-    # Populate the (valid, standalone) template's DOM by element id, then splice
-    # the Plotly fragments into their placeholders. Script/style content is set
-    # via .string, which bs4 emits raw (no entity-escaping of < > &).
+    # Populate the (valid, standalone) template's DOM by element id. Script/style
+    # content is set via .string, which bs4 emits raw (no entity-escaping of < > &).
     soup = BeautifulSoup(_tpl("page.html"), "html.parser")
 
     def slot(*args, **kwargs):
@@ -660,26 +580,25 @@ def build_dashboard(df, report, resv):
         return tag
 
     slot(id="theme-vars").string = _THEME_VARS_CSS
-    slot(id="page-style").string = _tpl("styles.css")
+    slot(id="page-style").string = page_css()
     slot(id="chrome-vars").string = chrome_css
+    slot(id="category-vars").string = category_css()
+    # The browser tab/status-bar tint matches the header; theme.js keeps it in
+    # step if the header color ever differs per theme.
+    slot(id="theme-color")["content"] = header_bg
     slot(id="head-init").string = HEAD_JS
-    slot(id="theme-script").string = THEME_JS
-    slot(id="nav-script").string = NAV_JS
-    slot(id="zoom-script").string = ZOOM_JS
+    assets = publish_assets(Path(DASHBOARD).parent)
+    for sid, name in PAGE_SCRIPTS.items():
+        slot(id=sid)["src"] = assets + name
     slot(id="reportData")["href"] = ORDERS_THREAD
     slot(id="reportGithub")["href"] = _report_url(report)
     slot(id="reportForum")["href"] = FORUM_DM_URL
     slot(id="sidebar").append(BeautifulSoup(nav_links, "html.parser"))
-    slot(id="sec-1").append(BeautifulSoup(
+    slot(id=SUMMARY_ID).append(BeautifulSoup(
         intro_html + '<div class="statwrap">%s</div>' % stat_html, "html.parser"))
-    slot("div", class_="wrap").append(
+    slot("main", class_="wrap").append(
         BeautifulSoup("".join(sections), "html.parser"))
 
     html = str(soup)
-    for n, frag in plots.items():
-        html = html.replace("<!--PLOT:%d-->" % n, frag, 1)
-    # to_html's "directory" mode references plotly.min.js but doesn't write it.
-    out_dir = Path(DASHBOARD).parent
-    (out_dir / "plotly.min.js").write_text(get_plotlyjs(), encoding="utf-8")
     with open(DASHBOARD, "w", encoding="utf-8") as fh:
         fh.write(html)

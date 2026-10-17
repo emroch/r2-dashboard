@@ -1,0 +1,873 @@
+"""House-schema specs for the browser-drawn components (docs/presentation.md).
+
+Each builder turns the cleaned orders into one component's spec: what the chart
+library draws, already counted and laid out in Python, so the browser only
+draws. Specs never carry a color: a series names its category
+("color:Launch Green") and an accent names a CSS variable ("var:highlight"),
+and the page's CSS resolves both, per theme. Each builder also returns the
+Aggregate behind it, so the points it publishes reconcile against their cohort
+like every static component's counts.
+
+    scatter   series of points (x, y, optional window lo..hi, tooltip lines),
+              plus layers: line, band and a rule (the "today" line), and fixed
+              axis domains, so hiding a series never rescales the chart. Layers
+              sharing a `group` are one legend entry, shown and hidden together.
+"""
+# Lets the hints use `X | None` while the code still runs on the system 3.9.
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from config import (AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY, INTERIOR_ORDER,
+                    INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
+
+from .aggregates import (COHORTS, STAGE_LABELS, STAGES, Aggregate, crosstab,
+                         lean, stages)
+from .cadence import projection as cadence_projection
+
+# wheels value -> its marker shape (dimensions.yaml `symbol`: circle, square,
+# diamond, triangle-up, which charts/scatter.js maps to d3's symbols).
+_WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in DIMENSIONS["wheels"]["categories"]}
+
+
+def _iso(ts: Any) -> str | None:
+    return None if ts is None or pd.isna(ts) else pd.Timestamp(ts).strftime("%Y-%m-%d")
+
+
+def _blank(v: Any) -> bool:
+    return v is None or (isinstance(v, float) and np.isnan(v)) or str(v).strip() == ""
+
+
+def _day(ts: Any) -> str:
+    return pd.Timestamp(ts).strftime("%b %d")
+
+
+def _vins(v: Any, to: int = 1) -> str:
+    return format(int(round(float(v) / to) * to), ",")
+
+
+def _date_domain(xs: list[pd.Timestamp], pad: float = 0.03,
+                 min_days: int = 3) -> list[str | None] | None:
+    if not xs:
+        return None
+    lo, hi = min(xs), max(xs)
+    p = max((hi - lo) * pad, pd.Timedelta(days=min_days))
+    return [_iso(lo - p), _iso(hi + p)]
+
+
+def _num_domain(ys: list[float], pad: float = 0.03) -> list[float] | None:
+    if not ys:
+        return None
+    lo, hi = min(ys), max(ys)
+    p = max((hi - lo) * pad, 1.0)
+    return [lo - p, hi + p]
+
+
+def _paint_order(d: pd.DataFrame) -> list[str]:
+    """Most-ordered paint first, the palette breaking ties (#58), as everywhere.
+    A blank (an unreported build) is not a paint."""
+    counts = d.loc[~d["color"].map(_blank), "color"].value_counts()
+    rank = {c: i for i, c in enumerate(COLOR_ORDER)}
+    return sorted(counts.index, key=lambda c: (-counts[c], rank.get(c, len(rank)), c))
+
+
+def _config_tip(r: pd.Series) -> list[str]:
+    """An order's tooltip in the configuration scatters (§vin-vs-order,
+    §build-front, §vin-by-config)."""
+    return [str(r["user"]),
+            "%s · %s" % (r["color"], r["wheels_short"]),
+            "%s · %s" % (r["interior"], r["buylease"]),
+            "State: %s" % r["state"],
+            "VIN seq: %s" % r["vin_display"],
+            "Ordered: %s" % r["order_display"],
+            "Est. delivery: %s (%s)" % (r["est_display"], r["delivery_type"])]
+
+
+def _reported(d: pd.DataFrame, *cols: str) -> pd.Series:
+    """Rows that report every one of `cols`. A curated addition can leave the
+    configuration blank (overrides.yaml); it counts in the cohort but has no
+    choice to plot, so the configuration charts leave it out, as excluded."""
+    ok = pd.Series(True, index=d.index)
+    for c in cols:
+        ok &= ~d[c].map(_blank)
+    return ok
+
+
+def _config_series(d: pd.DataFrame, paints: list[str], x: Callable[[pd.Series], Any],
+                   y: Callable[[pd.Series], Any],
+                   extra: Callable[[pd.Series], dict] | None = None,
+                   ) -> tuple[list[dict], list[dict]]:
+    """One series per paint × wheel, paints in `paints` order, then the wheels in
+    dimensions.yaml's: fill = paint, shape = wheels, the house config language.
+    `true`: the points are the paint's true color, outlined (charts/scatter.js),
+    as a paint's swatch is: clamped to the mark range, the greys and the darks
+    become indistinguishable at a point's size. `parts` names the series' paint
+    and wheels, for the chart's filters (_config_filters); `extra(row)` adds to
+    a point (§build-front's window). Returns (series, cells)."""
+    series, cells = [], []
+    for color in paints:
+        for wheel in _WHEEL_SYMBOL:
+            s = d[(d["color"] == color) & (d["wheels_short"] == wheel)]
+            if s.empty:
+                continue
+            name = "%s · %s" % (color, wheel.split()[0])
+            series.append({"name": name, "color": "color:%s" % color,
+                           "shape": "wheels:%s" % wheel, "symbol": _WHEEL_SYMBOL[wheel],
+                           "true": True, "parts": {"color": color, "wheels": wheel},
+                           "points": [{"x": x(r), "y": y(r), "tip": _config_tip(r),
+                                       **(extra(r) if extra else {})}
+                                      for _, r in s.iterrows()]})
+            cells.append({"value": name, "label": name, "n": len(s),
+                          "ref": "color:%s" % color, "known": True})
+    return series, cells
+
+
+def _config_filters(series: list[dict]) -> list[dict[str, Any]]:
+    """The paint and wheels filters for config series (charts/scatter.js
+    `filters`): each value present, paints in the series' order, wheels in
+    dimensions.yaml's, each wheel with its marker shape."""
+    paints = list(dict.fromkeys(s_["parts"]["color"] for s_ in series))
+    have = {s_["parts"]["wheels"] for s_ in series}
+    return [{"dim": "color", "label": "Paint",
+             "values": [{"value": c, "label": c} for c in paints]},
+            {"dim": "wheels", "label": "Wheels",
+             "values": [{"value": w, "label": WHEEL_ABBR.get(w, w), "symbol": sym}
+                        for w, sym in _WHEEL_SYMBOL.items() if w in have]}]
+
+
+def vin_vs_order(df: pd.DataFrame) -> tuple:
+    """§vin-vs-order: each order with a VIN at (order date, VIN), one series per paint ×
+    wheel, as §build-front."""
+    vin = df["vin_present"].astype(bool)
+    has = vin & df["order_date"].notna()
+    d = df[has & _reported(df, "color", "wheels_short")]
+    excluded = {"no VIN": int((~vin).sum()),
+                "no order date": int((vin & df["order_date"].isna()).sum()),
+                "paint or wheels not reported": int(has.sum()) - len(d)}
+    series, cells = _config_series(d, _paint_order(d),
+                                   lambda r: _iso(r["order_date"]),
+                                   lambda r: int(r["vin_seq"]))
+    xs = list(d["order_date"]) + [AS_OF]
+    spec = {"template": "scatter", "title": "VIN vs. order date",
+            "x": {"label": "R2 order date", "type": "date", "domain": _date_domain(xs)},
+            "y": {"label": "VIN", "type": "linear",
+                  "domain": _num_domain([float(v) for v in d["vin_seq"]])},
+            "legend": "Paint · wheels", "series": series, "layers": [],
+            "filters": _config_filters(series)}
+    rows = [[s_["name"], p["tip"][0], p["x"], format(p["y"], ",")]
+            for s_ in series for p in s_["points"]]
+    table = (["Paint · wheels", "Order", "Ordered", "VIN"], rows)
+    return spec, Aggregate("vin-vs-order points", "orders", cells, excluded), table
+
+
+def vin_by_config(df: pd.DataFrame) -> tuple:
+    """§vin-by-config: each order with a VIN at its sequence (x), in a row per full
+    configuration (trim · paint · wheels · interior). Interior joins the row key
+    rather than becoming a third marker channel: fill and shape are taken.
+
+    Rows group by trim, then interior (`group`, a heading over its rows), then
+    run by paint and wheels; each row names its parts, so the chart labels it
+    with its mark (paint fill, wheel shape) and filters rows by any of them
+    (`filters`: the values present, per dimension, in this order)."""
+    vin = df["vin_present"].astype(bool)
+    d = df[vin & _reported(df, "color", "wheels_short", "interior")]
+    excluded = {"no VIN": int((~vin).sum()),
+                "configuration not reported": int(vin.sum()) - len(d)}
+    # The cohort's paint order, not the VIN-assigned rows', so rows group the way
+    # every other paint chart on the page does.
+    paints = _paint_order(df)
+    trims = [c["value"] for c in DIMENSIONS["trim"]["categories"]]
+    rank = {"trim": {t: i for i, t in enumerate(trims)},
+            "color": {c: i for i, c in enumerate(paints)},
+            "wheels": {w: i for i, w in enumerate(_WHEEL_SYMBOL)},
+            "interior": {v: i for i, v in enumerate(INTERIOR_ORDER)}}
+
+    def _parts(r: pd.Series) -> tuple[str, str, str, str]:
+        return str(r["trim"]), r["color"], r["wheels_short"], r["interior"]
+
+    def _label(t: str, c: str, w: str, i: str) -> str:
+        return " · ".join([t, c, WHEEL_ABBR.get(w, w), INTERIOR_SHORT.get(i, i)])
+
+    def _key(parts: tuple[str, str, str, str]) -> tuple:
+        t, c, w, i = parts
+        return tuple(rank[k].get(v, len(rank[k])) for k, v in
+                     (("trim", t), ("interior", i), ("color", c), ("wheels", w)))
+
+    configs = sorted({_parts(r) for _, r in d.iterrows()}, key=_key)
+    row_of = {p: n for n, p in enumerate(configs)}
+    rows = [{"label": _label(t, c, w, i),
+             "short": "%s · %s" % (c, WHEEL_ABBR.get(w, w)),
+             "group": "%s · %s" % (t, INTERIOR_SHORT.get(i, i)),
+             "trim": t, "color": c, "wheels": w, "interior": i,
+             "mark": "color:%s" % c, "symbol": _WHEEL_SYMBOL.get(w, "circle")}
+            for t, c, w, i in configs]
+    # A fixed jitter within the row, so stacked points separate, and the same on
+    # every build.
+    rng = np.random.RandomState(11)
+    jitter = dict(zip(d.index, (rng.rand(len(d)) - 0.5) * 0.36))
+
+    def _row(r: pd.Series) -> float:
+        return round(row_of[_parts(r)] + float(jitter[r.name]), 3)
+
+    series, cells = _config_series(d, [p for p in paints if p in set(d["color"])],
+                                   lambda r: int(r["vin_seq"]), _row)
+
+    def _values(dim: str, label: Callable[[str], str]) -> list[dict[str, Any]]:
+        order = rank[dim]
+        present = sorted({r[dim] for r in rows}, key=lambda v: order.get(v, len(order)))
+        return [{"value": v, "label": label(v)} for v in present]
+
+    filters = [{"dim": "color", "label": "Paint", "values": _values("color", str)},
+               {"dim": "wheels", "label": "Wheels",
+                "values": [{**v, "symbol": _WHEEL_SYMBOL.get(v["value"], "circle")}
+                           for v in _values("wheels", lambda w: WHEEL_ABBR.get(w, w))]},
+               {"dim": "interior", "label": "Interior",
+                "values": _values("interior", lambda i: INTERIOR_SHORT.get(i, i))},
+               {"dim": "trim", "label": "Trim", "values": _values("trim", str)}]
+    spec = {"template": "scatter", "title": "VINs by configuration",
+            "x": {"label": "VIN (production order →)", "type": "linear",
+                  "domain": _num_domain([float(v) for v in d["vin_seq"]])},
+            "y": {"label": "Configuration", "type": "rows", "rows": rows,
+                  "domain": [-0.6, len(rows) - 0.4]},
+            "legend": "Paint · wheels", "series": series, "layers": [],
+            "filters": filters}
+    table_rows = [[rows[round(p["y"])]["label"], p["tip"][0], format(p["x"], ",")]
+                  for s_ in series for p in s_["points"]]
+    table = (["Configuration", "Order", "VIN"], table_rows)
+    agg = Aggregate("vin-by-config points", "orders", cells, excluded,
+                    meta={"rows": len(rows)})
+    return spec, agg, table
+
+
+# --- geo: the US states map ----------------------------------------------------
+#
+#   geo   states: {postal code: {region, demand, orders, vin, scheduled, delivered,
+#         tip: the orders by stage now}}, keyed as the map's paths are;
+#         measures: the counts the reader can map ({key, label, tip: how the
+#         tooltip names the value}), and `default`; factory: [lat, lon]. The map is
+#         the US only, for now (docs/presentation.md): Canada isn't on sale yet,
+#         so its orders and reservations are left out, counted in `excluded`.
+
+# The map's measures, most inclusive first: each is a subset of the one before
+# (the delivery stages count cumulatively, so "with a VIN" includes scheduled and
+# delivered orders, as an order past a stage has passed the ones before it).
+_MEASURES = (("demand", "Orders + reservations"), ("orders", "Orders"),
+             ("vin", "With a VIN"), ("scheduled", "Scheduled"),
+             ("delivered", "Delivered"))
+# How a state's tooltip names the mapped value, saying the stages are cumulative.
+_MEASURE_TIPS = {"demand": "Orders + reservations", "orders": "Orders",
+                 "vin": "With a VIN or further", "scheduled": "Scheduled or delivered",
+                 "delivered": "Delivered"}
+_PAST = {"vin": ("vin", "scheduled", "delivered"),
+         "scheduled": ("scheduled", "delivered"), "delivered": ("delivered",)}
+
+
+def _count(n: int, noun: str) -> str:
+    return "%s %s%s" % (format(n, ","), noun, "" if n == 1 else "s")
+
+
+def _us(frame: pd.DataFrame) -> pd.Series:
+    known = frame["state"].isin(STATE_INFO)
+    return known & frame["state"].map(lambda s: STATE_INFO.get(s, ("",))[0] != "Canada")
+
+
+def geo_demand(df: pd.DataFrame, resv: pd.DataFrame | None) -> tuple:
+    """§geography: per US state, total demand (orders + outstanding
+    reservations), orders, and the orders that have reached each delivery
+    stage, cumulatively: with a VIN (or further), scheduled (or delivered),
+    delivered."""
+    if resv is None or "state" not in resv:
+        resv = pd.DataFrame({"state": pd.Series([], dtype=object)})
+    us, rus = _us(df), _us(resv)
+    known = df["state"].isin(STATE_INFO)
+    excluded = {"outside the US (not mapped)": int((known & ~us).sum()),
+                "no known state": int((~known).sum())}
+    d = df[us]
+    st = stages(d)
+    resv_n = resv[rus].groupby("state").size()
+    states, cells = {}, []
+
+    # The map counts each stage cumulatively; the tooltip (under the mapped value,
+    # which the page adds) splits a state's orders by the stage each is at now,
+    # earliest first, so the shares add up to 100%.
+    def _state(code: str, n: int, r: int, at: pd.Series) -> dict[str, Any]:
+        past = {k: int(at.isin(v).sum()) for k, v in _PAST.items()}
+        tip: list[str | None] = []
+        if n:
+            now = at.value_counts()
+            for k in reversed(STAGES):
+                label = STAGE_LABELS[k][0].upper() + STAGE_LABELS[k][1:]
+                tip.append("%s: %s (%.0f%%)" % (label, format(int(now.get(k, 0)), ","),
+                                                100 * now.get(k, 0) / n))
+        return {"region": STATE_INFO[code][0], "demand": n + r, "orders": n, **past,
+                "tip": tip}
+
+    for code, g in sorted(d.groupby("state"), key=lambda kv: (-len(kv[1]), kv[0])):
+        states[str(code)] = _state(str(code), len(g), int(resv_n.get(code, 0)),
+                                   st[g.index])
+        cells.append({"value": code, "label": code, "n": len(g),
+                      "ref": None, "known": True})
+    # A state with reservations but no orders yet is still demand on the map.
+    for where, r in resv_n.items():
+        key = str(where)
+        if key not in states:
+            states[key] = _state(key, 0, int(r), pd.Series([], dtype=object))
+    left = {"orders": int((known & ~us).sum()), "resv": int((~rus).sum())}
+    spec = {"template": "geo", "title": "Geographic demand",
+            "measures": [{"key": k, "label": lbl, "tip": _MEASURE_TIPS[k]}
+                         for k, lbl in _MEASURES],
+            "default": "orders",
+            "factory": list(FACTORY), "states": states}
+    table = (["State", "Region"] + [lbl for _, lbl in _MEASURES],
+             [[c, v["region"]] + [v[k] for k, _ in _MEASURES]
+              for c, v in states.items()])
+    # "47 states and DC": DC is on the map but isn't a state.
+    ordered = [c for c, v in states.items() if v["orders"]]
+    n_states = sum(1 for c in ordered if c != "DC")
+    where = "%s%s" % (_count(n_states, "state"), " and DC" if "DC" in ordered else "")
+    agg = Aggregate("orders by US state", "orders", cells, excluded, "state",
+                    meta={"states": where,
+                          "left": "%s and %s" % (_count(left["orders"], "order"),
+                                                 _count(left["resv"], "reservation"))})
+    return spec, agg, table
+
+
+# The state mix's measures, in switch order: (key, label, dimension). Status is
+# the delivery stages (aggregates.stages()), the rest a dimension's categories.
+_MIX_MEASURES = (("status", "Status", None), ("color", "Paint", "color"),
+                 ("wheels", "Wheels", "wheels"), ("interior", "Interior", "interior"))
+
+
+def _region_lean(counts: dict[str, list[int]], cats: list[dict]) -> str:
+    """The biggest regional departure from the US mix (aggregates.lean), from
+    per-state counts, as a sentence fragment."""
+    by: dict[str, list[int]] = {}
+    for code, row in counts.items():
+        reg = STATE_INFO[code][0]
+        by[reg] = [a + b for a, b in zip(by.get(reg, [0] * len(cats)), row)]
+    rows = [{"value": r, "label": r, "n": sum(v)} for r, v in by.items()]
+    cells = [{"row": r, "col": c["value"], "n": v[i], "row_label": r,
+              "col_label": c["label"]}
+             for r, v in by.items() for i, c in enumerate(cats)]
+    base = [{"value": c["value"], "n": sum(v[i] for v in by.values())}
+            for i, c in enumerate(cats)]
+    return lean(rows, cells, base)
+
+
+def state_mix(df: pd.DataFrame) -> tuple:
+    """§geography, under the map: each US state's orders split by a measure the reader
+    picks (status, paint, wheels, interior), and the US as a whole, for the
+    page to draw as a 100% bar for the state selected on the map. Per measure:
+    its categories (label, color ref, stage), each state's counts in that
+    order (an order that didn't report the measure sits out of it), the US
+    counts, and where a region leans furthest from the US mix."""
+    located = COHORTS["located"](df)
+    us = _us(df) & located
+    d = df[us]
+    small = int(DIMENSIONS["state"]["small_n"]["min_orders"])
+    measures: list[dict[str, Any]] = []
+    states: dict[str, dict[str, Any]] = {}
+    us_row: dict[str, list[int]] = {}
+    size = d["state"].value_counts()
+    codes = [str(c) for c in sorted(size.index, key=lambda c: (-int(size[c]), c))]
+    for key, label, dim in _MIX_MEASURES:
+        if dim is None:
+            st = stages(d)
+            cats = [{"value": k, "color": "neutral", "stage": k,
+                     "label": STAGE_LABELS[k][0].upper() + STAGE_LABELS[k][1:]}
+                    for k in STAGES]
+            by = {c: [int((st[d["state"] == c] == k).sum()) for k in STAGES]
+                  for c in codes}
+        else:
+            agg = crosstab(d, "state", dim, "located")
+            cats = [{"value": c["value"], "label": c["label"],
+                     "color": c["ref"] or "neutral"} for c in agg.meta["cols"]]
+            n = {(c["row"], c["col"]): int(c["n"]) for c in agg.cells}
+            by = {c: [n.get((c, k["value"]), 0) for k in cats] for c in codes}
+        us_row[key] = [sum(v[i] for v in by.values()) for i in range(len(cats))]
+        for c in codes:
+            states.setdefault(c, {"n": int(size[c])})[key] = by[c]
+        measures.append({"key": key, "label": label,
+                         "true": bool(dim and DIMENSIONS[dim].get("true_color")),
+                         "cats": [{k: v for k, v in c.items() if k != "value"}
+                                  for c in cats],
+                         "lean": _region_lean(by, cats)})
+    spec = {"template": "statemix", "title": "Orders by state", "map": "geo-demand",
+            "default": "status", "small_n": small, "n": len(d), "us": us_row,
+            "measures": measures, "states": states}
+    heads = ["State", "Region", "Orders"] + [
+        "%s: %s" % (m["label"], c["label"]) for m in measures for c in m["cats"]]
+    rows = [["Overall (US)", "", len(d)]
+            + [v for m in measures for v in us_row[m["key"]]]]
+    rows += [[c, STATE_INFO[c][0], states[c]["n"]]
+             + [v for m in measures for v in states[c][m["key"]]] for c in codes]
+    cells = [{"value": c, "label": c, "n": states[c]["n"], "ref": None, "known": True}
+             for c in codes]
+    left = int((located & ~us).sum())
+    agg = Aggregate("located orders by US state", "located", cells,
+                    {"outside the US (not mapped)": left} if left else {}, "state",
+                    meta={"states": len(codes)})
+    return spec, agg, (heads, rows)
+
+
+def delivery_vs_vin(df: pd.DataFrame) -> tuple:
+    """§build-front: each order with a VIN and a delivery estimate, at (estimated
+    delivery date, VIN), one series per paint × wheel, with the quoted window
+    as a whisker; the build front, its projection and band; and today."""
+    has = df["vin_present"].astype(bool) & df["delivery_est"].notna()
+    d = df[has & ~df["color"].map(_blank) & ~df["wheels_short"].map(_blank)]
+    excluded = {"no VIN": int((~df["vin_present"].astype(bool)).sum())}
+    excluded["no delivery estimate"] = int(
+        (df["vin_present"].astype(bool) & df["delivery_est"].isna()).sum())
+    excluded["paint or wheels not reported"] = int(has.sum()) - len(d)
+
+    def _window(r: pd.Series) -> dict[str, Any]:
+        lo, hi = _iso(r["delivery_min"]), _iso(r["delivery_max"])
+        ok = bool(lo and hi and hi > lo)
+        return {"lo": lo if ok else None, "hi": hi if ok else None,
+                "firm": r["delivery_type"] == "explicit"}
+
+    series, cells = _config_series(d, _paint_order(d),
+                                   lambda r: _iso(r["delivery_est"]),
+                                   lambda r: int(r["vin_seq"]), _window)
+
+    layers: list[dict[str, Any]] = []
+    proj = cadence_projection(df)
+    if proj and proj["front"] is not None and not proj["front"].empty:
+        # Each week's point sits at its midpoint, like the points it summarizes.
+        front = proj["front"]
+        week = [w + pd.Timedelta(days=3) for w in front.index]
+        layers.append({
+            "type": "line", "name": "Build front (observed)", "group": "Build front",
+            "color": "var:highlight", "curve": True,
+            "points": [[_iso(w), float(v)] for w, v in zip(week, front.values)],
+            "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
+                     for w, v in zip(front.index, front.values)]})
+        mids = [_iso(w + pd.Timedelta(days=3)) for w in proj["weeks"]]
+        layers.append({"type": "band", "name": "Likely range", "group": "Build front",
+                       "color": "var:highlight-band",
+                       "points": [[m, float(lo), float(hi)]
+                                  for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
+        # The projection quotes VINs, its own axis, to the nearest hundred: the
+        # back-test supports no more precision than that.
+        layers.append({
+            "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
+            "group": "Build front", "color": "var:highlight", "dash": True,
+            "points": [[m, float(c)] for m, c in zip(mids, proj["center"])],
+            "tips": [["Projected front",
+                      "Week of %s: ≈ VIN %s" % (_day(w), _vins(c, 100)),
+                      "Likely VIN %s–%s" % (_vins(lo, 100), _vins(hi, 100))]
+                     for w, c, lo, hi in zip(proj["weeks"], proj["center"],
+                                             proj["lo"], proj["hi"])]})
+    layers.append({"type": "rule", "axis": "x", "value": _iso(AS_OF),
+                   "label": "Today"})
+
+    # Fixed domains over every point, window, layer and today, padded a little,
+    # so neither hiding a series nor zooming out past the data rescales anything.
+    xs = [pd.Timestamp(v) for p in (q for s_ in series for q in s_["points"])
+          for v in (p["x"], p["lo"], p["hi"]) if v]
+    ys = [float(p["y"]) for s_ in series for p in s_["points"]]
+    for layer in layers:
+        if layer["type"] == "rule":
+            xs.append(pd.Timestamp(layer["value"]))
+        else:
+            xs += [pd.Timestamp(pt[0]) for pt in layer["points"]]
+            ys += [float(v) for pt in layer["points"] for v in pt[1:]]
+
+    spec = {"template": "scatter",
+            "title": "Delivery date vs. VIN",
+            "x": {"label": "Estimated delivery date (whiskers = quoted window)",
+                  "type": "date", "domain": _date_domain(xs)},
+            "y": {"label": "VIN (production order →)",
+                  "type": "linear", "domain": _num_domain(ys)},
+            "legend": "Paint · wheels",
+            "series": series, "layers": layers,
+            "toggles": {"whiskers": True}, "filters": _config_filters(series)}
+    rows = [[s_["name"], p["tip"][0], format(p["y"], ","), p["x"],
+             "%s – %s" % (p["lo"], p["hi"]) if p.get("lo") else "",
+             "firm" if p.get("firm") else ""]
+            for s_ in series for p in s_["points"]]
+    table = (["Paint · wheels", "Order", "VIN", "Est. delivery", "Quoted window",
+              "Date"], rows)
+    return spec, Aggregate("delivery-vs-vin points", "orders", cells, excluded), table
+
+
+# --- timeseries: weekly columns (stacked) and lines over dates ---------------------
+#
+#   timeseries  x: Monday weeks; `series`: stacked columns, each
+#               {name, color, values: [[week, n], ...]}; `lines`: {name, color,
+#               points: [[iso, y]], tips}; `rules` (today); y may carry `clip`
+#               (the domain stops there, and a taller column is marked with its
+#               total) and `format` ("pct": values are percentages). With
+#               `toggles.cumulative`, the reader can switch the columns to running
+#               totals; y.cumulative is that view's fixed domain.
+# Every week is Monday-to-Sunday, the same weeks the latency median and the
+# cadence use.
+
+def _week(s: pd.Series) -> pd.Series:
+    return s.dt.to_period("W-SUN").dt.start_time
+
+
+def _weekly(dates: pd.Series) -> dict[pd.Timestamp, int]:
+    counts: Any = _week(dates.dropna()).value_counts()
+    return {pd.Timestamp(k): int(v) for k, v in counts.items()}
+
+
+def _partial(weeks: Sequence[pd.Timestamp]) -> str | None:
+    """The last week, when it's the current one and so still under way (the
+    chart marks it as so far)."""
+    if not weeks:
+        return None
+    last, now = pd.Timestamp(weeks[-1]), pd.Timestamp(AS_OF)
+    return _iso(last) if last <= now < last + pd.Timedelta(days=7) else None
+
+
+def _week_label(w: pd.Timestamp) -> str:
+    return "Week of %s" % pd.Timestamp(w).strftime("%b %d, %Y")
+
+
+def _columns(stack: list[tuple[str, str, dict[pd.Timestamp, int]]],
+             clip_over: float = 3.0, cumulative: bool = False) -> dict[str, Any]:
+    """The weeks, series and y axis of a stacked weekly column chart. When the
+    tallest week is more than `clip_over` times the next, the axis clips just
+    above the rest (a nice round number) and that week is marked with its total,
+    so one spike doesn't flatten every other week. `cumulative` lists every
+    week from the first to the last (a running total has no gaps) and adds the
+    running-total view's domain."""
+    weeks = sorted({w for _, _, by in stack for w in by})
+    if cumulative and weeks:
+        weeks = list(pd.date_range(weeks[0], weeks[-1], freq="7D"))
+    totals = [sum(by.get(w, 0) for _, _, by in stack) for w in weeks]
+    series = [{"name": name, "color": color,
+               "values": [[_iso(w), by.get(w, 0)] for w in weeks]}
+              for name, color, by in stack]
+    y: dict[str, Any] = {"type": "linear", "domain": [0, max(totals or [1]) * 1.05]}
+    if cumulative:
+        y["cumulative"] = {"domain": [0, max(sum(totals), 1) * 1.05]}
+    ranked = sorted(totals, reverse=True)
+    if len(ranked) > 1 and ranked[0] > clip_over * max(ranked[1], 1):
+        top = ranked[1] * 1.15
+        step = 10 ** max(int(np.floor(np.log10(top))), 0)
+        y["clip"] = y["domain"][1] = float(np.ceil(top / step) * step)
+    return {"weeks": weeks, "totals": totals, "series": series, "y": y}
+
+
+def _weeks_domain(weeks: list[pd.Timestamp],
+                  extra: Sequence[pd.Timestamp] = ()) -> list:
+    """Monday of the first week to the Monday after the last (each column spans
+    its week), widened to `extra` dates (today)."""
+    lo = min(list(weeks) + list(extra))
+    hi = max([w + pd.Timedelta(days=7) for w in weeks] + list(extra))
+    return [_iso(lo), _iso(hi)]
+
+
+def _column_table(first: str, cols: dict[str, Any]) -> tuple[list[str], list[list]]:
+    names = [s["name"] for s in cols["series"]]
+    run = np.cumsum(cols["totals"]).tolist() if "cumulative" in cols["y"] else None
+    rows = [[_iso(w)] + [s["values"][i][1] for s in cols["series"]]
+            + ([cols["totals"][i]] if len(names) > 1 else [])
+            + ([int(run[i])] if run else [])
+            for i, w in enumerate(cols["weeks"])]
+    return ([first] + names + (["Total"] if len(names) > 1 else [])
+            + (["Running total"] if run else [])), rows
+
+
+def reservations_by_week(df: pd.DataFrame, resv: pd.DataFrame) -> tuple:
+    """§reservations-orders, top: reservations by the week they were made,
+    stacked: outstanding (holders still waiting to order, from the reservations
+    sheet) on top of converted (every order with a reservation date)."""
+    ordered, only = _weekly(df["resv_date"]), _weekly(resv["resv_date"])
+    cols = _columns([("Converted", "acc:primary", ordered),
+                     ("Outstanding", "acc:primary", only)], cumulative=True)
+    # The primary chart color in two tones: converted at full strength,
+    # outstanding (still waiting to order) at the waiting stage's.
+    for s_, tone in zip(cols["series"], ("delivered", "wait")):
+        s_["stage"] = tone
+    x = {"label": "Week reserved", "type": "date",
+         "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None,
+         "partial": _partial(cols["weeks"])}
+    spec = {"template": "timeseries", "title": "Reservations by week",
+            "x": x, "y": {**cols["y"], "label": "Reservations"},
+            "legend": "Reservation", "series": cols["series"], "lines": [],
+            "rules": [], "toggles": {"cumulative": True}}
+    heads, rows = _column_table("Week of", cols)
+    cells = [{"value": s["name"], "label": s["name"],
+              "n": sum(v for _, v in s["values"]), "known": True, "ref": None}
+             for s in cols["series"]]
+    excluded = {"order without a reservation date": int(df["resv_date"].isna().sum()),
+                "reservation without a date": int(resv["resv_date"].isna().sum())}
+    # The summary's count is every outstanding reservation, dated or not, so it
+    # matches the summary readout; the chart can only place the dated ones.
+    agg = Aggregate("reservations by week", "orders+reservations", cells,
+                    {k: v for k, v in excluded.items() if v},
+                    meta={"outstanding": format(len(resv), ",")})
+    return spec, agg, (heads, rows)
+
+
+def _stage_names() -> list[tuple[str, str]]:
+    """(stage, label) bottom to top, labelled as the take-rate stage key."""
+    return [(st, STAGE_LABELS[st][:1].upper() + STAGE_LABELS[st][1:]) for st in STAGES]
+
+
+def orders_by_week(df: pd.DataFrame) -> tuple:
+    """§reservations-orders, bottom: orders by the week the configuration was
+    finalized, each split by how far it has got today (the four delivery
+    stages, delivered at the bottom): how each week's cohort is doing. The
+    primary chart color, stepped by stage (`stage`)."""
+    st = stages(df)
+    cols = _columns([(label, "acc:primary",
+                      _weekly(df.loc[st == stage, "order_date"]))
+                     for stage, label in _stage_names()], cumulative=True)
+    for s_, (stage, _) in zip(cols["series"], _stage_names()):
+        s_["stage"] = stage
+    spec = {"template": "timeseries", "title": "Orders by week",
+            "x": {"label": "Week ordered", "type": "date",
+                  "domain": _weeks_domain(cols["weeks"]) if cols["weeks"] else None,
+                  "partial": _partial(cols["weeks"])},
+            "y": {**cols["y"], "label": "Orders"}, "legend": "Status today",
+            "series": cols["series"], "lines": [], "rules": [],
+            "toggles": {"cumulative": True}}
+    heads, rows = _column_table("Week of", cols)
+    n = int(df["order_date"].notna().sum())
+    cells = [{"value": s_["name"], "label": s_["name"],
+              "n": sum(v for _, v in s_["values"]), "known": True, "ref": None}
+             for s_ in cols["series"]]
+    agg = Aggregate("orders by week", "orders", cells,
+                    {"no order date": len(df) - n} if len(df) - n else {})
+    if cols["weeks"]:
+        i = int(np.argmax(cols["totals"]))
+        agg.meta["peak"] = "%s (%d orders)" % (
+            pd.Timestamp(cols["weeks"][i]).strftime("%b %d, %Y"), cols["totals"][i])
+    return spec, agg, (heads, rows)
+
+
+# The pipeline's events, in reading order: (key, label, line accent). Each is an
+# order's own date (ingest/milestones.py), the dates r2_series.json counts.
+_EVENTS = (("placed", "Orders placed", "fulfil-placed"),
+           ("vin", "VINs assigned", "fulfil-vin"),
+           ("scheduled", "Deliveries scheduled", "fulfil-scheduled"),
+           ("delivered", "Deliveries made", "fulfil-delivered"))
+
+
+def _event_dates(df: pd.DataFrame) -> dict[str, pd.Series]:
+    """Each order's date for each pipeline event, NaT where it hasn't happened
+    (or happened with no date we know; see fulfilment_by_week)."""
+    nat = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
+    def col(name: str) -> pd.Series:
+        return pd.to_datetime(df[name]) if name in df else nat
+    vin = df["vin_present"].fillna(False).astype(bool)
+    firm = df["delivery_type"] == "explicit"
+    done = df["delivered_inferred"].fillna(False).astype(bool)
+    return {"placed": pd.to_datetime(df["order_date"]),
+            "vin": col("vin_assigned").where(vin),
+            "scheduled": col("delivery_scheduled").where(firm),
+            "delivered": pd.to_datetime(df["delivery_est"]).where(done)}
+
+
+def fulfilment_by_week(df: pd.DataFrame) -> tuple:
+    """§delivery-progress: the whole pipeline over time, from each order's event dates.
+
+    Cumulative (the default view): each week's column is every order placed by
+    the week's end, split by the stage it had reached by then, stacked
+    (delivered at the bottom), so the last column is today's Delivery progress.
+    Weekly: what happened that week, as lines: orders placed, VINs assigned,
+    deliveries scheduled, deliveries made. The last week is each order's stage
+    today (aggregates.stages(), as the readouts count it), so an event with no
+    known date (a VIN with no recorded date) shows from then on."""
+    d = df[df["order_date"].notna()]
+    ev = _event_dates(d)
+    now = pd.Timestamp(AS_OF)
+    first = _week(pd.Series([ev["placed"].min()])).iloc[0] if len(d) else None
+    weeks = (list(pd.date_range(first, _week(pd.Series([now])).iloc[0], freq="7D"))
+             if first is not None else [])
+    levels: dict[str, list[int]] = {st: [] for st in STAGES}
+    for i, w in enumerate(weeks):
+        if i == len(weeks) - 1:
+            now_stage = stages(d)
+            for st in STAGES:
+                levels[st].append(int((now_stage == st).sum()))
+            continue
+        end = w + pd.Timedelta(days=7) - pd.Timedelta(seconds=1)
+        placed = ev["placed"] <= end
+        dl = placed & (ev["delivered"] <= end)
+        sc = placed & ~dl & (ev["scheduled"] <= end)
+        vn = placed & ~dl & ~sc & (ev["vin"] <= end)
+        for st, mask in (("delivered", dl), ("scheduled", sc), ("vin", vn),
+                         ("wait", placed & ~dl & ~sc & ~vn)):
+            levels[st].append(int(mask.sum()))
+    events = {key: _weekly(ev[key]) for key, _, _ in _EVENTS}
+    iso = [_iso(w) for w in weeks]
+    series = [{"name": label, "color": "acc:primary", "stage": st,
+               "view": "cumulative",
+               "values": [[x, v] for x, v in zip(iso, levels[st])]}
+              for st, label in _stage_names()]
+    lines = [{"name": label, "color": "var:" + accent, "view": "weekly",
+              "points": [[_iso(w + pd.Timedelta(days=3)), events[key].get(w, 0)]
+                         for w in weeks]}
+             for key, label, accent in _EVENTS]
+    totals = [sum(levels[st][i] for st in STAGES) for i in range(len(weeks))]
+    peak = max([int(c) for by in events.values() for c in by.values()] or [1])
+    today = now.normalize()
+    spec = {"template": "timeseries", "title": "Delivery progress over time",
+            "x": {"label": "Week", "type": "date",
+                  "domain": _weeks_domain(weeks, [today]) if weeks else None,
+                  "partial": _partial(weeks)},
+            "y": {"type": "linear", "label": "Orders",
+                  "domain": [0, peak * 1.1],
+                  "cumulative": {"domain": [0, max(totals or [1]) * 1.05]}},
+            "legend": "Orders", "series": series, "lines": lines, "rules": [],
+            "toggles": {"cumulative": True, "default": "cumulative"}}
+    heads = (["Week of"] + [label for _, label in _stage_names()]
+             + ["Orders placed by then"] + [label for _, label, _ in _EVENTS])
+    rows = [[iso[i]] + [levels[st][i] for st in STAGES] + [totals[i]]
+            + [events[key].get(w, 0) for key, _, _ in _EVENTS]
+            for i, w in enumerate(weeks)]
+    cells = [{"value": st, "label": label, "n": levels[st][-1] if weeks else 0,
+              "known": True, "ref": None} for st, label in _stage_names()]
+    agg = Aggregate("delivery progress over time", "orders", cells,
+                    {"no order date": len(df) - len(d)} if len(df) - len(d) else {})
+    return spec, agg, (heads, rows)
+
+
+# §order-to-delivery: a weekly median is only drawn for weeks with at least this
+# many firm dates; below it, one fast or slow delivery swings the line by weeks.
+LATENCY_MIN_WEEK_N = 3
+
+
+def latency_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Orders whose wait from order to delivery can be measured, with `days`.
+
+    Firm ("explicit") delivery dates only: a range or window is a guess at when
+    the car will come, so its midpoint would plot a precision the data doesn't
+    have. An estimate that contradicts the order date never gets here: cleaning
+    sets it aside as unknown and lists it (ingest/outliers.py)."""
+    d = df[(df["delivery_type"] == "explicit") & df["order_date"].notna()
+           & df["delivery_est"].notna()].copy()
+    d["days"] = (d["delivery_est"] - d["order_date"]).dt.days
+    # The Monday-start week the order was placed in, for the median and coverage.
+    d["order_week"] = _week(d["order_date"])
+    return d
+
+
+def delivery_latency(df: pd.DataFrame) -> tuple:
+    """§order-to-delivery: each order with a firm delivery date at (order date, days to
+    delivery), filled once the date has passed and open while it's still
+    scheduled, with the weekly median for weeks of LATENCY_MIN_WEEK_N or more,
+    as a curve. `toggles.boxes` offers the same as a box per week (the chart
+    computes them from the points; weeks under min_n stay points), the curve
+    (`median`) then drawn through the boxes' medians."""
+    d = latency_frame(df)
+    passed = d["delivery_est"] <= pd.Timestamp(AS_OF)
+    series: list[dict[str, Any]] = []
+    cells: list[dict[str, Any]] = []
+    for name, mask, open_ in (("Delivery date passed", passed, False),
+                              ("Scheduled (future date)", ~passed, True)):
+        s = d[mask].sort_values("order_date")
+        if s.empty:
+            continue
+        series.append({"name": name, "color": "acc:primary", "open": open_,
+                       "points": [{"x": _iso(o), "y": int(n),
+                                   "tip": [str(u), "Ordered %s" % _day(o),
+                                           "Delivery %s" % _day(e), "%d days" % n]}
+                                  for u, o, e, n in zip(s["user"], s["order_date"],
+                                                        s["delivery_est"], s["days"])]})
+        cells.append({"value": name, "label": name, "n": len(s), "known": True,
+                      "ref": None})
+    g: Any = d.groupby("order_week")["days"]
+    med: Any = g.median()[g.size() >= LATENCY_MIN_WEEK_N]
+    layers: list[dict[str, Any]] = []
+    if len(med):
+        layers.append({
+            "type": "line", "name": "Weekly median (%d+ orders)" % LATENCY_MIN_WEEK_N,
+            "color": "var:highlight", "curve": True, "median": True,
+            "points": [[_iso(w + pd.Timedelta(days=3)), float(v)]
+                       for w, v in med.items()],
+            "tips": [["Weekly median", "%s: %.0f days" % (_week_label(w), v),
+                      "%d orders" % g.size()[w]] for w, v in med.items()]})
+    xs = [pd.Timestamp(p["x"]) for s_ in series for p in s_["points"]]
+    ys = [0.0] + [float(p["y"]) for s_ in series for p in s_["points"]]
+    spec = {"template": "scatter", "title": "Order-to-delivery time",
+            "x": {"label": "Order date", "type": "date", "domain": _date_domain(xs)},
+            "y": {"label": "Days from order to delivery", "type": "linear",
+                  "domain": [0.0, (_num_domain(ys) or [0, 1])[1]]},
+            "legend": "Orders", "series": series, "layers": layers,
+            "toggles": {"boxes": {"min_n": LATENCY_MIN_WEEK_N}}}
+    rows = [[s_["name"], p["tip"][0], p["x"], p["tip"][2][len("Delivery "):], p["y"]]
+            for s_ in series for p in s_["points"]]
+    # A firm date with no order date is the gap worth saying; an order with no
+    # firm date isn't plotted whatever its order date (the chart's own rule).
+    firm = (df["delivery_type"] == "explicit") & df["delivery_est"].notna()
+    excluded = {"no order date": int((firm & df["order_date"].isna()).sum()),
+                "no firm delivery date": int((~firm).sum())}
+    agg = Aggregate("order-to-delivery points", "orders", cells,
+                    {k: v for k, v in excluded.items() if v},
+                    meta={"median": "%.0f" % d["days"].median()} if len(d) else {})
+    return spec, agg, (["Status", "Order", "Ordered", "Delivery", "Days"], rows)
+
+
+def latency_coverage(df: pd.DataFrame) -> tuple:
+    """§order-to-delivery, beneath: what share of each order week's orders have
+    a firm delivery date, i.e. how much of the week the points above cover.
+    Every order with an order date counts in its week's denominator, whatever
+    its estimate."""
+    have = df[df["order_date"].notna()]
+    den = _week(have["order_date"]).value_counts().sort_index()
+    num = latency_frame(df)["order_week"].value_counts()
+    weeks = [pd.Timestamp(w) for w in den.index]
+    pct = [100.0 * int(num.get(w, 0)) / int(den[w]) for w in den.index]
+    spec = {"template": "timeseries", "title": "Firm-date coverage by order week",
+            "x": {"label": "Week ordered", "type": "date",
+                  "domain": _weeks_domain(weeks) if weeks else None},
+            "y": {"label": "Orders with a firm date", "type": "linear",
+                  "domain": [0, 100], "format": "pct"},
+            "legend": None, "lines": [], "rules": [],
+            # A share, so the chart's month and quarter groups re-divide the
+            # counts (charts/timeseries.js regroup) and word the tips from `tip`.
+            "series": [{"name": "Coverage", "color": "acc:primary",
+                        "values": [[_iso(w), round(p, 1)] for w, p in zip(weeks, pct)],
+                        "counts": [[int(num.get(w, 0)), int(den[w])]
+                                   for w in den.index],
+                        "tip": "{0} of {1} orders have a firm date"}]}
+    rows = [[_iso(w), int(num.get(w, 0)), int(den[w]), "%.0f%%" % p]
+            for w, p in zip(weeks, pct)]
+    agg = Aggregate("firm-date coverage", "orders",
+                    [{"value": "with an order date", "label": "Orders", "n": len(have),
+                      "known": True, "ref": None}],
+                    {"no order date": len(df) - len(have)} if len(df) - len(have)
+                    else {})
+    return spec, agg, (["Week of", "Firm dates", "Orders", "Coverage"], rows)
+
+
+def build_cadence(df: pd.DataFrame) -> tuple:
+    """§build-front, beneath: the build front's rate over time, VINs per
+    day, as of each front week (render/cadence.py rate_history), at the week's
+    middle."""
+    from config import CADENCE_WINDOW_WEEKS
+    from .cadence import cadence_frame, rate_history
+    hist = rate_history(df)
+    pts = [[_iso(w + pd.Timedelta(days=3)), float(r)] for w, r in hist.items()]
+    weeks = [pd.Timestamp(w) for w in hist.index]
+    spec = {"template": "timeseries",
+            "title": "Build cadence (rate over the previous %d weeks of front)"
+                     % CADENCE_WINDOW_WEEKS,
+            "x": {"label": "Delivery week", "type": "date",
+                  "domain": _weeks_domain(weeks) if weeks else None},
+            "y": {"label": "VINs per day", "type": "linear",
+                  "domain": [0, max([float(r) for r in hist] or [1.0]) * 1.1]},
+            "legend": None, "series": [], "rules": [],
+            "lines": [{"name": "Build cadence", "color": "var:highlight",
+                       "points": pts,
+                       "tips": [["%s: ≈ %.0f VINs/day" % (_week_label(w), r)]
+                                for w, r in hist.items()]}]}
+    used = len(cadence_frame(df))
+    vins = int(df["vin_present"].astype(bool).sum())
+    agg = Aggregate("build cadence", "vin_assigned", [], basis=used,
+                    excluded={"no firm delivery date": vins - used},
+                    meta={"rate": "%.0f" % hist.iloc[-1],
+                          "window": str(CADENCE_WINDOW_WEEKS)} if len(hist) else {})
+    rows = [[_iso(w), "%.1f" % r] for w, r in hist.items()]
+    return spec, agg, (["Week of", "VINs per day"], rows)

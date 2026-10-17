@@ -1,1 +1,1 @@
-"""Render stage: build the Plotly charts and assemble the dashboard webpage."""
+"""Render stage: count the components, write their specs, and assemble the page."""

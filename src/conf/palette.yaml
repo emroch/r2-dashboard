@@ -1,73 +1,33 @@
 # R2 Orders — chart fills.
 #
-# Colors that don't name a category: the single-series bar and histogram tints,
-# accents, and the heatmap scale. Every CATEGORY color (paints, wheels,
+# Colors that don't name a category: the single-series bar and histogram tints
+# and accents. Every CATEGORY color (paints, wheels,
 # interiors, regions, trims, delivery types, R1 models) lives with its category
 # in dimensions.yaml, which is also what the presentation layer reads.
 # Loaded by config.py at import via yaml.safe_load.
 
 # ---------------------------------------------------------------------------
-# Single-series chart fills. Unlike the vocab above these don't encode a
-# category (one color per whole series) — they just tint a bar or histogram —
-# but they live here so every data color is in one place.
+# Chart roles: colors that don't stand for anything real (unlike a paint), named
+# by the job they do, so re-theming the charts is an edit here.
+#   primary         the chart color: the stage charts' columns (stepped by stage),
+#                   the reservation timeline, coverage, price bars, order markers
+#   highlight       Compass Yellow, "the summary, not a data point": the weekly
+#                   median, the build front and its projection, option spend and
+#                   the median price; it isn't a paint, so it reads over them
+#   highlight_band  the highlight as a translucent band (the build front's error)
+# A hovered column lights up in the stat-card yellow (theme.yaml stat-bg).
 # ---------------------------------------------------------------------------
-take_rate:                    # config take-rate bars (chart 4)
-  wheels: "#4c78a8"
-  buylease: "#f58518"
-  spare: "#e45756"
-  r1_owner: "#54a24b"
-  interior_fallback: "#8899a6"  # interior not found in `interiors` above
-
-timeline:                     # reservation / order timeline (chart 6)
-  ordered: "#f58518"          # "reserved & ordered" bars + order-date bars
-  reserved_only: "#4c78a8"    # reservation-only (incomplete) bars
-
-heatmap_colorscale: Blues     # color x wheels combo heatmap (chart 5)
+chart:
+  primary: "#4c78a8"
+  highlight: "#ffb100"
+  highlight_band: "rgba(243, 174, 61, 0.18)"
 
 # ---------------------------------------------------------------------------
-# Per-state totals bars: a delivery pipeline that stacks to each state's order
-# count — inferred-delivered, then still awaiting delivery split by whether a VIN
-# is known. Encodes progress (not region), so it deliberately sits outside the
-# `regions` palette above.
-#
-# Deliberately the same three hues the rest of the page already uses, so the
-# dashboard reads as one system: Compass Yellow for the series being highlighted
-# (as in the price charts), the shared chart blue beneath it, and the same muted
-# grey the take-rate chart uses for "nothing reported yet".
+# Fulfilment over time (§delivery-progress), its weekly view: one line per pipeline event. Order
+# placed in orange; the rest step toward delivery.
 # ---------------------------------------------------------------------------
-state_totals:
-  delivered: "#f3ae3d"        # Compass Yellow — matches the price-chart accent
-  vin: "#4c78a8"              # the shared chart blue (price bars, take-rate wheels)
-  no_vin: "#c2ccd6"           # the take-rate "No / unspecified" grey
-
-# ---------------------------------------------------------------------------
-# Order-to-delivery time (latency chart). The same three hues the page already
-# uses: the shared chart blue for individual orders, Compass Yellow for the
-# emphasized summary (the weekly median), and the neutral grey for the coverage
-# bars underneath, which are context rather than a finding.
-# ---------------------------------------------------------------------------
-latency:
-  order: "#4c78a8"            # one marker per order with a firm delivery date
-  median: "#f3ae3d"           # Compass Yellow — weekly median line
-  coverage: "#9aa9b8"         # share of each week's orders shown above
-
-# ---------------------------------------------------------------------------
-# Build front + projection overlaid on the delivery-vs-VIN scatter (§10), and the
-# cadence-over-time companion. The scatter's markers are paint colors, so the
-# overlay needs a hue that isn't a paint and reads on both surfaces: Compass
-# Yellow, the page's accent for "the summary, not a data point".
-# ---------------------------------------------------------------------------
-cadence:
-  front: "#f3ae3d"                     # observed weekly build front (solid)
-  projection: "#f3ae3d"                # projected front (dashed)
-  band: "rgba(243, 174, 61, 0.18)"     # back-tested error band around it
-
-# ---------------------------------------------------------------------------
-# Configured-price charts: the neutral bar fill plus a Compass Yellow accent for
-# the emphasized series (option spend) and the highlighted median. The accent is
-# the same yellow the page uses for stat cards and the disclaimer border, so the
-# charts read as part of the same design rather than introducing a new hue.
-# ---------------------------------------------------------------------------
-price:
-  bar: "#4c78a8"              # price distribution bars, per-trim boxes
-  accent: "#f3ae3d"           # Compass Yellow — option spend, median highlight
+fulfilment:
+  placed: "#f58518"
+  vin: "#4c78a8"
+  scheduled: "#72b7b2"
+  delivered: "#54a24b"

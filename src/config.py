@@ -26,6 +26,9 @@ CLEAN_CSV = str(DATA_PROCESSED / "r2_orders_clean.csv")
 # The published data contract (ingest/contract.py), deployed beside the CSV.
 DIMENSIONS_JSON = str(DATA_PROCESSED / "r2_dimensions.json")
 SERIES_JSON = str(DATA_PROCESSED / "r2_series.json")
+# The page's view data (render/view.py): spec + data for each browser-drawn
+# component. Fetched by the page; deployed beside the contract files.
+VIEW_JSON = str(DATA_PROCESSED / "r2_view.json")
 DASHBOARD = str(OUTPUT_DIR / "r2_orders_dashboard.html")
 
 # Local cache filename timestamp format (see fetch.py change detection).
@@ -53,6 +56,13 @@ _GEO = _load("geo.yaml")           # state/province -> region + coords
 _DELIV = _load("delivery.yaml")    # delivery-estimate normalization tables
 _THEME = _load("theme.yaml")       # page & chart chrome (light/dark)
 _PRICE = _load("pricing.yaml")     # trim/option prices for the configured price
+# The page's section registry: order, title, prose, and what each section draws,
+# and the groups they fall in (group key -> its description).
+_SECTIONS = _load("sections.yaml")
+SECTIONS_CONF = _SECTIONS["sections"]
+SECTION_GROUPS = _SECTIONS.get("groups", {})
+# The presentation layer's components, by id (what each draws and says).
+COMPONENTS = _load("charts.yaml")["components"]
 
 # Manual curation (overrides.yaml), applied after fetch/dedup, before cleaning:
 # OVERRIDES edit fields on rows already in the sheet; ADDITIONS append forum-only
@@ -109,11 +119,9 @@ COLOR_ORDER = [c["value"] for c in _cats("color")]
 # Interiors, keyed by the exact sheet value: two of them share the "Black
 # Crater" base name and differ only by the Signature suffix, so nothing may
 # derive one label from the other. INTERIOR_ORDER is plainest-first, which the
-# charts display in. Each color sits close to one of the two chart surfaces, so
-# those charts draw a CHART.edge border to delineate it — see dimensions.yaml.
+# charts display in.
 INTERIOR_ORDER = [c["value"] for c in _cats("interior")]
 INTERIOR_SHORT = {c["value"]: c["short"] for c in _cats("interior")}
-INTERIOR_COLOR = {c["value"]: c["color"] for c in _cats("interior")}
 # Wheels. Each is identified by its exact sheet value; WHEEL_SHORT maps that to
 # the display label, and every other table is keyed BY that label, since it's the
 # label the DataFrame carries (wheels_short). WHEEL_ORDER is ascending size, the
@@ -122,34 +130,17 @@ INTERIOR_COLOR = {c["value"]: c["color"] for c in _cats("interior")}
 WHEEL_SHORT = {c["sheet"]: c["value"] for c in _cats("wheels")}
 WHEEL_ORDER = [c["value"] for c in _cats("wheels")]
 WHEEL_ABBR = {c["value"]: c["abbr"] for c in _cats("wheels")}
-WHEEL_SYMBOL = {c["value"]: c["symbol"] for c in _cats("wheels")}
-WHEEL_COLOR = {c["value"]: c["color"] for c in _cats("wheels")}
-REGION_COLOR = {c["value"]: c["color"] for c in _cats("region")}
 # Delivery-estimate types, firm to vague. TYPE_ORDER leaves out the "no estimate"
 # category, which the charts handle on its own.
-TYPE_COLOR = {c["value"]: c["color"] for c in _cats("delivery_type")}
-TYPE_OPACITY = {c["value"]: c["opacity"] for c in _cats("delivery_type")}
 TYPE_ORDER = [c["value"] for c in _cats("delivery_type")
               if c["value"] != DIMENSIONS["delivery_type"]["missing"]["value"]]
-# Stacked take-rate panels: trim ramp, and which R1 an owner has.
-TRIM_COLORS = {c["value"]: c["color"] for c in _cats("trim")}
-R1_MODEL_COLORS = {c["value"]: c["color"] for c in _cats("r1_model")}
-# A state is drawn on its own only with at least this many orders.
-STATE_MIN_ORDERS = int(DIMENSIONS["state"]["small_n"]["min_orders"])
 
 # --- Chart fills (palette.yaml) --------------------------------------------
-# Single-series chart fills (bars/histograms) + the heatmap colorscale name.
-TAKE_RATE = dict(_PALETTE["take_rate"])
-TIMELINE_COLORS = dict(_PALETTE["timeline"])
-HEATMAP_COLORSCALE = str(_PALETTE["heatmap_colorscale"])
-# Per-state totals bars: VIN-assigned vs. not (stacked to each state's total).
-STATE_TOTALS_COLORS = dict(_PALETTE["state_totals"])
-# Configured-price charts: neutral bar + Compass Yellow accent.
-PRICE_COLORS = dict(_PALETTE["price"])
-# Order-to-delivery time: order markers, weekly median, coverage bars.
-LATENCY_COLORS = dict(_PALETTE["latency"])
-# Build front / projection overlay and the cadence companion chart.
-CADENCE_COLORS = dict(_PALETTE["cadence"])
+# Chart roles: primary (the chart color), highlight (Compass Yellow) and
+# highlight_band.
+CHART_COLORS = dict(_PALETTE["chart"])
+# Fulfilment over time: the weekly view's event lines.
+FULFILMENT_COLORS = dict(_PALETTE["fulfilment"])
 
 # --- Column maps (schema.yaml) --------------------------------------------
 # Both maps are field -> exact sheet header text, and both sheets are read the
@@ -249,9 +240,8 @@ CA_PROVINCES = dict(_GEO["provinces"])
 STATE_REFERENCE = {k: tuple(v)
                    for k, v in (_GEO.get("state_reference") or {}).items()}
 _REF_BINS = _GEO.get("state_reference_bins") or {}
-ELEV_BINS = [float(x) for x in (_REF_BINS.get("elevation_ft") or [])]
-TEMP_BINS = [float(x) for x in (_REF_BINS.get("temperature_f") or [])]
-URBAN_BINS = [float(x) for x in (_REF_BINS.get("urban_pct") or [])]
+# Bin edges by name, for a component that bins by one (charts.yaml `bins`).
+REF_BINS = {k: [float(x) for x in (v or [])] for k, v in _REF_BINS.items()}
 
 # --- Delivery-estimate normalization (delivery.yaml) ----------------------
 UNKNOWN_TOKENS = set(_DELIV["unknown_tokens"])
@@ -265,12 +255,7 @@ MONTHS = dict(_DELIV["months"])
 MONTH_MODIFIERS = {str(k).lower(): tuple(v)
                    for k, v in (_DELIV.get("month_modifiers") or {}).items()}
 
-# --- Page & chart chrome (theme.yaml) -------------------------------------
+# --- Page chrome (theme.yaml) ----------------------------------------------
 # THEME_CSS drives the CSS custom properties (light / dark / theme-independent
-# fixed); CHART_CHROME is the chart chrome the theme toggle swaps, and CHART is
-# the light half baked into the server-rendered charts; CHART_UI holds static
-# (non-swapped) chart accents.
+# fixed).
 THEME_CSS = _THEME["css"]
-CHART_CHROME = _THEME["chart"]
-CHART = _THEME["chart"]["light"]
-CHART_UI = _THEME["chart_ui"]

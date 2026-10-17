@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Serve the dashboard locally, as the deploy lays it out, to check it in a browser.
+
+Opened as a file:// URL the page's charts never draw: browsers refuse ES modules
+from file://, and the charts fetch r2_view.json, which the pipeline writes to
+data/processed/ rather than beside the page. This builds the page (offline, under
+the CI stack: ./ci_env build --offline), stages the same files the preview and
+deploy workflows do into output/site/, and serves them on localhost with caching
+off, so a reload always shows the latest build.
+
+  ./serve                 build, stage, serve on http://127.0.0.1:8000/
+  ./serve --watch         ... and rebuild whenever src/ changes (reload to see it)
+  ./serve --live          build from a live fetch instead (may write a new cache)
+  ./serve --no-build      serve the last build as it is
+  ./serve --port 8123     another port
+
+Stdlib only, so the system python3 runs it; the build itself uses ./ci_env.
+"""
+import argparse
+import functools
+import http.server
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+SITE = os.path.join(ROOT, "output", "site")
+# What the deploy publishes, as (source, name in the site): the workflows'
+# "Stage deploy directory" step.
+FILES = [("output/r2_orders_dashboard.html", "index.html"),
+         ("data/processed/r2_orders_clean.csv", "r2_orders_clean.csv"),
+         ("data/processed/r2_dimensions.json", "r2_dimensions.json"),
+         ("data/processed/r2_series.json", "r2_series.json"),
+         ("data/processed/r2_view.json", "r2_view.json")]
+
+
+def log(msg):
+    """A status line, stamped with the time, to tell how recent a rebuild is."""
+    print("%s serve: %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg), flush=True)
+
+
+def build(live):
+    cmd = [os.path.join(ROOT, "ci_env"), "build"] + ([] if live else ["--offline"])
+    log("building (%s) ..." % " ".join(cmd[1:]))
+    t = time.time()
+    ok = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.DEVNULL).returncode == 0
+    log("build %s in %.0fs" % ("done" if ok else "FAILED", time.time() - t))
+    return ok
+
+
+def stage():
+    """Copy the build into SITE, swapped in whole so a reload never sees half."""
+    tmp = SITE + ".tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    for src, name in FILES:
+        shutil.copy2(os.path.join(ROOT, src), os.path.join(tmp, name))
+    shutil.copytree(os.path.join(ROOT, "output", "assets"), os.path.join(tmp, "assets"))
+    old = SITE + ".old"
+    shutil.rmtree(old, ignore_errors=True)
+    if os.path.exists(SITE):
+        os.rename(SITE, old)
+    os.rename(tmp, SITE)
+    shutil.rmtree(old, ignore_errors=True)
+
+
+def snapshot():
+    """Every source file's modification time, to notice an edit."""
+    out = {}
+    for base, dirs, files in os.walk(os.path.join(ROOT, "src")):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for f in files:
+            p = os.path.join(base, f)
+            try:
+                out[p] = os.stat(p).st_mtime
+            except OSError:
+                pass
+    return out
+
+
+# How long src/ must stay unchanged before a rebuild, so a burst of saves (an
+# editor's save-all, a checkout) makes one build rather than several.
+QUIET = 5.0
+
+
+def watch(live):
+    seen = snapshot()
+    while True:
+        time.sleep(1)
+        if snapshot() == seen:
+            continue
+        # Debounce: wait out the burst, until a whole QUIET passes with no edit.
+        seen = snapshot()
+        while True:
+            time.sleep(QUIET)
+            now = snapshot()
+            if now == seen:
+                break
+            seen = now
+        # Edits made during the build are caught by the next pass (against `seen`).
+        if build(live):
+            stage()
+            log("updated, reload the page")
+
+
+class NoCache(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+    def log_message(self, fmt, *args):  # quiet: only errors
+        if args and str(args[1])[:1] in "45":
+            super().log_message(fmt, *args)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--watch", action="store_true", help="rebuild when src/ changes")
+    ap.add_argument("--live", action="store_true", help="build from a live fetch")
+    ap.add_argument("--no-build", action="store_true", help="serve the last build")
+    a = ap.parse_args()
+    if not a.no_build and not build(a.live):
+        sys.exit(1)
+    stage()
+    if a.watch:
+        threading.Thread(target=watch, args=(a.live,), daemon=True).start()
+    handler = functools.partial(NoCache, directory=SITE)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), handler)
+    log("http://127.0.0.1:%d/  (Ctrl-C to stop)" % a.port)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        print()
+
+
+if __name__ == "__main__":
+    main()

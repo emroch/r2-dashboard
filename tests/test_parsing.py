@@ -30,6 +30,32 @@ from ingest.parsing import (
 from config import FACTORY
 
 
+
+# Component configs the page no longer uses, kept here to exercise the mix and
+# take-rate templates' options (small_n, baseline, total) on location data.
+_LOCATION_CONFS = {
+    "paint-by-state": {
+        "template": "mix", "title": "Paint by state", "dims": ["state", "color"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "small_n": True, "summary": "The biggest lean: {meta:lean}."},
+    "paint-by-region": {
+        "template": "mix", "title": "Paint by region", "dims": ["region", "color"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "summary": "The biggest lean: {meta:lean}."},
+    "wheels-by-region": {
+        "template": "mix", "title": "Wheels by region", "dims": ["region", "wheels"],
+        "aggregate": "crosstab", "cohort": "located", "baseline": "All orders",
+        "summary": "The biggest lean: {meta:lean}."},
+    "interior-by-region": {
+        "template": "mix", "title": "Interior by region",
+        "dims": ["region", "interior"], "aggregate": "crosstab", "cohort": "located",
+        "baseline": "All orders", "summary": "The biggest lean: {meta:lean}."},
+    "state-totals": {
+        "template": "takerate", "title": "Orders by state", "dims": ["state"],
+        "cohort": "located", "total": "All states", "row_label": "State / province",
+        "summary": "{top} leads, with {top_share} of {n} orders with a known state."},
+}
+
 def test_clean_vin_obfuscated_recoverable():
     assert clean_vin("X1435") == (1435, True, True)
 
@@ -672,28 +698,6 @@ def test_reconcile_launch_does_not_change_price():
     assert parts["price"] == 57990 + 2500 + 900
 
 
-def test_config_panel_stacks_only_when_split_has_two_values():
-    # The stack is conditional: one trim renders plain bars and no legend, two
-    # trims split each bar and add the trim legend. Uses synthetic rows so the
-    # multi-trim path is covered before Premium/Standard actually ship.
-    import pandas as pd
-    from render.charts import fig_config_dashboard
-    cols = dict(color="Esker Silver", interior="Black Crater Signature",
-                wheels_short='21" Liquid Tungsten', buylease="Purchase",
-                opted_spare=True, r1_owner="No", r1_model="")
-    one = pd.DataFrame([dict(cols, trim="Performance") for _ in range(3)])
-    two = pd.DataFrame([dict(cols, trim="Performance") for _ in range(3)]
-                       + [dict(cols, trim="Premium") for _ in range(2)])
-    f1, f2 = fig_config_dashboard(one), fig_config_dashboard(two)
-    assert not any(t.showlegend for t in f1.data), "single trim should add no legend"
-    names = {t.name for t in f2.data if t.name}
-    assert {"Performance", "Premium"} <= names, names
-    # The wheels panel should now be two stacked traces summing to the 5 rows.
-    wheels = [t for t in f2.data if t.name in ("Performance", "Premium")
-              and t.x and t.x[0] == '21" Liquid Tungsten']
-    assert sum(int(v) for t in wheels for v in t.y) == 5
-
-
 def test_reconcile_r1_owner_trusts_a_named_model():
     # "Are you a current R1 owner?" is one click; naming R1S/R1T is concrete
     # information a non-owner has no reason to give, so the model wins and the
@@ -759,7 +763,7 @@ def _latency_frame_input():
 
 
 def test_latency_frame_keeps_only_measurable_firm_dates():
-    from render.charts import latency_frame
+    from render.specs import latency_frame
     d = latency_frame(_latency_frame_input())
     assert sorted(d["user"]) == ["a", "b", "c", "e", "f"], sorted(d["user"])
     assert dict(zip(d["user"], d["days"]))["a"] == 30
@@ -769,20 +773,21 @@ def test_latency_frame_keeps_only_measurable_firm_dates():
 
 
 def test_latency_chart_median_needs_enough_orders_and_coverage_is_honest():
-    from render.charts import fig_delivery_latency
-    fig = fig_delivery_latency(_latency_frame_input())
-    med = [t for t in fig.data if (t.name or "").startswith("Weekly median")]
+    from render.specs import delivery_latency, latency_coverage
+    spec, _, _ = delivery_latency(_latency_frame_input())
+    med = [lay for lay in spec["layers"] if lay["name"].startswith("Weekly median")]
     assert len(med) == 1
     # Only the week with 3 firm dates gets a point, at its median (30 days).
-    assert list(med[0].y) == [30.0], list(med[0].y)
-    cov = next(t for t in fig.data if t.type == "bar")
+    assert [pt[1] for pt in med[0]["points"]] == [30.0], med[0]["points"]
+    assert med[0]["curve"] and not med[0].get("dash")
+    cov = latency_coverage(_latency_frame_input())[0]["series"][0]
     # Coverage = shown / ALL orders placed that week, so the unknown-estimate,
     # windowed and impossible orders count against it rather than vanishing.
     # Week of 8/3: a,b,c of a,b,c,d = 75%. Week of 8/10: e,f of e,f,g = 67% (the
     # window doesn't count as shown). Week of 8/17: h's impossible estimate leaves
     # it 0 of 1 — not in the scatter, but still counted as an order placed.
-    assert [round(v) for v in cov.y] == [75, 67, 0], list(cov.y)
-    assert [int(n) for n in cov.customdata[:, 2]] == [4, 3, 1]
+    assert [round(v) for _, v in cov["values"]] == [75, 67, 0], cov["values"]
+    assert cov["counts"] == [[3, 4], [2, 3], [0, 1]], cov["counts"]
 
 
 # --- Build cadence (#33) ----------------------------------------------------
@@ -882,108 +887,56 @@ def test_backtest_sign_shows_when_reality_ran_ahead():
     assert not bt.empty and bt["err_days"].mean() > 0, bt["err_days"].mean()
 
 
-def test_vin_scatter_keeps_whisker_indices():
-    # The overlay is appended AFTER the series, because the whisker toggle addresses
-    # traces by index.
-    from render.charts import fig_delivery_vs_vin
-    df = _cadence_input(weeks=13)
-    df["color"], df["wheels_short"] = "Esker Silver", '21" Liquid Tungsten'
-    df["interior"], df["trim"] = "Black Crater Signature", "Performance"
-    df["user"] = "u"
-    for c, v in (("vin_display", ""), ("order_display", ""), ("est_display", ""),
-                 ("buylease", "Purchase"), ("state", "IL")):
-        df[c] = v
-    # A windowed estimate, so whiskers (and the toggle that targets them) exist —
-    # without one the index check below would pass vacuously.
-    win = df.iloc[[5]].copy()
-    win["delivery_type"] = "window"
-    win["delivery_min"] = win["delivery_est"] - pd.Timedelta(days=7)
-    win["delivery_max"] = win["delivery_est"] + pd.Timedelta(days=7)
-    fig = fig_delivery_vs_vin(pd.concat([df, win], ignore_index=True))
-    names = [t.name for t in fig.data]
-    assert names[-3] == "Observed" and names[-1].startswith("Projected · ≈ ")
-    # The overlay sits in its own legend, separate from the paint · wheels series.
-    overlay = [t for t in fig.data if t.legend == "legend2"]
-    assert [t.name for t in overlay] == names[-3:], [t.name for t in overlay]
-    assert fig.layout.legend2.title.text == "Build front"
-    # The projection's hover quotes VINs (its own axis), rounded to the hundred.
-    proj = fig.data[-1]
-    assert "days" not in proj.hovertemplate and "likely VIN" in proj.hovertemplate
-    assert all(v % 100 == 0 for v in np.asarray(proj.customdata, dtype=float).ravel())
-    assert fig.layout.updatemenus, "the fixture must produce whiskers to test against"
-    whisk = set(fig.layout.updatemenus[0].buttons[0].args[1])
-    assert whisk and all(fig.data[i].mode == "lines" and not fig.data[i].fill
-                         for i in whisk), "toggle targets exactly the whisker traces"
-    assert not any(fig.data[i].legend == "legend2" for i in whisk), (
-        "the whisker toggle must not reach the overlay")
-    # Date on x, VIN on y (transposed to match §9).
-    assert fig.layout.xaxis.type == "date" and fig.layout.yaxis.type == "linear"
-
-
 def test_state_totals_segments_partition_each_state():
-    # The three segments must sum to each state's order count: a delivery has to be
-    # deducted from whichever VIN bucket it came from, or the bar overstates the
-    # state. Covers all four delivered x VIN combinations, including a delivered
-    # order with no VIN (which still counts as delivered).
+    # The state take-rate (no longer on the page) is over the located orders:
+    # the four stages must
+    # sum to each state's count, so a delivery is counted once whatever its VIN
+    # status (a delivered order with no VIN still counts as delivered), and an
+    # order with no location sits out of the cohort.
     import pandas as pd
-    from render.charts import fig_state_totals
-    def row(state, vin, delivered):
-        return dict(state=state, lat=1.0, vin_present=vin,
-                    delivered_inferred=delivered)
-    df = pd.DataFrame([
-        row("CA", True, True), row("CA", True, False), row("CA", False, True),
-        row("CA", False, False), row("TX", False, True), row("TX", True, False),
-        # Unmapped states are excluded from the chart entirely.
-        dict(state="ZZ", lat=float("nan"), vin_present=True,
-             delivered_inferred=True),
-    ])
-    fig = fig_state_totals(df)
-    # Per-state segments; the "All states" summary row is checked separately below.
-    named = [t for t in fig.data if t.name and list(t.y) != ["All states"]]
-    assert len(named) == 3, [t.name for t in named]
-    per_state = {}
-    for t in named:
-        for s, v in zip(t.y, t.x):
-            per_state[s] = per_state.get(s, 0) + int(v)
-    assert per_state == {"CA": 4, "TX": 2}, per_state
-    seg = {t.name: dict(zip(t.y, [int(v) for v in t.x])) for t in named}
-    assert seg["Delivered (est.)"] == {"CA": 2, "TX": 1}
-    assert seg["Awaiting delivery · VIN"] == {"CA": 1, "TX": 1}
-    assert seg["Awaiting delivery · no VIN"] == {"CA": 1, "TX": 0}
-
-
-def test_state_totals_summary_row_matches_the_shared_split():
-    # #53: the all-states row and the summary-page cards come from ONE helper, so
-    # they can't drift. The row covers orders with a known state (an unmapped order
-    # is excluded from the chart), while the cards cover every order — so the two
-    # agree exactly when every order is located, and differ by the unmapped ones.
-    import pandas as pd
-    from render.charts import DELIVERY_STAGES, delivery_progress, fig_state_totals
+    from render.aggregates import cohort_sizes, counts, reconcile
     def row(state, vin, delivered, lat=1.0):
-        return dict(state=state, lat=lat, vin_present=vin, delivered_inferred=delivered)
+        return dict(state=state, lat=lat, vin_present=vin, delivered_inferred=delivered,
+                    delivery_type=None, price=None)
     df = pd.DataFrame([
         row("CA", True, True), row("CA", True, False), row("CA", False, True),
         row("CA", False, False), row("TX", False, True), row("TX", True, False),
         row("ZZ", True, True, lat=float("nan")),
     ])
-    stages = delivery_progress(df)
-    # A strict partition: every order lands in exactly one stage.
-    assert list(stages) == list(DELIVERY_STAGES)
-    hits = sum(m.astype(int) for m in stages.values())
-    assert (hits == 1).all(), hits.tolist()
-    assert {k: int(m.sum()) for k, m in stages.items()} == {
-        "Delivered (est.)": 4, "Awaiting delivery · VIN": 2,
-        "Awaiting delivery · no VIN": 1}
+    a = counts(df, "state", cohort="located", by_stage=True)
+    reconcile([a], cohort_sizes(df))
+    assert {c["value"]: c["n"] for c in a.cells} == {"CA": 4, "TX": 2}
+    assert all(sum(c["stages"].values()) == c["n"] for c in a.cells)
+    st = {c["value"]: c["stages"] for c in a.cells}
+    assert (st["CA"]["delivered"], st["CA"]["vin"], st["CA"]["wait"]) == (2, 1, 1)
+    assert (st["TX"]["delivered"], st["TX"]["vin"], st["TX"]["wait"]) == (1, 1, 0)
 
-    top = {t.name: int(t.x[0]) for t in fig_state_totals(df).data
-           if t.name and list(t.y) == ["All states"]}
-    located = delivery_progress(df.dropna(subset=["lat"]))
-    assert top == {k: int(m.sum()) for k, m in located.items()}, top
-    assert sum(top.values()) == 6, "the unmapped ZZ order is not in the chart"
-    # Each segment states its count and share, since the row has no tick labels.
-    texts = [t.text[0] for t in fig_state_totals(df).data
-             if t.name and list(t.y) == ["All states"]]
-    assert texts == ["3 · 50%", "2 · 33%", "1 · 17%"], texts
+
+def test_state_totals_summary_row_matches_the_shared_split():
+    # #53: the state take-rate's "All states" row and the summary's Delivery
+    # progress readouts
+    # come from one split (aggregates.stages()), so they can't drift. The row
+    # covers the located orders, the readouts every order: they agree exactly
+    # when every order is located, and differ by the unmapped ones.
+    import pandas as pd
+    from render.aggregates import counts, stage_counts
+    from render.components import takerate
+    def row(state, vin, delivered, lat=1.0):
+        return dict(state=state, lat=lat, vin_present=vin, delivered_inferred=delivered,
+                    delivery_type=None)
+    df = pd.DataFrame([
+        row("CA", True, True), row("CA", True, False), row("CA", False, True),
+        row("CA", False, False), row("TX", False, True), row("TX", True, False),
+        row("ZZ", True, True, lat=float("nan")),
+    ])
+    html = takerate("c-s", _LOCATION_CONFS["state-totals"],
+                    counts(df, "state", cohort="located", by_stage=True))
+    located = stage_counts(df[df["lat"].notna()])
+    want = " · ".join("%d %s" % (c["n"], c["label"]) for c in located.cells if c["n"])
+    assert want == "3 delivered · 2 with a VIN · 1 waiting for a VIN"
+    total = html[html.index('class="tr-row tr-neutral tr-total"'):]
+    assert total.index("All states") < total.index(want) < total.index("</li>")
+    assert sum(c["n"] for c in stage_counts(df).cells) == 7, "readouts: every order"
 
 
 def test_delivered_inferred_only_for_a_passed_upper_bound():
@@ -1000,6 +953,19 @@ def test_delivered_inferred_only_for_a_passed_upper_bound():
     ]))
     delivered = mx.notna() & (mx < AS_OF)
     assert list(delivered) == [True, False, False, False]
+
+
+def test_inferred_deliveries_lists_only_vague_estimates_that_passed():
+    import pandas as pd
+    from ingest.loaders import inferred_deliveries
+    day = pd.Timestamp("2026-08-14")
+    df = pd.DataFrame({"orig_num": ["1", "2", "3"], "user": ["a", "b", "c"],
+                       "delivered_inferred": [True, True, False],
+                       "delivery_type": ["window", "explicit", "month"],
+                       "delivery_raw": ["4-8 weeks ", "8/14/26", "December"],
+                       "delivery_max": [day, day, pd.NaT]})
+    assert inferred_deliveries(df) == [
+        ("1", "a", "4-8 weeks (window) ended 2026-08-14")]
 
 
 # --- Column mapping and schema-drift detection ------------------------------
@@ -1303,48 +1269,50 @@ def test_wheel_label_keeps_an_unknown_value_visible():
 
 
 def test_numeric_bins_order_by_value_and_bucket_missing():
-    from render.charts import _NO_STATE_DATA, _numeric_bins
+    from render.aggregates import binned
     vals = pd.Series([100.0, 900.0, 2000.0, 9000.0, float("nan")])
-    labels, keys = _numeric_bins(vals, [500, 1500, 3500], " ft")
+    labels, keys = binned(vals, [500, 1500, 3500], " ft")
     # Ascending by value, never by volume, with the no-data bar last.
     assert keys == ["< 500 ft", "500–1,500 ft", "1,500–3,500 ft", "\u2265 3,500 ft",
-                    _NO_STATE_DATA]
-    assert list(labels) == keys[:4] + [_NO_STATE_DATA]
+                    "No state data"]
+    assert list(labels) == keys
     # An empty bin is dropped rather than drawn as a gap.
-    _, sparse = _numeric_bins(pd.Series([100.0, 9000.0]), [500, 1500, 3500], " ft")
+    _, sparse = binned(pd.Series([100.0, 9000.0]), [500, 1500, 3500], " ft")
     assert sparse == ["< 500 ft", "\u2265 3,500 ft"]
 
 
 def test_wheels_by_location_panels_partition_the_cohort():
-    # Every panel is a 100% stack over the same orders, so each bar's segments
-    # must total 100% and each panel's n= must total the cohort. A row that
-    # double-counts or drops an order would still look like a plausible chart.
-    from collections import defaultdict
-    from config import WHEEL_ORDER
-    from render.charts import fig_wheels_by_location
+    # Every panel is 100% rows over the same orders, so each panel's rows must
+    # total the located orders that reported wheels, each row's cells its n, and
+    # the baseline the same orders. A row that double-counts or drops an order
+    # would still look like a plausible chart.
+    from config import COMPONENTS, WHEEL_ORDER
+    from render.aggregates import cohort_sizes, reconcile
+    from render.view import _crosstab
     w21, w20 = WHEEL_ORDER[-1], WHEEL_ORDER[-2]
     df = pd.DataFrame({
-        "lat": [40.0, 41.0, 42.0, 43.0, 44.0],
-        "region": ["West", "West", "South", "Northeast", "Canada"],
-        "wheels_short": [w21, w20, w20, w21, w20],
-        "elev_ft": [6800.0, 100.0, 350.0, 1000.0, float("nan")],
-        "temp_f": [45.1, 70.7, 62.4, 45.4, float("nan")],
-        "urban_pct": [86.3, 91.1, 62.5, 93.9, float("nan")],
+        "lat": [40.0, 41.0, 42.0, 43.0, 44.0, float("nan")],
+        "region": ["West", "West", "South", "Northeast", "Canada", None],
+        "wheels_short": [w21, w20, w20, w21, w20, w21],
+        "elev_ft": [6800.0, 100.0, 350.0, 1000.0, float("nan"), 50.0],
+        "temp_f": [45.1, 70.7, 62.4, 45.4, float("nan"), 60.0],
+        "urban_pct": [86.3, 91.1, 62.5, 93.9, float("nan"), 80.0],
+        "vin_present": [False] * 6, "delivered_inferred": [False] * 6,
+        "price": [None] * 6,
     })
-    fig = fig_wheels_by_location(df)
-    pct = defaultdict(lambda: defaultdict(float))
-    n = defaultdict(lambda: defaultdict(int))
-    for tr in fig.data:
-        axis = tr.yaxis or "y"
-        for y, x, cd in zip(tr.y, tr.x, tr.customdata):
-            pct[axis][y] += x
-            n[axis][y] += int(cd)
-    assert len(pct) == 5, "expected five panels"
-    for axis in pct:
-        assert all(abs(v - 100.0) < 1e-6 for v in pct[axis].values()), axis
-        assert sum(n[axis].values()) == len(df), axis
-    # The row with no reference figures gets its own bar, not a dropped order.
-    assert any("No state data" in y for y in n["y3"])
+    panels = {cid: c for cid, c in COMPONENTS.items() if cid.startswith("wheels-by-")}
+    assert len(panels) == 3, panels
+    panels["wheels-by-region"] = _LOCATION_CONFS["wheels-by-region"]
+    for cid, conf in panels.items():
+        a = _crosstab(df, conf)
+        reconcile([a], cohort_sizes(df))
+        assert a.counted == 5 and not a.excluded, (cid, a.excluded)
+        for r in a.meta["rows"]:
+            assert sum(c["n"] for c in a.cells if c["row"] == r["value"]) == r["n"]
+        assert sum(b["n"] for b in a.meta["baseline"]) == 5
+    # The row with no reference figures gets its own row, not a dropped order.
+    elev = _crosstab(df, COMPONENTS["wheels-by-elevation"])
+    assert [r["label"] for r in elev.meta["rows"]][-1] == "No state data"
 
 
 # --- Interior identity and the config-combination heatmaps -------------------
@@ -1386,45 +1354,56 @@ def test_interior_labels_keep_the_two_black_craters_apart():
 
 def test_interior_heatmap_columns_are_distinct_and_present_only():
     # One column per interior that has an order, labelled distinctly, and every
-    # order counted exactly once.
+    # order counted exactly once. (The §combinations heatmap,
+    # render/aggregates.crosstab.)
     from config import INTERIOR_ORDER, INTERIOR_SHORT
-    from render.charts import fig_color_interior_heatmap
+    from render.aggregates import crosstab
     df = _interior_frame()
-    h = fig_color_interior_heatmap(df).data[0]
-    assert list(h.x) == [INTERIOR_SHORT[i] for i in INTERIOR_ORDER]
-    assert len(set(h.x)) == len(h.x)
-    assert sum(sum(r) for r in h.z) == len(df)
+    a = crosstab(df, "color", "interior")
+    cols = [c["label"] for c in a.meta["cols"]]
+    assert cols == [INTERIOR_SHORT[i] for i in INTERIOR_ORDER], cols
+    assert len(set(cols)) == len(cols)
+    assert a.counted == len(df)
     # An interior nobody ordered gets no column at all.
     one = df[df["interior"] == INTERIOR_ORDER[0]]
-    assert list(fig_color_interior_heatmap(one).data[0].x) == \
+    assert [c["label"] for c in crosstab(one, "color", "interior").meta["cols"]] == \
         [INTERIOR_SHORT[INTERIOR_ORDER[0]]]
 
 
 def test_wheel_heatmap_covers_every_ordered_wheel():
     # This grid used to hardcode the two Performance wheels, so the other two
     # would have gone missing once Premium and Standard shipped.
-    from render.charts import fig_color_wheel_heatmap
+    from render.aggregates import crosstab
     df = _interior_frame()
-    h = fig_color_wheel_heatmap(df).data[0]
-    assert set(h.x) == set(df["wheels_short"].unique())
-    assert sum(sum(r) for r in h.z) == len(df)
+    a = crosstab(df, "color", "wheels")
+    assert {c["value"] for c in a.meta["cols"]} == set(df["wheels_short"].unique())
+    assert a.counted == len(df)
 
 
 def test_vin_by_config_rows_carry_interior_and_stay_ordered():
-    from config import INTERIOR_ORDER, INTERIOR_SHORT
-    from render.charts import _paint_order, fig_vin_by_config
+    from config import INTERIOR_ORDER
+    from render.specs import _WHEEL_SYMBOL, _paint_order, vin_by_config
     df = _interior_frame()
-    rows = list(fig_vin_by_config(df).layout.yaxis.ticktext)
+    spec = vin_by_config(df)[0]
+    rows = spec["y"]["rows"]
     assert len(rows) == len(df), "one row per distinct configuration"
     for r in rows:
-        assert len(r.split(" · ")) == 4, r
-    # Rows sort by paint (most-ordered first) then wheel then interior, so a reader
-    # scanning down sees a stable, meaningful sequence.
+        assert len(r["label"].split(" · ")) == 4, r
+        assert r["group"] == "%s · %s" % (r["trim"], r["label"].split(" · ")[3])
+        assert r["mark"] == "color:" + r["color"]
+    # Rows group by trim then interior (a heading each), then run by paint
+    # (most-ordered first) and wheel, so a reader scanning down sees a stable,
+    # meaningful sequence.
     paints = _paint_order(df)
-    rank = {INTERIOR_SHORT[i]: n for n, i in enumerate(INTERIOR_ORDER)}
-    keys = [(paints.index(r.split(" · ")[1]), r.split(" · ")[2],
-             rank[r.split(" · ")[3]]) for r in rows]
+    wheels = list(_WHEEL_SYMBOL)
+    keys = [(r["trim"], INTERIOR_ORDER.index(r["interior"]), paints.index(r["color"]),
+             wheels.index(r["wheels"])) for r in rows]
     assert keys == sorted(keys)
+    # Every value a row has can be filtered, once each, in row order.
+    by = {f["dim"]: [v["value"] for v in f["values"]] for f in spec["filters"]}
+    for dim in ("color", "wheels", "interior", "trim"):
+        assert set(by[dim]) == {r[dim] for r in rows}, dim
+    assert by["interior"] == sorted(by["interior"], key=INTERIOR_ORDER.index)
 
 
 def _paint_rank_frame():
@@ -1469,7 +1448,7 @@ def _expected_paint_rank():
 
 def test_paint_order_ranks_by_count_then_palette_for_ties():
     from config import COLOR_ORDER
-    from render.charts import _paint_order
+    from render.specs import _paint_order
     df = _paint_rank_frame()
     got = _paint_order(df)
     assert got == _expected_paint_rank(), got
@@ -1487,70 +1466,66 @@ def test_every_paint_chart_uses_the_same_order():
     # Issue #58: the heatmap followed the palette's curated sequence, so Forest
     # Green sat near the top on 25 orders while Catalina Cove's 186 landed
     # mid-grid. Each of these read that sequence independently; they must now all
-    # follow one popularity ranking, or a reader learns an order in §2 that fails
-    # them in §3.
-    from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_config_dashboard, fig_delivery_vs_vin,
-                               fig_paint_by_location, fig_vin_vs_order)
+    # follow one popularity ranking, or a reader learns an order in §take-rates
+    # that fails them in §combinations.
+    # (The §take-rates take-rate rows follow it too: test_aggregates.py.)
+    # (§build-front's delivery-vs-VIN scatter follows it too: test_specs.py.)
+    from render.aggregates import crosstab
+    from render.specs import _paint_order, vin_vs_order
+    from render.view import _crosstab
     df = _paint_rank_frame()
     want = _paint_order(df)
     assert want == _expected_paint_rank()
 
-    # §2 take-rate bars, and §3 heatmap rows (top-down: the y axis is reversed).
-    assert list(fig_config_dashboard(df).data[0].x) == want
-    assert list(fig_color_wheel_heatmap(df).data[0].y) == want
+    # §combinations heatmap rows, top-down.
+    assert [r["value"] for r in crosstab(df, "color", "wheels").meta["rows"]] == want
 
-    # §8 / §9 scatter legends: one entry per paint × wheel, paints in rank order.
-    for fig in (fig_vin_vs_order(df), fig_delivery_vs_vin(df)):
-        seen = []
-        for t in fig.data:
-            paint = (t.name or "").split(" · ")[0]
-            if paint in want and paint not in seen:
-                seen.append(paint)
-        assert seen == want, (fig.layout.title, seen)
+    # §vin-vs-order scatter legend: one entry per paint × wheel, paints in rank order.
+    seen = []
+    for s in vin_vs_order(df)[0]["series"]:
+        paint = s["name"].split(" · ")[0]
+        if paint not in seen:
+            seen.append(paint)
+    assert seen == want, seen
 
-    # §13 stack order — legend entries are the paints, first panel only.
-    stacked = [t.name for t in fig_paint_by_location(df).data if t.showlegend]
-    assert stacked == want, stacked
+    # Stack order in the location mixes: their columns and baseline.
+    for cid in ("paint-by-region", "paint-by-state"):
+        a = _crosstab(df, _LOCATION_CONFS[cid])
+        assert [c["value"] for c in a.meta["cols"]] == want, cid
+        assert [c["value"] for c in a.meta["baseline"]] == want, cid
 
 
-def test_stable_counts_breaks_ties_alphabetically():
+def test_counts_break_ties_alphabetically():
     # The regression that matters: sort_values is not stable and value_counts
     # promises no order among equal counts, so tied categories used to come out
     # differently on every run and the deployed charts' rows reshuffled between
     # daily builds. Order must be (count, then name), repeatably.
-    from render.charts import _by_volume, _stable_counts
+    from render.aggregates import counts
     s = pd.Series(list("aaa") + ["zz", "mm", "bb"] * 2 + ["q"])
-    got = _stable_counts(s.value_counts())
-    assert list(got.index) == ["q", "bb", "mm", "zz", "a"]
-    assert list(got.values) == [1, 2, 2, 2, 3]
-    assert _by_volume(s) == list(got.index)
-    # Repeated calls agree — the property the daily build depends on.
-    assert all(_by_volume(s) == _by_volume(s.sample(frac=1.0, random_state=n))
-               for n in range(5))
+    # A component's rows (a row per state): largest first, ties by name, whatever
+    # order the orders arrive in.
+    df = pd.DataFrame({"state": list(s), "lat": 1.0})
+    def rows(frame):
+        return [c["value"] for c in counts(frame, "state", cohort="located").cells]
+    assert rows(df) == ["a", "bb", "mm", "zz", "q"]
+    assert all(rows(df.sample(frac=1.0, random_state=n)) == rows(df) for n in range(5))
 
 
 def test_interior_by_location_panels_partition_the_cohort():
     from config import INTERIOR_SHORT
-    from render.charts import fig_interior_by_location
+    from render.aggregates import cohort_sizes, reconcile
+    from render.view import _crosstab
     df = _interior_frame().assign(
         lat=[40.0, 41.0, 42.0, 43.0, 44.0, 45.0],
-        region=["West", "West", "South", "South", "Northeast", "Canada"])
-    fig = fig_interior_by_location(df)
-    from collections import defaultdict
-    pct = defaultdict(lambda: defaultdict(float))
-    n = defaultdict(lambda: defaultdict(int))
-    for tr in fig.data:
-        axis = tr.yaxis or "y"
-        for y, x, cd in zip(tr.y, tr.x, tr.customdata):
-            pct[axis][y] += x
-            n[axis][y] += int(cd)
-    assert len(pct) == 2, "all-orders row plus a region row, no state panel"
-    for axis in pct:
-        assert all(abs(v - 100.0) < 1e-6 for v in pct[axis].values()), axis
-        assert sum(n[axis].values()) == len(df), axis
-    # Legend carries the short labels, one entry per interior, no duplicates.
-    names = [tr.name for tr in fig.data if tr.showlegend]
+        region=["West", "West", "South", "South", "Northeast", "Canada"],
+        delivered_inferred=False, price=None)
+    a = _crosstab(df, _LOCATION_CONFS["interior-by-region"])
+    reconcile([a], cohort_sizes(df))
+    assert a.counted == len(df) and not a.excluded
+    for r in a.meta["rows"]:
+        assert sum(c["n"] for c in a.cells if c["row"] == r["value"]) == r["n"]
+    # Columns carry the short labels, one per interior, no duplicates.
+    names = [c["label"] for c in a.meta["cols"]]
     assert names == [INTERIOR_SHORT[i] for i in _interior_frame()["interior"].unique()]
     assert len(names) == len(set(names))
 
@@ -1882,66 +1857,16 @@ def test_blank_deletion_reason_is_reported():
     assert any("no reason recorded" in d for _, _, d in issues), issues
 
 
-def test_an_owner_who_named_no_model_still_counts_as_an_owner():
-    # "No model given" means two different things depending on the gate, and they
-    # used to share one "No / unspecified" segment — which inside the Yes bar read
-    # as a "No" contradicting its own bar. The owner is trusted either way, so the
-    # Yes bar's total must be every owner.
-    from render.charts import _MODEL_UNSPECIFIED, _NO_R1, fig_config_dashboard
-    cols = dict(color="Esker Silver", interior="Black Crater Signature",
-                wheels_short='21" Liquid Tungsten', trim="Performance",
-                buylease="Purchase", opted_spare=True)
-    df = pd.DataFrame(
-        [dict(cols, r1_owner="Yes", r1_model="R1T") for _ in range(4)]
-        + [dict(cols, r1_owner="Yes", r1_model="") for _ in range(3)]
-        + [dict(cols, r1_owner="No", r1_model="") for _ in range(9)])
-    seg = {t.name: list(t.y) for t in fig_config_dashboard(df).data
-           if getattr(t, "x", None) and tuple(t.x) == ("Yes", "No") and t.name}
-    assert seg["R1T"] == [4, 0]
-    assert seg[_MODEL_UNSPECIFIED] == [3, 0], "an owner with no model stays an owner"
-    assert seg[_NO_R1] == [0, 9], "a non-owner is not 'unspecified'"
-    # The two non-answers must not collapse into one segment again.
-    assert _MODEL_UNSPECIFIED != _NO_R1
-    owners = sum(v[0] for v in seg.values())
-    assert owners == 7, "the Yes bar totals every owner, model named or not"
-
-
-def test_yes_no_panels_keep_a_fixed_order_and_drop_blanks():
-    # Purchase before Lease and Yes before No read as a sequence, so which is larger
-    # shouldn't decide the order — by count they'd also swap places between builds as
-    # the numbers move. Unanswered rows sit out rather than forming a blank bar (41
-    # of 565 never answered purchase-vs-lease, which outnumbered Lease itself).
-    from render.charts import _ordered_counts, fig_config_dashboard
-    s = pd.Series(["Lease"] * 9 + ["Purchase"] * 2 + ["Weird"])
-    got = _ordered_counts(s, ("Purchase", "Lease"))
-    assert list(got.index) == ["Purchase", "Lease", "Weird"], list(got.index)
-    assert list(got.values) == [2, 9, 1], "counts follow the labels, not the order"
-    # An unanticipated answer is appended, never silently dropped.
-    assert "Weird" in got.index
-
-    cols = dict(color="Esker Silver", interior="Black Crater Signature",
-                wheels_short='21" Liquid Tungsten', trim="Performance",
-                opted_spare=True, r1_owner="Yes", r1_model="R1T")
-    df = pd.DataFrame(
-        [dict(cols, buylease="Purchase") for _ in range(3)]
-        + [dict(cols, buylease="Lease") for _ in range(5)]
-        + [dict(cols, buylease="", r1_owner="") for _ in range(2)])
-    panels = {tuple(t.x): t for t in fig_config_dashboard(df).data
-              if getattr(t, "x", None) and isinstance(t.x, tuple)}
-    assert ("Purchase", "Lease") in panels, list(panels)
-    buylease = panels[("Purchase", "Lease")]
-    assert list(buylease.y) == [3, 5], "Purchase leads despite Lease being larger"
-    assert not any("" in k or "Blank" in k for k in panels), list(panels)
-
-
 def test_an_unreported_build_is_left_out_of_the_config_charts():
     # An order whose build was never reported carries no choice to plot, so the
     # configuration charts cover the orders that did report the option they chart.
     # Taking the CATEGORY out while leaving the ROWS in would be the subtle bug: the
     # 100%-stacked panels divide by each bar's own total, so the stack would quietly
     # stop adding up to 100.
-    from render.charts import (_paint_order, fig_color_wheel_heatmap,
-                               fig_config_dashboard, fig_paint_by_location)
+    # (The §take-rates take-rate rows: test_aggregates.py.)
+    from render.aggregates import crosstab
+    from render.specs import _paint_order
+    from render.view import _crosstab
     df = _paint_rank_frame()
     blank = df.iloc[[0]].copy()
     blank["user"] = "unreported"
@@ -1951,22 +1876,17 @@ def test_an_unreported_build_is_left_out_of_the_config_charts():
     df = pd.concat([df, blank], ignore_index=True)
 
     assert "" not in _paint_order(df), "a blank is not a paint"
-    bars = fig_config_dashboard(df).data[0]
-    assert "" not in list(bars.x) and "Unknown" not in list(bars.x)
-    assert sum(int(v) for v in bars.y) == len(df) - 1, "the blank row is not counted"
+    a = crosstab(df, "color", "wheels")
+    rows = [r["value"] for r in a.meta["rows"]]
+    assert "" not in rows and "Unknown" not in rows
+    assert a.counted == len(df) - 1 and a.excluded == {"not reported": 1}
 
-    h = fig_color_wheel_heatmap(df).data[0]
-    assert "" not in list(h.y) and "Unknown" not in list(h.y)
-    assert sum(sum(r) for r in h.z) == len(df) - 1
-
-    # Every 100%-stacked bar must still reach 100 after the exclusion.
-    for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
-        assert "" != t.name and t.name != "Unknown"
-    totals = {}
-    for t in [t for t in fig_paint_by_location(df).data if t.orientation == "h"]:
-        for label, pct in zip(t.y, t.x):
-            totals[label] = totals.get(label, 0) + pct
-    assert all(abs(v - 100) < 0.51 for v in totals.values()), totals
+    # The location mix leaves it out too, so every row still adds up to its n.
+    mix = _crosstab(df, _LOCATION_CONFS["paint-by-region"])
+    assert "" not in [c["value"] for c in mix.meta["cols"]]
+    assert mix.excluded == {"not reported": 1}
+    for r in mix.meta["rows"]:
+        assert sum(c["n"] for c in mix.cells if c["row"] == r["value"]) == r["n"]
 
 
 def test_an_unreported_build_is_unpriced_not_priced_at_base():
@@ -1983,6 +1903,91 @@ def test_an_unreported_build_is_unpriced_not_priced_at_base():
     assert partial["price"] is None, partial["price"]
     assert len(issues) == 3, issues
     assert all("not reported" in i for i in issues), issues
+
+
+# --- Page assets: content-hashed copies of src/web/ (#104) ---------------------
+
+def test_publish_assets_hashes_content_and_replaces_old_builds():
+    import tempfile
+    from pathlib import Path
+
+    from render.assets import asset_hash, publish_assets
+    with tempfile.TemporaryDirectory() as d:
+        src, out = Path(d, "web"), Path(d, "out")
+        (src / "charts").mkdir(parents=True)
+        (src / "main.js").write_text("boot();")
+        (src / "charts" / "scatter.js").write_text("export {};")
+        (src / ".DS_Store").write_text("finder litter")
+        first = publish_assets(out, src)
+        h1 = asset_hash(src)
+        assert first == "assets/%s/" % h1 and len(h1) == 8
+        got = sorted(p.relative_to(out).as_posix()
+                     for p in out.rglob("*") if p.is_file())
+        assert got == ["assets/%s/charts/scatter.js" % h1,
+                       "assets/%s/main.js" % h1], got
+        # A dotfile is not page code, so it can't change the hash.
+        (src / ".DS_Store").write_text("more litter")
+        assert asset_hash(src) == h1
+        # Any change to a real file is a new URL, and the old copy is removed.
+        (src / "main.js").write_text("boot(document);")
+        second = publish_assets(out, src)
+        assert second != first
+        assert [p.name for p in (out / "assets").iterdir()] == [asset_hash(src)]
+
+
+def test_page_scripts_are_published_assets():
+    # Every script page.html loads from the asset prefix is a real file under
+    # src/web/.
+    from render.assets import WEB_DIR
+    from render.page import PAGE_SCRIPTS, _tpl
+    shell = _tpl("page.html")
+    for sid, name in PAGE_SCRIPTS.items():
+        assert 'id="%s"' % sid in shell, sid
+        assert (WEB_DIR / name).is_file(), name
+
+
+def test_timestamps_are_words_with_the_instant_in_datetime():
+    # A screen reader reads "2026-10-10 22:12" as numbers; "Oct 10, 2026,
+    # 10:12 PM CDT" as a date and time. The datetime attribute keeps the
+    # absolute instant (with its offset) for nav.js to localize.
+    import re
+    from datetime import datetime, timedelta, timezone
+    from render.page import _fmt_time
+    cdt = timezone(timedelta(hours=-5), "CDT")
+    html = _fmt_time(datetime(2026, 10, 10, 22, 12, tzinfo=cdt))
+    assert '<time datetime="2026-10-10T22:12-05:00" data-r2time>' in html
+    assert ">Oct 10, 2026, 10:12 PM CDT</time>" in html
+    noon = _fmt_time(datetime(2026, 7, 4, 0, 5, tzinfo=cdt))
+    assert re.search(r">Jul 4, 2026, 12:05 AM CDT<", noon)
+    assert _fmt_time(None) == "—"
+
+
+def test_source_line_warns_only_when_the_fetch_failed():
+    # Never a "fetched" time: just when the data last changed. A failed fetch
+    # (fell back to the cache) adds a warning sign, labelled; --offline doesn't.
+    from datetime import datetime, timedelta, timezone
+    from render.page import _src_line
+    t = datetime(2026, 10, 10, 22, 12, tzinfo=timezone(timedelta(hours=-5)))
+    base = {"view_url": "u", "fetched_at": t, "updated_at": t}
+    def line(**kw):
+        return _src_line("Sheet", {**base, **kw}, "1 order", "f")
+    for ok in (line(live=True, offline=False), line(live=False, offline=True)):
+        assert "fetched" not in ok and "last updated <time" in ok
+        assert "src-warn" not in ok
+    failed = line(live=False, offline=False)
+    assert 'class="src-warn" role="img" aria-label="Couldn&#8217;t check' in failed
+
+
+def test_page_shell_has_its_landmarks():
+    # #30: a language, a skip link to <main>, a labelled nav, and a menu button
+    # that names what it controls (nav.js keeps aria-expanded current).
+    from render.page import _tpl
+    shell = _tpl("page.html")
+    assert '<html lang="en">' in shell
+    assert '<a class="skip" href="#content">' in shell
+    assert '<main class="wrap" id="content" tabindex="-1">' in shell
+    assert '<nav class="sidebar" id="sidebar" aria-label="Sections">' in shell
+    assert 'aria-controls="sidebar" aria-expanded="true"' in shell
 
 
 # --- Fetch change detection against committed caches -----------------------------
@@ -2591,7 +2596,8 @@ def test_dimensions_are_the_yaml_published_as_is():
     json.dumps(d)                                   # publishable as-is
     csv_cols = {"state", "region", "buylease", "trim", "color", "wheels_short",
                 "interior", "opted_autonomy", "opted_tow", "opted_spare",
-                "delivery_type", "delivered_inferred", "r1_owner", "r1_model"}
+                "delivery_type", "delivered_inferred", "r1_owner", "r1_model",
+                "vin_present"}
     assert {x["column"] for x in raw.values()} == csv_cols
     for name, dim in raw.items():
         assert dim["label"] and dim["order"] in ("count", "fixed"), name
@@ -2604,12 +2610,10 @@ def test_dimensions_are_the_yaml_published_as_is():
 
 
 def test_chart_constants_are_views_of_dimensions():
-    from config import (COLOR_HEX, COLOR_ORDER, DIMENSIONS, STATE_MIN_ORDERS,
-                        TYPE_ORDER, WHEEL_SHORT)
+    from config import COLOR_HEX, COLOR_ORDER, TYPE_ORDER, WHEEL_SHORT
     assert COLOR_ORDER[0] == "Catalina Cove" and COLOR_HEX["Midnight"] == "#000009"
     assert TYPE_ORDER == ["explicit", "window", "range", "month"], "unknown is apart"
     assert WHEEL_SHORT['21” Liquid Tungsten All-Season'] == '21" Liquid Tungsten'
-    assert STATE_MIN_ORDERS == DIMENSIONS["state"]["small_n"]["min_orders"] == 5
 
 
 # --- Curation timing: checked, milestone dates, event-dated series (#99) -------
