@@ -443,7 +443,7 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
         week = [w + pd.Timedelta(days=3) for w in front.index]
         layers.append({
             "type": "line", "name": "Build front (observed)", "group": "Build front",
-            "color": "var:highlight",
+            "color": "var:highlight", "curve": True,
             "points": [[_iso(w), float(v)] for w, v in zip(week, front.values)],
             "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
                      for w, v in zip(front.index, front.values)]})
