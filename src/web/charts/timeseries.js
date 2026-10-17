@@ -16,7 +16,7 @@
 // Weekly / Cumulative buttons switch the columns to running totals, animating to
 // the other view's fixed domain (y.cumulative), kept in the URL as
 // ?<chart>=cumulative. A series or line with `view` belongs to that view only
-// (§6: the pipeline's stacked levels when cumulative, its event lines weekly);
+// (§delivery-progress: the pipeline's stacked levels when cumulative, its event lines weekly);
 // a series in the cumulative view is already levels, not summed; the legend
 // lists the current view's entries; toggles.default picks the first view. The
 // chart redraws when its width changes, keeping what the legend hides and the
@@ -73,7 +73,7 @@ export function weekTip(series, i, hidden, running = false, cumulative = false, 
   const sum = (f) => shown.reduce((a, s) => a + f(s), 0);
   const week_ = (s) => s.values[i][1], run = (s) => valueAt(s, i, true);
   if (cumulative) {
-    // A cumulative-view series is already a level (§6's pipeline), so its change
+    // A cumulative-view series is already a level (§delivery-progress's pipeline), so its change
     // is from the week before, and can fall (waiting shrinks as orders move on).
     const delta = (s) => (s.view === "cumulative" ? s.values[i][1] - (i ? s.values[i - 1][1] : 0) : week_(s));
     // Listed as the column stacks, top first; the total below a rule.
@@ -90,7 +90,7 @@ export function weekTip(series, i, hidden, running = false, cumulative = false, 
 }
 
 // Can the chart be grouped coarser than a week? Not with a line that carries
-// its own tooltips (§9's cadence, a rate over a trailing window: summing it
+// its own tooltips (§build-front's cadence, a rate over a trailing window: summing it
 // means nothing), nor with no columns to group.
 export const groupable = (spec) => spec.series.length > 0 && !spec.lines.some((l) => l.tips);
 
@@ -436,7 +436,7 @@ export function draw(d3, el, weekly, { hidden: startHidden = new Set() } = {}) {
     if (spans.length) {
       const t = x.invert(px).getTime();
       const i = spans.findIndex((g) => t >= g.start.getTime() && t < g.end.getTime());
-      // A view drawn as weekly lines (§6's events) lists each line's week.
+      // A view drawn as weekly lines (§delivery-progress's events) lists each line's week.
       const weekLines = shownLines.filter((l) => l.view);
       if (weekLines.length) {
         if (i < 0) { tip.hide(); return ruleAt(inPlot ? px : null); }

@@ -470,6 +470,29 @@ def inferred_deliveries(df: pd.DataFrame) -> list[tuple[str, str, str]]:
             for _, r in rows.iterrows()]
 
 
+_ESTIMATE_KIND = {"explicit": "a firm delivery date", "window": "a delivery window",
+                  "range": "a delivery range", "month": "a delivery month"}
+
+
+def missing_order_dates(df: pd.DataFrame) -> list[tuple[str, str, str]]:
+    """Orders with no order date (blank, or cleared as out of range), listed in
+    the data-quality panel as (#, user, detail): what else the row reports, so a
+    reader can tell an order that skipped the field (a VIN, an estimate) from
+    what may be a reservation entered with its intended configuration (neither).
+    They stay in every count that needs no order date."""
+    rows = df[df["order_date"].isna()]
+    out = []
+    for _, r in rows.iterrows():
+        has = []
+        if r["vin_present"]:
+            has.append("VIN %s" % r["vin_display"])
+        if r["delivery_type"] != "unknown":
+            has.append(_ESTIMATE_KIND.get(r["delivery_type"], "a delivery estimate"))
+        out.append((r["orig_num"], r["user"], ", ".join(has) if has
+                    else "no VIN or delivery estimate: maybe not ordered yet"))
+    return out
+
+
 def load_and_clean(text, meta, keys=None, changed=None):
     """Clean the orders sheet. Returns (df, report, parsed).
 
@@ -794,6 +817,7 @@ def load_and_clean(text, meta, keys=None, changed=None):
             "schema_notices": schema_notices,
             "unparseable": unparseable,
             "inferred_delivery": inferred,
+            "no_order_date": missing_order_dates(df),
             "entry_errors": set_aside,
             "fuzzy_dups": fuzzy_dups,
             "dup_conflicts": dup_conflicts,

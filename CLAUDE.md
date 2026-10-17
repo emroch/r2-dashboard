@@ -38,7 +38,7 @@ src/
     components.py   the component frame (title, summary, n + composed caveats, <details> table + CSV button) + HTML templates (takerate, heatmap, mix, bars, range, readout)
     view.py         builds + reconciles the page's aggregates, renders the components; builds r2_view.json (browser-drawn components' specs; pipeline.py writes it)
     specs.py        house-schema specs for the browser-drawn components (scatter, timeseries, geo, statemix): points, layers, fixed domains, map and state counts; no colors
-    cadence.py      the build-front model behind §9: VIN rate, projection, back-tested band
+    cadence.py      the build-front model behind §build-front: VIN rate, projection, back-tested band
     page.py         BeautifulSoup DOM population, HTML helpers, SECTIONS (from sections.yaml), build_dashboard
     assets.py       publishes src/web/ as content-hashed output/assets/<hash>/ (immutable-cached)
   templates/        valid standalone page shell, filled at render time
@@ -60,7 +60,7 @@ src/
     dimensions.yaml category vocabulary — per column: label, order, blank handling, caveat/note text, and per-category label/color/marker; published verbatim as r2_dimensions.json
     palette.yaml    chart colors that name no category: roles (primary, highlight, highlight_band), so re-theming is one edit, and the fulfilment event lines
     theme.yaml      page & chart chrome for light/dark — CSS custom properties (incl. mark lightness bounds, stage opacities, map land and borders)
-    sections.yaml   the page's sections in order: title, desc (HTML), optional howto (shown with scripts), layout, and the components each draws; page.py adds the summary first and data quality last
+    sections.yaml   the page's sections in order, in groups (when / what / where): title, a stable anchor `id`, `aliases` (old anchors, e.g. the pre-cutover #sec-N, that land there), desc (HTML), optional howto (shown with scripts), layout, and the components each draws; page.py adds the summary (#summary) first and data quality (#data-quality) last
     charts.yaml     the presentation-layer components by id: template, title, dims, aggregate, summary sentence
     schema.yaml     sheet sources (keys/gids/labels), column maps (field -> exact sheet header, verified each run), sanitize bounds, option take-rate vocab
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases

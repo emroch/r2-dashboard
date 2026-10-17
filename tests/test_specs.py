@@ -1,7 +1,7 @@
 """Tests for the browser-drawn components' specs (render/specs.py, #107): what
 Python hands the page's d3 templates.
 
-§9's delivery-vs-VIN scatter carries over what its old figure's tests
+§build-front's delivery-vs-VIN scatter carries over what its old figure's tests
 checked (test_parsing.py, before #107): one series per paint × wheel in the
 page-wide paint order; whiskers only for quoted windows; the build front, its
 projection and band as their own layers after the series, with the projection
@@ -27,7 +27,7 @@ from config import AS_OF, COLOR_ORDER
 
 
 def _orders(n=0, **cols):
-    """A cleaned-orders frame with every column the §9 spec reads."""
+    """A cleaned-orders frame with every column the §build-front spec reads."""
     base = dict(user=["u%d" % i for i in range(n)], color=["Esker Silver"] * n,
                 wheels_short=['21" Liquid Tungsten'] * n,
                 interior=["Black Crater Signature"] * n, buylease=["Purchase"] * n,
@@ -165,7 +165,8 @@ def test_the_mounted_component_has_a_no_js_table_of_every_point():
     assert "3 orders with both a VIN and a delivery estimate." in html
 
 
-# --- timeseries specs (§5, §6, §7's coverage, §9's cadence) ------------------------
+# --- timeseries specs (§reservations-orders, §delivery-progress,
+# §order-to-delivery's coverage, §build-front's cadence) ------------------------
 
 def _sizes(df, resv):
     from render.aggregates import cohort_sizes
@@ -341,6 +342,11 @@ def test_geo_demand_maps_us_states_and_counts_what_it_leaves_out():
     reconcile([agg], cohort_sizes(df))
     assert agg.excluded == {"outside the US (not mapped)": 1, "no known state": 1}
     assert agg.meta["left"] == "1 order and 1 reservation"
+    # States with orders, not counting a reservation-only one (WA).
+    assert agg.meta["states"] == "1 state"
+    dc = geo_demand(_orders(2, state=["CA", "DC"], price=[None] * 2, lat=[None] * 2),
+                    resv)
+    assert dc[1].meta["states"] == "1 state and DC", "DC is mapped, but isn't a state"
     ca = spec["states"]["CA"]
     assert (ca["demand"], ca["orders"], ca["vin"], ca["scheduled"], ca["delivered"]) \
         == (3, 2, 2, 1, 1)

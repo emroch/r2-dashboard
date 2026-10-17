@@ -133,7 +133,7 @@ test("the grouped layers hide together, and a redraw keeps what is hidden", { ti
   assert.equal(h.hidden().has("Build front"), true);
 });
 
-// §10: a number line on x (VIN sequence) and labelled rows on y, row 0
+// §vin-by-config: a number line on x (VIN sequence) and labelled rows on y, row 0
 // at the top. Panning rows out of view drops their labels instead of stacking
 // them at the plot's edge.
 test("a rows axis labels each row, top to bottom, over a linear x", { timeout: 5000 }, async () => {
@@ -201,7 +201,7 @@ test("box view: a box per week of min_n+, the rest as points, the median through
   assert.equal(h.boxes()[0].st.n, 4);
 });
 
-// §10's rows: two groups (trim · interior), filterable by paint and interior.
+// §vin-by-config's rows: two groups (trim · interior), filterable by paint and interior.
 const row = (color, interior, symbol = "circle") => ({
   label: `Performance · ${color} · 21" AS · ${interior}`, short: `${color} · 21" AS`,
   group: `Performance · ${interior}`, trim: "Performance", color, wheels: "21\" Liquid Tungsten",

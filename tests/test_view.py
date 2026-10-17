@@ -39,6 +39,17 @@ def test_every_section_draws_components_and_renders_in_order():
         assert "charts" not in entry, "%s names a server-rendered chart" % title
 
 
+def test_sections_have_stable_anchors_and_old_links_land_somewhere():
+    from config import SECTION_GROUPS
+    from render.page import QA_ALIASES, SECTION_ALIASES, SECTION_GROUP, SECTION_IDS
+    assert all(SECTION_IDS) and len(set(SECTION_IDS)) == len(SECTION_IDS)
+    assert SECTION_GROUP[0] and set(filter(None, SECTION_GROUP)) <= set(SECTION_GROUPS)
+    # Every #sec-N the live page had before stable anchors (the summary, 16
+    # sections and the data-quality panel) still lands on a section.
+    old = {a for al in SECTION_ALIASES for a in al} | set(QA_ALIASES) | {"sec-1"}
+    assert old == {"sec-%d" % n for n in range(1, 19)}, sorted(old)
+
+
 def test_a_section_naming_an_unknown_component_fails_loudly():
     from render.page import _section
     try:

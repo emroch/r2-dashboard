@@ -447,7 +447,7 @@ def test_share_in_reads_a_column_share_within_a_row():
         raise AssertionError("an unknown row filled")
 
 
-# --- Configured price (§4): carries over fig_price_distribution, fig_price_options
+# --- Configured price (§price): carries over fig_price_distribution, fig_price_options
 # and fig_price_by_trim's arithmetic (spot-checked equal on the live data, #108).
 
 _OPTION_COLS = ("price_base", "price_drive", "price_paint", "price_wheels",
@@ -547,7 +547,7 @@ def test_price_components_render_rows_text_and_tables():
     assert "Median configured price by trim: Performance $59,990." in html
 
 
-# --- Location mixes (§12, and the removed per-region panels) ----------------------
+# --- Location mixes (§wheels-by-geo, and the removed per-region panels) ----
 
 def _located(states, colors):
     return _orders(state=states, color=colors, lat=[40.0] * len(states),
@@ -648,8 +648,7 @@ def test_stage_counts_partition_every_order_as_the_take_rate_bars_do():
 
 
 def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
-    from render.components import readout, readout_group, stage_readouts
-    from render.aggregates import stage_counts
+    from render.components import readout, readout_group
     # Read as one phrase; the visual number and label are hidden from it.
     assert readout(694, "Unique orders") == (
         '<div class="ro-chip"><span class="sr-only">694 Unique orders</span>'
@@ -661,11 +660,25 @@ def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
             '<svg class="info-svg"' in html)
     assert '<p class="ro-cap"><b>Curated removals</b> — Why</p>' in html
     assert "<td>#310</td><td>a&lt;b</td><td>cancelled</td>" in html
-    g = readout_group("Delivery progress", stage_readouts(stage_counts(_orders(
-        vin_present=[True], delivered_inferred=[False]))), note="Inferred.")
-    assert 'role="group" aria-label="Delivery progress"' in g
-    assert '<span class="ro-l">With a VIN</span>' in g, "no stage swatch on a chip"
+    g = readout_group("Delivery estimate", [readout(3, "Firm date")], note="Inferred.")
+    assert 'role="group" aria-label="Delivery estimate"' in g
     assert '<p class="ro-note">Inferred.</p>' in g
+    # A headline readout links to its section, read the same way.
+    link = readout("1,234", "Orders", href="#timeline")
+    assert link.startswith('<a class="ro-chip ro-link" href="#timeline">'
+                           '<span class="sr-only">1,234 Orders</span>')
+    assert link.endswith("</a>")
+
+
+def test_not_counted_says_the_unexpected_exclusions():
+    from render.components import not_counted
+    assert not_counted({"no order date": 18, "no firm delivery date": 398}) == \
+        "Not counted: 18 orders with no order date"
+    assert not_counted({"order without a reservation date": 1,
+                        "reservation without a date": 32}) == \
+        ("Not counted: 1 order without a reservation date, "
+         "32 reservations without a date")
+    assert not_counted({"not reported": 4, "no VIN": 3, "no order date": 0}) == ""
 
 
 def _run_all():
