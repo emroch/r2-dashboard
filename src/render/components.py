@@ -22,7 +22,7 @@ button is hidden until main.js wires it to the table, since it needs a script.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from html import escape
 
@@ -73,17 +73,48 @@ def _table(cid: str, table: Table) -> str:
             % (cid, head, body, csv_button(cid)))
 
 
+# Reasons a component leaves rows out that its own title or summary already
+# says (a VIN chart has no orders without a VIN; a panel's n is who answered),
+# so "Not counted" doesn't repeat them. Anything else is a gap a reader
+# wouldn't expect, and is said.
+EXPECTED_EXCLUSIONS = {"not reported", "no VIN", "no firm delivery date",
+                       "outside the US (not mapped)"}
+
+
+def not_counted(excluded: Mapping[str, int]) -> str:
+    """ "Not counted: 18 orders with no order date", from an aggregate's
+    exclusions, leaving out the expected ones; "" when nothing is left. A reason
+    naming its own subject ("reservation without a date") counts that subject;
+    the rest are orders."""
+    parts = []
+    for reason, n in excluded.items():
+        if not n or reason in EXPECTED_EXCLUSIONS:
+            continue
+        head, _, rest = reason.partition(" ")
+        num, many = format(n, ","), "" if n == 1 else "s"
+        if head in ("order", "reservation"):
+            parts.append("%s %s%s %s" % (num, head, many, rest))
+        else:
+            parts.append("%s order%s with %s" % (num, many, reason))
+    return "Not counted: %s" % ", ".join(parts) if parts else ""
+
+
 def frame(cid: str, title: str, body: str, *, summary: str | None = None,
           n: int | None = None, dims: Sequence[str] = (),
           notes: Sequence[str] = (), table: Table | None = None,
           shared: Sequence[str] = (), wide: bool = False,
-          small_n: Sequence[str] = ()) -> str:
+          small_n: Sequence[str] = (), excluded: Mapping[str, int] | None = None,
+          ) -> str:
     """One component's HTML. `cid` is the element id ("c-..."); `body` is trusted
     HTML (a component renderer's output); every other text is escaped.
     `shared` caveats are said by the component's group, so they're left out.
     `wide` spans the whole component grid (a chart, rather than a panel).
-    `small_n`: the dimensions whose small-n rule it applies (caveats())."""
-    meta = ([] if n is None else ["n = %s" % format(n, ",")]) + [
+    `small_n`: the dimensions whose small-n rule it applies (caveats()).
+    `excluded`: its aggregate's left-out rows by reason, said as "Not counted"
+    (not_counted())."""
+    left = not_counted(excluded or {})
+    meta = ([] if n is None else ["n = %s" % format(n, ",")]) + (
+        ['<span class="caveat">%s</span>' % escape(left)] if left else []) + [
         '<span class="caveat">%s</span>' % escape(c)
         for c in caveats(dims, notes, small_n)
         if c not in shared]
@@ -253,7 +284,8 @@ def takerate(cid: str, spec: dict, agg: Aggregate,
                if spec.get("summary") and cells else None)
     return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary,
-                 dims=component_dims(spec), table=table, shared=shared)
+                 dims=component_dims(spec), table=table, shared=shared,
+                 excluded=agg.excluded)
 
 
 # --- Browser-drawn components: the frame, the mount point and a no-JS table ------
@@ -275,7 +307,8 @@ def mount(cid: str, view_id: str, spec: dict, data: dict,
     summary = (summarize(spec["summary"], agg.cells, meta=agg.meta)
                if spec.get("summary") and agg.counted else None)
     return frame(cid, spec["title"], body, summary=summary,
-                 dims=component_dims(spec), table=table, shared=shared, wide=True)
+                 dims=component_dims(spec), table=table, shared=shared,
+                 excluded=agg.excluded, wide=True)
 
 
 def vocabulary(dim: str) -> list[str]:
@@ -335,7 +368,8 @@ def heatmap(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) ->
     summary = (summarize(spec["summary"], agg.cells, crosstab_labels(agg))
                if spec.get("summary") and agg.counted else None)
     return frame(cid, spec["title"], table, summary=summary,
-                 dims=component_dims(spec), shared=shared)
+                 dims=component_dims(spec), shared=shared,
+                 excluded=agg.excluded)
 
 
 # --- mix: 100% rows, each split by a second dimension's categories --------------
@@ -393,6 +427,7 @@ def mix(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> str
             % (key, "".join(out)))
     return frame(cid, spec["title"], body, summary=summary,
                  dims=component_dims(spec), table=table, shared=shared,
+                 excluded=agg.excluded,
                  small_n=component_small_n(spec))
 
 
@@ -430,7 +465,8 @@ def bars(cid: str, spec: dict, agg: Aggregate, shared: Sequence[str] = ()) -> st
                if spec.get("summary") and cells else None)
     return frame(cid, spec["title"], '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary, dims=component_dims(spec), table=table,
-                 shared=shared)
+                 shared=shared,
+                 excluded=agg.excluded)
 
 
 # --- range: a min..max strip per row, with the middle half, median and mean ------
@@ -496,7 +532,8 @@ def range_strip(cid: str, spec: dict, agg: Aggregate,
            '<span>whiskers: min–max</span></p>')
     return frame(cid, spec["title"], key + '<ol class="tr">%s</ol>' % "".join(rows),
                  summary=summary, dims=component_dims(spec), table=table,
-                 shared=shared)
+                 shared=shared,
+                 excluded=agg.excluded)
 
 
 # --- readout: a big number and its label; a list behind a disclosure ------------

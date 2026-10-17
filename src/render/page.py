@@ -237,6 +237,11 @@ _QA_CATS = [
      "from it until the schema maps it."),
     ("unparseable", "Unparseable delivery estimates",
      "Non-empty delivery text that didn't normalize to a date, range, or window."),
+    ("no_order_date", "Order date missing",
+     "Orders with no order date, blank or cleared as out of range. They count "
+     "everywhere an order date isn't needed, and are left out of the charts by "
+     "order week. One with a VIN or a delivery estimate is an order that skipped "
+     "the field; one with neither may be a reservation entered early."),
     ("inferred_delivery", "Delivery inferred, missing confirmed date",
      "Orders counted as delivered because their estimate has passed, though it "
      "was only a window, range or month, never a firm date. Most were probably "

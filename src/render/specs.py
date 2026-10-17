@@ -798,9 +798,11 @@ def delivery_latency(df: pd.DataFrame) -> tuple:
             "toggles": {"boxes": {"min_n": LATENCY_MIN_WEEK_N}}}
     rows = [[s_["name"], p["tip"][0], p["x"], p["tip"][2][len("Delivery "):], p["y"]]
             for s_ in series for p in s_["points"]]
-    excluded = {"no order date": int(df["order_date"].isna().sum())}
-    rest = len(df) - excluded["no order date"] - len(d)
-    excluded["no firm delivery date"] = rest
+    # A firm date with no order date is the gap worth saying; an order with no
+    # firm date isn't plotted whatever its order date (the chart's own rule).
+    firm = (df["delivery_type"] == "explicit") & df["delivery_est"].notna()
+    excluded = {"no order date": int((firm & df["order_date"].isna()).sum()),
+                "no firm delivery date": int((~firm).sum())}
     agg = Aggregate("order-to-delivery points", "orders", cells,
                     {k: v for k, v in excluded.items() if v},
                     meta={"median": "%.0f" % d["days"].median()} if len(d) else {})

@@ -670,6 +670,17 @@ def test_readout_is_a_chip_or_a_disclosure_with_its_entries():
     assert link.endswith("</a>")
 
 
+def test_not_counted_says_the_unexpected_exclusions():
+    from render.components import not_counted
+    assert not_counted({"no order date": 18, "no firm delivery date": 398}) == \
+        "Not counted: 18 orders with no order date"
+    assert not_counted({"order without a reservation date": 1,
+                        "reservation without a date": 32}) == \
+        ("Not counted: 1 order without a reservation date, "
+         "32 reservations without a date")
+    assert not_counted({"not reported": 4, "no VIN": 3, "no order date": 0}) == ""
+
+
 def _run_all():
     tests = sorted((n, f) for n, f in globals().items()
                    if n.startswith("test_") and callable(f))
