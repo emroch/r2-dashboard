@@ -374,11 +374,16 @@ overrides:
     as_of: "2026-09-22"
     vin_raw: "unknown"
     delivery_raw: "unknown"
-  # partial vin
   carnewsrundown:
-    source: https://www.rivianforums.com/forum/posts/1107729/
-    as_of: "2026-09-24"
+    source:
+      - https://www.rivianforums.com/forum/posts/1115083/
+      - https://www.rivianforums.com/forum/posts/1127974/
+    as_of: "2026-10-18"
+    delivery_raw: "10/17/2026"
     vin_raw: "109XX"
+    dates:
+      vin_assigned: "2026-09-22"
+      delivery_scheduled: "2026-09-30"
   # partial vin
   farnvader:
     source: https://www.rivianforums.com/forum/posts/1107735/
@@ -397,15 +402,69 @@ overrides:
     source: https://www.rivianforums.com/forum/posts/1108302/
     as_of: "2026-09-24"
     vin_raw: "115XX"
-  # partial vin
   snovarev:
-    source: https://www.rivianforums.com/forum/posts/1108378/
+    source:
+      - https://www.rivianforums.com/forum/posts/1108378/
+      - https://www.rivianforums.com/forum/posts/1125292/
     as_of: "2026-09-24"
     vin_raw: "1220X"
+    delivery_raw: "10/13/2026"
+    dates:
+      vin_assigned: "2026-09-23"
   GoArmy:
-    source: "https://www.rivianforums.com/forum/posts/1108987/"
+    source: https://www.rivianforums.com/forum/posts/1108987/
     as_of: "2026-09-24"
     delivery_raw: "9/5/2026"
+  # order was subsequently cancelled, but recording the scheduled delivery anyway for completeness
+  monzonxp:
+    source:
+     - https://www.rivianforums.com/forum/posts/1119845/ # vin assigned
+     - https://www.rivianforums.com/forum/posts/1121596/ # delivery shared, and order cancelled
+    as_of: "2026-10-09"
+    delivery_raw: "10/16/2026"
+    vin_raw: "118XX"
+    dates:
+      vin_assigned: "2026-10-07"
+  TheWombat:
+    source: https://www.rivianforums.com/forum/posts/1119189/
+    as_of: "2026-10-09"
+    delivery_raw: "10/8/2026"
+  SoSo:
+    source: https://www.rivianforums.com/forum/posts/1123062/
+    as_of: "2026-10-11"
+    vin_raw: "123XX"
+    dates:
+      vin_assigned: "2026-09-17"
+  Halby:
+    source: https://www.rivianforums.com/forum/posts/1123574/
+    as_of: "2026-10-12"
+    dates:
+      vin_assigned: "2026-10-11"
+  Utah-Jay:
+    # note, post has typo indicating 10/13 vin assingment. Signature confirms 10/12, consistent with post timestamp
+    source: https://www.rivianforums.com/forum/posts/1124029/
+    as_of: "2026-10-12"
+    dates:
+      vin_assigned: "2026-10-12"
+  Leesonw:
+    source: https://www.rivianforums.com/forum/posts/1124246/
+    as_of: "2026-10-12"
+    dates:
+      vin_assigned: "2026-10-09"
+  iamnid:
+    source: https://www.rivianforums.com/forum/posts/1125333/
+    as_of: "2026-10-14"
+    delivery_raw: "10/20/2026"
+  clydef:
+    source:
+      - https://www.rivianforums.com/forum/posts/1110008/
+      - https://www.rivianforums.com/forum/posts/1127223/
+    as_of: "2026-10-16"
+    vin_raw: "12XXX"
+    delivery_raw: "10/22/2026"
+    dates:
+      vin_assigned: "2026-09-25"
+
 
 additions:
   # forum-only order — not in the tracker sheet
@@ -988,6 +1047,75 @@ additions:
     tow: "Included"
     r1_owner: "Yes"
     r1_model: "R1S"
+  kmacdenver01:
+    source: https://www.rivianforums.com/forum/posts/1107052/
+    as_of: "2026-09-29"
+    resv_raw: "3/4/2026"
+    order_raw: "8/18/2026"
+    delivery_raw: "9/28/2026"
+    vin_raw:
+    dates:
+      vin_assigned: "2026-09-21"
+      delivery_scheduled: "2026-09-21"
+    loc_raw: "CO"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Black Crater Signature"
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  DJCobol:
+    source: https://www.rivianforums.com/posts/1123544/
+    as_of: "2026-10-12"
+    resv_raw: "3/7/2024"
+    order_raw: "9/23/2026"
+    vin_raw: "127XX"
+    dates:
+      vin_assigned: "2026-10-12"
+    loc_raw: "TN"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Half Moon Grey"
+    interior: "Black Crater Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+  cusetownusa:
+    source: https://www.rivianforums.com/forum/posts/1124373/
+    as_of: "2026-10-13"
+    order_raw: "9/1/2026"
+    loc_raw: "NY"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Half Moon Grey"
+    interior: "Black Crater Signature"
+    wheels: '20” Black Sand All-Terrain'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1S"
+  mthomas1987:
+    source:
+      - https://www.rivianforums.com/forum/posts/1120909/
+      - https://www.rivianforums.com/forum/posts/1127045/
+    as_of: "2026-10-16"
+    resv_raw: "Nov 2024"
+    order_raw: "9/22/2026"
+    delivery_raw: "10/15/2026"
+    vin_raw: "92XX"
+    dates:
+      vin_assigned: "2026-10-08"
+      delivery_scheduled: "2026-10-08"
+    loc_raw: "FL"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
 
 
   # ---------------------------------------------------------------------
@@ -1180,6 +1308,12 @@ deletions:
       reason: "stale resubmission — dates corrected in #350"
       match:
         orig_num: "304"
+    monzonxp:
+      source: "https://www.rivianforums.com/forum/posts/1121596/"
+      as_of: "2026-10-09"
+      reason: "cancelled by user (2026-10-09)"
+      match:
+        order_raw: "9/1/2026"
   reservations:
     JungGravy:
       source: https://www.rivianforums.com/forum/posts/1082894/
