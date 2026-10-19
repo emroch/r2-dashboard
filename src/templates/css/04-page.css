@@ -164,7 +164,7 @@ section p.desc a:hover {
   background: var(--stat-bg);
   color: var(--chip-fg);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 9px 11px;
   font-size: 12.5px;
   min-width: 0;
   box-sizing: border-box;
