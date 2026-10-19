@@ -22,8 +22,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import (AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY, INTERIOR_ORDER,
-                    INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
+from config import (AS_OF, CADENCE_WINDOW_WEEKS, COLOR_ORDER, DIMENSIONS, FACTORY,
+                    INTERIOR_ORDER, INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
 
 from .aggregates import (COHORTS, STAGE_LABELS, STAGES, Aggregate, crosstab,
                          lean, stages)
@@ -161,7 +161,9 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
     rows = [[s_["name"], p["tip"][0], p["x"], format(p["y"], ",")]
             for s_ in series for p in s_["points"]]
     table = (["Paint · wheels", "Order", "Ordered", "VIN"], rows)
-    return spec, Aggregate("vin-vs-order points", "orders", cells, excluded), table
+    agg = Aggregate("vin-vs-order points", "orders", cells, excluded,
+                    meta={"lead": _of(len(d), int(vin.sum()), "orders with a VIN")})
+    return spec, agg, table
 
 
 def vin_by_config(df: pd.DataFrame) -> tuple:
@@ -239,7 +241,8 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
                   for s_ in series for p in s_["points"]]
     table = (["Configuration", "Order", "VIN"], table_rows)
     agg = Aggregate("vin-by-config points", "orders", cells, excluded,
-                    meta={"rows": len(rows)})
+                    meta={"rows": len(rows),
+                          "lead": _of(len(d), int(vin.sum()), "orders with a VIN")})
     return spec, agg, table
 
 
@@ -268,6 +271,19 @@ _PAST = {"vin": ("vin", "scheduled", "delivered"),
 
 def _count(n: int, noun: str) -> str:
     return "%s %s%s" % (format(n, ","), noun, "" if n == 1 else "s")
+
+
+def _of(n: int, total: int, what: str) -> str:
+    """"393 of the 404 orders with a VIN", for the n of a group of `total` that a
+    chart shows; "All 404 orders with a VIN" when it shows them all. (A chart
+    that shows none has no summary.) n is part of total by construction, since
+    the chart's orders are a subset of the group's, so the sentence can't read
+    backwards."""
+    assert 0 <= n <= total, (n, total)
+    if n == total and n:
+        return "All %s %s" % (format(total, ","), what)
+    return "%s of the %s %s" % ("None" if not n else format(n, ","),
+                                format(total, ","), what)
 
 
 def _us(frame: pd.DataFrame) -> pd.Series:
@@ -448,21 +464,31 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
                      for w, v in zip(front.index, front.values)]})
         mids = [_iso(w + pd.Timedelta(days=3)) for w in proj["weeks"]]
-        layers.append({"type": "band", "name": "Likely range", "group": "Build front",
-                       "color": "var:highlight-band",
-                       "points": [[m, float(lo), float(hi)]
-                                  for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
         # The projection quotes VINs, its own axis, to the nearest hundred: the
         # back-test supports no more precision than that.
         layers.append({
             "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
-            "group": "Build front", "color": "var:highlight", "dash": True,
-            "points": [[m, float(c)] for m, c in zip(mids, proj["center"])],
-            "tips": [["Projected front",
+            "group": "Projection", "color": "var:highlight", "dash": True,
+            # The trend line runs back through the weeks it was fitted to, so the
+            # projection continues it and the weekly points show their scatter
+            # around it, rather than the line starting off the observed front.
+            "points": ([[_iso(w + pd.Timedelta(days=3)), float(v)]
+                        for w, v in zip(proj["fit_weeks"], proj["trend"])]
+                       + [[m, float(c)] for m, c in zip(mids, proj["center"])]),
+            "tips": [["Trend", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v, 100)),
+                      "Fitted over the last %d weeks" % CADENCE_WINDOW_WEEKS]
+                     for w, v in zip(proj["fit_weeks"], proj["trend"])]
+                    + [["Projected front",
                       "Week of %s: ≈ VIN %s" % (_day(w), _vins(c, 100)),
                       "Likely VIN %s–%s" % (_vins(lo, 100), _vins(hi, 100))]
                      for w, c, lo, hi in zip(proj["weeks"], proj["center"],
                                              proj["lo"], proj["hi"])]})
+        # The band belongs to the projection's legend entry, and follows the line
+        # so the entry's chip takes the line's color rather than the band's.
+        layers.append({"type": "band", "name": "Likely range", "group": "Projection",
+                       "color": "var:highlight-band",
+                       "points": [[m, float(lo), float(hi)]
+                                  for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
     layers.append({"type": "rule", "axis": "x", "value": _iso(AS_OF),
                    "label": "Today"})
 
@@ -493,7 +519,10 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             for s_ in series for p in s_["points"]]
     table = (["Paint · wheels", "Order", "VIN", "Est. delivery", "Quoted window",
               "Date"], rows)
-    return spec, Aggregate("delivery-vs-vin points", "orders", cells, excluded), table
+    agg = Aggregate("delivery-vs-vin points", "orders", cells, excluded,
+                    meta={"lead": _of(len(d), int(df["vin_present"].astype(bool).sum()),
+                                      "orders with a VIN")})
+    return spec, agg, table
 
 
 # --- timeseries: weekly columns (stacked) and lines over dates ---------------------
@@ -858,7 +887,6 @@ def build_cadence(df: pd.DataFrame) -> tuple:
     """§build-front, beneath: the build front's rate over time, VINs per
     day, as of each front week (render/cadence.py rate_history), at the week's
     middle."""
-    from config import CADENCE_WINDOW_WEEKS
     from .cadence import cadence_frame, rate_history
     hist = rate_history(df)
     pts = [[_iso(w + pd.Timedelta(days=3)), float(r)] for w, r in hist.items()]

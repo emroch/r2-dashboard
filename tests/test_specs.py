@@ -108,9 +108,9 @@ def test_build_front_layers_follow_the_series_and_quote_vins_to_the_hundred():
     spec, _, _ = delivery_vs_vin(_ramp())
     kinds = [(layer["type"], (layer.get("name") or layer["label"]).split(" ·")[0])
              for layer in spec["layers"]]
-    assert kinds == [("line", "Build front (observed)"), ("band", "Likely range"),
-                     ("line", "Projected"), ("rule", "Today")], kinds
-    proj = spec["layers"][2]
+    assert kinds == [("line", "Build front (observed)"), ("line", "Projected"),
+                     ("band", "Likely range"), ("rule", "Today")], kinds
+    proj = spec["layers"][1]
     assert proj["dash"] and proj["name"].startswith("Projected · ≈ ")
     assert len(proj["tips"]) == len(proj["points"])
     for tip in proj["tips"]:
@@ -118,10 +118,24 @@ def test_build_front_layers_follow_the_series_and_quote_vins_to_the_hundred():
         nums = [int(n.replace(",", "")) for n in found]
         assert nums and all(n % 100 == 0 for n in nums), tip
     assert all("day" not in " ".join(t) for t in proj["tips"]), "VINs, not days"
-    band = spec["layers"][1]
+    # The dashed trend runs back through the weeks it was fitted to and on into
+    # the projection as one straight line, starting before the last observed week.
+    observed = spec["layers"][0]["points"]
+    assert proj["points"][0][0] < observed[-1][0]
+    xs = [pd.Timestamp(x).value / 864e11 for x, _ in proj["points"]]
+    slopes = [(proj["points"][i + 1][1] - proj["points"][i][1]) / (xs[i + 1] - xs[i])
+              for i in range(len(xs) - 1)]
+    assert max(slopes) - min(slopes) < 1e-6, slopes
+    assert any(t[0] == "Trend" for t in proj["tips"])
+    assert proj["points"][len(proj["points"]) - len(spec["layers"][2]["points"])][0] \
+        == observed[-1][0], "the projection starts at the last observed week"
+    band = spec["layers"][2]
     assert all(lo <= hi for _, lo, hi in band["points"])
-    # The front, its projection and band are one legend entry, toggled together.
-    assert {layer.get("group") for layer in spec["layers"][:3]} == {"Build front"}
+    # The observed front is one legend entry; the projection and its band are
+    # another, toggled together but apart from the front. The projected line
+    # comes first, so the projection's chip takes the line's color, not the band's.
+    assert [layer.get("group") for layer in spec["layers"][:3]] == [
+        "Build front", "Projection", "Projection"]
     assert "group" not in spec["layers"][3]
 
 
@@ -162,7 +176,58 @@ def test_the_mounted_component_has_a_no_js_table_of_every_point():
     assert 'data-chart="delivery-vs-vin" data-template="scatter"' in html
     assert html.startswith('<figure class="r2c r2c-wide"'), "a chart spans the grid"
     assert html.count("<tr>") == 1 + 3, "a header row and one row per point"
-    assert "3 orders with both a VIN and a delivery estimate." in html
+    assert "All 3 orders with a VIN are plotted by delivery estimate." in html
+
+
+def _vin_summaries(df):
+    """The VIN charts' summary sentence for a frame, and the count each plots."""
+    from config import COMPONENTS
+    from render.components import summarize
+    from render.specs import delivery_vs_vin, vin_by_config, vin_vs_order
+    out = {}
+    for cid, build in (("vin-vs-order", vin_vs_order),
+                       ("delivery-vs-vin", delivery_vs_vin),
+                       ("vin-by-config", vin_by_config)):
+        _, agg, _ = build(df)
+        out[cid] = (summarize(COMPONENTS[cid]["summary"], agg.cells, meta=agg.meta),
+                    agg.counted)
+    return out
+
+
+def test_vin_chart_summaries_say_how_many_of_the_orders_with_a_vin_are_plotted():
+    day = pd.Timestamp("2026-07-01")
+    # Six orders: five have a VIN. One of them has no order date, one has no
+    # delivery estimate, one reports no paint; the sixth has no VIN at all.
+    df = _orders(6, trim=["Performance"] * 6,
+                 vin_present=[True, True, True, True, True, False],
+                 order_date=[day, day, day, pd.NaT, day, day],
+                 delivery_est=[day, pd.NaT, day, day, day, day],
+                 color=["Esker Silver"] * 4 + [""] + ["Esker Silver"])
+    got = _vin_summaries(df)
+    assert got["vin-vs-order"][0] == (
+        "3 of the 5 orders with a VIN are plotted by order date.")
+    assert got["delivery-vs-vin"][0] == (
+        "3 of the 5 orders with a VIN are plotted by delivery estimate.")
+    assert got["vin-by-config"][0].startswith(
+        "4 of the 5 orders with a VIN are plotted, in ")
+    # The number plotted is what the chart counts, and never more than the base.
+    assert [c for _, c in got.values()] == [3, 3, 4]
+
+
+def test_the_base_is_the_orders_with_a_vin_even_when_estimates_outnumber_them():
+    # Six delivery estimates but two VINs: "X of the Y orders with a VIN" still
+    # reads forwards, because Y is the VINs and X part of them.
+    df = _orders(6, vin_present=[True, True] + [False] * 4)
+    got = _vin_summaries_one(df)
+    assert got == "All 2 orders with a VIN are plotted by delivery estimate."
+
+
+def _vin_summaries_one(df):
+    from config import COMPONENTS
+    from render.components import summarize
+    from render.specs import delivery_vs_vin
+    _, agg, _ = delivery_vs_vin(df)
+    return summarize(COMPONENTS["delivery-vs-vin"]["summary"], agg.cells, meta=agg.meta)
 
 
 # --- timeseries specs (§reservations-orders, §delivery-progress,

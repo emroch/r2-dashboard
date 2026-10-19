@@ -155,6 +155,10 @@ def projection(df, horizon_weeks=CADENCE_HORIZON_WEEKS):
       rate         current VINs/day; fit_points: front weeks it rests on
       weeks        projected week starts, the last observed week first (zero width)
       center, lo, hi   projected front VIN and band, per projected week
+      fit_weeks    the front weeks the rate was fitted to, before the last one
+                   (which is weeks[0]); trend: the fitted line's VIN at each. The
+                   line runs through them into the projection, so the weekly
+                   points can be seen scattered around it
       ahead_days   per horizon: mean miss when the real front ran AHEAD of the
                    projection (the band's upper side), non-decreasing
       behind_days  per horizon: mean miss when it fell BEHIND (the lower side)
@@ -187,12 +191,16 @@ def projection(df, horizon_weeks=CADENCE_HORIZON_WEEKS):
     behind = np.maximum.accumulate([side(h, -1) for h in horizons])
 
     last = front.index.max()
+    fit_weeks = [w for w in front.index
+                 if w > last - pd.Timedelta(weeks=CADENCE_WINDOW_WEEKS) and w < last]
+    trend = slope * _mid_day(fit_weeks) + icept
     weeks = [last] + [last + pd.Timedelta(weeks=h) for h in horizons]
     days = _mid_day(weeks)
     center = slope * days + icept
     up = np.concatenate([[0.0], ahead]) * slope
     down = np.concatenate([[0.0], behind]) * slope
     return dict(front=front, rate=slope, fit_points=n_fit, weeks=weeks,
+                fit_weeks=fit_weeks, trend=trend,
                 center=center, lo=center - down, hi=center + up,
                 ahead_days=list(ahead), behind_days=list(behind),
                 bias_days=float(bt["err_days"].mean()), n_backtest=len(bt))

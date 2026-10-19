@@ -57,8 +57,8 @@ sections:
       Each order with a VIN and a delivery estimate; whiskers span its quoted
       delivery window. The <em>build front</em> is the 90th-percentile VIN delivered each
       finished week, from firm dates: roughly how far production has reached. The
-      dashed line projects it at the current rate, and the band is how far that
-      projection has missed before. It leans upward because production has ramped in
+      dashed line is the current rate's trend, over the weeks it was fitted to and
+      on ahead, and the band is how far that projection has missed before. It leans upward because production has ramped in
       steps, so past projections have mostly fallen behind. It shows where production
       is heading, not when any one order will arrive. Below, the build rate over
       time.
