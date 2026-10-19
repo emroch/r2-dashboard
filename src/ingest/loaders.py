@@ -493,6 +493,38 @@ def missing_order_dates(df: pd.DataFrame) -> list[tuple[str, str, str]]:
     return out
 
 
+def shared_vins(df: pd.DataFrame) -> list[tuple[str, str, str]]:
+    """Orders whose VIN is also on another order, listed in the data-quality
+    panel as (#, user, detail); nothing is changed. A VIN is one car's, so two
+    orders reporting it means a typo, a masked VIN typed as round digits (3000
+    for 30XX), or one order entered under two usernames. Each entry says who
+    else has it and whether their build and order date match: identical ones
+    are probably one order entered twice."""
+    d = df[df["vin_present"].astype(bool)]
+    build = ["trim", "color", "wheels_short", "interior"]
+    out = []
+    for seq, g in d.groupby(d["vin_seq"].astype(int)):
+        if len(g) < 2:
+            continue
+        for i in sorted(g.index, key=lambda j: str(g.at[j, "user"]).lower()):
+            others = g.drop(i)
+            same_build = all(str(others.at[j, c]) == str(g.at[i, c])
+                             for j in others.index for c in build)
+            mine = str(g.at[i, "order_date"])
+            same_date = all(str(others.at[j, "order_date"]) == mine
+                            for j in others.index)
+            how = ("same build and order date: maybe one order entered twice"
+                   if same_build and same_date
+                   else "same build, different order dates" if same_build
+                   else "different builds")
+            out.append((str(g.at[i, "orig_num"]), str(g.at[i, "user"]),
+                        "VIN %d also on %s (%s)"
+                        % (seq, ", ".join("%s (#%s)" % (others.at[j, "user"],
+                                                        others.at[j, "orig_num"])
+                                          for j in others.index), how)))
+    return out
+
+
 def load_and_clean(text, meta, keys=None, changed=None):
     """Clean the orders sheet. Returns (df, report, parsed).
 
@@ -731,6 +763,7 @@ def load_and_clean(text, meta, keys=None, changed=None):
                 and i not in suspect_delivery):     # parsed; listed as set aside
             unparseable.append((r["orig_num"], r["user"], r["delivery_raw"]))
     inferred = inferred_deliveries(df)
+    shared = shared_vins(df)
     # Usernames that normalize alike (case/space/punctuation) but weren't merged
     # by the exact-lowercase dedup — possibly the same person entered twice.
     by_norm: dict[str, list[tuple[str, str]]] = {}
@@ -823,6 +856,7 @@ def load_and_clean(text, meta, keys=None, changed=None):
             "dup_conflicts": dup_conflicts,
             "merge_conflicts": merge_conflicts,
             "vin_unrec": unrec_records,
+            "shared_vins": shared,
             "bad_dates": date_records,
             "availability_drops": premature_records,
             "price_issues": price_issues,

@@ -302,6 +302,12 @@ _QA_CATS = [
      "by the exact-duplicate dedup."),
     ("vin_unrec", "Unrecoverable VINs",
      "VIN tokens too redacted to recover a sequence number."),
+    ("shared_vins", "VINs on more than one order",
+     "A VIN is one car's, so two orders reporting the same one means a typo, a "
+     "masked VIN entered as round digits (3000 for 30XX), or one order entered "
+     "under two usernames. Nothing is changed and every order stays counted. "
+     "Each entry names the other orders and says whether their build and order "
+     "date match: identical ones are probably a single order entered twice."),
     ("bad_dates", "Invalid dates dropped",
      "Order/reservation dates outside the plausible window, cleared."),
     ("deletions", "Removed by curation",
@@ -426,6 +432,7 @@ def build_dashboard(df, report, resv, view):
         "Curated removals": "Orders and reservations removed because the person posted that they cancelled, or the row is a superseded resubmission (reason from overrides.yaml)",
         "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
         "Unpriced": "Orders whose configuration hit a price that isn't published yet (excluded from the price stats)",
+        "Orders sharing a VIN": "Orders whose VIN is also on another order (a typo, a masked VIN typed as round digits, or one order entered twice); reported, not changed",
         "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
         "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
     }
@@ -436,8 +443,6 @@ def build_dashboard(df, report, resv, view):
         ("Cleaned / removed", [
             ("Order duplicates", len(san["Duplicates removed"]),
              san["Duplicates removed"]),
-            ("Repeat usernames kept", len(san["Repeat usernames kept"]),
-             san["Repeat usernames kept"]),
             ("Reservation duplicates", rr["n_self_dupes"], rr["self_dupe_records"]),
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
             ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
@@ -454,6 +459,14 @@ def build_dashboard(df, report, resv, view):
             ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
             ("VINs recovered", report["vin_present"], san["VINs recovered"]),
             ("VINs de-obfuscated", report["vin_obfuscated"], san["VINs de-obfuscated"]),
+        ]),
+        # Listed for review and left as they are: every order stays counted. The
+        # flagged lists below go into each.
+        ("Flagged, not changed", [
+            ("Repeat usernames kept", len(san["Repeat usernames kept"]),
+             san["Repeat usernames kept"]),
+            ("Orders sharing a VIN", len(report["quality"]["shared_vins"]),
+             report["quality"]["shared_vins"]),
             # Configured price leaves these out (no published price yet).
             ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
         ]),
