@@ -108,9 +108,9 @@ def test_build_front_layers_follow_the_series_and_quote_vins_to_the_hundred():
     spec, _, _ = delivery_vs_vin(_ramp())
     kinds = [(layer["type"], (layer.get("name") or layer["label"]).split(" ·")[0])
              for layer in spec["layers"]]
-    assert kinds == [("line", "Build front (observed)"), ("band", "Likely range"),
-                     ("line", "Projected"), ("rule", "Today")], kinds
-    proj = spec["layers"][2]
+    assert kinds == [("line", "Build front (observed)"), ("line", "Projected"),
+                     ("band", "Likely range"), ("rule", "Today")], kinds
+    proj = spec["layers"][1]
     assert proj["dash"] and proj["name"].startswith("Projected · ≈ ")
     assert len(proj["tips"]) == len(proj["points"])
     for tip in proj["tips"]:
@@ -127,12 +127,15 @@ def test_build_front_layers_follow_the_series_and_quote_vins_to_the_hundred():
               for i in range(len(xs) - 1)]
     assert max(slopes) - min(slopes) < 1e-6, slopes
     assert any(t[0] == "Trend" for t in proj["tips"])
-    assert proj["points"][len(proj["points"]) - len(spec["layers"][1]["points"])][0] \
+    assert proj["points"][len(proj["points"]) - len(spec["layers"][2]["points"])][0] \
         == observed[-1][0], "the projection starts at the last observed week"
-    band = spec["layers"][1]
+    band = spec["layers"][2]
     assert all(lo <= hi for _, lo, hi in band["points"])
-    # The front, its projection and band are one legend entry, toggled together.
-    assert {layer.get("group") for layer in spec["layers"][:3]} == {"Build front"}
+    # The observed front is one legend entry; the projection and its band are
+    # another, toggled together but apart from the front. The projected line
+    # comes first, so the projection's chip takes the line's color, not the band's.
+    assert [layer.get("group") for layer in spec["layers"][:3]] == [
+        "Build front", "Projection", "Projection"]
     assert "group" not in spec["layers"][3]
 
 

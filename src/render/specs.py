@@ -464,15 +464,11 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             "tips": [["Build front", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v))]
                      for w, v in zip(front.index, front.values)]})
         mids = [_iso(w + pd.Timedelta(days=3)) for w in proj["weeks"]]
-        layers.append({"type": "band", "name": "Likely range", "group": "Build front",
-                       "color": "var:highlight-band",
-                       "points": [[m, float(lo), float(hi)]
-                                  for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
         # The projection quotes VINs, its own axis, to the nearest hundred: the
         # back-test supports no more precision than that.
         layers.append({
             "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
-            "group": "Build front", "color": "var:highlight", "dash": True,
+            "group": "Projection", "color": "var:highlight", "dash": True,
             # The trend line runs back through the weeks it was fitted to, so the
             # projection continues it and the weekly points show their scatter
             # around it, rather than the line starting off the observed front.
@@ -487,6 +483,12 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
                       "Likely VIN %s–%s" % (_vins(lo, 100), _vins(hi, 100))]
                      for w, c, lo, hi in zip(proj["weeks"], proj["center"],
                                              proj["lo"], proj["hi"])]})
+        # The band belongs to the projection's legend entry, and follows the line
+        # so the entry's chip takes the line's color rather than the band's.
+        layers.append({"type": "band", "name": "Likely range", "group": "Projection",
+                       "color": "var:highlight-band",
+                       "points": [[m, float(lo), float(hi)]
+                                  for m, lo, hi in zip(mids, proj["lo"], proj["hi"])]})
     layers.append({"type": "rule", "axis": "x", "value": _iso(AS_OF),
                    "label": "Today"})
 
