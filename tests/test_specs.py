@@ -162,7 +162,58 @@ def test_the_mounted_component_has_a_no_js_table_of_every_point():
     assert 'data-chart="delivery-vs-vin" data-template="scatter"' in html
     assert html.startswith('<figure class="r2c r2c-wide"'), "a chart spans the grid"
     assert html.count("<tr>") == 1 + 3, "a header row and one row per point"
-    assert "3 orders with both a VIN and a delivery estimate." in html
+    assert "All 3 orders with a VIN are plotted by delivery estimate." in html
+
+
+def _vin_summaries(df):
+    """The VIN charts' summary sentence for a frame, and the count each plots."""
+    from config import COMPONENTS
+    from render.components import summarize
+    from render.specs import delivery_vs_vin, vin_by_config, vin_vs_order
+    out = {}
+    for cid, build in (("vin-vs-order", vin_vs_order),
+                       ("delivery-vs-vin", delivery_vs_vin),
+                       ("vin-by-config", vin_by_config)):
+        _, agg, _ = build(df)
+        out[cid] = (summarize(COMPONENTS[cid]["summary"], agg.cells, meta=agg.meta),
+                    agg.counted)
+    return out
+
+
+def test_vin_chart_summaries_say_how_many_of_the_orders_with_a_vin_are_plotted():
+    day = pd.Timestamp("2026-07-01")
+    # Six orders: five have a VIN. One of them has no order date, one has no
+    # delivery estimate, one reports no paint; the sixth has no VIN at all.
+    df = _orders(6, trim=["Performance"] * 6,
+                 vin_present=[True, True, True, True, True, False],
+                 order_date=[day, day, day, pd.NaT, day, day],
+                 delivery_est=[day, pd.NaT, day, day, day, day],
+                 color=["Esker Silver"] * 4 + [""] + ["Esker Silver"])
+    got = _vin_summaries(df)
+    assert got["vin-vs-order"][0] == (
+        "3 of the 5 orders with a VIN are plotted by order date.")
+    assert got["delivery-vs-vin"][0] == (
+        "3 of the 5 orders with a VIN are plotted by delivery estimate.")
+    assert got["vin-by-config"][0].startswith(
+        "4 of the 5 orders with a VIN are plotted, in ")
+    # The number plotted is what the chart counts, and never more than the base.
+    assert [c for _, c in got.values()] == [3, 3, 4]
+
+
+def test_the_base_is_the_orders_with_a_vin_even_when_estimates_outnumber_them():
+    # Six delivery estimates but two VINs: "X of the Y orders with a VIN" still
+    # reads forwards, because Y is the VINs and X part of them.
+    df = _orders(6, vin_present=[True, True] + [False] * 4)
+    got = _vin_summaries_one(df)
+    assert got == "All 2 orders with a VIN are plotted by delivery estimate."
+
+
+def _vin_summaries_one(df):
+    from config import COMPONENTS
+    from render.components import summarize
+    from render.specs import delivery_vs_vin
+    _, agg, _ = delivery_vs_vin(df)
+    return summarize(COMPONENTS["delivery-vs-vin"]["summary"], agg.cells, meta=agg.meta)
 
 
 # --- timeseries specs (§reservations-orders, §delivery-progress,

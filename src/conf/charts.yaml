@@ -200,14 +200,14 @@ components:
     title: VIN vs. order date
     dims: [color, wheels]
     aggregate: vin_vs_order
-    summary: "{n} orders with both a VIN and an order date."
+    summary: "{meta:lead} are plotted by order date."
 
   vin-by-config:
     template: scatter
     title: VINs by configuration
     dims: [trim, color, wheels, interior]
     aggregate: vin_by_config
-    summary: "{n} orders with a VIN, in {meta:rows} configurations."
+    summary: "{meta:lead} are plotted, in {meta:rows} configurations."
 
   geo-demand:
     template: geo
@@ -228,4 +228,4 @@ components:
     title: Delivery date vs. VIN
     dims: [color, wheels, delivery_type]
     aggregate: delivery_vs_vin
-    summary: "{n} orders with both a VIN and a delivery estimate."
+    summary: "{meta:lead} are plotted by delivery estimate."

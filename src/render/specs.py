@@ -161,7 +161,9 @@ def vin_vs_order(df: pd.DataFrame) -> tuple:
     rows = [[s_["name"], p["tip"][0], p["x"], format(p["y"], ",")]
             for s_ in series for p in s_["points"]]
     table = (["Paint · wheels", "Order", "Ordered", "VIN"], rows)
-    return spec, Aggregate("vin-vs-order points", "orders", cells, excluded), table
+    agg = Aggregate("vin-vs-order points", "orders", cells, excluded,
+                    meta={"lead": _of(len(d), int(vin.sum()), "orders with a VIN")})
+    return spec, agg, table
 
 
 def vin_by_config(df: pd.DataFrame) -> tuple:
@@ -239,7 +241,8 @@ def vin_by_config(df: pd.DataFrame) -> tuple:
                   for s_ in series for p in s_["points"]]
     table = (["Configuration", "Order", "VIN"], table_rows)
     agg = Aggregate("vin-by-config points", "orders", cells, excluded,
-                    meta={"rows": len(rows)})
+                    meta={"rows": len(rows),
+                          "lead": _of(len(d), int(vin.sum()), "orders with a VIN")})
     return spec, agg, table
 
 
@@ -268,6 +271,19 @@ _PAST = {"vin": ("vin", "scheduled", "delivered"),
 
 def _count(n: int, noun: str) -> str:
     return "%s %s%s" % (format(n, ","), noun, "" if n == 1 else "s")
+
+
+def _of(n: int, total: int, what: str) -> str:
+    """"393 of the 404 orders with a VIN", for the n of a group of `total` that a
+    chart shows; "All 404 orders with a VIN" when it shows them all. (A chart
+    that shows none has no summary.) n is part of total by construction, since
+    the chart's orders are a subset of the group's, so the sentence can't read
+    backwards."""
+    assert 0 <= n <= total, (n, total)
+    if n == total and n:
+        return "All %s %s" % (format(total, ","), what)
+    return "%s of the %s %s" % ("None" if not n else format(n, ","),
+                                format(total, ","), what)
 
 
 def _us(frame: pd.DataFrame) -> pd.Series:
@@ -493,7 +509,10 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
             for s_ in series for p in s_["points"]]
     table = (["Paint · wheels", "Order", "VIN", "Est. delivery", "Quoted window",
               "Date"], rows)
-    return spec, Aggregate("delivery-vs-vin points", "orders", cells, excluded), table
+    agg = Aggregate("delivery-vs-vin points", "orders", cells, excluded,
+                    meta={"lead": _of(len(d), int(df["vin_present"].astype(bool).sum()),
+                                      "orders with a VIN")})
+    return spec, agg, table
 
 
 # --- timeseries: weekly columns (stacked) and lines over dates ---------------------

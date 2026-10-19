@@ -141,7 +141,7 @@ Building on the data layer's published set (`docs/data-layer.md`, *Data contract
     title: Delivery date vs. VIN sequence
     dims: [color, wheels, delivery_type]   # their caveats compose into the meta line
     aggregate: delivery_vs_vin             # the spec builder (render/specs.py)
-    summary: "{n} orders with both a VIN and a delivery estimate."
+    summary: "{meta:lead} are plotted by delivery estimate."
   ```
 
   As built, encodings, layers and toggles live in the spec the aggregate's builder
