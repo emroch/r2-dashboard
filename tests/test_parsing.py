@@ -968,6 +968,30 @@ def test_inferred_deliveries_lists_only_vague_estimates_that_passed():
         ("1", "a", "4-8 weeks (window) ended 2026-08-14")]
 
 
+def test_shared_vins_lists_each_order_with_who_else_has_it():
+    import pandas as pd
+    from ingest.loaders import shared_vins
+    day, other = pd.Timestamp("2026-08-04"), pd.Timestamp("2026-08-19")
+    df = pd.DataFrame({
+        "orig_num": ["1", "2", "3", "4", "5", "6", "7"],
+        "user": ["a", "b", "c", "d", "e", "f", "g"],
+        "vin_present": [True, True, True, True, True, True, False],
+        "vin_seq": [2934, 2934, 3348, 3348, 3000, 3000, 2934],   # g: no VIN (dropped)
+        "trim": ["Performance"] * 7,
+        "color": ["Catalina Cove", "Catalina Cove", "Esker Silver", "Esker Silver",
+                  "Esker Silver", "Glacier White", "Catalina Cove"],
+        "wheels_short": ['21" AS'] * 7, "interior": ["Black"] * 7,
+        "order_date": [day, day, day, other, day, day, day]})
+    got = {u: d for _, u, d in shared_vins(df)}
+    # g has no VIN, so it is never listed.
+    assert sorted(got) == ["a", "b", "c", "d", "e", "f"]
+    assert got["a"] == ("VIN 2934 also on b (#2) (same build and order date: "
+                        "maybe one order entered twice)")
+    assert got["c"] == "VIN 3348 also on d (#4) (same build, different order dates)"
+    assert got["e"] == "VIN 3000 also on f (#6) (different builds)"
+    assert shared_vins(df.iloc[[0, 2, 4]]) == [], "one order per VIN: nothing shared"
+
+
 # --- Column mapping and schema-drift detection ------------------------------
 # Columns are located by NAME, so these tests pin both halves of that contract:
 # what the sheets are free to change (order, new questions, wording) and what

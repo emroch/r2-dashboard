@@ -548,12 +548,15 @@ INFO_SVG = ('<svg class="info-svg" viewBox="0 0 16 16" aria-hidden="true">'
 
 
 def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
-            caption: str = "", href: str = "") -> str:
+            caption: str = "", href: str = "", who: str = "User") -> str:
     """One summary number. With `rows` (the entries behind it: (#, user,
     detail)) it is a disclosure, marked with the info mark (INFO_SVG): clicking
     opens the list inline, under a caption naming the readout and saying what
-    the list holds (the list can land rows below its chip). With `href` (and no
-    rows) it links to the section behind the number."""
+    the list holds (the list can land rows below its chip). `who` heads the
+    middle column (a sheet notice names a sheet, not a user). A row with no
+    sheet number ("—": a whole-sheet notice, or an overrides.yaml key matching
+    no row) shows no "#". With `href` (and no rows) it links to the section
+    behind the number."""
     chip = '<b class="ro-v">%s</b><span class="ro-l">%s%s</span>' % (
         escape(str(value)), escape(label),
         '<span class="ro-i" aria-hidden="true">%s</span>' % INFO_SVG if rows else "")
@@ -566,14 +569,17 @@ def readout(value: object, label: str, rows: Sequence[Sequence[object]] = (),
         return ('<%s><span class="sr-only">%s %s</span>'
                 '<span aria-hidden="true">%s</span></%s>'
                 % (tag, escape(str(value)), escape(label), chip, tag.split()[0]))
-    body = "".join("<tr><td>#%s</td><td>%s</td><td>%s</td></tr>"
-                   % tuple(escape(str(v)) for v in r) for r in rows)
+    body = "".join("<tr><td>%s%s</td><td>%s</td><td>%s</td></tr>"
+                   % (("" if str(r[0]) == "—" else "#"),
+                      *(escape(str(v)) for v in r))
+                   for r in rows)
     return ('<details class="ro-more"><summary class="ro-chip">%s</summary>'
             '<div class="ro-rows">%s<div class="r2c-scroll"><table><thead><tr>'
-            '<th scope="col">#</th><th scope="col">User</th><th scope="col">Detail'
+            '<th scope="col">#</th><th scope="col">%s</th><th scope="col">Detail'
             '</th></tr></thead><tbody>%s</tbody></table></div></div></details>'
             % (chip, '<p class="ro-cap"><b>%s</b>%s</p>'
-               % (escape(label), " — " + escape(caption) if caption else ""), body))
+               % (escape(label), " — " + escape(caption) if caption else ""),
+               escape(who), body))
 
 
 def readout_group(title: str, readouts: Sequence[str], note: str = "",
