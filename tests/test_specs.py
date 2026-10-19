@@ -118,6 +118,17 @@ def test_build_front_layers_follow_the_series_and_quote_vins_to_the_hundred():
         nums = [int(n.replace(",", "")) for n in found]
         assert nums and all(n % 100 == 0 for n in nums), tip
     assert all("day" not in " ".join(t) for t in proj["tips"]), "VINs, not days"
+    # The dashed trend runs back through the weeks it was fitted to and on into
+    # the projection as one straight line, starting before the last observed week.
+    observed = spec["layers"][0]["points"]
+    assert proj["points"][0][0] < observed[-1][0]
+    xs = [pd.Timestamp(x).value / 864e11 for x, _ in proj["points"]]
+    slopes = [(proj["points"][i + 1][1] - proj["points"][i][1]) / (xs[i + 1] - xs[i])
+              for i in range(len(xs) - 1)]
+    assert max(slopes) - min(slopes) < 1e-6, slopes
+    assert any(t[0] == "Trend" for t in proj["tips"])
+    assert proj["points"][len(proj["points"]) - len(spec["layers"][1]["points"])][0] \
+        == observed[-1][0], "the projection starts at the last observed week"
     band = spec["layers"][1]
     assert all(lo <= hi for _, lo, hi in band["points"])
     # The front, its projection and band are one legend entry, toggled together.

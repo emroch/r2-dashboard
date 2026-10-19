@@ -22,8 +22,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import (AS_OF, COLOR_ORDER, DIMENSIONS, FACTORY, INTERIOR_ORDER,
-                    INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
+from config import (AS_OF, CADENCE_WINDOW_WEEKS, COLOR_ORDER, DIMENSIONS, FACTORY,
+                    INTERIOR_ORDER, INTERIOR_SHORT, STATE_INFO, WHEEL_ABBR)
 
 from .aggregates import (COHORTS, STAGE_LABELS, STAGES, Aggregate, crosstab,
                          lean, stages)
@@ -473,8 +473,16 @@ def delivery_vs_vin(df: pd.DataFrame) -> tuple:
         layers.append({
             "type": "line", "name": "Projected · ≈ %.0f VINs/day" % proj["rate"],
             "group": "Build front", "color": "var:highlight", "dash": True,
-            "points": [[m, float(c)] for m, c in zip(mids, proj["center"])],
-            "tips": [["Projected front",
+            # The trend line runs back through the weeks it was fitted to, so the
+            # projection continues it and the weekly points show their scatter
+            # around it, rather than the line starting off the observed front.
+            "points": ([[_iso(w + pd.Timedelta(days=3)), float(v)]
+                        for w, v in zip(proj["fit_weeks"], proj["trend"])]
+                       + [[m, float(c)] for m, c in zip(mids, proj["center"])]),
+            "tips": [["Trend", "Week of %s: ≈ VIN %s" % (_day(w), _vins(v, 100)),
+                      "Fitted over the last %d weeks" % CADENCE_WINDOW_WEEKS]
+                     for w, v in zip(proj["fit_weeks"], proj["trend"])]
+                    + [["Projected front",
                       "Week of %s: ≈ VIN %s" % (_day(w), _vins(c, 100)),
                       "Likely VIN %s–%s" % (_vins(lo, 100), _vins(hi, 100))]
                      for w, c, lo, hi in zip(proj["weeks"], proj["center"],
@@ -877,7 +885,6 @@ def build_cadence(df: pd.DataFrame) -> tuple:
     """§build-front, beneath: the build front's rate over time, VINs per
     day, as of each front week (render/cadence.py rate_history), at the week's
     middle."""
-    from config import CADENCE_WINDOW_WEEKS
     from .cadence import cadence_frame, rate_history
     hist = rate_history(df)
     pts = [[_iso(w + pd.Timedelta(days=3)), float(r)] for w, r in hist.items()]
