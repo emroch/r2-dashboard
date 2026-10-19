@@ -158,7 +158,7 @@
  var anchor=null, offset=0, aimed=null;
  // Blocks worth holding on to: headings, paragraphs, rows, chart frames; not a
  // text span, or an SVG mark that a redraw replaces.
- var BLOCKS='h2,h3,p,li,tr,figure,.r2c,.chart-plot,.tr-row,.mx-row,.qa-cat';
+ var BLOCKS='h2,h3,p,li,tr,figure,.r2c,.chart-plot,.tr-row,.mx-row,.ro-group';
  function top(){return hdr?Math.max(0,hdr.getBoundingClientRect().bottom):0;}
  // Not a candidate: an SVG mark, or anything in a closed <details> (a Data
  // table), which Safari still lays out, unseen, where it would be.

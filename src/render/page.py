@@ -223,137 +223,6 @@ def _src_line(name, meta, extra, thread_url):
                _fmt_time(meta["updated_at"]), failed, thread_url))
 
 
-# Data-quality categories: (report["quality"] key, heading, one-line note).
-_QA_CATS = [
-    ("schema_notices", "Unmapped source columns",
-     "Columns a source sheet has that nothing here reads. The sheets are "
-     "hand-maintained forms, so their columns are located by name and only the "
-     "ones listed in the schema are read at all — reordering a sheet, or adding "
-     "a question to the form, changes nothing. What is checked on every run is "
-     "that each column the schema names is present exactly once: a renamed, "
-     "removed, or duplicated one stops the build outright, since it would "
-     "otherwise read as empty for every row and quietly skew every figure. A new "
-     "column can't do any harm, so it is only listed here — nothing is charted "
-     "from it until the schema maps it."),
-    ("unparseable", "Unparseable delivery estimates",
-     "Non-empty delivery text that didn't normalize to a date, range, or window."),
-    ("no_order_date", "Order date missing",
-     "Orders with no order date, blank or cleared as out of range. They count "
-     "everywhere an order date isn't needed, and are left out of the charts by "
-     "order week. One with a VIN or a delivery estimate is an order that skipped "
-     "the field; one with neither may be a reservation entered early."),
-    ("inferred_delivery", "Delivery inferred, missing confirmed date",
-     "Orders counted as delivered because their estimate has passed, though it "
-     "was only a window, range or month, never a firm date. Most were probably "
-     "delivered, but some are likely stale estimates their owners never updated. "
-     "They still count as delivered; a firm date in the sheet confirms one."),
-    ("entry_errors", "Likely entry errors set aside",
-     "Values that parse fine on their own but can't be right against the rest of "
-     "the data. Each one is set aside as unknown, so it isn't charted or counted. "
-     "Nothing is corrected, because the data can't say what the right value is. "
-     "Three checks: a delivery estimate that ends before the order was placed, or "
-     "starts more than a year after it (usually a typo'd year); a firm delivery "
-     "date well before cars with nearby VINs, since a car can't arrive before it "
-     "is built (a bare \"8-12\" meant as weeks reads as 12 August); and a VIN "
-     "far outside the range of orders placed around the same date (a missing or "
-     "extra digit). A late delivery or a low VIN is never flagged on its own, "
-     "because a held-back car explains both. A value confirmed correct can be "
-     "kept with overrides.yaml's verified list."),
-    ("vin_changes", "VINs that changed after being set",
-     "From the sheet's history (every committed snapshot): a VIN replaced by a "
-     "DIFFERENT VIN after one was recorded. Reformatting and de-obfuscation don't "
-     "count. Often a typo fix, but a change that goes back to an earlier value "
-     "usually means someone edited the wrong row and then put it back. Fields an "
-     "override already sets are left out."),
-    ("order_date_changes", "Order dates that changed after submission",
-     "An order date replaced by a different date. Most are year-typo fixes, but a "
-     "date that moves by weeks shifts every delivery window measured from it."),
-    ("firm_to_vague", "Firm delivery dates that went vague",
-     "A firm delivery date replaced by something vaguer (\"TBD\", \"Delayed\") "
-     "and still vague. Usually a real delay; worth asking for an update."),
-    ("milestone_issues", "Milestone dates that don't fit",
-     "When each order's final VIN was assigned and its final delivery date set: "
-     "from a post (a `dates:` entry in overrides.yaml), else the first snapshot "
-     "that showed the final value. A posted date is only used if it fits: not in "
-     "the future, not before the order, not after the sheet already showed the "
-     "value, and a scheduling date not after the delivery itself. Listed here: "
-     "posted dates that didn't fit, and sheets that showed a final value before "
-     "the order date, where one of the two dates must be wrong."),
-    ("left_sheet", "Orders that left the sheet",
-     "An order that disappeared from the sheet without a curated deletion: a "
-     "silent cancellation, or a row removed by mistake. If it was a cancellation, "
-     "a deletion in overrides.yaml records why."),
-    ("merge_conflicts", "Repeat submissions that disagreed",
-     "Fields where a person's repeat submissions of the SAME build contradicted "
-     "each other. The rows are merged into one order, taking each field from the "
-     "latest submission that filled it \u2014 people resubmit in order to correct "
-     "themselves \u2014 and every contradiction is listed here rather than resolved "
-     "silently, since self-reported data disagreeing with itself is worth a look."),
-    ("dup_conflicts", "Repeat usernames kept as separate entries",
-     "One username appearing on more than one row where the rows disagree, so "
-     "neither can be dropped without guessing. A repeat submission is only "
-     "collapsed when it adds nothing \u2014 every field it fills, another row fills "
-     "identically. Rows that conflict are either a data-entry error or the same "
-     "person placing a second, genuinely different order, and choosing between "
-     "those would either double-count someone or discard a real order, so both "
-     "are kept and listed here with the fields they differ on."),
-    ("fuzzy_dups", "Possible duplicate usernames",
-     "Usernames that normalize alike (case/space/punctuation) but weren't merged "
-     "by the exact-duplicate dedup."),
-    ("vin_unrec", "Unrecoverable VINs",
-     "VIN tokens too redacted to recover a sequence number."),
-    ("shared_vins", "VINs on more than one order",
-     "A VIN is one car's, so two orders reporting the same one means a typo, a "
-     "masked VIN entered as round digits (3000 for 30XX), or one order entered "
-     "under two usernames. Nothing is changed and every order stays counted. "
-     "Each entry names the other orders and says whether their build and order "
-     "date match: identical ones are probably a single order entered twice."),
-    ("bad_dates", "Invalid dates dropped",
-     "Order/reservation dates outside the plausible window, cleared."),
-    ("deletions", "Removed by curation",
-     "Orders and reservations dropped because something outside the sheet says "
-     "they shouldn't be counted \u2014 the person posted that they cancelled, or the "
-     "row is a superseded resubmission that dedup can't merge on its own. These "
-     "rows are otherwise valid \u2014 nothing in the data marks either case \u2014 so each "
-     "one is a manual entry in overrides.yaml carrying its own reason and source, "
-     "listed here individually for that reason. Cancelling an order also keeps "
-     "that person out of the reservation count, rather than letting them resurface "
-     "as an outstanding reservation."),
-    ("availability_drops", "Premature-config orders dropped",
-     "Orders whose selected trim, paint, or interior wasn't orderable yet on the "
-     "order date — removed entirely, not counted as orders."),
-    ("price_issues", "Configuration pricing issues",
-     "Options the sheet reports that aren't offered on that order's trim, or that "
-     "have no published price. Flagged for review, not corrected: the order keeps "
-     "a best-effort price unless a price is genuinely unknown."),
-    ("answer_conflicts", "Contradictory answers (reconciled)",
-     "Rows where two fields can't both be right, shown with the reading that was "
-     "assumed. Autonomy+ / Tow lose to the Launch Package column, which is "
-     "authoritative — a Launch order answering “No” still gets the bundled "
-     "option, and a non-Launch “Included” is read as added separately. A “not an "
-     "R1 owner” answer loses to a specific R1 model, since naming one is concrete "
-     "information a non-owner has no reason to give. “Yes” and “Included” mean the "
-     "same thing, so that wording difference is not listed. A confirmed case "
-     "should get an overrides.yaml entry rather than relying on these."),
-    ("override_issues", "Override issues",
-     "Manual fix-ups or additions in overrides.yaml that referenced an unknown "
-     "field, a username with no matching order, or an addition already in the "
-     "sheet."),
-]
-
-# Categories whose middle column names something other than a user (the table
-# markup is shared across every category).
-_QA_MID = {"schema_notices": "sheet"}
-
-
-def _qa_id(num):
-    """A flagged row's sheet number, as "#12". Some entries have no number — a
-    whole-sheet notice, or an overrides.yaml key matching no row — and the
-    loaders mark those "—", which shouldn't come out as "#—"."""
-    text = _esc(num)
-    return text if text == "—" else "#" + text
-
-
 # Roamer's R2 Tracker, which this page's design follows (credited in the intro
 # and the footer, page.html), through the owner's referral link.
 ROAMER_URL = "https://rivianroamer.com/join?with=emroch"
@@ -364,27 +233,10 @@ def _aliases(ids):
     return "".join('<span class="anchor-alias" id="%s"></span>' % a for a in ids)
 
 
-def _quality_section(quality, num, cleaning="", cap=40):
-    """The data-quality / anomaly panel: how the data was cleaned (`cleaning`,
-    the readout groups that used to head the page), then the things flagged for
-    human review rather than auto-corrected, each listing the affected (#, user,
-    detail)."""
-    blocks = []
-    for key, name, note in _QA_CATS:
-        rows = quality.get(key, [])
-        if rows:
-            body = "".join("<tr><td>%s</td><td>%s</td><td>%s</td></tr>"
-                           % (_qa_id(i), _esc(u), _esc(d)) for i, u, d in rows[:cap])
-            if len(rows) > cap:
-                body += ('<tr><td></td><td></td><td>&hellip; and %d more</td></tr>'
-                         % (len(rows) - cap))
-            content = ('<table><tr><th>#</th><th>%s</th><th>detail</th></tr>'
-                       '%s</table>' % (_QA_MID.get(key, "user"), body))
-        else:
-            content = '<p class="qa-none">None &#10003;</p>'
-        blocks.append('<div class="qa-cat"><h3>%s<span class="qa-n">%d</span></h3>'
-                      '<p class="qa-note">%s</p>%s</div>'
-                      % (_esc(name), len(rows), _esc(note), content))
+def _quality_section(quality, num, cards=""):
+    """The data-quality panel: readout cards for what was cleaned, corrected and
+    flagged (`cards`), each opening the entries behind its count, then the table
+    of how every delivery string was read."""
     conv = quality.get("conversions", [])
     conv_body = "".join("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
                         % (_esc(r), _esc(t), _esc(anc), _esc(res))
@@ -393,17 +245,15 @@ def _quality_section(quality, num, cleaning="", cap=40):
         '<div class="qa-conv"><h3>Delivery date parsing'
         '<span class="qa-n">%d</span></h3>'
         '<p class="qa-note">Every distinct delivery string that parsed, and the '
-        'date or range it became — for sanity-checking the normalization. Window '
-        'estimates are relative, so the anchor they were measured from (the order '
-        'date, or the as-of date as a fallback) is shown.</p>'
+        'date or range it became. A relative window is measured from the order '
+        'date (or the as-of date, if there is none).</p>'
         '<table><tr><th>raw</th><th>type</th><th>anchor</th><th>parsed</th></tr>'
         '%s</table></div>'
         % (len(conv), conv_body))
     return ('<section id="%s">%s<h2>%d · Data quality &amp; anomalies</h2>'
-            '<p class="desc">How the sheets were cleaned, then the entries flagged '
-            'for review. Nothing flagged is corrected automatically.</p>%s'
-            '<div class="qa">%s</div>%s</section>'
-            % (QA_ID, _aliases(QA_ALIASES), num, cleaning, "".join(blocks), conv_html))
+            '<p class="desc">What was cleaned, corrected and flagged. A card with an '
+            'info mark opens the entries behind its count.</p>%s%s</section>'
+            % (QA_ID, _aliases(QA_ALIASES), num, cards, conv_html))
 
 
 def build_dashboard(df, report, resv, view):
@@ -418,64 +268,99 @@ def build_dashboard(df, report, resv, view):
     san = report["sanitized"]
     pz = report["price"]
     rr, om, rm = report["resv"], report["orders_meta"], report["resv_meta"]
+    q = report["quality"]
     captions = {
-        "Order duplicates": "Repeat rows removed because they added nothing over the row kept",
-        "Repeat usernames kept": "Rows sharing a username whose values disagree, so both were kept rather than one guessed away",
-        "Reservation duplicates": "Repeat usernames in the reservations sheet (kept first)",
-        "Reservations already ordered": "Reservation-holders already counted in the orders sheet",
-        "VINs de-obfuscated": "Obfuscated VINs recovered (original → value)",
-        "VINs recovered": "VINs that could not be recovered (dropped)",
-        "Invalid dates dropped": "Order/reservation dates cleared as out-of-range (original → dropped)",
-        "Likely entry errors set aside": "VINs and delivery estimates that contradict the order date or the orders around them, made unknown rather than charted (see the data-quality panel)",
-        "Set aside as errors": "Delivery estimates that parsed but contradict the order date or cars with nearby VINs, so they count as unknown",
-        "Premature configs dropped": "Orders for a trim/paint/interior not yet orderable on the order date (row removed)",
-        "Curated removals": "Orders and reservations removed because the person posted that they cancelled, or the row is a superseded resubmission (reason from overrides.yaml)",
-        "Unparseable": "Non-empty delivery text that didn't parse to a date/range",
-        "Unpriced": "Orders whose configuration hit a price that isn't published yet (excluded from the price stats)",
-        "Orders sharing a VIN": "Orders whose VIN is also on another order (a typo, a masked VIN typed as round digits, or one order entered twice); reported, not changed",
-        "Manual fix-ups": "Fields set or corrected via overrides.yaml (field: old → new)",
-        "Manual additions": "Forum-only orders appended via overrides.yaml (not in the sheet)",
+        # Cleaned / removed
+        "Order duplicates": "Repeat rows that added nothing over the row kept.",
+        "Reservation duplicates": "Repeat usernames in the reservations sheet; the first is kept.",
+        "Reservations already ordered": "Reservation holders already counted as orders.",
+        "Invalid dates dropped": "Order or reservation dates outside the plausible window, cleared (original → dropped).",
+        "Premature configs dropped": "Orders for a trim, paint or interior not yet orderable on the order date; the row is removed.",
+        "Likely entry errors set aside": "VINs and delivery estimates that contradict the order date or the orders around them, made unknown. Nothing is corrected.",
+        "Curated removals": "Orders and reservations removed because the person cancelled or the row is a superseded resubmission (reason from overrides.yaml).",
+        "VINs dropped": "VINs too redacted to recover (a trailing X hides the low digits), so they count as unknown.",
+        "Disagreeing resubmissions": "Repeat submissions of the same build that disagreed. They merge into one order, taking each field from the latest that filled it.",
+        # Added or corrected
+        "Manual additions": "Forum-only orders added in overrides.yaml (not in the sheet).",
+        "Manual fix-ups": "Fields set or corrected in overrides.yaml (field: old → new).",
+        "VINs de-obfuscated": "VINs with leading X's, recovered from the digits that remain (original → value).",
+        "Answers reconciled": "Rows where two answers can't both be right, with the reading assumed. The Launch Package column beats Autonomy+ and Tow; a named R1 model beats \"not an owner\".",
+        # Flagged, not changed
+        "Repeat usernames kept": "A username on several rows that disagree, so all are kept rather than guessed between; the fields that differ are listed.",
+        "Orders sharing a VIN": "A VIN is one car's, so a shared one is a typo, a masked VIN typed as round digits, or one order entered twice. Each entry says whether the other order matches.",
+        "Similar usernames": "Usernames that differ only in case, spaces or punctuation but weren't merged.",
+        "Order date missing": "Orders with no order date, which the charts by order week leave out. One with no VIN or estimate may be a reservation entered early.",
+        "Delivery inferred": "Counted as delivered only because a window, range or month estimate has passed, with no firm date to confirm it. Some may be stale.",
+        "Unpriced": "Options with no published price, or not offered on the order's trim. An order with an unknown price is left out of the price stats.",
+        "Milestone dates": "Posted VIN or scheduling dates that don't fit the order or the sheet's history, or a sheet showing a value before the order date.",
+        "Override issues": "Entries in overrides.yaml naming an unknown field, a username with no matching order, or an addition already in the sheet.",
+        "Unmapped columns": "Columns in a source sheet that nothing reads. A mapped column that is missing or renamed stops the build instead.",
+        # Changed in the sheet (from its history)
+        "VINs changed": "A VIN replaced by a different one after it was recorded. Often a typo fix; one that goes back to an earlier value usually means an edit to the wrong row.",
+        "Order dates changed": "An order date replaced by another. Most are year-typo fixes; one that moves by weeks shifts every window measured from it.",
+        "Firm dates gone vague": "A firm delivery date replaced by something vaguer (\"TBD\", \"Delayed\"): usually a real delay.",
+        "Orders left the sheet": "An order that disappeared without a curated deletion: a silent cancellation, or a row removed by mistake.",
+        # The delivery estimate cards (Order-to-delivery time)
+        "Set aside as errors": "Delivery estimates that contradict the order date or cars with nearby VINs; they count as unknown.",
+        "Unparseable": "Non-empty delivery text that didn't parse to a date, range or window.",
     }
-    # How the data was cleaned: the cleanup readouts, at the top of the
-    # data-quality panel rather than the page's (they matter to anyone checking
-    # the numbers, not to a first look).
+
+    def card(label, rows, count=None):
+        return (label, len(rows) if count is None else count, rows)
+
+    # How the data was cleaned and what is flagged: readout cards, at the foot of
+    # the page in the data-quality panel (they matter to anyone checking the
+    # numbers, not to a first look), each opening the entries behind its count.
     cleaning_groups = [
         ("Cleaned / removed", [
-            ("Order duplicates", len(san["Duplicates removed"]),
-             san["Duplicates removed"]),
+            card("Order duplicates", san["Duplicates removed"]),
             ("Reservation duplicates", rr["n_self_dupes"], rr["self_dupe_records"]),
             ("Reservations already ordered", rr["n_matched"], rr["matched_records"]),
             ("Invalid dates dropped", report["bad_order"] + report["bad_resv"],
              san["Invalid dates dropped"]),
             ("Premature configs dropped", report["n_premature"],
              san["Premature configs dropped"]),
-            ("Likely entry errors set aside", len(san["Likely entry errors set aside"]),
-             san["Likely entry errors set aside"]),
-            ("Curated removals", len(san["Removed by curation"]),
-             san["Removed by curation"]),
+            card("Likely entry errors set aside", san["Likely entry errors set aside"]),
+            # Both sheets' cancellations (the orders' alone are san[...]).
+            card("Curated removals", q["deletions"]),
+            card("VINs dropped", q["vin_unrec"]),
+            card("Disagreeing resubmissions", q["merge_conflicts"]),
         ]),
         ("Added or corrected", [
             ("Manual additions", report["n_added"], san["Manual additions"]),
-            ("Manual fix-ups", len(san["Manual fix-ups"]), san["Manual fix-ups"]),
-            ("VINs recovered", report["vin_present"], san["VINs recovered"]),
+            card("Manual fix-ups", san["Manual fix-ups"]),
             ("VINs de-obfuscated", report["vin_obfuscated"], san["VINs de-obfuscated"]),
+            card("Answers reconciled", q["answer_conflicts"]),
         ]),
-        # Listed for review and left as they are: every order stays counted. The
-        # flagged lists below go into each.
+        # Listed for review and left as they are: every order stays counted.
         ("Flagged, not changed", [
-            ("Repeat usernames kept", len(san["Repeat usernames kept"]),
-             san["Repeat usernames kept"]),
-            ("Orders sharing a VIN", len(report["quality"]["shared_vins"]),
-             report["quality"]["shared_vins"]),
+            card("Repeat usernames kept", san["Repeat usernames kept"]),
+            card("Orders sharing a VIN", q["shared_vins"]),
+            card("Similar usernames", q["fuzzy_dups"]),
+            card("Order date missing", q["no_order_date"]),
+            card("Delivery inferred", q["inferred_delivery"]),
             # Configured price leaves these out (no published price yet).
-            ("Unpriced", pz["n_unpriced"], report["quality"]["price_issues"]),
+            ("Unpriced", pz["n_unpriced"], q["price_issues"]),
+            card("Milestone dates", q["milestone_issues"]),
+            card("Override issues", q["override_issues"]),
+            card("Unmapped columns", q["schema_notices"]),
+        ]),
+        # From the sheet's history (every committed snapshot).
+        ("Changed in the sheet", [
+            card("VINs changed", q.get("vin_changes", [])),
+            card("Order dates changed", q.get("order_date_changes", [])),
+            card("Firm dates gone vague", q.get("firm_to_vague", [])),
+            card("Orders left the sheet", q.get("left_sheet", [])),
         ]),
     ]
 
     def _groups(spec):
-        return "".join(readout_group(gtitle, [readout(v, k, rows or (), captions.get(k, ""))
-                                              for k, v, rows in cards])
-                       for gtitle, cards in spec)
+        # A sheet notice names a sheet, not a user.
+        return "".join(readout_group(
+            gtitle, [readout(v, k, rows or (), captions.get(k, ""),
+                             who="Sheet" if k == "Unmapped columns" else "User")
+                     for k, v, rows in cards])
+            for gtitle, cards in spec)
 
     # Each order's delivery estimate, in Order-to-delivery time, which charts
     # only the firm ones. Partitions all orders: firm + range/window + no date +
@@ -520,7 +405,7 @@ def build_dashboard(df, report, resv, view):
             '%s</section>' % (label, sid, _aliases(SECTION_ALIASES[i]), n, _esc(title),
                               desc, _howto(howto), callouts.get(sid, ""), comps))
     sections.append(_quality_section(report["quality"], len(SECTIONS) + 2,
-                                     cleaning='<div class="qa-clean">%s</div>'
+                                     cards='<div class="qa-clean">%s</div>'
                                      % _groups(cleaning_groups)))
 
     intro_html = (
