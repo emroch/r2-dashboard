@@ -342,10 +342,14 @@ overrides:
     delivery_raw: "9/5/2026"
     vin_raw: "2715"
   WreckItRivian:
-    source: https://www.rivianforums.com/forum/posts/1101727
-    as_of: "2026-09-15"
+    source:
+      - https://www.rivianforums.com/forum/posts/1101727
+      - https://www.rivianforums.com/forum/posts/1118877
+    as_of: "2026-10-06"
     order_raw: "9/15/2026"
-    delivery_raw: "Unknown"
+    vin_raw: "131XX"
+    dates:
+      vin_assigned: "2026-10-06"
   drydeniv:
     source: https://www.rivianforums.com/forum/posts/1104654/
     dates:
@@ -426,9 +430,13 @@ overrides:
     dates:
       vin_assigned: "2026-10-07"
   TheWombat:
-    source: https://www.rivianforums.com/forum/posts/1119189/
+    source:
+      - https://www.rivianforums.com/forum/posts/1106910/
+      - https://www.rivianforums.com/forum/posts/1119189/
     as_of: "2026-10-09"
     delivery_raw: "10/8/2026"
+    dates:
+      vin_assigned: "2026-09-21"
   SoSo:
     source: https://www.rivianforums.com/forum/posts/1123062/
     as_of: "2026-10-11"
@@ -452,9 +460,13 @@ overrides:
     dates:
       vin_assigned: "2026-10-09"
   iamnid:
-    source: https://www.rivianforums.com/forum/posts/1125333/
+    source:
+      - https://www.rivianforums.com/forum/posts/1125333/
+      - https://www.rivianforums.com/forum/posts/1121327/
     as_of: "2026-10-14"
     delivery_raw: "10/20/2026"
+    dates:
+      delivery_scheduled: "2026-10-09"
   clydef:
     source:
       - https://www.rivianforums.com/forum/posts/1110008/
@@ -464,6 +476,138 @@ overrides:
     delivery_raw: "10/22/2026"
     dates:
       vin_assigned: "2026-09-25"
+  ezb:
+    source:
+      - https://www.rivianforums.com/forum/posts/1117970/
+      - https://www.rivianforums.com/forum/posts/1118799/
+    as_of: "2026-10-07"
+    delivery_raw: "10/29/2026"
+    dates:
+      vin_assigned: "2026-10-05"
+      delivery_scheduled: "2026-10-07"
+  ZheWiz2:
+    source:
+      - https://www.rivianforums.com/forum/posts/1119086/
+      - https://www.rivianforums.com/forum/posts/1120603/
+    as_of: "2026-10-08"
+    delivery_raw: "10/28/2026"
+    dates:
+      vin_assigned: "2026-10-06"
+      delivery_scheduled: "2026-10-08"
+  Mimi2:
+    source: https://www.rivianforums.com/forum/posts/1124454/
+    as_of: "2026-10-13"
+    delivery_raw: "10/15/2026"
+    dates:
+      delivery_scheduled: "2026-10-13"
+  astro_pat:
+    source:
+      - https://www.rivianforums.com/forum/posts/1125244/
+      - https://www.rivianforums.com/forum/posts/1118318/
+    as_of: "2026-10-14"
+    dates:
+      vin_assigned: "2026-09-25"
+      delivery_scheduled: "2026-10-14"
+  801KJD:
+    source: https://www.rivianforums.com/forum/posts/1126279/
+    as_of: "2026-10-15"
+    delivery_raw: "10-27-2026"
+    dates:
+      delivery_scheduled: "2026-10-15"
+  jspike:
+    source: https://www.rivianforums.com/forum/posts/1127661/
+    as_of: "2026-10-17"
+    delivery_raw: "10/23/2026"
+    vin_raw: "149XX"
+    dates:
+      vin_assigned: "2026-10-10"
+      delivery_scheduled: "2026-10-17"
+  MnBrPg:
+    source: https://www.rivianforums.com/forum/posts/1109799/
+    as_of: "2026-09-25"
+    vin_raw: "123XX"
+    dates:
+      vin_assigned: "2026-09-25"
+  NJbrandon:
+    source: https://www.rivianforums.com/forum/posts/1120921/
+    as_of: "2026-10-08"
+    dates:
+      vin_assigned: "2026-10-08"
+  C3PO-TN:
+    source: https://www.rivianforums.com/forum/posts/1121812
+    as_of: "2026-10-09"
+    vin_raw: "13XXX"
+    dates:
+      vin_assigned: "2026-10-07"
+  MountainDude:
+    source: https://www.rivianforums.com/forum/posts/1122048/
+    as_of: "2026-10-09"
+    vin_raw: "14XXX"
+    dates:
+      vin_assigned: "2026-10-09"
+      delivery_scheduled: "2026-10-09"
+  Brystal42:
+    source: https://www.rivianforums.com/forum/posts/1122524/
+    as_of: "2026-10-10"
+    dates:
+      vin_assigned: "2026-10-08"
+  Mari21:
+    source: https://www.rivianforums.com/forum/posts/1122736/
+    as_of: "2026-10-10"
+    dates:
+      vin_assigned: "2026-10-07"
+  huntzman:
+    source: https://www.rivianforums.com/forum/posts/1122793/
+    as_of: "2026-10-10"
+    dates:
+      vin_assigned: "2026-10-10"
+  baggachipz:
+    source: https://www.rivianforums.com/forum/posts/1124912/
+    as_of: "2026-10-13"
+    dates:
+      vin_assigned: "2026-10-13"
+  travman1974:
+    source: https://www.rivianforums.com/forum/posts/1126079/
+    as_of: "2026-10-14"
+    dates:
+      vin_assigned: "2026-10-14"
+  algo:
+    source: https://www.rivianforums.com/forum/posts/1126229/
+    as_of: "2026-10-15"
+    dates:
+      vin_assigned: "2026-10-14"
+  jenni:
+    source: https://www.rivianforums.com/forum/posts/1126821/
+    as_of: "2026-10-15"
+    dates:
+      vin_assigned: "2026-10-15"
+  mongus1:
+    source: https://www.rivianforums.com/forum/posts/1126946/
+    as_of: "2026-10-16"
+    dates:
+      vin_assigned: "2026-10-15"
+  snakedoc:
+    source: https://www.rivianforums.com/forum/posts/1126859/
+    as_of: "2026-10-16"
+    dates:
+      vin_assigned: "2026-10-15"
+  riviken:
+    source: https://www.rivianforums.com/forum/posts/1110186/
+    as_of: "2026-09-26"
+    delivery_raw: "2026-09-19"
+  ewcanes:
+    source: https://www.rivianforums.com/forum/posts/1110675/
+    as_of: "2026-09-26"
+    dates:
+      vin_assigned: "2026-09-08"
+  GeneProfessor:
+    source: https://www.rivianforums.com/forum/posts/1111792/
+    as_of: "2026-09-28"
+    delivery_raw: "9/25/2026"
+  kah:
+    source: https://www.rivianforums.com/forum/posts/1112018/
+    as_of: "2026-09-28"
+    delivery_raw: "9/29/2026"
 
 
 additions:
@@ -903,20 +1047,6 @@ additions:
     autonomy: "Included"
     tow: "Included"
     r1_owner: "No"
-  ZheWiz:
-    source: https://www.rivianforums.com/forum/posts/1101752
-    as_of: "2026-09-15"
-    resv_raw: "3/7/2024"
-    order_raw: "9/15/2026"
-    loc_raw: "NY"
-    trim: "Performance"
-    launch: "Yes"
-    color: "Borealis"
-    interior: "Coastal Cloud Signature"
-    wheels: '20” Black Sand All-Terrain'
-    autonomy: "Included"
-    tow: "Included"
-    r1_owner: "No"
   lallenw:
     source: https://www.rivianforums.com/forum/posts/1101782/
     as_of: "2026-09-15"
@@ -931,9 +1061,14 @@ additions:
     tow: "Included"
     r1_owner: "No"
   friscorays:
-    source: https://www.rivianforums.com/forum/posts/1101860
-    as_of: "2026-09-15"
+    source:
+      - https://www.rivianforums.com/forum/posts/1101860/
+      - https://www.rivianforums.com/forum/posts/1126965/
+    as_of: "2026-10-16"
     order_raw: "9/15/2026"
+    dates:
+      vin_assigned: "2026-10-16"
+    vin_raw: "149XX"
     loc_raw: "TX"
     trim: "Performance"
     launch: "Yes"
@@ -944,9 +1079,16 @@ additions:
     tow: "Included"
     r1_owner: "No"
   throwdown:
-    source: https://www.rivianforums.com/forum/posts/1101965
-    as_of: "2026-09-16"
+    source:
+      - https://www.rivianforums.com/forum/posts/1114422/
+      - https://www.rivianforums.com/forum/posts/1101965/
+      - https://www.rivianforums.com/forum/posts/1119102/
+    as_of: "2026-10-07"
     order_raw: "9/15/2026"
+    delivery_raw: "10/20/2026"
+    dates:
+      vin_assigned: "2026-09-30"
+      delivery_scheduled: "2026-10-07"
     loc_raw: "CO"
     trim: "Performance"
     launch: "Yes"
@@ -1083,13 +1225,17 @@ additions:
     autonomy: "Included"
     tow: "Included"
   cusetownusa:
-    source: https://www.rivianforums.com/forum/posts/1124373/
-    as_of: "2026-10-13"
+    source:
+      - https://www.rivianforums.com/forum/posts/1124373/
+      - https://www.rivianforums.com/forum/posts/1128180
+    as_of: "2026-10-18"
     order_raw: "9/1/2026"
+    dates:
+      vin_assigned: "2026-10-17"
     loc_raw: "NY"
     trim: "Performance"
     launch: "Yes"
-    color: "Half Moon Grey"
+    color: "Glacier White"
     interior: "Black Crater Signature"
     wheels: '20” Black Sand All-Terrain'
     autonomy: "Included"
@@ -1112,6 +1258,144 @@ additions:
     trim: "Performance"
     launch: "Yes"
     color: "Esker Silver"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+  TheWombat#2:
+    source:
+      - https://www.rivianforums.com/forum/posts/1121598
+      - https://www.rivianforums.com/forum/posts/1121614
+    as_of: "2026-10-09"
+    order_raw: "9/8/2026"
+    delivery_raw: "11/4/2026"
+    vin_raw: "148XX"
+    dates:
+      vin_assigned: "2026-10-08"
+      delivery_scheduled: "2026-10-08"
+    loc_raw: "NC"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Forest Green"
+    interior:
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  ceejaex:
+    source:
+      - https://www.rivianforums.com/forum/posts/1103048
+      - https://www.rivianforums.com/forum/posts/1122616
+    as_of: "2026-10-10"
+    order_raw: "8/27/2026"
+    dates:
+      vin_assigned: "2026-10-10"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Coastal Cloud Signature"
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "Yes"
+    r1_model: "R1T"
+  r2fb:
+    source:
+      - https://www.rivianforums.com/forum/posts/1096072/
+      - https://www.rivianforums.com/forum/posts/1099454/
+      - https://www.rivianforums.com/forum/posts/1125905/
+    as_of: "2026-10-14"
+    resv_raw: "February 2026"
+    order_raw: "9/11/2026"
+    dates:
+      vin_assigned: "2026-10-14"
+    vin_raw: "16XXX"
+    loc_raw: "NJ"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Glacier White"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  DaveKraut:
+    source:
+      - https://www.rivianforums.com/forum/threads/getting-anxious-but-when.65410/
+      - https://www.rivianforums.com/forum/posts/1126464/
+    as_of: "2026-10-15"
+    vin_raw: "15895"
+    dates:
+      vin_assigned: "2026-10-15"
+    loc_raw: "NY"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Glacier White"
+    interior: "Coastal Cloud Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  KineticKev:
+    source:
+      - https://www.rivianforums.com/forum/posts/1089567/
+      - https://www.rivianforums.com/forum/posts/1127680/
+    as_of: "2026-10-17"
+    resv_raw: "3/14/2024"
+    order_raw: "9/29/2026"
+    dates:
+      vin_assigned: "2026-10-11"
+    loc_raw: "MD"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Coastal Cloud Signature"
+    wheels:
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  ckodoherty:
+    source: https://www.rivianforums.com/forum/posts/1128002/
+    as_of: "2026-10-17"
+    order_raw: "9/24/2026"
+    dates:
+      vin_assigned: "2026-10-17"
+    loc_raw: "NE"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Esker Silver"
+    interior: "Black Crater Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  floodcasso2:
+    source: https://www.rivianforums.com/forum/posts/1109443/
+    as_of: "2026-09-24"
+    resv_raw: "6/17/2026"
+    order_raw: "9/16/2026"
+    dates:
+      vin_assigned: "2026-09-22"
+    vin_raw: "120XX"
+    loc_raw: "NY"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Catalina Cove"
+    interior: "Black Crater Signature"
+    wheels: '21” Liquid Tungsten All-Season'
+    autonomy: "Included"
+    tow: "Included"
+    r1_owner: "No"
+  stevehaslip:
+    source: https://www.rivianforums.com/forum/posts/1112453/
+    as_of: "2026-09-28"
+    order_raw: "8/27/2026"
+    dates:
+      vin_assigned: "2026-09-28"
+    loc_raw: "NJ"
+    trim: "Performance"
+    launch: "Yes"
+    color: "Launch Green"
     interior: "Coastal Cloud Signature"
     wheels: '21” Liquid Tungsten All-Season'
     autonomy: "Included"
@@ -1212,12 +1496,18 @@ additions:
     r1_owner: "Yes"
     r1_model: "R1S"
   jennq:
-    source: https://www.rivianforums.com/forum/posts/1086671/
-    as_of: "2026-09-01"
+    source:
+      - https://www.rivianforums.com/forum/posts/1086671/
+      - https://www.rivianforums.com/forum/posts/1119052/
+      - https://www.rivianforums.com/forum/posts/1110236/
+    as_of: "2026-10-06"
     resv_raw: "3/7/2024"
     order_raw: "8/27/2026"
-    delivery_raw:
-    vin_raw:
+    delivery_raw: "10/20/2026"
+    dates:
+      vin_assigned: "2026-09-25"
+      delivery_scheduled: "2026-10-06"
+    vin_raw: "12XXX"
     loc_raw: "CA"
     trim: "Performance"
     launch: "Yes"
