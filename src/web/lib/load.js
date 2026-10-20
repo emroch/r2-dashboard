@@ -14,13 +14,19 @@ const pending = new Map();
 function loadScript(file, global, doc, base) {
   if (globalThis[global]) return Promise.resolve(globalThis[global]);
   if (!pending.has(file)) {
-    pending.set(file, new Promise((resolve, reject) => {
-      const s = doc.createElement("script");
-      s.src = new URL("../" + file, base).href;
-      s.onload = () => resolve(globalThis[global]);
-      s.onerror = () => { pending.delete(file); reject(new Error("could not load " + file)); };
-      doc.head.append(s);
-    }));
+    pending.set(
+      file,
+      new Promise((resolve, reject) => {
+        const s = doc.createElement("script");
+        s.src = new URL("../" + file, base).href;
+        s.onload = () => resolve(globalThis[global]);
+        s.onerror = () => {
+          pending.delete(file);
+          reject(new Error("could not load " + file));
+        };
+        doc.head.append(s);
+      }),
+    );
   }
   return pending.get(file);
 }
@@ -39,7 +45,13 @@ export function loadAtlas(doc = document, base = import.meta.url) {
         if (!r.ok) throw new Error("could not load " + ATLAS_FILE);
         return r.json();
       }),
-    ]).then(([topojson, us]) => ({ topojson, us }), (e) => { atlas = null; throw e; });
+    ]).then(
+      ([topojson, us]) => ({ topojson, us }),
+      (e) => {
+        atlas = null;
+        throw e;
+      },
+    );
   }
   return atlas;
 }

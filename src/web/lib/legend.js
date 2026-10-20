@@ -6,7 +6,8 @@
 // The next hidden set after a click or a double-click on `name`. Pure.
 export function toggle(hidden, name) {
   const next = new Set(hidden);
-  if (next.has(name)) next.delete(name); else next.add(name);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
   return next;
 }
 
@@ -53,5 +54,9 @@ export function legend(el, items, onChange, hidden = new Set()) {
     onChange(hidden);
   }
   sync();
-  return { get hidden() { return hidden; } };
+  return {
+    get hidden() {
+      return hidden;
+    },
+  };
 }
