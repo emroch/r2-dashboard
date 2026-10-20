@@ -1,0 +1,7 @@
+# Prettier formats the browser code, its CSS and the JS tooling (package.json's
+# "format" script names the paths). Left out:
+#   vendored libraries: committed as published, checksummed by a test
+#   page.html: indented by hand, since Prettier's HTML output breaks tags to keep
+#     the whitespace between inline elements exact
+src/web/vendor/
+src/templates/page.html

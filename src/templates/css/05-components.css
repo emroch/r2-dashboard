@@ -13,7 +13,7 @@
    under the pointer: less than one stage step, so stages never blend. */
 .tr-bar [data-tip],
 .mx-bar [data-tip] {
-  transition: filter .12s;
+  transition: filter 0.12s;
 }
 .tr-bar [data-tip]:hover,
 .mx-bar [data-tip]:hover {
@@ -83,12 +83,12 @@
    its true color: the swatch is how a reader knows the paint. */
 .swatch {
   display: inline-block;
-  width: .8em;
-  height: .8em;
+  width: 0.8em;
+  height: 0.8em;
   border-radius: 50%;
   background: var(--mark);
   box-shadow: 0 0 0 1px var(--card-bd);
-  vertical-align: -.05em;
+  vertical-align: -0.05em;
 }
 .swatch.swatch-true,
 .swatch[class*="cat-color-"],
@@ -121,7 +121,7 @@
 }
 .r2c-grid {
   display: grid;
-  grid-template-columns: minmax(0,1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px 40px;
   align-items: start;
 }
@@ -138,7 +138,7 @@
   min-width: min-content;
 }
 .r2c-grid.r2c-single {
-  grid-template-columns: minmax(0,1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* One across once the sidebar folds away; from there a phone too narrow for the
@@ -191,7 +191,7 @@
 }
 .tr-row {
   display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 10px;
   padding: 5px 0;
   font-size: 13px;
@@ -293,7 +293,7 @@
   border-radius: 3px;
 }
 .hm-cell {
-  background: color-mix(in oklab,var(--link) calc(var(--hm) * 85%),var(--card-bg));
+  background: color-mix(in oklab, var(--link) calc(var(--hm) * 85%), var(--card-bg));
 }
 .hm-cell.hm-hi {
   color: var(--card-bg);
@@ -304,7 +304,7 @@
 
 /* Phone widths: tighter cells, and paint names may wrap, so a two-column grid
    fits a ~370px screen with its columns still equal. */
-@media (max-width:480px) {
+@media (max-width: 480px) {
   .hm {
     border-spacing: 2px;
   }
@@ -346,7 +346,7 @@
 }
 .mx-row {
   display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 10px;
   padding: 6px 0;
   font-size: 13px;

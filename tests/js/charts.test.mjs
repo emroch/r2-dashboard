@@ -6,15 +6,23 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { categoryClass, layerEntries, nearest, ROTATE, rowsMargin, SYMBOLS, whiskerPath, zoomAllowed }
-  from "../../src/web/charts/scatter.js";
+import {
+  categoryClass,
+  layerEntries,
+  nearest,
+  ROTATE,
+  rowsMargin,
+  SYMBOLS,
+  whiskerPath,
+  zoomAllowed,
+} from "../../src/web/charts/scatter.js";
 import { isolate, toggle } from "../../src/web/lib/legend.js";
 import { D3_FILE, loadD3 } from "../../src/web/lib/load.js";
 import { get, set, whiskersShown } from "../../src/web/state.js";
 
 test("a rows axis's margin fits its longest label, up to half the width", () => {
   assert.equal(rowsMargin(["IL"], 800), 64, "never narrower than the number axis");
-  const long = "Performance · Catalina Cove · 20\" AT · Coastal Cloud Sig";
+  const long = 'Performance · Catalina Cove · 20" AT · Coastal Cloud Sig';
   assert.ok(rowsMargin([long], 1200) > long.length * 6);
   assert.equal(rowsMargin([long], 360), 180);
 });
@@ -53,8 +61,12 @@ test("grouped layers are one legend entry, in order", () => {
     { type: "line", name: "Front", group: "Build front", color: "var:a" },
     { type: "band", name: "Range", group: "Build front", color: "var:b" },
     { type: "line", name: "Other", color: "var:c" },
-    { type: "rule", label: "Today" }]);
-  assert.deepEqual(entries, [{ name: "Build front", accent: "a" }, { name: "Other", accent: "c" }]);
+    { type: "rule", label: "Today" },
+  ]);
+  assert.deepEqual(entries, [
+    { name: "Build front", accent: "a" },
+    { name: "Other", accent: "c" },
+  ]);
 });
 
 test("a whisker is the window's line plus a cap at each end", () => {
@@ -62,7 +74,10 @@ test("a whisker is the window's line plus a cap at each end", () => {
 });
 
 test("nearest finds the closest candidate within the radius, else null", () => {
-  const c = [{ x: 0, y: 0, id: "a" }, { x: 10, y: 0, id: "b" }];
+  const c = [
+    { x: 0, y: 0, id: "a" },
+    { x: 10, y: 0, id: "b" },
+  ];
   assert.equal(nearest(c, 8, 1).id, "b");
   assert.equal(nearest(c, 2, 2).id, "a");
   assert.equal(nearest(c, 100, 100), null);
@@ -94,7 +109,10 @@ test("URL state: read, set and clear a parameter, keeping the rest", () => {
 test("the view data is fetched once and shared", async () => {
   const { view } = await import("../../src/web/data.js");
   let n = 0;
-  const fake = async () => { n++; return { ok: true, json: async () => ({ version: 1, components: {} }) }; };
+  const fake = async () => {
+    n++;
+    return { ok: true, json: async () => ({ version: 1, components: {} }) };
+  };
   const [a, b] = await Promise.all([view("x.json", fake), view("x.json", fake)]);
   assert.equal(n, 1);
   assert.equal(a, b);
@@ -103,8 +121,18 @@ test("the view data is fetched once and shared", async () => {
 test("d3 loads from the hashed asset directory, once", async () => {
   delete globalThis.d3;
   const appended = [];
-  const doc = { head: { append: (s) => { appended.push(s); setTimeout(() => { globalThis.d3 = { ok: 1 }; s.onload(); }); } },
-                createElement: () => ({}) };
+  const doc = {
+    head: {
+      append: (s) => {
+        appended.push(s);
+        setTimeout(() => {
+          globalThis.d3 = { ok: 1 };
+          s.onload();
+        });
+      },
+    },
+    createElement: () => ({}),
+  };
   const base = "https://example.test/assets/abcd1234/lib/load.js";
   const [a, b] = await Promise.all([loadD3(doc, base), loadD3(doc, base)]);
   assert.equal(appended.length, 1);
@@ -119,8 +147,13 @@ test("vendored files match the checksums in vendor/README.md", () => {
   const rows = [...readme.matchAll(/^\| `([^`]+)` \|.*\| `([0-9a-f]{64})` \|/gm)];
   assert.ok(rows.length >= 1, "no vendored files listed");
   for (const [, file, sum] of rows) {
-    const got = createHash("sha256").update(readFileSync(new URL(file, dir))).digest("hex");
+    const got = createHash("sha256")
+      .update(readFileSync(new URL(file, dir)))
+      .digest("hex");
     assert.equal(got, sum, file);
   }
-  assert.ok(rows.some(([, f]) => f === D3_FILE.replace("vendor/", "")), "load.js's d3 is listed");
+  assert.ok(
+    rows.some(([, f]) => f === D3_FILE.replace("vendor/", "")),
+    "load.js's d3 is listed",
+  );
 });

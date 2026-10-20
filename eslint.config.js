@@ -1,13 +1,12 @@
 // ESLint for the browser code under src/web/, the JS tests, and the Worker.
-// Lint only (correctness rules from @eslint/js), with no formatter, matching
-// how ruff is used for the Python.
+// Lint only (correctness rules from @eslint/js); formatting is prettier's
+// (.prettierrc.json, checked in CI alongside this).
 import js from "@eslint/js";
 import globals from "globals";
 
 export default [
   {
-    ignores: ["node_modules/", "output/", "dist/", "data/", ".venv*/",
-              "src/web/vendor/"],
+    ignores: ["node_modules/", "output/", "dist/", "data/", ".venv*/", "src/web/vendor/"],
   },
   js.configs.recommended,
   {

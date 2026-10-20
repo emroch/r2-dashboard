@@ -30,7 +30,7 @@
 .src-warn svg {
   width: 1.15em;
   height: 1.15em;
-  vertical-align: -.2em;
+  vertical-align: -0.2em;
 }
 /* The summary hosts the times' and warning's popovers (lib/barhover.js). */
 .intro {
@@ -82,7 +82,9 @@ section {
   margin: 0 0 24px;
   padding: 23px;
   box-shadow: 0 1px 3px var(--card-sh);
-  transition: background .5s ease,border-color .5s ease;
+  transition:
+    background 0.5s ease,
+    border-color 0.5s ease;
 }
 /* A phone's gutters and card padding are half as wide, so a chart gets about
    40px more of the screen's 390. */
@@ -147,7 +149,7 @@ section p.desc a:hover {
   display: block;
   font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: var(--desc);
   margin: 0 0 5px 2px;
 }
@@ -175,14 +177,14 @@ section p.desc a:hover {
   line-height: 1.25;
 }
 .ro-i {
-  opacity: .7;
+  opacity: 0.7;
   margin-left: 4px;
 }
 /* The info mark (components.py INFO_SVG), at text size wherever it sits. */
 .info-svg {
-  width: .95em;
-  height: .95em;
-  vertical-align: -.12em;
+  width: 0.95em;
+  height: 0.95em;
+  vertical-align: -0.12em;
 }
 .ro-more:not([open]) .ro-rows {
   display: none;
@@ -283,7 +285,7 @@ section p.desc a:hover {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: var(--desc);
 }
 .sec-group span {
@@ -306,7 +308,7 @@ a.ro-chip:hover {
 }
 .ro-link .ro-l::after {
   content: " \2192";
-  opacity: .6;
+  opacity: 0.6;
 }
 /* The data-quality panel's readout cards (cleaned, corrected, flagged). */
 .qa-clean {

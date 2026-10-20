@@ -16,7 +16,7 @@ curate                ship a curation edit to main via an auto-checked, auto-mer
 ci_env                run lint, types, tests and the build under the CI stack (pinned venv)
 requirements.txt      pandas, numpy, PyYAML, beautifulsoup4
 requirements-dev.txt  + pytest, ruff, mypy (what ./ci_env installs)
-package.json          JS dev tools (eslint, pinned wrangler); Node version in .nvmrc
+package.json          JS dev tools (eslint, prettier, pinned wrangler); Node version in .nvmrc
 src/
   config.py           paths, run timestamps + loaders for the conf/ YAML files
   pipeline.py         main() orchestration + report printing (fetch -> clean -> render)
@@ -171,7 +171,8 @@ for f in tests/test_*.py; do python3 "$f"; done   # no pytest required
 pytest tests/
 
 npm ci --ignore-scripts           # once: the pinned JS tools
-npx eslint . && npm test          # JS lint + node --test
+npx eslint . && npm run format:check && npm test   # JS lint, formatting, node --test
+npm run format                    # apply prettier's formatting (.prettierrc.json)
 ```
 
 `./ci_env check` runs all of it, plus the pipeline, under the CI stack.

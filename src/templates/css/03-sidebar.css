@@ -30,19 +30,19 @@
 .sidebar,
 .main {
   --side-open: 0px;
-  transition: --side-open .3s ease;
+  transition: --side-open 0.3s ease;
 }
 
 .sidebar {
   position: fixed;
-  top: var(--header-h,92px);
+  top: var(--header-h, 92px);
   left: 0;
   bottom: 0;
   width: var(--side-w);
   box-sizing: border-box;
   overflow-y: auto;
   z-index: 55;
-  background: var(--side-bg,#8C9A83);
+  background: var(--side-bg, #8c9a83);
   border-right: 1px solid var(--side-bd);
   box-shadow: 2px 0 10px var(--side-sh);
 }
@@ -50,7 +50,7 @@
   padding: 14px 16px 8px;
   font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: var(--side-title);
 }
 /* A group's heading (sections.yaml groups): When, What, Where, Data. */
@@ -59,7 +59,7 @@
   font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: var(--side-title);
 }
 .sidebar a {
@@ -111,7 +111,7 @@
     display: block;
     position: fixed;
     z-index: 54;
-    top: var(--header-h,92px);
+    top: var(--header-h, 92px);
     left: 0;
     right: 0;
     bottom: 0;
