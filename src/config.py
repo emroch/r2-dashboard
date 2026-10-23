@@ -6,11 +6,15 @@ without a circular dependency. NOW/AS_OF are evaluated at import time. The
 color/marker, schema, geo, and delivery tables all live in the YAML files under
 conf/ — editing those is a data change, not a code change.
 """
+import json
+import os
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import yaml
+
+from ingest import curation as _curation
 
 # --------------------------------------------------------------------------
 # Paths
@@ -69,22 +73,27 @@ COMPONENTS = _load("charts.yaml")["components"]
 # orders not in the sheet; DELETIONS drop entries the person has said no longer
 # exist (a cancellation), per sheet; VERIFIED names values confirmed correct that
 # the entry-error checks would otherwise set aside (ingest/outliers.py). All are
-# username-keyed and empty by default.
-_CURATION = _load("overrides.yaml")
+# username-keyed and empty by default. The file is validated against
+# overrides.schema.json and converted to the internal shape (raw sheet column ->
+# cell text) by ingest/curation.py; a file that doesn't validate stops the build.
+# tools/migrate_curation.py sets R2_CURATION_MIGRATE to import the parsers while
+# the file is still in an older format, which it then reads for itself.
+CURATION_SCHEMA = json.loads((_CONF / "overrides.schema.json").read_text())
+_CURATION = (_curation.load({"curation_version": _curation.VERSION}, CURATION_SCHEMA)
+             if os.environ.get("R2_CURATION_MIGRATE")
+             else _curation.load(_load("overrides.yaml"), CURATION_SCHEMA))
 OVERRIDES = _CURATION.get("overrides") or {}
 ADDITIONS = _CURATION.get("additions") or {}
 _DELETIONS = _CURATION.get("deletions") or {}
 DELETIONS_ORDERS = _DELETIONS.get("orders") or {}
 DELETIONS_RESV = _DELETIONS.get("reservations") or {}
-# A verified entry is a list of fields, or (curation v2) a mapping with `fields`
-# plus its source/as_of. Either way the checks only need the fields.
+# A verified entry is `fields` (sheet columns) plus its source/as_of; the checks
+# only need the fields.
 VERIFIED_RAW = _CURATION.get("verified") or {}
-VERIFIED = {str(u).lower(): list((v.get("fields") if isinstance(v, dict) else v)
-                                 or [])
+VERIFIED = {str(u).lower(): list(v.get("fields") or [])
             for u, v in VERIFIED_RAW.items()}
-# 1 = the format before provenance fields; 2 = every entry carries source/as_of
-# (set by tools/migrate_curation.py; see ingest/curation.py).
-CURATION_VERSION = int(_CURATION.get("curation_version", 1))
+# The file's format (ingest/curation.py VERSION; tools/migrate_curation.py).
+CURATION_VERSION = int(_CURATION["curation_version"])
 
 # --- Live sources (schema.yaml) -------------------------------------------
 # EXPORT_URL is the CSV endpoint; VIEW_URL is the human sheet linked in the header.

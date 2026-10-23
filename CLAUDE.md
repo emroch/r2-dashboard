@@ -12,7 +12,7 @@ Structure:
 r2_dashboard        run-in-place launcher (./r2_dashboard); also `python3 src/pipeline.py`
 curate              ship a curation edit to main via an auto-checked, auto-merged PR
 serve               build offline and serve the page locally, as deployed (--watch rebuilds on edits)
-requirements.txt    pandas, numpy, PyYAML, beautifulsoup4 (runtime pins; all the deploy installs)
+requirements.txt    pandas, numpy, PyYAML, beautifulsoup4, jsonschema (runtime pins; all the deploy installs)
 requirements-dev.txt  -r requirements.txt + dev tools (pytest, ruff, mypy + stubs); ./ci_env installs it
 package.json        JS dev tools only (eslint, prettier, the wrangler the deploys use), pinned in package-lock.json; Node version in .nvmrc
 eslint.config.js    JS lint settings (src/web/, tests/js/, worker/)
@@ -28,7 +28,7 @@ src/
     loaders.py      load_and_clean, load_reservations
     pricing.py      configured price from an order's configuration (pricing.yaml); destination, fees and taxes excluded
     history.py      snapshot replay: every data/raw cache -> order keys + field history (internal; docs/data-layer.md)
-    curation.py     overrides.yaml provenance: source/as_of/reason, effective dates, v2 enforcement
+    curation.py     overrides.yaml: validation against its schema, v3 -> the raw sheet-row shape, provenance (source/as_of/reason), milestone dates
     timeline.py     cross-snapshot QA checks (VIN/order-date changes, firm->vague, rows that left the sheet)
     milestones.py   when each order's final VIN / final delivery date took hold (curated `dates:` or first snapshot showing it); internal
     contract.py     published data contract: dimension metadata + event-dated daily series (r2_dimensions.json / r2_series.json)
@@ -67,12 +67,13 @@ src/
     geo.yaml        state/province -> region + coordinates, factory location, province-name aliases
     delivery.yaml   delivery-estimate normalization — unknown tokens/substrings, explicit overrides, month names
     pricing.yaml    configured-price tables: trims, drive systems, options, paints, wheels, interiors
-    overrides.yaml  manual curation applied after fetch — `overrides` (edit fields on existing rows), `additions` (append forum-only orders), `deletions`, `verified`
+    overrides.yaml  manual curation applied after fetch — `overrides` (edit fields on existing rows), `additions` (append forum-only orders), `deletions`, `verified`; curation_version 3, kept sorted
+    overrides.schema.json  JSON Schema for overrides.yaml: every field, its type and forms (the reference; validated each build)
 data/raw/           timestamped live caches (auto change-detected)
 data/processed/     cleaned CSV, the data contract, r2_view.json
 output/             dashboard HTML output
 tests/              unit tests: test_parsing.py, test_aggregates.py, test_specs.py, test_view.py (Python); js/*.test.mjs (node --test)
-tools/              one-off maintenance scripts (migrate_curation.py)
+tools/              maintenance scripts (migrate_curation.py: overrides.yaml to v3 + canonical form/sort; rerunnable)
 ```
 
 The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds the interactive dashboard (HTML components, plus charts the browser draws with d3).
@@ -120,7 +121,7 @@ newest local `python3.x` if that download is unavailable (the library versions a
 matter for parity). **Run `./ci_env check` before pushing** anything that touches parsing
 or rendering.
 
-Dependencies (`requirements.txt`: pandas, numpy, PyYAML, beautifulsoup4) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
+Dependencies (`requirements.txt`: pandas, numpy, PyYAML, beautifulsoup4, jsonschema) are expected to be available in the environment for the plain `python3` path. Because the source sheets are hand-maintained spreadsheet exports, **always account for the quirks below before computing statistics.**
 
 ## CSV structure and quirks
 
@@ -142,7 +143,7 @@ Dependencies (`requirements.txt`: pandas, numpy, PyYAML, beautifulsoup4) are exp
 ## Guidance
 
 - Data is always pulled live from the source sheets and cached under `data/raw/` (timestamped, change-detected) — there are **no hand-maintained snapshots**, so do not add or rely on manual CSV copies. Write cleaned/derived data to `data/processed/`; never mutate the raw caches.
-- Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `dimensions.yaml` (the category vocabulary: labels, order, colors/markers, caveats; published verbatim as `r2_dimensions.json`), `palette.yaml` (chart color roles), `theme.yaml` (page & chart chrome for light/dark), `sections.yaml` (the page's sections and prose), `charts.yaml` (its components), `pricing.yaml` (configured-price tables), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
+- Configuration lives in YAML files under `src/conf/`, loaded by `config.py` at import — `dimensions.yaml` (the category vocabulary: labels, order, colors/markers, caveats; published verbatim as `r2_dimensions.json`), `palette.yaml` (chart color roles), `theme.yaml` (page & chart chrome for light/dark), `sections.yaml` (the page's sections and prose), `charts.yaml` (its components), `pricing.yaml` (configured-price tables), `schema.yaml` (sources, column maps, sanitize bounds, option vocab), `geo.yaml` (states/provinces/factory), `delivery.yaml` (delivery-estimate normalization), and `overrides.yaml` (manual curation applied after fetch: `overrides` edit fields on rows already in the sheet, `additions` append forum-only orders not in the sheet, `deletions` drop cancellations, `verified` keeps a confirmed value the entry-error checks would set aside). `overrides.yaml` is validated against `overrides.schema.json` on every build: ISO dates under `dates:` (a month as YYYY-MM; the delivery estimate as a date, a month, `{between: [a, b]}`, `{weeks: [lo, hi]}` counted from the order date or a `from:` date, or `unknown`), the build under `config:`, R1 under `r1:`; `ingest/curation.py` turns each entry back into the raw sheet cells the parsers read. Keep each section sorted by username — `./tools/migrate_curation.py --write` re-sorts and re-canonicalizes it (keeping comments with their entry), and `test_overrides_yaml_is_canonical` fails otherwise. Adding a paint, tweaking a theme/chart color, changing a sheet key, adjusting a date bound, teaching a new delivery token, correcting a partial entry, or adding a forum-only order is a data edit in these files, not a code change.
 - Free-text fields are self-reported and noisy; prefer reporting distributions with an explicit "unparseable/unknown" bucket over silently dropping rows.
 - Both sheets' columns are located **by name** (`ingest/schema_check.py`), and only the columns listed in `schema.yaml` are read at all — so reordering a sheet or adding a question to the form changes nothing here. Every run verifies each mapped column is present exactly once; a renamed/removed/duplicated one raises `SchemaDrift` and **stops the pipeline**, because it would otherwise read as empty (or ambiguously) for every row. The fix is to edit `orders_columns` / `reservations_columns` to match the sheet. A new *unmapped* column is only reported in the data-quality panel; add it to `ignored_columns` once it's knowingly unused, or map it to use it.
 - **JS tooling.** The browser code under `src/web/` is plain ES modules and classic scripts, served as-is with no build step. `package.json` exists only for the dev tools: eslint (correctness rules), prettier (formatting: `.prettierrc.json`, 100 columns; `npm run format` / `./ci_env format` rewrites, `format:check` checks the browser code, its CSS, `head.js`, the JS tests, the Worker and `eslint.config.js`; `page.html` is indented by hand and `vendor/` left as published, per `.prettierignore`), `node --test` for `tests/js/`, and a pinned `wrangler` that the deploy workflows install with `npm ci --ignore-scripts` before `cloudflare/wrangler-action`, which then uses it instead of installing its own (that used to rewrite `package.json` in the checkout). Both files are tracked; `node_modules/` is not. The `js` job in `checks.yml` runs eslint, the prettier check and the tests; `./ci_env js` / `lint` / `check` run them locally. A module imported by a test must not touch the DOM at import time. `package-lock.json` must resolve every package from the public registry (`https://registry.npmjs.org/`); `tests/js/lockfile.test.mjs` fails otherwise, since an `npm install` on a machine configured with a private npm mirror records that mirror's URLs, which CI can't reach.

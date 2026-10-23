@@ -182,6 +182,39 @@ overrides:
   and backfills `as_of` from git. Entries it can't resolve are left for hand review,
   not guessed.
 
+## Curation file v3
+
+Issue #166. The same sections, with the fields grouped and every value clean:
+
+```yaml
+overrides:
+  SomeUser:                    # illustrative entry
+    source: https://www.rivianforums.com/forum/posts/<id>/
+    as_of: 2026-09-14
+    vin: "12XXX"
+    dates:
+      order_date: 2026-07-01   # ISO; 2026-07 when only the month is known
+      vin_assigned: 2026-09-10
+      delivery: {weeks: [2, 4], from: 2026-09-14}
+    config:
+      wheels: "21” Liquid Tungsten All-Season"
+```
+
+- **`conf/overrides.schema.json`** is the reference: every field, its type and its
+  forms. The build validates the file against it before applying anything.
+- **Dates** are ISO, under `dates:`. Values (`resv_date`, `order_date`,
+  `delivery`) sit beside the milestones (`vin_assigned`, `delivery_scheduled`);
+  only milestones make an entry "dates-only".
+- **`delivery`** takes one form per type the delivery parser produces: a date, a
+  month, `{between: [a, b]}`, `{weeks: …}` / `{days: …}`, or `unknown`. A window
+  counts from the order date, like a sheet entry, unless `from:` says otherwise.
+- **`*_raw` is internal.** `ingest/curation.py` turns each value back into the
+  sheet cell it stands for (2026-07-01 -> "7/1/2026"), so curated values take the
+  same cleaning path as the sheet's. Overrides compare with the sheet by parsed
+  value, so "8/6/26" and 2026-08-06 are the same date.
+- **Sorted.** `tools/migrate_curation.py` (rerunnable) converts v2 and keeps the
+  file canonical: sorted keys, fixed field order, comments carried with their entry.
+
 ## Data contract for presentation
 
 This is the hand-off to #66 and #51. Alongside the rows, the pipeline publishes

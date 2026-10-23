@@ -63,6 +63,30 @@ def _curated(value):
     return "" if value is None else str(value).strip()
 
 
+def _same_value(field, old, new, order_raw="", delivery_from=""):
+    """Whether an override's value says what the sheet's cell already says.
+
+    Dates and delivery estimates compare by what they parse to, so the sheet's
+    "8/6/26" and an override's 2026-08-06 (written as "8/6/2026") are the same
+    value, and an unchanged estimate isn't mistaken for an edit. Anything that
+    doesn't parse compares as text: an "unknown" written over an unparseable
+    cell is a real change, since it clears the unparseable listing.
+    """
+    if field in ("resv_raw", "order_raw"):
+        da, db = parse_simple_date(old), parse_simple_date(new)
+        if pd.notna(da) and pd.notna(db):
+            return da == db
+    elif field == "delivery_raw":
+        o = parse_simple_date(order_raw)
+        pa = parse_delivery(old, o)
+        pb = parse_delivery(new, parse_simple_date(delivery_from)
+                            if delivery_from else o)
+        if pa["type"] != "unknown" and pb["type"] != "unknown":
+            return all(pa[k] == pb[k] or (pd.isna(pa[k]) and pd.isna(pb[k]))
+                       for k in ("type", "min", "max"))
+    return old == new
+
+
 def _apply_overrides(df, overrides, changed=None):
     """Apply manual fix-ups (username -> {raw field: value}) in place, before
     cleaning, so the values flow through the normal pipeline. Case-insensitive
@@ -82,7 +106,7 @@ def _apply_overrides(df, overrides, changed=None):
         (`changed` holds when each current value took hold, from the snapshot
         history). The person updated the sheet, so the override may be wrong.
     Returns (applied_records, issue_records) for the report/QA panel."""
-    valid = set(ORDERS_COLUMNS)
+    valid = {*ORDERS_COLUMNS, curation.DELIVERY_FROM}
     rows_by_user: dict[str, list[int]] = {}
     for i, u in zip(df.index, df["user"]):
         rows_by_user.setdefault(str(u).lower(), []).append(i)
@@ -120,8 +144,9 @@ def _apply_overrides(df, overrides, changed=None):
         onum, disp = df.at[i, "orig_num"], df.at[i, "user"]
         key = df.at[i, "key"] if "key" in df.columns else None
         for field, value in (fields or {}).items():
+            label = curation.name(field)
             if field not in valid:
-                issues.append((onum, disp, "unknown field '%s'" % field))
+                issues.append((onum, disp, "unknown field '%s'" % label))
                 continue
             # A blank value here is almost always scaffolding — a field copied in
             # from a template and never filled. An override EDITS a row that
@@ -132,16 +157,17 @@ def _apply_overrides(df, overrides, changed=None):
             if value is None:
                 issues.append((onum, disp,
                                "'%s' left blank — ignored, the sheet's value "
-                               "stands (write \"unknown\" to overwrite it)" % field))
+                               "stands (write \"unknown\" to overwrite it)" % label))
                 continue
             old, new = df.at[i, field], _curated(value)
-            if old == new:
+            if _same_value(field, old, new, df.at[i, "order_raw"],
+                           _curated((fields or {}).get(curation.DELIVERY_FROM))):
                 issues.append((onum, disp,
                                "%s: the sheet already says %r — this override can "
-                               "be removed" % (field, new)))
+                               "be removed" % (label, old)))
                 continue
             df.at[i, field] = new
-            applied.append((onum, disp, "%s: %r → %r" % (field, old, new)))
+            applied.append((onum, disp, "%s: %r → %r" % (label, old, new)))
             # Strictly after: these are days, and a same-day sheet edit is as
             # likely to be what the override responded to as a later update.
             run = (changed or {}).get((key, field))
@@ -156,7 +182,7 @@ def _apply_overrides(df, overrides, changed=None):
                                "%s: the sheet changed to %r %s, after this "
                                "override (%s) — check it still applies, then "
                                "add or update `checked:`"
-                               % (field, old, when_txt, since)))
+                               % (label, old, when_txt, since)))
     return applied, issues
 
 
@@ -166,7 +192,7 @@ def _apply_additions(df, additions):
     Case-insensitive; validates field names; guards against names already in the
     sheet (use overrides for those) and duplicate additions; tags each new row
     orig_num='add'. Returns (add_df | None, added_records, issue_records)."""
-    valid = set(ORDERS_COLUMNS)
+    valid = {*ORDERS_COLUMNS, curation.DELIVERY_FROM}
     sheet_users = {str(u).lower() for u in df["user"]}
     seen, new_rows, added, issues = set(), [], [], []
     for e in curation.entries(additions):
@@ -180,24 +206,26 @@ def _apply_additions(df, additions):
             issues.append(("—", str(uname), "duplicate addition entry (skipped)"))
             continue
         seen.add(key)
-        row = dict.fromkeys(ORDERS_COLUMNS, "")
+        row = dict.fromkeys([*ORDERS_COLUMNS, curation.DELIVERY_FROM], "")
         row["user"], row["orig_num"] = str(uname), "add"
         row["key"] = key
         set_fields = []
         for field, value in (fields or {}).items():
             if field not in valid:
-                issues.append(("add", str(uname), "unknown field '%s'" % field))
+                issues.append(("add", str(uname),
+                               "unknown field '%s'" % curation.name(field)))
                 continue
             row[field] = _curated(value)
             # Blanks are expected here and are not a problem: an addition is a whole
             # row, so a field nobody has reported yet is simply unknown. They're left
             # out of the audit line, which lists what the entry actually supplied.
             if row[field] != "":
-                set_fields.append(field)
+                set_fields.append(curation.name(field))
         new_rows.append(row)
         added.append(("add", str(uname),
                       "manual entry — " + ", ".join(sorted(set_fields))))
-    add_df = (pd.DataFrame(new_rows, columns=[*ORDERS_COLUMNS, "key"])
+    add_df = (pd.DataFrame(new_rows,
+                           columns=[*ORDERS_COLUMNS, curation.DELIVERY_FROM, "key"])
               if new_rows else None)
     return add_df, added, issues
 
@@ -229,9 +257,10 @@ def _check_verified(df, verified):
         if key not in users:
             issues.append((onum, disp, "verified: no matching order row"))
         for f in fields:
-            if f not in ("vin_raw", "delivery_raw"):
+            if f not in curation.VERIFIABLE.values():
                 issues.append((onum, disp, "verified: '%s' is not checked — "
-                               "only vin_raw and delivery_raw are" % f))
+                               "only %s are" % (curation.name(f), " and ".join(
+                                   curation.VERIFIABLE))))
     return issues
 
 
@@ -370,7 +399,11 @@ def _apply_deletions(df, deletions, what, valid_fields=()):
 
     Returns (drop_mask aligned to df.index, records, issues).
     """
-    def _same(a, b):
+    def _same(a, b, field=""):
+        if field in ("resv_raw", "order_raw"):
+            da, db = parse_simple_date(str(a)), parse_simple_date(str(b))
+            if pd.notna(da) and pd.notna(db):
+                return da == db
         return " ".join(str(a).split()).lower() == " ".join(str(b).split()).lower()
 
     by_user: dict[str, list[int]] = {}
@@ -393,7 +426,8 @@ def _apply_deletions(df, deletions, what, valid_fields=()):
                            "data-quality panel, so it can't be blank)"))
         for field in [f for f in match if valid_fields and f not in valid_fields]:
             issues.append(("—", str(uname),
-                           "deletion matcher uses unknown field '%s'" % field))
+                           "deletion matcher uses unknown field '%s'"
+                           % curation.name(field).rpartition(".")[2]))
             match.pop(field)
         hits = by_user.get(str(uname).strip().lower(), [])
         if not hits:
@@ -404,14 +438,15 @@ def _apply_deletions(df, deletions, what, valid_fields=()):
         # skipped condition: skipping would make the deletion broader than what
         # was written, which is the wrong way for this to fail.
         scoped = [i for i in hits
-                  if all(f in df.columns and _same(df.at[i, f], v)
+                  if all(f in df.columns and _same(df.at[i, f], v, f)
                          for f, v in match.items())]
         if not scoped:
             issues.append(("—", str(uname),
                            "deletion no longer matches this %s (%s) — a later "
                            "entry may have replaced the cancelled one"
-                           % (what, ", ".join("%s=%r" % kv
-                                              for kv in sorted(match.items())))))
+                           % (what, ", ".join(
+                               "%s=%r" % (curation.name(f).rpartition(".")[2], v)
+                               for f, v in sorted(match.items())))))
             continue
         for i in scoped:
             drop.append(i)
@@ -573,6 +608,8 @@ def load_and_clean(text, meta, keys=None, changed=None):
 
     # --- Manual curation (overrides.yaml): fix-ups edit existing rows, additions
     #     append forum-only orders not in the sheet. Both feed the cleaning below. ---
+    # A curated delivery window may count from a date of its own (curation.py).
+    df[curation.DELIVERY_FROM] = ""
     override_records, override_issues = _apply_overrides(df, OVERRIDES, changed)
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
@@ -646,8 +683,11 @@ def load_and_clean(text, meta, keys=None, changed=None):
     n_dedup = len(df)  # final cohort: dedup + additions − not-yet-orderable drops
 
     # --- Delivery estimate (windows anchored to order date) ---
-    parsed = [parse_delivery(r, o)
-              for r, o in zip(df["delivery_raw"], df["order_date"])]
+    # A curated window counting from a later date (dates.delivery.from) uses that
+    # instead; it only lives until here.
+    parsed = [parse_delivery(r, parse_simple_date(f) if f else o)
+              for r, o, f in zip(df["delivery_raw"], df["order_date"],
+                                 df.pop(curation.DELIVERY_FROM))]
     df["delivery_est"] = [p["est"] for p in parsed]
     df["delivery_min"] = [p["min"] for p in parsed]
     df["delivery_max"] = [p["max"] for p in parsed]
