@@ -1222,6 +1222,31 @@ def test_load_and_clean_ignores_unmapped_columns_entirely():
     assert report["quality"]["schema_notices"] == []
 
 
+def test_a_curated_window_counts_from_its_own_date():
+    # dates.delivery {weeks: [2, 4], from: ...}: the window starts on `from`, not
+    # on the order date, and the helper column is gone from the cleaned frame.
+    from ingest import loaders
+    add = {"later": {"source": "https://x", "as_of": "2026-09-01",
+                     "order_raw": "6/15/2026", "trim": "Performance",
+                     "color": "Midnight", "delivery_raw": "2-4 weeks",
+                     "delivery_from": "9/1/2026"},
+           "plain": {"source": "https://x", "as_of": "2026-09-01",
+                     "order_raw": "6/15/2026", "trim": "Performance",
+                     "color": "Midnight", "delivery_raw": "2-4 weeks"}}
+    old = loaders.ADDITIONS, loaders.OVERRIDES
+    loaders.ADDITIONS, loaders.OVERRIDES = add, {}
+    try:
+        df, _, _ = loaders.load_and_clean(_orders_csv(_orders_header()),
+                                          {"label": "test orders sheet"})
+    finally:
+        loaders.ADDITIONS, loaders.OVERRIDES = old
+    got = {u: (str(a.date()), str(b.date())) for u, a, b in
+           zip(df["user"], df["delivery_min"], df["delivery_max"])}
+    assert got["later"] == ("2026-09-15", "2026-09-29"), got
+    assert got["plain"] == ("2026-06-29", "2026-07-13"), got
+    assert "delivery_from" not in df.columns
+
+
 def test_column_letters_match_spreadsheet_labels():
     from ingest.schema_check import _col_letter
     assert [_col_letter(i) for i in (0, 1, 25, 26, 27)] == \
@@ -1832,7 +1857,7 @@ def test_blank_addition_fields_become_empty_not_the_word_none():
     assert issues == [], "blanks are normal in an addition, not a problem"
     # The audit line lists what was actually supplied, not the empty placeholders.
     detail = records[0][2]
-    assert "loc_raw" in detail and "order_raw" in detail
+    assert "location" in detail and "dates.order_date" in detail
     assert "color" not in detail and "wheels" not in detail
 
 
@@ -2370,14 +2395,13 @@ def test_curation_meta_is_split_from_what_an_entry_edits():
     assert str(split("u", {"as_of": "2026-08-03"}).reviewed) == "2026-08-03"
 
 
-def test_curation_v2_requires_provenance_and_v1_does_not():
+def test_curation_requires_provenance():
     from ingest.curation import CurationError, check
     today = date(2026, 10, 3)
     bare = {"overrides": {"u": {"vin_raw": "1"}}}
-    check(1, bare, today)                         # the old format: nothing required
     try:
         check(2, bare, today)
-        raise AssertionError("v2 must refuse an entry without provenance")
+        raise AssertionError("an entry without provenance must be refused")
     except CurationError as exc:
         assert "no source" in str(exc) and "no as_of" in str(exc)
     ok = {"overrides": {"u": {"source": "https://x", "as_of": "2026-09-01",
@@ -2478,65 +2502,235 @@ def test_load_and_clean_keys_rows_without_a_history():
     assert row["key"] == "tester"
 
 
-def _migrate(text):
+def _migrate_mod():
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "migrate_curation", os.path.join(os.path.dirname(_SRC), "tools",
                                          "migrate_curation.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    dates = {n: date(2026, 9, n % 28 + 1) for n in range(1, 200)}
-    return mod, mod.migrate(text, dates)
+    os.environ.pop("R2_CURATION_MIGRATE", None)    # set by the tool on import
+    return mod
 
 
 _MIGRATE_SAMPLE = """# header comment
+
+curation_version: 2
+
 overrides:
-  # delivery update
-  # https://example.com/post-1
-  alice:
-    delivery_raw: "9/30/2026"
-  # probable typo, no link
+  # the comment above zed
+  zed:
+    source: https://example.com/post-1
+    as_of: "2026-09-01"
+    delivery_raw: "9/30/26"
+  Alice:
+    source:
+     - https://example.com/post-2 # vin
+     - https://example.com/post-3
+    as_of: "2026-09-02"
+    vin_raw: 1500
+    # a guess
+    order_raw: "Nov 2026"
+    dates:
+      vin_assigned: "2026-09-01"
   bob:
-    vin_raw: "1500"
+    source: "inferred — typo"
+    as_of: "2026-09-03"
+    delivery_raw: "4-8 weeks"
+    wheels: '21” Liquid Tungsten All-Season'
+
+
 additions:
-  # order: https://example.com/post-2
-  # https://example.com/post-3
   carol:
+    source: https://example.com/post-4
+    as_of: "2026-09-04"
     loc_raw: "CA"
+    delivery_raw: "Mid October"
+    color:
+    r1_owner: "Yes"
+  # Partly-reported orders. This block goes.
+  # It ends at the rule.
+  # ---------------------------------------------------------------------
+  Carl:
+    source: https://example.com/post-5
+    as_of: "2026-09-05"
+    delivery_raw: "TBD"
+    buylease: "Lease"
+# Cancellations
 deletions:
   orders:
-    # https://example.com/post-4
     dave:
+      source: https://example.com/post-6
+      as_of: "2026-09-06"
       reason: "cancelled"
       match:
-        order_raw: "8/1/2026"
-verified:
-  erin: [vin_raw]
+        order_raw: "08/01/2026"
+  reservations: {}
+verified: {}
 """
 
 
-def test_migration_lifts_urls_and_keeps_everything_else():
+def test_migration_converts_sorts_and_keeps_comments():
     import yaml
-    mod, (new, migrated, unresolved) = _migrate(_MIGRATE_SAMPLE)
+    mod = _migrate_mod()
+    new, _ = mod.migrate(_MIGRATE_SAMPLE)
     data = yaml.safe_load(new)
-    assert data["overrides"]["alice"]["source"] == "https://example.com/post-1"
-    assert data["additions"]["carol"]["source"] == ["https://example.com/post-2",
-                                                    "https://example.com/post-3"]
-    assert data["deletions"]["orders"]["dave"]["source"] == "https://example.com/post-4"
-    assert data["verified"]["erin"]["fields"] == ["vin_raw"]
-    assert all("as_of" in e for sec in ("overrides", "additions")
-               for e in data[sec].values())
-    assert "source" not in data["overrides"]["bob"]
-    assert unresolved == [("overrides", "bob"), ("verified", "erin")], unresolved
-    assert len(migrated) == 3
-    # The URL comments are lifted, every other comment and label survives.
-    assert "# delivery update" in new and "# probable typo, no link" in new
-    assert "# https://example.com/post-1" not in new
-    assert "post-2  # order" in new
-    # Semantics unchanged, and a second run adds nothing.
-    assert mod._strip_meta(data) == mod._strip_meta(yaml.safe_load(_MIGRATE_SAMPLE))
-    again, _, _ = mod.migrate(new, {})
+    assert data["curation_version"] == 3
+    assert new.startswith(mod.SCHEMA_LINE + "\n# header comment\n")
+    assert mod.curation.validate(data, mod.CURATION_SCHEMA) == []
+    o, a = data["overrides"], data["additions"]
+    # Sorted case-insensitively, each comment travelling with its entry.
+    assert list(o) == ["Alice", "bob", "zed"] and list(a) == ["Carl", "carol"]
+    assert "  # the comment above zed\n  zed:\n" in new
+    assert "Partly-reported" not in new and "-----" not in new
+    assert "# Cancellations\ndeletions:" in new
+    # Values: ISO dates (a month stays a month), nested, renamed, blanks dropped.
+    assert o["zed"]["dates"] == {"delivery": date(2026, 9, 30)}
+    assert o["Alice"]["vin"] == "1500" and o["Alice"]["dates"] == {
+        "order_date": "2026-11", "vin_assigned": date(2026, 9, 1)}
+    assert o["bob"]["dates"]["delivery"] == {"weeks": [4, 8]}
+    assert o["bob"]["config"] == {"wheels": "21” Liquid Tungsten All-Season"}
+    assert a["carol"] == {"source": "https://example.com/post-4",
+                          "as_of": date(2026, 9, 4), "location": "CA",
+                          "dates": {"delivery": {"between": [date(2026, 10, 12),
+                                                             date(2026, 10, 18)]}},
+                          "r1": {"owner": "Yes"}}, a["carol"]
+    assert a["Carl"]["purchase"] == "Lease"
+    assert a["Carl"]["dates"]["delivery"] == "unknown"
+    dave = data["deletions"]["orders"]["dave"]
+    assert dave["match"] == {"order_date": date(2026, 8, 1)}
+    # Field comments follow their field into its new place.
+    assert "post-2  # vin" in new and "      # a guess\n      order_date:" in new
+    # The same corrections, and a second run changes nothing.
+    assert mod._internal(yaml.safe_load(_MIGRATE_SAMPLE)) == mod._internal(data)
+    again, _ = mod.migrate(new)
     assert again == new
+
+
+def test_migration_refuses_what_v3_cannot_write():
+    mod = _migrate_mod()
+    bad = _MIGRATE_SAMPLE.replace('"4-8 weeks"', '"7/28 pushed back 8/4/26"')
+    try:
+        mod.migrate(bad)
+        raise AssertionError("an unparseable delivery has no v3 form")
+    except mod.MigrationError as exc:
+        assert "overrides bob" in str(exc), exc
+
+
+def test_overrides_yaml_is_canonical():
+    # Sorted, and in the form the migration writes: run it to fix this.
+    mod = _migrate_mod()
+    text = mod.FILE.read_text()
+    new, _ = mod.migrate(text)
+    assert new == text, "run ./tools/migrate_curation.py --write"
+
+
+def _v3(**sections):
+    import config
+    from ingest.curation import load
+    return load({"curation_version": 3, **sections}, config.CURATION_SCHEMA)
+
+
+def test_v3_loads_into_the_sheet_row_shape():
+    out = _v3(overrides={"u": {
+        "source": "https://x", "as_of": date(2026, 9, 1), "vin": "123XX",
+        "location": "CA", "purchase": "Lease",
+        "dates": {"resv_date": "2024-11", "order_date": date(2026, 7, 1),
+                  "vin_assigned": date(2026, 8, 1),
+                  "delivery": {"weeks": [2, 4], "from": date(2026, 9, 1)}},
+        "config": {"trim": "Performance", "spare": "Yes"},
+        "r1": {"owner": "Yes", "model": "R1T"}}},
+        deletions={"orders": {"d": {"source": "https://x", "as_of": date(2026, 9, 1),
+                                    "reason": "cancelled",
+                                    "match": {"order_date": date(2026, 8, 18),
+                                              "wheels": "20"}}}},
+        verified={"v": {"source": "https://x", "as_of": date(2026, 9, 1),
+                        "fields": ["vin", "delivery"]}})
+    u = out["overrides"]["u"]
+    assert u == {"source": "https://x", "as_of": date(2026, 9, 1),
+                 "dates": {"vin_assigned": date(2026, 8, 1)},
+                 "vin_raw": "123XX", "loc_raw": "CA", "buylease": "Lease",
+                 "resv_raw": "November 2024", "order_raw": "7/1/2026",
+                 "delivery_raw": "2-4 weeks", "delivery_from": "9/1/2026",
+                 "trim": "Performance", "spare": "Yes",
+                 "r1_owner": "Yes", "r1_model": "R1T"}, u
+    assert out["deletions"]["orders"]["d"]["match"] == {"order_raw": "8/18/2026",
+                                                       "wheels": "20"}
+    assert out["verified"]["v"]["fields"] == ["vin_raw", "delivery_raw"]
+    assert out["deletions"]["reservations"] == {}
+
+
+def test_v3_delivery_forms_parse_as_written():
+    from ingest.curation import delivery_text
+    from ingest.parsing import parse_simple_date
+    order = pd.Timestamp("2026-07-01")
+    cases = [
+        (date(2026, 8, 18), "explicit", "2026-08-18", "2026-08-18"),
+        ("2026-10", "month", "2026-10-01", "2026-10-31"),
+        ("unknown", "unknown", None, None),
+        ({"between": [date(2026, 10, 10), date(2026, 10, 24)]}, "range",
+         "2026-10-10", "2026-10-24"),
+        # A window counts from the order date, or from `from` when given later.
+        ({"weeks": [4, 8]}, "window", "2026-07-29", "2026-08-26"),
+        ({"weeks": 6}, "window", "2026-08-12", "2026-08-12"),
+        ({"days": [7, 10], "from": date(2026, 9, 1)}, "window",
+         "2026-09-08", "2026-09-11"),
+    ]
+    for v, typ, lo, hi in cases:
+        text, frm = delivery_text(v)
+        p = parse_delivery(text, parse_simple_date(frm) if frm else order)
+        assert p["type"] == typ, (v, text, p)
+        if lo:
+            assert (str(p["min"].date()), str(p["max"].date())) == (lo, hi), (v, p)
+    try:
+        delivery_text({"between": [date(2026, 10, 24), date(2026, 10, 10)]})
+        raise AssertionError("a backwards range must be refused")
+    except ValueError as exc:
+        assert "before the start" in str(exc)
+
+
+def test_v3_schema_refuses_what_it_does_not_describe():
+    from ingest.curation import CurationError
+    ok = {"source": "https://x", "as_of": date(2026, 9, 1)}
+    for entry, where in (
+            ({**ok, "vin_raw": "1"}, "overrides.u"),                  # v2 name
+            ({**ok, "dates": {"order_date": "8/6/2026"}}, "dates.order_date"),
+            ({**ok, "vin": 1500}, "overrides.u.vin"),                 # unquoted
+            ({**ok, "dates": {"delivery": {"weeks": [4, 8], "days": 3}}},
+             "dates.delivery"),
+            ({**ok, "config": {"paint": "Launch Green"}}, "overrides.u.config"),
+            ({"as_of": date(2026, 9, 1), "vin": "1"}, "overrides.u"),  # no source
+            ({**ok, "dates": {"order_date": "2026-13"}}, "dates.order_date")):
+        try:
+            _v3(overrides={"u": entry})
+            raise AssertionError("schema accepted %r" % entry)
+        except CurationError as exc:
+            assert where in str(exc), (where, str(exc))
+    try:
+        from ingest.curation import load
+        load({"curation_version": 2}, {})
+        raise AssertionError("a v2 file must be refused")
+    except CurationError as exc:
+        assert "migrate_curation" in str(exc)
+
+
+def test_override_compares_dates_by_value():
+    from ingest.loaders import _apply_overrides
+    df = _dedupe_frame([dict(BUILD, orig_num="1", user="a", order_raw="8/6/26",
+                             delivery_raw="9/30/26")])
+    df["key"] = ["a"]
+    df["delivery_from"] = ""
+    applied, issues = _apply_overrides(df, {"a": {"order_raw": "8/6/2026",
+                                                  "delivery_raw": "9/30/2026"}})
+    assert applied == [] and len(issues) == 2, (applied, issues)
+    assert all("can be removed" in i[2] for i in issues)
+    assert "dates.order_date" in issues[0][2] + issues[1][2]
+    # A window from a later date is a different estimate from the sheet's.
+    df.at[0, "delivery_raw"] = "4-8 weeks"
+    applied, _ = _apply_overrides(df, {"a": {"delivery_raw": "4-8 weeks",
+                                             "delivery_from": "9/1/2026"}})
+    assert [r[2] for r in applied] == ["dates.delivery: '4-8 weeks' → '4-8 weeks'",
+                                       "dates.delivery.from: '' → '9/1/2026'"], applied
 
 
 # --- Cross-snapshot sanity checks (#83) ---------------------------------------
