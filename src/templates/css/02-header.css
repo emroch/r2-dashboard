@@ -26,14 +26,14 @@
    pinned, a compact bar (#41), with the pills down to their glyphs. */
 .topbar {
   position: sticky;
-  top: calc(-1 * var(--header-tuck,0px));
+  top: calc(-1 * var(--header-tuck, 0px));
   z-index: 60;
   background: var(--header-bg);
   color: var(--topbar-fg);
   padding: 12px 24px;
   box-shadow: 0 2px 8px var(--topbar-sh);
   display: grid;
-  grid-template-columns: auto auto minmax(0,1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   column-gap: 14px;
   row-gap: 8px;
   align-items: center;
@@ -93,13 +93,13 @@
 .hdrmenu {
   position: relative;
 }
-.hdrmenu>summary {
+.hdrmenu > summary {
   list-style: none;
 }
-.hdrmenu>summary::-webkit-details-marker {
+.hdrmenu > summary::-webkit-details-marker {
   display: none;
 }
-.hdrmenu>summary::marker {
+.hdrmenu > summary::marker {
   content: "";
 }
 /* The menus' hover and current-item tints mix the theme's own ink and link
@@ -165,11 +165,11 @@
 .themepop button:hover {
   background: var(--menu-hover);
 }
-.themepop button[aria-pressed=true] {
+.themepop button[aria-pressed="true"] {
   background: var(--menu-current);
   font-weight: 600;
 }
-.themepop button[aria-pressed=true]::after {
+.themepop button[aria-pressed="true"]::after {
   content: "✓";
   margin-left: auto;
 }
@@ -183,7 +183,9 @@
   max-width: 8em;
   overflow: hidden;
   white-space: pre;
-  transition: max-width .25s ease, opacity .2s ease;
+  transition:
+    max-width 0.25s ease,
+    opacity 0.2s ease;
 }
 html.header-tucked .pill-label {
   max-width: 0;
@@ -212,7 +214,7 @@ html.header-tucked .pill-label {
 
 @media (width < 768px) {
   .topbar {
-    grid-template-columns: auto minmax(0,1fr);
+    grid-template-columns: auto minmax(0, 1fr);
   }
   .topbar p.disclaimer {
     grid-column: 1 / -1;
@@ -232,7 +234,7 @@ html.header-tucked .pill-label {
    no column for it. */
 @media (width >= 1072px) {
   .topbar {
-    grid-template-columns: auto minmax(0,1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .topbar p.disclaimer {
     grid-column: 1;

@@ -72,9 +72,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      # Settings live in eslint.config.js. Correctness rules only, no formatter.
+      # Settings live in eslint.config.js. Correctness rules only; style is
+      # prettier's, below.
       - name: eslint
         run: npx eslint .
+
+      # Formatting of the browser code, its CSS and the JS tooling
+      # (.prettierrc.json; package.json's "format" names the paths). A failure is
+      # fixed by running `./ci_env format` (or `npm run format`) and committing.
+      - name: prettier
+        run: npm run format:check
 
       # The browser code's unit tests, under node's built-in runner.
       - name: node --test

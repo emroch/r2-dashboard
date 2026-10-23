@@ -9,40 +9,53 @@
 //
 // Anything drawn by script listens for it and redraws from its own spec
 // (docs/presentation.md, "Theming"); nothing is re-tinted by trace index.
-(function(){
-var root=document.documentElement;
-var os=window.matchMedia('(prefers-color-scheme: dark)');
-function saved(){
- try{var t=localStorage.getItem('r2-theme');}catch{t=null;}
- return t==='light'||t==='dark'?t:'system';
-}
-var mode=saved(), shown=null;
-function apply(){
- var t=mode==='system'?(os.matches?'dark':'light'):mode;
- root.setAttribute('data-theme',t);
- var g=document.querySelector('#themeMenu .theme-glyph');
- // ☀ Light, ☾ Dark, ◐ System: the pill shows the choice, not just the result.
- if(g)g.textContent=mode==='system'?'\u25d0':mode==='dark'?'\u263e':'\u2600';
- document.querySelectorAll('#themeMenu [data-mode]').forEach(function(b){
-  b.setAttribute('aria-pressed',String(b.getAttribute('data-mode')===mode));
- });
- // The tab bar / status bar tint (Safari, mobile browsers) follows the header.
- var m=document.getElementById('theme-color');
- var hdr=getComputedStyle(root).getPropertyValue('--header-bg').trim();
- if(m&&hdr)m.setAttribute('content',hdr);
- if(t!==shown){shown=t;
-  document.dispatchEvent(new CustomEvent('r2:themechange',{detail:{theme:t}}));}
-}
-os.addEventListener('change',function(){if(mode==='system')apply();});
-window.addEventListener('load',function(){
- apply();
- document.querySelectorAll('#themeMenu [data-mode]').forEach(function(b){
-  b.addEventListener('click',function(){
-   mode=b.getAttribute('data-mode');
-   try{if(mode==='system')localStorage.removeItem('r2-theme');
-       else localStorage.setItem('r2-theme',mode);}catch{/* best effort */}
-   apply();
+(function () {
+  var root = document.documentElement;
+  var os = window.matchMedia("(prefers-color-scheme: dark)");
+  function saved() {
+    try {
+      var t = localStorage.getItem("r2-theme");
+    } catch {
+      t = null;
+    }
+    return t === "light" || t === "dark" ? t : "system";
+  }
+  var mode = saved(),
+    shown = null;
+  function apply() {
+    var t = mode === "system" ? (os.matches ? "dark" : "light") : mode;
+    root.setAttribute("data-theme", t);
+    var g = document.querySelector("#themeMenu .theme-glyph");
+    // ☀ Light, ☾ Dark, ◐ System: the pill shows the choice, not just the result.
+    if (g) g.textContent = mode === "system" ? "\u25d0" : mode === "dark" ? "\u263e" : "\u2600";
+    document.querySelectorAll("#themeMenu [data-mode]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === mode));
+    });
+    // The tab bar / status bar tint (Safari, mobile browsers) follows the header.
+    var m = document.getElementById("theme-color");
+    var hdr = getComputedStyle(root).getPropertyValue("--header-bg").trim();
+    if (m && hdr) m.setAttribute("content", hdr);
+    if (t !== shown) {
+      shown = t;
+      document.dispatchEvent(new CustomEvent("r2:themechange", { detail: { theme: t } }));
+    }
+  }
+  os.addEventListener("change", function () {
+    if (mode === "system") apply();
   });
- });
-});
+  window.addEventListener("load", function () {
+    apply();
+    document.querySelectorAll("#themeMenu [data-mode]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        mode = b.getAttribute("data-mode");
+        try {
+          if (mode === "system") localStorage.removeItem("r2-theme");
+          else localStorage.setItem("r2-theme", mode);
+        } catch {
+          /* best effort */
+        }
+        apply();
+      });
+    });
+  });
 })();

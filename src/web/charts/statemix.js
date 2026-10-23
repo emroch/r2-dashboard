@@ -36,7 +36,8 @@ export function stateNames(us) {
 // A row's segments, as "count label (share)" text and the bar's marks.
 export function split(counts, cats) {
   const n = counts.reduce((a, b) => a + b, 0);
-  const parts = cats.map((c, i) => ({ c, k: counts[i], pct: n ? (100 * counts[i]) / n : 0 }))
+  const parts = cats
+    .map((c, i) => ({ c, k: counts[i], pct: n ? (100 * counts[i]) / n : 0 }))
     .filter((p) => p.k);
   return { n, parts };
 }
@@ -89,8 +90,11 @@ export function draw(el, spec, names) {
   }
   const tellMap = () => {
     const map = doc.querySelector(`[data-chart="${spec.map}"]`);
-    map?.dispatchEvent(new (doc.defaultView?.CustomEvent ?? CustomEvent)("r2:stateset",
-      { detail: { code: selected } }));
+    map?.dispatchEvent(
+      new (doc.defaultView?.CustomEvent ?? CustomEvent)("r2:stateset", {
+        detail: { code: selected },
+      }),
+    );
   };
   picker.addEventListener("change", () => {
     select(picker.value || null);
@@ -121,15 +125,25 @@ export function draw(el, spec, names) {
     const bar = make("span", "mx-bar");
     bar.setAttribute("aria-hidden", "true");
     for (const { c, k, pct } of parts) {
-      const seg = make("i", c.stage ? `mark tr-neutral stage-${c.stage}`
-        : `mark${m.true ? " mark-true" : ""} ${categoryClass(c.color)}`);
+      const seg = make(
+        "i",
+        c.stage
+          ? `mark tr-neutral stage-${c.stage}`
+          : `mark${m.true ? " mark-true" : ""} ${categoryClass(c.color)}`,
+      );
       seg.style.width = `${pct.toFixed(2)}%`;
       // Its hover popover (lib/barhover.js), as the HTML mix rows have.
       seg.dataset.tip = `${label}\n${c.label}: ${fmt(k)} of ${fmt(n)} (${Math.round(pct)}%)`;
       bar.append(seg);
     }
-    li.append(bar, make("span", "tr-split",
-      parts.map((p) => `${fmt(p.k)} ${p.c.label} (${Math.round(p.pct)}%)`).join(" · ")));
+    li.append(
+      bar,
+      make(
+        "span",
+        "tr-split",
+        parts.map((p) => `${fmt(p.k)} ${p.c.label} (${Math.round(p.pct)}%)`).join(" · "),
+      ),
+    );
     return li;
   }
 
@@ -143,8 +157,12 @@ export function draw(el, spec, names) {
     key.setAttribute("aria-hidden", "true");
     for (const c of m.cats) {
       const s = make("span");
-      const sw_ = make("i", c.stage ? `mark tr-neutral stage-${c.stage} mx-chip`
-        : `swatch${m.true ? " swatch-true" : ""} ${categoryClass(c.color)}`);
+      const sw_ = make(
+        "i",
+        c.stage
+          ? `mark tr-neutral stage-${c.stage} mx-chip`
+          : `swatch${m.true ? " swatch-true" : ""} ${categoryClass(c.color)}`,
+      );
       s.append(sw_, doc.createTextNode(c.label));
       key.append(s);
     }
@@ -162,8 +180,11 @@ export function draw(el, spec, names) {
         note = `${left} state${left === 1 ? "" : "s"} with fewer than ${spec.small_n} orders ${left === 1 ? "is" : "are"} left out; pick one to see it.`;
       }
     } else if (selected) {
-      rows.push(st ? row(names[selected], st[m.key], m, "mx-row")
-        : make("li", "mx-row mx-empty", `No orders from ${names[selected]} yet.`));
+      rows.push(
+        st
+          ? row(names[selected], st[m.key], m, "mx-row")
+          : make("li", "mx-row mx-empty", `No orders from ${names[selected]} yet.`),
+      );
       if (st && st.n < spec.small_n) {
         note = `Only ${st.n} order${st.n === 1 ? "" : "s"} from ${names[selected]}: one order moves its mix by ${Math.round(100 / st.n)} points.`;
       }

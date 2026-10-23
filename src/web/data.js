@@ -8,7 +8,9 @@ export function view(url = "r2_view.json", fetchImpl = globalThis.fetch) {
       if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
       return r.json();
     });
-    pending.catch(() => { pending = null; });
+    pending.catch(() => {
+      pending = null;
+    });
   }
   return pending;
 }

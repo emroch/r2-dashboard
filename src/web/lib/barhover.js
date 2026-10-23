@@ -29,7 +29,10 @@ export function wireBarHover(root) {
   const show = (ev) => {
     const lines = tipLines(ev.target);
     const host = lines && ev.target.closest(".r2c, .intro");
-    if (!host) { hide(); return; }
+    if (!host) {
+      hide();
+      return;
+    }
     const t = tipFor(host);
     if (shown && shown !== t) shown.hide();
     const box = host.getBoundingClientRect();

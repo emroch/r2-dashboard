@@ -26,12 +26,12 @@
   padding: 2px 9px;
   cursor: pointer;
 }
-.lg-item[aria-pressed=false] {
-  opacity: .38;
+.lg-item[aria-pressed="false"] {
+  opacity: 0.38;
 }
 .lg-item .swatch {
-  width: .75em;
-  height: .75em;
+  width: 0.75em;
+  height: 0.75em;
 }
 
 /* An open series' swatch is hollow, like its points. */
@@ -54,10 +54,10 @@
 /* A view switch (Weekly / Cumulative): both choices look clickable, and the
    current one is filled, unlike a legend entry, whose unpressed state means
    hidden. */
-.chart-switch .lg-item[aria-pressed=false] {
+.chart-switch .lg-item[aria-pressed="false"] {
   opacity: 1;
 }
-.chart-switch .lg-item[aria-pressed=true] {
+.chart-switch .lg-item[aria-pressed="true"] {
   background: var(--fg);
   color: var(--card-bg);
   border-color: var(--fg);
@@ -82,7 +82,7 @@
 .seg .lg-item:last-child {
   border-radius: 0 12px 12px 0;
 }
-.seg .lg-item[aria-pressed=true],
+.seg .lg-item[aria-pressed="true"],
 .seg .lg-item:focus-visible {
   z-index: 1;
 }
@@ -127,7 +127,7 @@
 .chart-svg .pt {
   fill: var(--mark);
   stroke: var(--desc);
-  stroke-width: .8;
+  stroke-width: 0.8;
 }
 /* A true-color point (a paint): the fill is the paint itself, so the greys
    and darks stay apart, and the mark-edge outline holds 3:1 on the card. */
@@ -177,10 +177,10 @@
   --tone: 30%;
 }
 .chart-svg [class*="tone-"] .bar {
-  fill: color-mix(in oklab,var(--mark) var(--tone),white);
+  fill: color-mix(in oklab, var(--mark) var(--tone), white);
 }
 .lg-item .swatch[class*="tone-"] {
-  background: color-mix(in oklab,var(--mark) var(--tone),white);
+  background: color-mix(in oklab, var(--mark) var(--tone), white);
 }
 
 /* On the dark card the stages step darker instead, duller like the take-rate
@@ -196,10 +196,10 @@ html[data-theme="dark"] .tone-wait {
   --tone: 56%;
 }
 html[data-theme="dark"] .chart-svg [class*="tone-"] .bar {
-  fill: color-mix(in oklab,var(--mark) var(--tone),black);
+  fill: color-mix(in oklab, var(--mark) var(--tone), black);
 }
 html[data-theme="dark"] .lg-item .swatch[class*="tone-"] {
-  background: color-mix(in oklab,var(--mark) var(--tone),black);
+  background: color-mix(in oklab, var(--mark) var(--tone), black);
 }
 
 /* The current week, still under way (timeseries x.partial), crosshatched in the
@@ -218,17 +218,17 @@ html[data-theme="dark"] .lg-item .swatch[class*="tone-"] {
   fill: var(--stat-bg);
 }
 .chart-svg [class*="tone-"] .bar.active {
-  fill: color-mix(in oklab,var(--stat-bg) var(--tone),white);
+  fill: color-mix(in oklab, var(--stat-bg) var(--tone), white);
 }
 html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
-  fill: color-mix(in oklab,var(--stat-bg) var(--tone),black);
+  fill: color-mix(in oklab, var(--stat-bg) var(--tone), black);
 }
 
 /* The hover rule over a line chart (timeseries). */
 .chart-svg .hover-rule {
   stroke: var(--desc);
   stroke-width: 1;
-  stroke-dasharray: 3,3;
+  stroke-dasharray: 3, 3;
   pointer-events: none;
 }
 
@@ -244,13 +244,13 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
 }
 .chart-svg .whisker {
   stroke: var(--mark);
-  stroke-opacity: .55;
+  stroke-opacity: 0.55;
   stroke-width: 1.4;
   fill: none;
 }
 .chart-svg .rule line {
   stroke: var(--desc);
-  stroke-dasharray: 4,3;
+  stroke-dasharray: 4, 3;
 }
 .chart-svg .rule text {
   fill: var(--desc);
@@ -283,7 +283,7 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
 /* Box view (charts/scatter.js toggles.boxes): the middle half filled lightly,
    the median a solid tick, the whiskers thin. */
 .chart-svg .box-iqr {
-  fill: color-mix(in oklab,var(--mark) 22%,transparent);
+  fill: color-mix(in oklab, var(--mark) 22%, transparent);
   stroke: var(--mark);
   stroke-width: 1.2;
 }
@@ -326,7 +326,7 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
 @media (width >= 768px) {
   .fl-group {
     display: grid;
-    grid-template-columns: 4.5em minmax(0,1fr);
+    grid-template-columns: 4.5em minmax(0, 1fr);
     align-items: baseline;
   }
 }
@@ -366,8 +366,8 @@ html[data-theme="dark"] .chart-svg [class*="tone-"] .bar.active {
   border-radius: 50%;
 }
 .swatch.sym-diamond {
-  transform: rotate(45deg) scale(.85);
+  transform: rotate(45deg) scale(0.85);
 }
 .swatch.sym-triangle-up {
-  clip-path: polygon(50% 0,100% 100%,0 100%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }

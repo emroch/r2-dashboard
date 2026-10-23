@@ -22,9 +22,15 @@ export { templates };
 // IntersectionObserver).
 export function whenNear(el, fn, margin = "600px") {
   if (typeof IntersectionObserver === "undefined") return fn();
-  const obs = new IntersectionObserver((entries) => {
-    if (entries.some((e) => e.isIntersecting)) { obs.disconnect(); fn(); }
-  }, { rootMargin: margin });
+  const obs = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        obs.disconnect();
+        fn();
+      }
+    },
+    { rootMargin: margin },
+  );
   obs.observe(el);
 }
 
@@ -41,18 +47,26 @@ export function boot(root, registry = templates, schedule = (el, fn) => fn()) {
       continue;
     }
     el.dataset.chartState = "waiting";
-    mounted.push(new Promise((done) => schedule(el, () => {
-      el.dataset.chartState = "loading";
-      Promise.resolve()
-        .then(load)
-        .then((mod) => mod.mount(el))
-        .then(() => { el.dataset.chartState = "ready"; },
+    mounted.push(
+      new Promise((done) =>
+        schedule(el, () => {
+          el.dataset.chartState = "loading";
+          Promise.resolve()
+            .then(load)
+            .then((mod) => mod.mount(el))
+            .then(
+              () => {
+                el.dataset.chartState = "ready";
+              },
               (err) => {
                 el.dataset.chartState = "failed";
                 console.error("chart %s failed to load", el.dataset.chart, err);
-              })
-        .then(done);
-    })));
+              },
+            )
+            .then(done);
+        }),
+      ),
+    );
   }
   return Promise.all(mounted);
 }

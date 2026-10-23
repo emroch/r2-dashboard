@@ -14,7 +14,10 @@
 #   ./ci_env check     lint + types + tests (Python and JS) + build, i.e. what
 #                      CI does on a PR
 #   ./ci_env lint      ruff check + mypy (pyproject.toml) + eslint (eslint.config.js)
-#   ./ci_env js        just the JS: eslint + the node --test suite
+#                      + prettier --check (.prettierrc.json)
+#   ./ci_env js        just the JS: eslint + prettier --check + the node --test suite
+#   ./ci_env format    rewrite the browser code, its CSS and the JS tooling in
+#                      prettier's style (what the check asks for)
 #   ./ci_env shell     print the activate line for an interactive session
 #   ./ci_env python …  run any python command under the CI stack
 #   ./ci_env sync      (re)create the venv from requirements.txt and exit
@@ -28,7 +31,7 @@
 #
 #   ./ci_env test --both
 #
-# The JS tools (eslint, and the wrangler the deploys use) come from
+# The JS tools (eslint, prettier, and the wrangler the deploys use) come from
 # package-lock.json via `npm ci`, into node_modules/, reinstalled when the
 # lockfile changes. Node itself is whatever is installed (.nvmrc names CI's).
 set -euo pipefail
@@ -105,7 +108,7 @@ py_tests() {
     for f in tests/test_*.py; do "$1" "$f" || return 1; done
 }
 
-js_lint() { js_deps; npx --no-install eslint .; }
+js_lint() { js_deps; npx --no-install eslint .; npm run --silent format:check; }
 js_test() { js_deps; npm test --silent; }
 
 cmd="${1:-test}"
@@ -141,6 +144,10 @@ print("ready: python %s | pandas %s | numpy %s"
     js)
         js_lint
         js_test
+        ;;
+    format)
+        js_deps
+        npm run --silent format
         ;;
     check)
         banner "CI stack" "$PY"

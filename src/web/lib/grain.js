@@ -32,12 +32,21 @@ function firstWeek(y, mo) {
 export function groupOf(d, grain) {
   const mon = monday(d);
   if (grain === "week") {
-    return { key: mon.toISOString().slice(0, 10), start: mon, end: new Date(mon.getTime() + 7 * DAY) };
+    return {
+      key: mon.toISOString().slice(0, 10),
+      start: mon,
+      end: new Date(mon.getTime() + 7 * DAY),
+    };
   }
   const thu = new Date(mon.getTime() + 3 * DAY);
   const step = grain === "quarter" ? 3 : 1;
-  const y = thu.getUTCFullYear(), mo = thu.getUTCMonth() - (thu.getUTCMonth() % step);
-  return { key: `${y}-${String(mo + 1).padStart(2, "0")}`, start: firstWeek(y, mo), end: firstWeek(y, mo + step) };
+  const y = thu.getUTCFullYear(),
+    mo = thu.getUTCMonth() - (thu.getUTCMonth() % step);
+  return {
+    key: `${y}-${String(mo + 1).padStart(2, "0")}`,
+    start: firstWeek(y, mo),
+    end: firstWeek(y, mo + step),
+  };
 }
 
 const short = (d) => `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
@@ -49,10 +58,14 @@ export function heading(grain, first, last, sofar = false) {
   if (grain === "week") return `Week of ${long(first)}${sofar ? " (so far)" : ""}`;
   // Named by the month (or quarter) its first week's Thursday is in.
   const thu = new Date(first.getTime() + 3 * DAY);
-  const name = grain === "quarter" ? `Q${Math.floor(thu.getUTCMonth() / 3) + 1} ${thu.getUTCFullYear()}`
-    : `${MONTHS[thu.getUTCMonth()]} ${thu.getUTCFullYear()}`;
-  const weeks = first.getTime() === last.getTime() ? `week of ${short(first)}`
-    : `weeks of ${short(first)} – ${short(last)}`;
+  const name =
+    grain === "quarter"
+      ? `Q${Math.floor(thu.getUTCMonth() / 3) + 1} ${thu.getUTCFullYear()}`
+      : `${MONTHS[thu.getUTCMonth()]} ${thu.getUTCFullYear()}`;
+  const weeks =
+    first.getTime() === last.getTime()
+      ? `week of ${short(first)}`
+      : `weeks of ${short(first)} – ${short(last)}`;
   return `${name} (${weeks}${sofar ? ", so far" : ""})`;
 }
 
