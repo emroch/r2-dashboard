@@ -560,7 +560,69 @@ def shared_vins(df: pd.DataFrame) -> list[tuple[str, str, str]]:
     return out
 
 
-def load_and_clean(text, meta, keys=None, changed=None):
+def _reservation_frame(text):
+    """The reservations sheet's mapped columns, blank-username rows dropped.
+    Returns (frame, schema_notices)."""
+    records = list(csv.reader(io.StringIO(text)))
+    hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
+                                 RESV_LABEL)
+    idx, schema_notices = map_columns(header, RESERVATIONS_COLUMNS,
+                                      RESV_IGNORED, RESV_LABEL)
+    resv = _extract(records, hdr_idx, idx, RESERVATIONS_COLUMNS)
+    return resv[resv["user"] != ""].reset_index(drop=True), schema_notices
+
+
+# What an order may take from its holder's row in the reservations sheet, and
+# how the audit line names it. The R1 answers travel as a pair: filling only the
+# model under a sheet "No" would flip the owner (parsing.reconcile_r1_owner).
+_RESV_FILL = (("resv_raw", "reservation date"), ("loc_raw", "location"))
+_RESV_R1 = ("r1_owner", "r1_model")
+
+
+def _fill_from_reservations(df, resv_text):
+    """Fill an order's BLANK reservation date, location and R1 answers from the
+    same username's row in the reservations sheet (the first, as the reservation
+    cohort keeps). The R1 pair is filled only when the order has neither answer.
+
+    The two sheets are different forms, and a holder who has ordered may have
+    filled in one but not the other, or been added from the forum. Blanks only:
+    a value the order sheet or overrides.yaml gives always stands — where both
+    sheets give a reservation date they disagree about one time in six, and
+    nothing here says which is right. In place; returns the audit records."""
+    if resv_text is None:
+        return []
+    resv, _ = _reservation_frame(resv_text)
+    by_user: dict[str, pd.Series] = {}
+    for _, r in resv.iterrows():
+        by_user.setdefault(str(r["user"]).strip().lower(), r)
+    records = []
+    for i in df.index:
+        r = by_user.get(str(df.at[i, "user"]).strip().lower())
+        if r is None:
+            continue
+        blank = {c: str(df.at[i, c]).strip() == ""
+                 for c in (*(c for c, _ in _RESV_FILL), *_RESV_R1)}
+        filled = []
+        for col, what in _RESV_FILL:
+            v = str(r[col]).strip()
+            if v and blank[col]:
+                df.at[i, col] = v
+                filled.append("%s %r" % (what, v))
+        if all(blank[c] for c in _RESV_R1):
+            pair = [(c, str(r[c]).strip()) for c in _RESV_R1]
+            for c, v in pair:
+                df.at[i, c] = v
+            got = ", ".join(v for _, v in pair if v)
+            if got:
+                filled.append("R1 owner %r" % got)
+        if filled:
+            records.append((df.at[i, "orig_num"], df.at[i, "user"],
+                            "%s (reservations sheet #%s)"
+                            % (", ".join(filled), r["orig_num"])))
+    return records
+
+
+def load_and_clean(text, meta, keys=None, changed=None, resv_text=None):
     """Clean the orders sheet. Returns (df, report, parsed).
 
     keys     "#" -> order key for this snapshot (history.current_keys). Without
@@ -614,6 +676,10 @@ def load_and_clean(text, meta, keys=None, changed=None):
     add_df, add_records, add_issues = _apply_additions(df, ADDITIONS)
     if add_df is not None:
         df = pd.concat([df, add_df], ignore_index=True)
+    # --- Blanks the holder's reservation row can fill, after curation (so a
+    #     curated value stands) and before any parsing (so a filled value is
+    #     cleaned like the rest). ---
+    resv_fill_records = _fill_from_reservations(df, resv_text)
     # n_dedup (the final cohort size the dashboard counts) is set after the
     # not-yet-orderable-config drop below, so it excludes those rows.
 
@@ -884,6 +950,7 @@ def load_and_clean(text, meta, keys=None, changed=None):
             "Likely entry errors set aside": set_aside,
             "Manual fix-ups": override_records,
             "Manual additions": add_records,
+            "Filled from reservations": resv_fill_records,
             "Removed by curation": del_records,
         },
         "quality": {
@@ -922,28 +989,25 @@ def load_reservations(text, order_users, cancelled_users=()):
     """Parse the reservations-only sheet and return (resv_df, resv_report).
 
     A different form from the orders sheet (columns: #, Username, R2 reservation
-    date, Location, R1-owner questions — no order/VIN/config/delivery), and its
-    R1 answers aren't charted, so only four columns are mapped; they're located
-    by name exactly as the orders sheet's are. Steps: drop within-sheet duplicate
+    date, Location, R1-owner questions — no order/VIN/config/delivery), its
+    columns located by name exactly as the orders sheet's are. The R1 answers
+    aren't charted here; they only fill an order's blanks
+    (_fill_from_reservations). Steps: drop within-sheet duplicate
     usernames; drop reservations cancelled via overrides.yaml; drop holders
     already present in the orders sheet (they are counted as orders — the
     remainder are "incomplete" orders) and anyone whose order was cancelled, since
     they have left the dataset rather than reverted to holding a reservation; null
     pre-reveal (<2024-03-07) reservation dates; geo-enrich by state.
     """
-    records = list(csv.reader(io.StringIO(text)))
-    hdr_idx, header = find_header(records, RESERVATIONS_COLUMNS["user"],
-                                 RESV_LABEL)
-    idx, schema_notices = map_columns(header, RESERVATIONS_COLUMNS,
-                                      RESV_IGNORED, RESV_LABEL)
-    resv = _extract(records, hdr_idx, idx, RESERVATIONS_COLUMNS)
-    resv = resv[resv["user"] != ""].reset_index(drop=True)
+    resv, schema_notices = _reservation_frame(text)
     n_raw = len(resv)
 
     # Within-sheet duplicate usernames: keep first, record the rest.
     resv["_ukey"] = resv["user"].str.lower()
     dup_mask = resv["_ukey"].duplicated(keep="first")
-    self_dupe_records = [(r["orig_num"], r["user"], "repeat entry (kept first)")
+    kept_row = dict(zip(resv["_ukey"][~dup_mask], resv["orig_num"][~dup_mask]))
+    self_dupe_records = [(r["orig_num"], r["user"],
+                          "repeat of #%s (kept)" % kept_row[r["_ukey"]])
                          for _, r in resv[dup_mask].iterrows()]
     resv = resv[~dup_mask]
     n_self_dupes = int(dup_mask.sum())
@@ -956,10 +1020,24 @@ def load_reservations(text, order_users, cancelled_users=()):
     # Remove reservation-holders who already appear in the orders sheet, and
     # anyone whose ORDER was cancelled — the latter have left the dataset, so
     # dropping out of the orders cohort must not float them back up here.
-    order_keys = {u.lower() for u in order_users}
+    # order_users: usernames, or username -> the order's row number(s) ("#"), so
+    # the audit line can name the order a reservation matched.
+    order_rows: dict[str, list[str]] = {}
+    pairs = (order_users.items() if isinstance(order_users, dict)
+             else ((u, []) for u in order_users))
+    for u, nums in pairs:
+        nums = [nums] if isinstance(nums, str) else list(nums)
+        order_rows.setdefault(str(u).lower(), []).extend(str(n) for n in nums)
     cancelled_keys = {str(u).strip().lower() for u in cancelled_users}
-    matched = resv["_ukey"].isin(order_keys)
-    matched_records = [(r["orig_num"], r["user"], "already in orders sheet")
+    matched = resv["_ukey"].isin(order_rows)
+
+    def _where(key):
+        nums = order_rows[key]
+        sheet = ["#%s" % n for n in nums if n != "add"]
+        added = "added in overrides.yaml" if "add" in nums else ""
+        return "already an order (%s)" % ", ".join(
+            sheet + ([added] if added else [])) if nums else "already an order"
+    matched_records = [(r["orig_num"], r["user"], _where(r["_ukey"]))
                        for _, r in resv[matched].iterrows()]
     n_matched = int(matched.sum())
     resv = resv[~matched]

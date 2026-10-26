@@ -53,13 +53,16 @@ orders_columns:
   r1_owner:     "Are you a current Rivian R1 owner?"
   r1_model:     "If you are a current R1 owner, which model?"
 
-# The reservations sheet is a different form (no order/VIN/config/delivery), and
-# its R1-owner answers aren't charted, so only these four are read.
+# The reservations sheet is a different form (no order/VIN/config/delivery). Its
+# R1-owner answers aren't charted for reservations; they, the reservation date
+# and the location fill an order's blanks when the holder has ordered.
 reservations_columns:
   orig_num: "#"
   user: "Username"
   resv_raw: "R2 reservation date"
   loc_raw: "Location"
+  r1_owner: "Are you a current Rivian R1 owner?"
+  r1_model: "If you are a current R1 owner, which model?"
 
 # Columns each sheet has that we deliberately don't read. Listing them keeps the
 # data-quality panel quiet about the known extras while still reporting any NEW
@@ -73,9 +76,7 @@ ignored_columns:
     - "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
     - "Other vehicles currently owned"
   reservations:
-    - "Are you a current Rivian R1 owner?"
     - "If you are a current R1 owner, will you be keeping your R1 and adding an R2?"
-    - "If you are a current R1 owner, which model?"
     - "Other vehicles currently owned"
 
 # Sanitization bounds. The upper bound for dates is always "today" (AS_OF).

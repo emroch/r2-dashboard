@@ -283,6 +283,7 @@ def build_dashboard(df, report, resv, view):
         # Added or corrected
         "Manual additions": "Forum-only orders added in overrides.yaml (not in the sheet).",
         "Manual fix-ups": "Fields set or corrected in overrides.yaml (field: old → new).",
+        "Filled from reservations": "Blank reservation dates, locations and R1 answers taken from the same username's row in the reservations sheet. A value the orders sheet or overrides.yaml gives is never replaced.",
         "Recovered VINs": "VINs with leading X's, recovered from the digits that remain (original → value).",
         "Contradictory answers": "Rows where two answers can't both be right, with the reading assumed. The Launch Package column beats Autonomy+ and Tow; a named R1 model beats \"not an owner\".",
         # Flagged, not changed
@@ -329,6 +330,7 @@ def build_dashboard(df, report, resv, view):
         ("Added or corrected", [
             ("Manual additions", report["n_added"], san["Manual additions"]),
             card("Manual fix-ups", san["Manual fix-ups"]),
+            card("Filled from reservations", san["Filled from reservations"]),
             ("Recovered VINs", report["vin_obfuscated"], san["VINs de-obfuscated"]),
             card("Contradictory answers", q["answer_conflicts"]),
         ]),

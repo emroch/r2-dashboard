@@ -52,7 +52,8 @@ def main(argv=None):
     oh = histories["orders"]
     df, report, parsed = load_and_clean(orders_text, orders_meta,
                                         keys=current_keys(oh),
-                                        changed=current_runs(oh))
+                                        changed=current_runs(oh),
+                                        resv_text=resv_text)
 
     # Cross-snapshot checks (ingest/timeline.py) join the data-quality panel.
     # Fields an override already sets are left out: their sheet history no
@@ -66,7 +67,10 @@ def main(argv=None):
 
     # cancelled_users keeps a cancelled ORDER from reappearing as an outstanding
     # reservation just because it left the orders cohort.
-    resv, resv_report = load_reservations(resv_text, set(df["user"]),
+    order_rows: dict[str, list[str]] = {}
+    for u, n in zip(df["user"], df["orig_num"]):
+        order_rows.setdefault(u, []).append(n)
+    resv, resv_report = load_reservations(resv_text, order_rows,
                                           report["cancelled_users"])
     report["orders_meta"] = orders_meta
     report["resv_meta"] = resv_meta
