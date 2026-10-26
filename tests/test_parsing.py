@@ -1071,7 +1071,8 @@ def test_mapped_columns_may_be_reordered():
         assert header[idx[field]] == want
     header = list(reversed(_reservations_header()))
     idx, notices = _map_resv(header)
-    assert notices == [] and len(idx) == 4
+    from config import RESERVATIONS_COLUMNS
+    assert notices == [] and len(idx) == len(RESERVATIONS_COLUMNS)
 
 
 def test_a_column_inserted_anywhere_is_harmless():
@@ -1245,6 +1246,72 @@ def test_a_curated_window_counts_from_its_own_date():
     assert got["later"] == ("2026-09-15", "2026-09-29"), got
     assert got["plain"] == ("2026-06-29", "2026-07-13"), got
     assert "delivery_from" not in df.columns
+
+
+def test_blanks_fill_from_the_holders_reservation_row():
+    # An order's blank reservation date, location and R1 answers come from the
+    # same username's reservations-sheet row; anything already given stands.
+    from config import RESERVATIONS_COLUMNS
+    from ingest import loaders
+    header = _reservations_header()
+    rows = [{"orig_num": "7", "user": "Tester", "resv_raw": "3/7/2024",
+             "loc_raw": "CA", "r1_owner": "Yes", "r1_model": "R1S"},
+            {"orig_num": "8", "user": "KCSF", "resv_raw": "12/9/2024",
+             "loc_raw": "NM", "r1_owner": "No", "r1_model": ""},
+            {"orig_num": "9", "user": "tester", "resv_raw": "1/1/2025",
+             "loc_raw": "TX", "r1_owner": "No", "r1_model": ""}]
+    out = io.StringIO()
+    csv.writer(out).writerows(
+        [header] + [[{RESERVATIONS_COLUMNS[f]: v for f, v in r.items()}.get(h, "")
+                     for h in header] for r in rows])
+    add = {"kcsf": {"source": "https://x", "as_of": "2026-10-07",
+                    "resv_raw": "12/8/2024", "order_raw": "9/8/2026",
+                    "trim": "Performance", "color": "Midnight"}}
+    old = loaders.ADDITIONS, loaders.OVERRIDES
+    loaders.ADDITIONS, loaders.OVERRIDES = add, {}
+    try:
+        df, report, _ = loaders.load_and_clean(
+            _orders_csv(_orders_header()), {"label": "test orders sheet"},
+            resv_text=out.getvalue())
+    finally:
+        loaders.ADDITIONS, loaders.OVERRIDES = old
+    t = df[df["user"] == "tester"].iloc[0]
+    k = df[df["user"] == "kcsf"].iloc[0]
+    # The first reservation row counts; the sheet's IL and kcsf's own date stand.
+    assert str(t["resv_date"].date()) == "2024-03-07" and t["state"] == "IL"
+    assert (t["r1_owner"], t["r1_model"]) == ("Yes", "R1S")
+    assert str(k["resv_date"].date()) == "2024-12-08" and k["state"] == "NM"
+    assert k["r1_owner"] == "No"
+    rec = {u: d for _, u, d in report["sanitized"]["Filled from reservations"]}
+    assert rec["tester"] == ("reservation date '3/7/2024', R1 owner 'Yes, R1S' "
+                             "(reservations sheet #7)"), rec
+    assert rec["kcsf"] == "location 'NM', R1 owner 'No' (reservations sheet #8)"
+    # Without the reservations sheet, nothing is filled.
+    df, report, _ = loaders.load_and_clean(_orders_csv(_orders_header()),
+                                           {"label": "test orders sheet"})
+    assert report["sanitized"]["Filled from reservations"] == []
+
+
+def test_reservation_audit_names_the_other_row():
+    # A repeat names the row kept; a converted reservation names its order.
+    from config import RESERVATIONS_COLUMNS
+    from ingest.loaders import load_reservations
+    hdr = ["", *RESERVATIONS_COLUMNS.values()]
+    rows = [["", "1", "amy", "3/7/2024", "CA", "No", ""],
+            ["", "2", "Amy", "3/8/2024", "CA", "No", ""],
+            ["", "3", "bo", "3/7/2024", "TX", "No", ""],
+            ["", "4", "cy", "3/7/2024", "TX", "No", ""]]
+    out = io.StringIO()
+    csv.writer(out).writerows([hdr] + rows)
+    _, rep = load_reservations(out.getvalue(),
+                               {"amy": ["12", "40"], "bo": ["add"]})
+    assert rep["self_dupe_records"] == [("2", "Amy", "repeat of #1 (kept)")]
+    assert rep["matched_records"] == [
+        ("1", "amy", "already an order (#12, #40)"),
+        ("3", "bo", "already an order (added in overrides.yaml)")]
+    # A plain set of usernames still works, without row numbers.
+    _, rep = load_reservations(out.getvalue(), {"cy"})
+    assert rep["matched_records"] == [("4", "cy", "already an order")]
 
 
 def test_column_letters_match_spreadsheet_labels():
@@ -1683,11 +1750,12 @@ def test_cancelled_order_does_not_resurface_as_a_reservation():
     import io as _io
     from config import RESERVATIONS_COLUMNS
     from ingest.loaders import load_reservations
-    hdr = ["", "#", "Username", RESERVATIONS_COLUMNS["resv_raw"], "Location"]
-    rows = [hdr, ["", "1", "quitter", "3/7/2024", "CA"],
-            ["", "2", "holder", "3/7/2024", "TX"]]
+    hdr = ["", "#", "Username", RESERVATIONS_COLUMNS["resv_raw"], "Location",
+           RESERVATIONS_COLUMNS["r1_owner"], RESERVATIONS_COLUMNS["r1_model"]]
+    rows = [hdr, ["", "1", "quitter", "3/7/2024", "CA", "No", ""],
+            ["", "2", "holder", "3/7/2024", "TX", "No", ""]]
     out = _io.StringIO()
-    csv.writer(out).writerows([[""] * 5, ["", "", "Tracker Form"]] + rows)
+    csv.writer(out).writerows([[""] * 7, ["", "", "Tracker Form"]] + rows)
     text = out.getvalue()
 
     # Baseline: nobody ordered, so both are outstanding reservations.

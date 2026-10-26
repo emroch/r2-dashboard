@@ -76,7 +76,7 @@ tests/              unit tests: test_parsing.py, test_aggregates.py, test_specs.
 tools/              maintenance scripts (migrate_curation.py: overrides.yaml to v3 + canonical form/sort; rerunnable)
 ```
 
-The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), drops reservation-holders who have already ordered, writes a tidy CSV, and builds the interactive dashboard (HTML components, plus charts the browser draws with d3).
+The package pulls **two live Google Sheets** (an orders/deliveries tracker and a separate reservations-only tracker) via their CSV export endpoints, cleans them (dedup, VIN recovery, date normalization, geo enrichment), fills an order's blank reservation date, location and R1 answers from the holder's row in the reservations sheet, drops reservation-holders who have already ordered, writes a tidy CSV, and builds the interactive dashboard (HTML components, plus charts the browser draws with d3).
 
 ## Working with the data
 
